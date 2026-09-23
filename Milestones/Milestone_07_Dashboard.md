@@ -5,7 +5,7 @@
 > **Timeframe:** Weeks 5–6 *(runs concurrently with `M5` and `M6`)*
 > **Depends on:** `M2` *(telemetry shape)*; consumes `M5`/`M6` output at the `M8` seam
 > **Description:**
-> Build the CloudSentinel web interface — an **SRE/operations console**, not a generic chatbot (§14): live KPIs (requests, error rate, p95, incident count), per-service health, and an active-incident panel showing the ML classification (with confidence) and the Bedrock diagnosis side-by-side with ground truth. Under the capability split this is a **1–2 person track**: **Linu owns the frontend** (freed from service work), and **Jake supplies the thin read API** it consumes (small; can slip into early M8 if ML infra runs long). It develops against mock data so it's not blocked on M5/M6, then switches to the live feed in M8.
+> Build the AnomalyPulse web interface — an **SRE/operations console**, not a generic chatbot (§14): live KPIs (requests, error rate, p95, incident count), per-service health, and an active-incident panel showing the ML classification (with confidence) and the Bedrock diagnosis side-by-side with ground truth. Under the capability split this is a **1–2 person track**: **Linu owns the frontend** (freed from service work), and **Jake supplies the thin read API** it consumes (small; can slip into early M8 if ML infra runs long). It develops against mock data so it's not blocked on M5/M6, then switches to the live feed in M8.
 
 ## Assignment summary
 - **Linu** — Dashboard frontend (SRE console): KPI tiles, service health, active-incident + AI-diagnosis panel, ground-truth comparison

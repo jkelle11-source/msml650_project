@@ -8,3 +8,5 @@ To collect logs, we will use CloudWatch. In order to store telemetry,  Amazon S3
 The collected telemetry will be used for the machine learning model to classify the various types of incidents.
 In order generate a readable metrics of the incidents, we will be using Bedrock. 
 Lastly, we will test our system with traffic spickes, slowdowns and dependency errors. 
+
+651414516718

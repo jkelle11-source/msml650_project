@@ -73,7 +73,7 @@
 - **Blocked by:** `M9-1`, `M9-2`
 - **Blocks:** —
 
-**Context.** Assemble the "is this real?" argument: ML vs the threshold floor, and the generalization case with its explicit limits. This is the section that separates CloudSentinel from "an LLM reads logs."
+**Context.** Assemble the "is this real?" argument: ML vs the threshold floor, and the generalization case with its explicit limits. This is the section that separates AnomalyPulse from "an LLM reads logs."
 
 **Deliverables**
 - Threshold-baseline metrics reported **beside** every ML metric; margin called out, especially on cascades.

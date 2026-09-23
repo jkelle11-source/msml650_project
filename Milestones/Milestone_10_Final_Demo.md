@@ -70,7 +70,7 @@
 - **Blocked by:** `M10-2`
 - **Blocks:** —
 
-**Context.** The segment where CloudSentinel detects and classifies the injected incident, then reveals prediction-vs-ground-truth (§15 Part 3) — the quantitative punchline.
+**Context.** The segment where AnomalyPulse detects and classifies the injected incident, then reveals prediction-vs-ground-truth (§15 Part 3) — the quantitative punchline.
 
 **Deliverables**
 - Live detection + classification shown with confidence for the DB-throttling incident.

@@ -1,4 +1,4 @@
-# CloudSentinel
+# AnomalyPulse
 ## Serverless AI-Powered Incident Detection and Root-Cause Analysis
 
 ### Project Concept
@@ -7,7 +7,7 @@
 
 > Can a serverless AI system automatically detect, classify, and diagnose failures in a distributed cloud application using application telemetry?
 
-CloudSentinel is a proposed cloud-computing project for a five-person team. The system will monitor a small serverless e-commerce application, detect abnormal behavior using machine learning, and use generative AI to explain incidents and recommend remediation.
+AnomalyPulse is a proposed cloud-computing project for a five-person team. The system will monitor a small serverless e-commerce application, detect abnormal behavior using machine learning, and use generative AI to explain incidents and recommend remediation.
 
 The project combines:
 
@@ -105,7 +105,7 @@ The goal is to make this a **cloud-computing project with meaningful AI**, rathe
                          │
                          ▼
                   ┌──────────────┐
-                  │ CloudSentinel│
+                  │ AnomalyPulse│
                   │   Dashboard  │
                   └──────────────┘
 ```
@@ -304,7 +304,7 @@ Traffic increases further
      └───────────────► feedback loop
 ```
 
-This gives CloudSentinel an opportunity to reason about correlated signals rather than simply applying individual threshold rules. Note that early cascade windows are labeled by their observable single fault per the Window Labeling Policy (Section 3); `CASCADING_FAILURE` applies only once two or more faults are concurrently active.
+This gives AnomalyPulse an opportunity to reason about correlated signals rather than simply applying individual threshold rules. Note that early cascade windows are labeled by their observable single fault per the Window Labeling Policy (Section 3); `CASCADING_FAILURE` applies only once two or more faults are concurrently active.
 
 ---
 
@@ -712,7 +712,7 @@ This is a potential stretch goal — and one of the better-justified ones. Becau
 
 Create a knowledge base containing:
 
-- CloudSentinel troubleshooting guides
+- AnomalyPulse troubleshooting guides
 - Internal runbooks
 - Historical incidents
 - Architecture documentation
@@ -826,7 +826,7 @@ Conceptual design:
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│ CLOUDSENTINEL                              ● SYSTEM HEALTHY │
+│ AnomalyPulse                              ● SYSTEM HEALTHY │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │ REQUESTS       ERROR RATE       P95 LATENCY     INCIDENTS   │
@@ -911,7 +911,7 @@ Lambda latency ↑
 API 5xx ↑
 ```
 
-CloudSentinel detects the incident.
+AnomalyPulse detects the incident.
 
 Dashboard:
 
@@ -973,7 +973,7 @@ Retries
 More traffic
 ```
 
-CloudSentinel should identify the incident and **narrate the correlated signals** in the order they were observed. The narrated ordering comes from correlated timestamps across services, not from causal inference by the LLM — the demo caption should make this explicit so the audience does not read the narration as proven causation.
+AnomalyPulse should identify the incident and **narrate the correlated signals** in the order they were observed. The narrated ordering comes from correlated timestamps across services, not from causal inference by the LLM — the demo caption should make this explicit so the audience does not read the narration as proven causation.
 
 ---
 
@@ -993,7 +993,7 @@ Measure:
 
 Question:
 
-> Did CloudSentinel correctly identify anomalous behavior?
+> Did AnomalyPulse correctly identify anomalous behavior?
 
 ## Classification
 
@@ -1006,7 +1006,7 @@ Measure:
 
 Question:
 
-> Did CloudSentinel identify the correct incident type?
+> Did AnomalyPulse identify the correct incident type?
 
 ## Operational Performance
 
@@ -1054,7 +1054,7 @@ Report the following to demonstrate that results generalize across the held-out 
 - The extreme-extrapolation stress slice reported **separately** from the core generalization metrics.
 - Confounder accuracy: how often the classifier correctly handles co-occurring incidents that are not labeled as cascading failures.
 
-These results, taken together, allow us to argue that CloudSentinel generalizes across held-out regions of the simulator's parameter space rather than fitting a fixed set of simulator configurations.
+These results, taken together, allow us to argue that AnomalyPulse generalizes across held-out regions of the simulator's parameter space rather than fitting a fixed set of simulator configurations.
 
 ---
 
@@ -1277,7 +1277,7 @@ Add Bedrock for:
 
 ## Milestone 7 — Dashboard
 
-Build the CloudSentinel web interface.
+Build the AnomalyPulse web interface.
 
 ---
 
@@ -1336,14 +1336,14 @@ This separation makes the project substantially stronger than a generic "LLM rea
 
 # 21. Potential Project Title
 
-### CloudSentinel
+### AnomalyPulse
 **Serverless AI-Powered Incident Detection and Root-Cause Analysis**
 
 Alternative titles:
 
-- CloudSentinel: Intelligent Observability for Serverless Applications
-- CloudSentinel: ML-Based Anomaly Detection and GenAI Incident Diagnosis
-- CloudSentinel: An AI-Powered Serverless SRE Platform
+- AnomalyPulse: Intelligent Observability for Serverless Applications
+- AnomalyPulse: ML-Based Anomaly Detection and GenAI Incident Diagnosis
+- AnomalyPulse: An AI-Powered Serverless SRE Platform
 
 ---
 
@@ -1351,7 +1351,7 @@ Alternative titles:
 
 A concise version for the team:
 
-> **CloudSentinel is a serverless AI-powered observability platform that monitors a distributed e-commerce application, detects anomalous behavior using machine learning, classifies the underlying incident, and uses generative AI to explain the likely root cause and recommend remediation.**
+> **AnomalyPulse is a serverless AI-powered observability platform that monitors a distributed e-commerce application, detects anomalous behavior using machine learning, classifies the underlying incident, and uses generative AI to explain the likely root cause and recommend remediation.**
 >
 > We will intentionally inject known failures into the application to create a labeled dataset, allowing us to quantitatively evaluate detection and classification performance. The system will demonstrate AWS serverless architecture, event-driven processing, NoSQL data modeling, ML deployment, generative AI, observability, fault tolerance, and cloud cost/performance considerations.
 
