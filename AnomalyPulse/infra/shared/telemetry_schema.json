@@ -21,7 +21,7 @@
     },
 
     "tier1_observable": {
-        "_note": "Things a areal monitoring system could see WITHOUT knowing the cause. Aggregate before using for model training.",
+        "_note": "Things a real monitoring system could see WITHOUT knowing the cause. Aggregate before using for model training.",
         "status_code": {"type": "integer", "example": 500},
         "latency_ms": {"type": "number", "note": "End-to-end wall clock time for the request as seen by the handler."},
         "lambda_duration_ms": {"type": "number", "note": "Compute time of the Lambda body itself."},
@@ -36,7 +36,7 @@
     "tier2_ground_truth": {
         "_note": "FORBIDDEN as features and NEVER emitted on the request path. Used ONLY for labeling/evaluation.",
         "error_type": {"type": "string", "example": "DynamoDBThrottle", "note": "Encodes the cause. Diagnostic only."},
-        "db_throttled": {"type": "boolean", "note": "This is NOT the observable ThrottledRequests COUNT from CloudWatch, aggregated over window of time."},
+        "db_throttled": {"type": "boolean", "note": "Distinct from the observable CloudWatch ThrottledRequests COUNT, a legitimate Tier-1 aggregate."},
         "incident_type": {"type": "string", "enum": ["NORMAL", "TRAFFIC_SPIKE", "DATABASE_THROTTLING", "LAMBDA_DEGRADATION", "DEPENDENCY_FAILURE", "CASCADING_FAILURE"], "note": "The classification label"},
         "severity": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"]},
         "fault_injection_params": {"type": "object", "note": "The exact knobs the simulator set for this experiment (intensity, multiplier, added latency, etc.)."}
