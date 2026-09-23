@@ -37,7 +37,7 @@ A few ideas make everything below click. Skip if you already know them.
 
 **Parameter Store is the shared address book.** Instead of me emailing you the API's URL and ID (which change every time I redeploy), I publish them to **AWS Systems Manager Parameter Store**. Your code looks them up by a fixed name. You never hardcode a URL or ID — you look it up. This is how your stack "finds" my building.
 
-**SAM is the tool that turns a YAML file into real AWS resources.** You write a `template.yaml` describing what you want; `sam deploy` makes it real. You already have SAM installed.
+**SAM is the tool that turns a YAML file into real AWS resources.** You write a `template.yaml` describing what you want; `sam deploy` makes it real.
 
 ---
 
@@ -155,27 +155,31 @@ Both return `HTTP/2 501` with this body:
 {"data": null, "error": {"code": "NOT_IMPLEMENTED", "message": "Route not yet wired"}}
 ```
 
-That's correct and expected. Every path — real or made-up — hits a single catch-all stub until you attach your real routes. The moment you do, *your* specific route takes over and everything else keeps returning 501.
+That's correct and expected. Every path — real or made-up — hits a single catch-all stub until you attach your real routes. The moment you do, *your* specific route takes over and everything else keeps returning 501. (Region is **us-east-2**. If a command says "no credentials" or "invalid token," see §3.)
 
 ---
 
 ## 5. Getting started: branch and set up your service folder
 
-**Wait until M1-1 is merged into `main` before you start.** That merge is what puts the shared stack, this handoff, and the shared contracts into `main` for you to build against. (The API itself is already live and reachable now — but pull from `main` so you're working from the agreed contracts, not a moving target.)
+> **IMPORTANT:** Anywhere below you see a placeholder in `<ALL_CAPS_ANGLE_BRACKETS>`, replace it with your own value — the `# e.g.` comment beside it shows a real example. Lines or values marked **FIXED** are shared contract: copy them **exactly**, don't change them. One gotcha: `AWS::SSM::Parameter::Value<String>` has angle brackets that are *real AWS syntax*, **not** a placeholder — leave that one exactly as written.
 
-We're using **branch-per-ticket**: each of you works on your own ticket branch and merges back to `main` when the ticket is done. Once M1-1 is in `main`:
+**Wait until M1-1 is merged into `main` before you start.** 
+
+We're using **branch-per-ticket**: each of us works on our own ticket branch and merges back to `main` when the ticket is done. 
+
+Once M1-1 is in `main`:
 
 ```bash
 git checkout main
-git pull                      # get the merged shared stack + this doc + contracts
-git checkout -b m1-2-<YOUR NAME>  # your ticket branch: <ticket>-<name>
+git pull                             # get the merged shared stack + this doc + contracts
+git checkout -b <TICKET>-<NAME>   # e.g. m1-1-jake
 ```
 
 Then create **your** service's folder under `infra/` and do all your work there:
 
 ```bash
-mkdir -p msml650_project/AnomalyPulse/infra/<YOUR SERVICE>        # one folder per service
-cd msml650_project/AnomalyPulse/infra/<YOUR SERVICE> 
+mkdir -p infra/<SERVICE>             # e.g. infra/product  — one folder per service
+cd infra/<SERVICE>
 ```
 
 Your folder sits **alongside** `infra/shared/` (my stack) — you're adding a new, separate stack next to mine, never editing mine. When your ticket meets its Definition of Done, open a PR and merge to `main`.
@@ -195,71 +199,73 @@ AnomalyPulse/infra/
 
 Your job in M1 is: create a Lambda, and attach your routes to the **shared** API by looking up its ID. You never edit my stack.
 
-### 6a. Minimal working example
+### 6a. Fill-in template
 
-Here's a complete `infra/product/template.yaml` that stands up the two Product routes returning stub data. Copy the shape; swap in your own service name and routes.
+Here's a complete `infra/<SERVICE>/template.yaml`. Replace every `<ALL_CAPS>` placeholder with your own value; leave the **FIXED** lines exactly as written.
 
 ```yaml
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Product service (M1-2)
+Description: <SERVICE> service (<TICKET>)              # e.g. Product service (M1-2)
 
 Parameters:
-  # This looks up the shared API's ID from Parameter Store automatically.
+  # FIXED — looks up the shared API's ID from Parameter Store. Copy exactly.
   SharedApiId:
-    Type: AWS::SSM::Parameter::Value<String>
-    Default: /anomalypulse/api/rest-api-id
+    Type: AWS::SSM::Parameter::Value<String>          # <String> is real AWS syntax — leave it
+    Default: /anomalypulse/api/rest-api-id            # FIXED
 
 Resources:
-  ProductFunction:
+  <SERVICE>Function:                                  # e.g. ProductFunction
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: anomalypulse-product      # naming convention — see §7
+      FunctionName: anomalypulse-<SERVICE>            # e.g. anomalypulse-product
       Runtime: python3.12
       Handler: index.handler
       Timeout: 10
       InlineCode: |
         import json
         def handler(event, context):
-            # Stub for now. Real DynamoDB code comes once the table + role land (§9).
+            # Stub for now — return your own data in "data" below.
+            # Real DynamoDB code comes once the table + role land (§9).
             return {
                 "statusCode": 200,
                 "headers": {"Content-Type": "application/json"},
                 "body": json.dumps({"data": [], "error": None}),
             }
       Events:
-        ListProducts:
+        <ROUTE_NAME>:                                 # e.g. ListProducts
           Type: Api
           Properties:
-            RestApiId: !Ref SharedApiId       # <-- attaches to the SHARED api
-            Path: /products
-            Method: GET
-        GetProduct:
-          Type: Api
-          Properties:
-            RestApiId: !Ref SharedApiId
-            Path: /products/{id}
-            Method: GET
+            RestApiId: !Ref SharedApiId               # FIXED — this is what attaches you to the shared API
+            Path: <ROUTE_PATH>                        # your route from §7; e.g. /products
+            Method: <METHOD>                          # e.g. GET
+        # Add one event block per route you own (see §7). Example second route:
+        #   <ROUTE_NAME_2>:            # e.g. GetProduct
+        #     Type: Api
+        #     Properties:
+        #       RestApiId: !Ref SharedApiId           # FIXED
+        #       Path: <ROUTE_PATH_2>                  # e.g. /products/{id}
+        #       Method: <METHOD_2>                    # e.g. GET
 ```
 
-**The one line that matters:** `RestApiId: !Ref SharedApiId`. That's what plugs your route into the shared building instead of creating a new one.
+**The one line that matters:** `RestApiId: !Ref SharedApiId` (FIXED). That's what plugs your route into the shared building instead of creating a new one.
 
 ### 6b. Deploy it as your own stack
 
 ```bash
-cd infra/product
+cd infra/<SERVICE>          # e.g. infra/product
 sam build
 sam deploy --guided
 ```
 
 At the prompts:
-- **Stack name:** `anomalypulse-product` (your service — **not** `anomalypulse-shared`, that's mine)
+- **Stack name:** `anomalypulse-<SERVICE>` (e.g. `anomalypulse-product`) — your service, **not** `anomalypulse-shared`, that's mine
 - **Region:** `us-east-2`
 - **Allow SAM CLI IAM role creation:** `Y`
-- **Disable rollback:** `N` ← (say **no**; "yes" leaves broken half-deployments lying around)
-- **"…has no authentication. Is this okay?":** `Y` (auth is a stretch goal, not now)
+- **Disable rollback:** `N`
+- **"…has no authentication. Is this okay?":** `Y`
 - **Save arguments to config file:** `Y`
-- The last two prompts (config file name, environment) — just press **Enter** to accept the defaults. Don't type `y` — those aren't yes/no questions, they're asking for a filename.
+- The last two prompts (config file name, environment) — just press **Enter** to accept the defaults. 
 
 Future deploys are just `sam deploy` (no `--guided`).
 
@@ -267,8 +273,8 @@ Future deploys are just `sam deploy` (no `--guided`).
 
 ```bash
 API=$(aws ssm get-parameter --name /anomalypulse/api/base-url --query Parameter.Value --output text)
-curl -i $API/products      # should now be 200 with your data
-curl -i $API/cart          # still 501 — not your route, still the catch-all
+curl -i $API/<YOUR_ROUTE>     # e.g. /products — should now be 200 with your data
+curl -i $API/<OTHER_ROUTE>    # e.g. /cart — a route you don't own, still 501 (the catch-all)
 ```
 
 ### 6d. ⚠️ If your new route still returns 501 after deploying
@@ -290,7 +296,7 @@ Your `/products` is a **specific** route. My catch-all is `/{proxy+}`, a **greed
 
 ## 7. Contracts you must follow
 
-These keep five people's code compatible. A couple are still being finalized (marked 🚧) — flag disagreements at kickoff **before** you write a Lambda.
+These keep five people's code compatible. A couple are still being finalized (marked 🚧) — flag disagreements at kickoff **before** you write a Lambda. **Everything in this section is FIXED contract** — the placeholders here show *which* value is yours, but the shapes and names around them don't change.
 
 ### API response envelope (🚧 ratify at kickoff)
 
@@ -298,18 +304,18 @@ Every endpoint returns the same shape, so callers can rely on it:
 
 ```json
 // success
-{ "data": <your payload>, "error": null }
+{ "data": <YOUR_PAYLOAD>, "error": null }
 
 // error
-{ "data": null, "error": { "code": "SOME_CODE", "message": "human readable" } }
+{ "data": null, "error": { "code": "<ERROR_CODE>", "message": "<HUMAN_READABLE>" } }
 ```
 
 Return structured errors, **not** stack traces. This is what lets Melisa's Order service stub Rachel's Payment call before Payment is finished.
 
 ### Naming conventions (please follow exactly)
 
-- **Lambda function names:** `anomalypulse-<service>` → `anomalypulse-product`, `anomalypulse-cart`, `anomalypulse-order`, `anomalypulse-payment`.
-- **Route paths (agree these at kickoff so nobody writes `/product` vs `/products`):**
+- **Lambda function names:** `anomalypulse-<SERVICE>` → `anomalypulse-product`, `anomalypulse-cart`, `anomalypulse-order`, `anomalypulse-payment`. (The `anomalypulse-` prefix is FIXED; only `<SERVICE>` changes.)
+- **Route paths (FIXED — agree these at kickoff so nobody writes `/product` vs `/products`):**
   - Product: `GET /products`, `GET /products/{id}`
   - Cart: `POST /cart`, `GET /cart/{user}`, `DELETE /cart/{user}/{item}`
   - Order: `POST /orders`, `GET /orders/{id}`
@@ -329,7 +335,7 @@ Every service logs a structured JSON line per request (same fields everywhere). 
 
 Everyone: do §3 (access) → §5 (branch + folder) → §6 (scaffold + attach + stub data). Then:
 
-- **Josh — Product (M1-2).** Two GET routes. Highest-traffic service. Depends only on the shared stack. Use the §6a example almost as-is. You'll also own load generation later, so clean structure here pays off.
+- **Josh — Product (M1-2).** Two GET routes. Highest-traffic service. Depends only on the shared stack. Use the §6a template with `<SERVICE>`=`product`. You'll also own load generation later, so clean structure here pays off.
 - **Linu — Cart (M1-3).** Three routes including a `DELETE`. Fully independent (Cart calls no one). Cover edge cases (empty cart, item not found) with proper error envelopes.
 - **Melisa — Order (M1-4).** Two routes, the most connected service — it calls Payment. You need Rachel's Payment stub to exist to finish your end-to-end test. Populate the `dependency_*` fields from the Payment call; those become the raw signal for dependency-failure detection later.
 - **Rachel — Payment (M1-5).** One route **plus** the fault-injection knobs (`PAYMENT_LATENCY_MS`, `PAYMENT_FAILURE_RATE`, `PAYMENT_TIMEOUT`) that the incident simulator drives in M3. Ship a hardcoded-success stub in the first few hours to unblock Melisa, then build the configurable version.
@@ -352,25 +358,25 @@ These are in progress and will be **added to the same shared stack**, then annou
 
 ```yaml
 Parameters:
-  SharedApiId:
+  SharedApiId:                                        # FIXED
     Type: AWS::SSM::Parameter::Value<String>
     Default: /anomalypulse/api/rest-api-id
   ServiceRoleArn:
     Type: AWS::SSM::Parameter::Value<String>
-    Default: /anomalypulse/iam/product-role-arn     # your service's role
-  ProductsTableName:
+    Default: /anomalypulse/iam/<SERVICE>-role-arn     # e.g. /anomalypulse/iam/product-role-arn
+  ServiceTableName:
     Type: AWS::SSM::Parameter::Value<String>
-    Default: /anomalypulse/tables/products/name
+    Default: /anomalypulse/tables/<TABLE>/name        # e.g. /anomalypulse/tables/products/name
 
 Resources:
-  ProductFunction:
+  <SERVICE>Function:                                  # e.g. ProductFunction
     Type: AWS::Serverless::Function
     Properties:
       # ...everything from §6a, plus:
-      Role: !Ref ServiceRoleArn
+      Role: !Ref ServiceRoleArn                       # FIXED ref to the param above
       Environment:
         Variables:
-          TABLE_NAME: !Ref ProductsTableName
+          TABLE_NAME: !Ref ServiceTableName           # FIXED ref to the param above
 ```
 
 Until then: scaffold, wire routes, return stub data. You lose nothing by starting now.
@@ -383,7 +389,7 @@ Until then: scaffold, wire routes, return stub data. You lose nothing by startin
 |---|---|---|
 | `InvalidClientTokenId` / `security token is invalid` | SSO session expired, or wrong profile | `aws sso login --profile admin` then `export AWS_PROFILE=admin` (§3) |
 | `Unable to locate credentials` | No profile set in this terminal | `export AWS_PROFILE=admin` |
-| `Template file not found` | Running `sam` from the wrong folder | `cd` into the folder with `template.yaml`, or `sam build -t path/to/template.yaml` |
+| `Template file not found` | Running `sam` from the wrong folder | `cd` into the folder with `template.yaml`, or `sam build -t <PATH>/template.yaml` |
 | Deploy fails with a profile-not-found | `samconfig.toml` references a profile you deleted/renamed | Edit `samconfig.toml` or re-run `sam deploy --guided` |
 | Your new route still returns 501 | API stage needs a redeploy | Run the `create-deployment` command in §6d |
 | Deploy stuck / half-created after a failure | "Disable rollback" was set to yes | Delete the stack in the CloudFormation console, redeploy with rollback enabled (answer `N`) |
@@ -397,10 +403,10 @@ Until then: scaffold, wire routes, return stub data. You lose nothing by startin
 
 - [ ] `~/.aws/config` has the `admin` + `dev` profiles (§3)
 - [ ] `aws sso login --profile admin` + `export AWS_PROFILE=admin` works; `aws sts get-caller-identity` returns your identity
-- [ ] M1-1 merged to `main`; pulled `main`, created your ticket branch (e.g. `m1-2-product`)
-- [ ] Service folder created under `infra/<service>/` + `template.yaml` scaffolded (§5–§6)
-- [ ] Your routes attach to the shared API via `RestApiId: !Ref SharedApiId`
-- [ ] Deployed as your **own** stack (`anomalypulse-<service>`), your routes return 200 stub data, other routes still 501
+- [ ] M1-1 merged to `main`; pulled `main`, created your ticket branch `<TICKET>-<SERVICE>` (e.g. `m1-2-product`)
+- [ ] Service folder created under `infra/<SERVICE>/` + `template.yaml` scaffolded (§5–§6)
+- [ ] Your routes attach to the shared API via `RestApiId: !Ref SharedApiId` (FIXED — copied exactly)
+- [ ] Deployed as your **own** stack (`anomalypulse-<SERVICE>`), your routes return 200 stub data, other routes still 501
 - [ ] Following the response-envelope and naming conventions (§7)
 - [ ] (Rachel) hardcoded-success Payment stub shipped early; Melisa confirmed unblocked
 - [ ] (When published) swapped stub for real DynamoDB using your role + table name (§9)
