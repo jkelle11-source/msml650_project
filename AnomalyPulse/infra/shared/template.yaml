@@ -35,6 +35,46 @@ Resources:
             Path: /{proxy+}
             Method: ANY
   
+  ProductsTable:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      TableName: anomalypulse-products
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH         # HASH = partition key
+  
+  CartsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: anomalypulse-carts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+        - AttributeName: item_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH         # partition key: one user...
+        - AttributeName: item_id
+          KeyType: RANGE        # RANGE = sort key: ... many items
+  
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: anomalypulse-orders
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: order_id
+          AttributeType: S
+      KeySchema: 
+        - AttributeName: order_id
+          KeyType: HASH
+  
   SsmApiUrl: 
     Type: AWS::SSM::Parameter
     Properties:
