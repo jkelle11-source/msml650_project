@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AnomalyPulse shared infrastructure - API skeleton (M1-1)
+
+Resources:
+  RestApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: anomalypulse-api
+      StageName: dev
+  
+  StubFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: anomalypulse-stub-501
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 5
+      InlineCode: |
+        import json
+        def handler(event, context):
+          return {
+            'statusCode': 501,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({'data': None,
+                                'error': {'code': 'NOT_IMPLEMENTED',
+                                          'message': 'Route not yet wired'}}),
+                          
+          }
+      Events:
+        CatchAll:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RestApi
+            Path: /{proxy+}
+            Method: ANY
+  
+  SsmApiUrl: 
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /anomalypulse/api/base-url
+      Type: String
+      Value: !Sub 'https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/dev'
+  SsmApiId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /anomalypulse/api/rest-api-id
+      Type: String
+      Value: !Ref RestApi
+  SsmRootRes:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /anomalypulse/api/root-resource-id
+      Type: String
+      Value: !GetAtt RestApi.RootResourceId
