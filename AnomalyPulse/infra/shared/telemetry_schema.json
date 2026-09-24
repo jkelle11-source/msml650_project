@@ -1,0 +1,44 @@
+{
+    "schema_version": "1.0",
+    "frozen_in": "M1-1",
+    "description": "Per-request structured log line emitted by every AnomalyPulse service.",
+    "emission_rules": [
+        "Every service emits exactly one JSON log line per request.",
+        "Every correlation and tier1_observable field is always present.",
+        "If a field does not apply to a service, emit it as null. Never omit it.",
+        "tier2_ground_truth fields are NEVER emitted on the request path, only by the incident simulator.",
+        "tier2_ground_truth fields are joined to telemetry data by request_id and timestamp for labeling and evaluation ONLY.",
+        "The feature-engineering build guard must fail the build if any tier2_ground_truth field name appears in training data."
+    ],
+
+    "correlation": {
+        "_note": "Identity and timing. Emitted by every service. Used for window agg and ordering ONLY, NOT model training.",
+        "timestamp": {"type": "string", "format": "UTC date-time", "precision": "milliseconds", "example": "2026-09-14T15:42:18.123Z" },
+        "request_id": {"type": "string", "example": "abc123" },
+        "service": {"type": "string", "enum": ["product-service", "cart-service", "order-service", "payment-service"] },
+        "endpoint": {"type": "string", "example": "/orders" },
+        "http_method": {"type": "string", "enum": ["GET", "POST", "DELETE"], "example": "POST" }
+    },
+
+    "tier1_observable": {
+        "_note": "Things a real monitoring system could see WITHOUT knowing the cause. Aggregate before using for model training.",
+        "status_code": {"type": "integer", "example": 500},
+        "latency_ms": {"type": "number", "note": "End-to-end wall clock time for the request as seen by the handler."},
+        "lambda_duration_ms": {"type": "number", "note": "Compute time of the Lambda body itself."},
+        "cold_start": {"type": "boolean", "note": "True if this invocation paid a cold-start penalty."},
+        "db_latency_ms": {"type": ["number", "null"], "note": "DynamoDB call time. Null for services that make no DB call (Payment)."},
+        "db_consumed_capacity": {"type": ["number", "null"], "note": "DynamoDB consumed capacity units for this request. Null when no DB call."},
+        "dependency": {"type": ["string", "null"], "example": "payment-service", "note": "Downstream service called. Null when none (Product, Cart, Payment)."},
+        "dependency_latency_ms": {"type": ["number", "null"], "note": "Measured call time to the dependency. Null when none (Product, Cart, Payment)."},
+        "dependency_error": {"type": ["boolean", "null"], "note": "True if dependency call failed or timed out."}
+    },
+
+    "tier2_ground_truth": {
+        "_note": "FORBIDDEN as features and NEVER emitted on the request path. Used ONLY for labeling/evaluation.",
+        "error_type": {"type": "string", "example": "DynamoDBThrottle", "note": "Encodes the cause. Diagnostic only."},
+        "db_throttled": {"type": "boolean", "note": "Distinct from the observable CloudWatch ThrottledRequests COUNT, a legitimate Tier-1 aggregate."},
+        "incident_type": {"type": "string", "enum": ["NORMAL", "TRAFFIC_SPIKE", "DATABASE_THROTTLING", "LAMBDA_DEGRADATION", "DEPENDENCY_FAILURE", "CASCADING_FAILURE"], "note": "The classification label"},
+        "severity": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"]},
+        "fault_injection_params": {"type": "object", "note": "The exact knobs the simulator set for this experiment (intensity, multiplier, added latency, etc.)."}
+    }
+}
