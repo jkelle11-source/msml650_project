@@ -217,4 +217,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# AWS SAM build artifacts
+.aws-sam/
+
 .DS_Store
