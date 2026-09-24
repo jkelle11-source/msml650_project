@@ -1,33 +1,10 @@
 # M1-1 Handoff — Shared Infrastructure & API Gateway
 
-**From:** Jake
-**Milestone:** M1-1 (Shared infrastructure & API Gateway skeleton) — ✅ **complete**
-**Who this is for:** Josh (Product), Linu (Cart), Melisa (Order), Rachel (Payment) — and anyone new to AWS.
-
-> **The one-sentence version:** There is one live API Gateway that everybody's service plugs into. It answers `501 Not Implemented` on every route until *you* wire your service to *your* routes — and you do that from your own separate deployment without ever touching my code. The tables and IAM roles your service needs are already live too, so you can build all the way to real data in one pass.
+> **The one-sentence version:** There is one live API Gateway that everybody's service plugs into. It answers `501 Not Implemented` on every route until *you* wire your service to *your* routes — and you do that from your own separate deployment without ever touching my code. The tables and IAM roles your service needs are already live too, so you can build all the way to real data in one pass. Everything the shared stack provides is **live** in `us-east-2` (stack `anomalypulse-shared`). 
 
 ---
 
-## 1. Status at a glance
-
-Everything the shared stack provides is **live** in `us-east-2` (stack `anomalypulse-shared`). Nothing below is waiting on Jake.
-
-| Thing | Status | Where |
-|---|---|---|
-| Shared API Gateway (REST API) | ✅ Live | Parameter Store (§4) |
-| Catch-all `501` on every route | ✅ Live | Try it: §4 |
-| API ID / URL / root-resource-id published | ✅ Live | Parameter Store (§4) |
-| DynamoDB tables (Products / Carts / Orders) | ✅ Live | §7 |
-| Per-service IAM roles | ✅ Live | §7 |
-| `telemetry_schema.json` (Tier-1/Tier-2) | ✅ Committed | §6 |
-| Branch + folder workflow | ✅ Ready | §5 |
-| "Attach your service" pattern | ✅ Proven & documented | §6 |
-
-**What this means for you:** you can go end to end today — set up AWS access, scaffold your service, attach your routes to the live API, and read/write your real DynamoDB table. A repo-wide reference for every shared resource is in the root [README](../README.md#shared-infrastructure-reference); this doc is the step-by-step.
-
----
-
-## 2. Mental model (read this if you're new to AWS)
+## 1. Mental model (read this if you're new to AWS)
 
 A few ideas make everything below click. Skip if you already know them.
 
@@ -154,7 +131,7 @@ The full list, and what each value is for, is in the [README's shared-infrastruc
 
 > **IMPORTANT:** Anywhere below you see a placeholder in `<ALL_CAPS_ANGLE_BRACKETS>`, replace it with your own value — the `# e.g.` comment beside it shows a real example. Lines or values marked **FIXED** are shared contract: copy them **exactly**, don't change them. One gotcha: `AWS::SSM::Parameter::Value<String>` has angle brackets that are *real AWS syntax*, **not** a placeholder — leave that one exactly as written.
 
-We're using **branch-per-ticket**: each of us works on our own ticket branch and merges back to `main` when the ticket is done. Once M1-1 is in `main` (ask Jake if unsure):
+We're using **branch-per-ticket**: each of us works on our own ticket branch and merges back to `main` when the ticket is done. Once M1-1 is in `main`:
 
 ```bash
 git checkout main
@@ -350,7 +327,15 @@ Return structured errors, **not** stack traces. This is what lets Melisa's Order
 Every service logs a structured JSON line per request, with the **same fields everywhere**. The field list is frozen in [`AnomalyPulse/infra/shared/telemetry_schema.json`](../AnomalyPulse/infra/shared/telemetry_schema.json). Full instrumentation is **M2**, not M1 — but build to these field names now so services don't diverge. Two rules to internalize:
 
 - Every log line carries a **millisecond timestamp** and a **`request_id`**, and Order passes its `request_id` down to Payment so a single request can be traced across services.
-- **Two tiers of fields, and they never mix.** *Tier-1* = things a monitoring system can observe (latency, status codes, request rate…). *Tier-2* = things that reveal the *cause* of a failure (e.g. `error_type`, `db_throttled`). **Never emit a Tier-2 field from a service.** This protects the ML later — the schema file marks exactly which is which.
+- **Two tiers of fields, and they never mix.** *Tier-1* = things a monitoring system can observe (latency, status codes, request rate…). *Tier-2* = things that reveal the *cause* of a failure (e.g. `error_type`, `db_throttled`). **Never emit a Tier-2 field from a service.** This protects the ML from data leakage and is *crucial* — the schema file marks exactly which is which.
+
+### Special case — Payment is a simulator, not a real processor
+
+Payment (Rachel, M1-5) is different from the other three services, so read this before wiring it. There is **no real payment processor and no DynamoDB table** anywhere in this project — Payment exists to *simulate* payment outcomes so the incident simulator (M3) can inject failures through it. Its configurable behavior **is** the deliverable, not a placeholder for something built later.
+
+- **No table.** In the §6a template, delete the `ServiceTableName` parameter and the `TABLE_NAME` env var. Keep only the `SharedApiId` and `ServiceRoleArn` references. Payment's role is logs-only (it stores nothing).
+- **The three fault-injection knobs are env vars that default to off/normal:** `PAYMENT_LATENCY_MS` (artificial delay), `PAYMENT_FAILURE_RATE` (0.0–1.0 probability of a failure response), `PAYMENT_TIMEOUT` (hang long enough to trip the caller). The default deploy simply approves every payment; M3 turns these up to inject dependency-failure and Lambda-slowdown incidents. Ship a hardcoded-success version first to unblock Melisa, then add the knobs.
+- **Payment's telemetry stays Tier-1.** The injected delay is a Tier-2 fault-injection parameter, so it must **not** appear in Payment's log line. Payment emits only observable fields — and its `latency_ms` already reflects any injected slowdown, which is exactly the signal the ML should see *without being told the cause*. The injected value itself is recorded separately by the simulator's experiment manifest (M3/M4) for labeling, never by the service. (So "record the injected delay distinctly," which the M1-5 ticket mentions, is the *simulator's* job later — not something Payment writes into its telemetry.)
 
 ---
 

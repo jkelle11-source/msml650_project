@@ -39,43 +39,24 @@ route currently answers `501 Not Implemented` until the service behind it is wir
 | Path | What's there |
 |---|---|
 | [Docs/PROJECT_PLAN.md](Docs/PROJECT_PLAN.md) | The full project plan and design spec — source of truth for all design decisions. |
+| [Docs/Summary.md](Docs/Summary.md) | Short project summary draft. |
 | [Milestones/](Milestones/) | The ten milestone specs (M1–M10), each with issues and Definition of Done. |
 | [Handoffs/](Handoffs/) | Onboarding and handoff docs. Start with [M1-1_Handoff.md](Handoffs/M1-1_Handoff.md). |
 | [AnomalyPulse/infra/](AnomalyPulse/infra/) | SAM infrastructure. `shared/` is Jake's deployed stack; each service gets its own sibling folder. |
-| [Summary.md](Summary.md) | Short project summary draft. |
-
----
-
-## Getting started (new teammate)
-
-Everything you need to get AWS access, scaffold your service, and attach it to the
-shared API is in **[Handoffs/M1-1_Handoff.md](Handoffs/M1-1_Handoff.md)** — read it
-end to end. In short:
-
-1. Accept your IAM Identity Center invite and get `aws` + `sam` CLIs working
-   against the shared account (handoff §3).
-2. Branch, then create your service folder under `AnomalyPulse/infra/<service>/`
-   (handoff §5).
-3. Attach your routes to the shared API by looking up its ID in SSM — you never
-   edit Jake's stack (handoff §6).
-
-You are **unblocked today**: you can scaffold, wire routes, and return stub data
-before touching real data. The tables and IAM roles below are only needed for the
-final read/write step.
 
 ---
 
 ## Shared infrastructure reference
 
 Everything the shared stack publishes is in **AWS Systems Manager Parameter
-Store**, so your service looks values up by a fixed path instead of hardcoding
-anything that changes on redeploy. Read a value with:
+Store**, so that services look values up by a fixed path instead of hardcoding
+anything that changes on redeploy. Values can be read with:
 
 ```bash
 aws ssm get-parameter --name <path> --query Parameter.Value --output text --profile <your-profile>
 ```
 
-### Published parameters (the address book)
+### Published parameters
 
 | Parameter path | Value | You need it for |
 |---|---|---|
