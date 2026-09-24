@@ -2,7 +2,7 @@ import json
 
 def handler(event, context):
     # Stub - proves the API -> Lambda wiring. 
-    # Melisa: Fill with real DynamoDB writes + Payment invoke.
+    # Melisa: Fill with real DynamoDB reads + writes + Payment invoke.
     return {
         "statusCode": 200,
         "headers": {"Content-Type": "application/json"},
