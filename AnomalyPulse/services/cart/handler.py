@@ -3,17 +3,25 @@ import os, boto3
 import time
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
 table = boto3.resource('dynamodb').Table(os.environ['TABLE_NAME'])
 
 
+class _DecimalEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, Decimal):
+            return int(o) if o % 1 == 0 else float(o)
+        return super().default(o)
+
+
 def _resp(status, data=None, error=None):
     return {
         "statusCode": status,
         "headers": {"Content-Type": "application/json"},
-        "body": json.dumps({"data": data, "error": error}),
+        "body": json.dumps({"data": data, "error": error}, cls=_DecimalEncoder),
     }
 
 
@@ -45,8 +53,8 @@ log.cold_start = True
 def handler(event, context):
     start_time = time.time()
     request_id = getattr(context, "aws_request_id", str(uuid.uuid4()))
-    route = event["resource"]
-    method = event["httpMethod"]
+    route = event.get("resource", "")
+    method = event.get("httpMethod", "")
     path_params = event.get("pathParameters") or {}
 
     db_latency_ms = None
@@ -68,6 +76,13 @@ def handler(event, context):
             if not user_id or not item_id or quantity is None:
                 resp = _resp(400, error={"code": "BAD_REQUEST",
                                          "message": "user_id, item_id, and quantity are required"})
+                log(request_id, route, method, resp["statusCode"], start_time)
+                return resp
+
+            try:
+                quantity = Decimal(str(quantity))
+            except InvalidOperation:
+                resp = _resp(400, error={"code": "BAD_REQUEST", "message": "quantity must be a number"})
                 log(request_id, route, method, resp["statusCode"], start_time)
                 return resp
 
@@ -116,6 +131,8 @@ def handler(event, context):
 
     except ClientError as e:
         resp = _resp(500, error={"code": "DB_ERROR", "message": str(e)})
+    except Exception as e:
+        resp = _resp(500, error={"code": "INTERNAL_ERROR", "message": str(e)})
 
     log(request_id, route, method, resp["statusCode"], start_time,
          db_latency_ms=db_latency_ms, db_consumed_capacity=db_consumed_capacity)
