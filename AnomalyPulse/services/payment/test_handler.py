@@ -8,6 +8,7 @@ import os
 from contextlib import redirect_stdout
 
 import handler as payment
+from unittest import mock
 
 SCHEMA_FIELDS = {
     "timestamp", "request_id", "service", "endpoint", "http_method",
@@ -77,3 +78,9 @@ def test_log_line_matches_schema_and_hides_tier2():
     assert log["service"] == "payment-service"
     assert log["dependency"] is None
     assert log["db_latency_ms"] is None
+
+def test_timeout_knob_sleeps_30_seconds():
+    os.environ["PAYMENT_TIMEOUT"] = "true"
+    with mock.patch("handler.time.sleep") as fake_sleep:
+        _invoke()
+    fake_sleep.assert_any_call(30)
