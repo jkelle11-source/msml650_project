@@ -23,13 +23,11 @@ def orders_table():
                                       AttributeDefinitions=[{"AttributeName": "order_id", "AttributeType": "S"}],BillingMode="PAY_PER_REQUEST")
         handler_module.table = table
         yield table
-
-
+        
 def test_create_order(orders_table):
     event = {"resource": "/orders","httpMethod": "POST","pathParameters": None, "body": json.dumps({"customer_id": "cust-1","items": [{"sku": "widget", "price": 10, "quantity": 2}],}),}
     response = handler(event, None)
     body = json.loads(response["body"])
-
     assert response["statusCode"] == 201
     assert body["error"] is None
     assert body["data"]["customer_id"] == "cust-1"
@@ -46,12 +44,10 @@ def test_create_order_invalid_input(orders_table):
     assert body["data"] is None
     assert body["error"]["code"] == "INVALID_BODY"
 
-
 def test_create_order_malformed_json(orders_table):
     event = { "resource": "/orders","httpMethod": "POST", "pathParameters": None,"body": "{not valid json"}
     response = handler(event, None)
     assert response["statusCode"] == 400
-
 
 def test_get_order(orders_table):
     create_event = {"resource": "/orders", "httpMethod": "POST", "pathParameters": None,
@@ -66,26 +62,20 @@ def test_get_order(orders_table):
     assert body["data"]["order_id"] == order_id
     assert body["data"]["customer_id"] == "cust-2"
 
-
 def test_get_order_not_found(orders_table):
     event = {"resource": "/orders/{id}", "httpMethod": "GET", "pathParameters": {"id": "does-not-exist"},}
     response = handler(event, None)
-
     assert response["statusCode"] == 404
-
 
 def test_create_order_payment_declined(orders_table, monkeypatch):
     monkeypatch.setattr(handler_module, "call_payment_service", lambda order_id, amount, customer_id: {
         "envelope": {"data": {"service": "payment", "outcome": "declined"}, "error": None},"latency_ms": 5.0, "error": False,},)
     event = {"resource": "/orders", "httpMethod": "POST", "pathParameters": None, "body": json.dumps({"customer_id": "cust-3", "items": [{"sku": "widget", "price": 10, "quantity": 1}],}), }
-
     response = handler(event, None)
     body = json.loads(response["body"])
     # Order still gets created, just marked payment_failed. this matches the handler's current logic of never raising on a declined payment.
-
     assert response["statusCode"] == 201
     assert body["data"]["status"] == "payment_failed"
-
 
 def test_create_order_payment_service_error(orders_table, monkeypatch):
     monkeypatch.setattr(handler_module, "call_payment_service",
@@ -94,18 +84,14 @@ def test_create_order_payment_service_error(orders_table, monkeypatch):
               "body": json.dumps({ "customer_id": "cust-4", "items": [{"sku": "widget", "price": 10, "quantity": 1}],}),}
     response = handler(event, None)
     body = json.loads(response["body"])
-
     assert response["statusCode"] == 502
     assert body["data"] is None
     assert body["error"]["code"] == "PAYMENT_TIMEOUT"
 
-
 def test_unsupported_method(orders_table):
     event = {"resource": "/orders/{id}","httpMethod": "DELETE","pathParameters": {"id": "some-id"},}
     response = handler(event, None)
-
     assert response["statusCode"] == 404
-
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
