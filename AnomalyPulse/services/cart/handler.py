@@ -92,7 +92,14 @@ log.cold_start = True
 def handler(event, context):
     start_time = time.time()          # wall clock, for latency_ms
     start_proc = time.process_time()  # CPU time, for lambda_duration_ms
-    request_id = getattr(context, "aws_request_id", str(uuid.uuid4()))
+    # Prefer the API Gateway correlation id so a request can be traced across
+    # services; fall back to the Lambda request id, then a uuid. (Matches
+    # services/product and services/payment.)
+    request_id = (
+        (event.get("requestContext") or {}).get("requestId")
+        or getattr(context, "aws_request_id", None)
+        or str(uuid.uuid4())
+    )
     route = event.get("resource", "")
     method = event.get("httpMethod", "")
     path_params = event.get("pathParameters") or {}
