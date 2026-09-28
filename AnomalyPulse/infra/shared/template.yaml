@@ -2,6 +2,15 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: AnomalyPulse shared infrastructure - API skeleton (M1-1)
 
+# Run every function on arm64 (Graviton). The handlers are pure Python with no
+# native dependencies, so the architecture is a free choice: arm64 builds
+# natively on Apple Silicon dev machines (no Docker emulation) and costs less to
+# run on Lambda. Set once here so all functions inherit it.
+Globals:
+  Function:
+    Architectures:
+      - arm64
+
 Resources:
 
   # ---- Shared API Gateway (M1-1) ---------------------------------------
@@ -27,7 +36,7 @@ Resources:
       FunctionName: anomalypulse-product
       CodeUri: ../../services/product/
       Handler: handler.handler            # file handler.py, function handler()
-      Runtime: python3.12
+      Runtime: python3.13
       Timeout: 10
       Role: !GetAtt ProductRole.Arn
       Environment:
@@ -53,7 +62,7 @@ Resources:
       FunctionName: anomalypulse-cart
       CodeUri: ../../services/cart/
       Handler: handler.handler        # file handler.py, function handler()
-      Runtime: python3.12
+      Runtime: python3.13
       Timeout: 10
       Role: !GetAtt CartRole.Arn
       Environment:
@@ -85,7 +94,7 @@ Resources:
       FunctionName: anomalypulse-order
       CodeUri: ../../services/order/
       Handler: handler.handler          # file handler.py, function handler()
-      Runtime: python3.12
+      Runtime: python3.13
       Timeout: 10
       Role: !GetAtt OrderRole.Arn
       Environment:
@@ -117,7 +126,7 @@ Resources:
       FunctionName: anomalypulse-payment
       CodeUri: ../../services/payment/
       Handler: handler.handler          # file handler.py, function handler()
-      Runtime: python3.12
+      Runtime: python3.13
       Timeout: 10
       Role: !GetAtt PaymentRole.Arn
       Environment:
@@ -144,7 +153,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: anomalypulse-stub-501
-      Runtime: python3.12
+      Runtime: python3.13
       Handler: index.handler
       Timeout: 5
       InlineCode: |
