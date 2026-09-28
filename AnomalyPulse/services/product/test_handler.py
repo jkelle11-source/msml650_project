@@ -122,6 +122,10 @@ class ProductHandlerTest(unittest.TestCase):
         self.assertEqual(body["error"]["code"], "INTERNAL_ERROR")
         self.assertNotIn("boom", resp["body"])
         self.assertEqual(log["status_code"], 500)
+        # The failure-path log line must stay Tier-1 only and never carry the
+        # exception text (the cause is Tier-2 ground truth).
+        self.assertFalse(set(log) & TIER2_FIELDS)
+        self.assertNotIn("boom", json.dumps(log))
 
     def test_log_line_matches_schema(self):
         _, _, log = self.invoke(_event("/products/{id}", path_params={"id": "prod-001"}))
@@ -136,6 +140,14 @@ class ProductHandlerTest(unittest.TestCase):
         self.assertIsNotNone(log["db_latency_ms"])
         self.assertIsNone(log["dependency"])
         self.assertRegex(log["timestamp"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$")
+
+    def test_response_has_cors_header(self):
+        # The dashboard is a cross-origin browser client, so every response
+        # (including error envelopes) must carry Access-Control-Allow-Origin.
+        resp, _, _ = self.invoke(_event("/products"))
+        self.assertEqual(resp["headers"]["Access-Control-Allow-Origin"], "*")
+        err, _, _ = self.invoke(_event("/products/{id}", path_params={"id": "nope"}))
+        self.assertEqual(err["headers"]["Access-Control-Allow-Origin"], "*")
 
     def test_cold_start_only_first_invocation(self):
         product._cold_start = True
