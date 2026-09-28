@@ -1,0 +1,3 @@
+# Runtime dependencies for the Payment Lambda (bundled by `sam build`).
+# None: the handler uses only the Python standard library (no boto3, no DB call).
+# Test-only dependencies live in requirements-dev.txt.

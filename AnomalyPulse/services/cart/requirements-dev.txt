@@ -1,0 +1,5 @@
+# Test-only dependencies for the Cart service (NOT deployed to Lambda).
+# The tests mock DynamoDB with moto and drive the handler through boto3.
+pytest
+boto3
+moto[dynamodb]

@@ -1,0 +1,4 @@
+# Test-only dependencies for the Product service (NOT deployed to Lambda).
+# The tests use a fake table and the stdlib unittest framework; pytest is the
+# shared test runner across the repo.
+pytest

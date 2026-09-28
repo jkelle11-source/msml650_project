@@ -1,0 +1,3 @@
+# Test-only dependencies for the Payment service (NOT deployed to Lambda).
+# The tests use stdlib unittest.mock; pytest is the shared test runner.
+pytest

@@ -1,4 +1,0 @@
-pytest
-moto
-boto3
-

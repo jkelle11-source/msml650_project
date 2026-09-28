@@ -1,4 +1,4 @@
-# Runtime dependencies for the Order Lambda (bundled by `sam build`).
+# Runtime dependencies for the Cart Lambda (bundled by `sam build`).
 # None to bundle: boto3/botocore are already provided by the AWS Lambda Python
 # runtime, so they are intentionally not listed here to keep the deployment
 # package lean. Test-only dependencies live in requirements-dev.txt.

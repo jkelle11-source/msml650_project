@@ -143,9 +143,17 @@ routine deploys are just `sam deploy`.
 
 ## Running the tests
 
-Each service has unit tests next to its handler:
+Each service has unit tests next to its handler. Test-only dependencies live in
+`requirements-dev.txt` (kept out of `requirements.txt` so they're never bundled
+into the Lambda). Install them first, then run `pytest`:
 
 ```bash
 cd AnomalyPulse/services/<service>   # product | cart | order | payment
+pip install -r requirements-dev.txt
 python -m pytest
 ```
+
+`requirements.txt` in each service folder holds only what the deployed Lambda
+needs at runtime. `boto3`/`botocore` are provided by the AWS Lambda Python
+runtime, so they're intentionally not bundled there — the tests pull them in via
+`requirements-dev.txt` instead.
