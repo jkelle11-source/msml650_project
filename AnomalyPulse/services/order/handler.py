@@ -74,14 +74,23 @@ def call_payment_service(order_id, amount, customer_id, request_id):
         envelope = {"data": {"service": "payment", "outcome": "success"}, "error": None}
         return {"envelope": envelope, "latency_ms": round((time.time() - start) * 1000, 2), "error": False}
     try:
+        # Invoke payment with the same event shape API Gateway would deliver for
+        # POST /payments, so a single payment code path serves both its HTTP callers
+        # and this direct Lambda-to-Lambda invoke - and, crucially, payment's
+        # fault-injection knobs (PAYMENT_LATENCY_MS / PAYMENT_FAILURE_RATE /
+        # PAYMENT_TIMEOUT) still apply on this dependency path, which the
+        # DEPENDENCY_FAILURE incident relies on (Sections 4/5). Payment routes on
+        # resource + httpMethod, so both must be present.
         # Propagate our request_id under requestContext so payment stamps the same
         # correlation id on its telemetry line (payment reads requestContext.requestId
         # first). This is what lets order and payment log lines be joined by request_id
         # for cross-service ordering (PROJECT_PLAN Section 3).
         # amount is a Decimal (order total); default=_decimal_to_float keeps json.dumps
-        # from raising TypeError on it when building the invoke payload.
+        # from raising TypeError on it when building the invoke payload (both the inner
+        # body string and the outer envelope).
         response = lambda_client.invoke(FunctionName=PAYMENT_FUNCTION_NAME,InvocationType="RequestResponse",
-                                        Payload=json.dumps({ "action": "charge","order_id": order_id,"customer_id": customer_id, "amount": amount,
+                                        Payload=json.dumps({ "resource": "/payments","httpMethod": "POST",
+                                                            "body": json.dumps({"order_id": order_id,"customer_id": customer_id,"amount": amount}, default=_decimal_to_float),
                                                             "requestContext": {"requestId": request_id},}, default=_decimal_to_float).encode("utf-8"),)
         elapsed_ms = round((time.time() - start) * 1000, 2)
         payload = json.loads(response["Payload"].read())
