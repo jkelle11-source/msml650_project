@@ -1,3 +1,4 @@
+"""Payment Service (M1-5): POST /payments, with fault-injection knobs (latency, failures, timeout)."""
 import json
 import os
 import random
@@ -7,6 +8,8 @@ from datetime import datetime, timezone
 
 SERVICE = "payment-service"
 
+_cold_start = True
+
 
 def _resp(status, data=None, error=None):
     return {
@@ -15,7 +18,13 @@ def _resp(status, data=None, error=None):
         "body": json.dumps({"data": data, "error": error}),
     }
 
+
+def _err(status, code, message):
+    return _resp(status, error={"code": code, "message": message})
+
+
 def _read_knobs():
+    # Read at call time so the incident simulator can flip knobs without a redeploy.
     latency_ms = float(os.environ.get("PAYMENT_LATENCY_MS", "0") or "0")
     failure_rate = float(os.environ.get("PAYMENT_FAILURE_RATE", "0.0") or "0.0")
     timeout_on = os.environ.get("PAYMENT_TIMEOUT", "false").lower() == "true"
@@ -29,46 +38,62 @@ def _apply_latency(latency_ms):
 
 def _apply_timeout(timeout_on):
     if timeout_on:
-        time.sleep(30)  # long enough that a caller's own timeout trips first
+        time.sleep(30)  # exceeds the Lambda timeout so the caller's own timeout trips first
 
-def _log(request_id, status_code, start_time, outcome):
-    line = {
+
+def _process(event):
+    route, method = event.get("resource"), event.get("httpMethod")
+    if route != "/payments" or method != "POST":
+        return _err(501, "NOT_IMPLEMENTED", f"{method} {route} is not handled by payment-service")
+
+    latency_ms, failure_rate, timeout_on = _read_knobs()
+    _apply_timeout(timeout_on)
+    _apply_latency(latency_ms)
+
+    # An injected failure is a *service* fault, so it surfaces as a 5xx (PROJECT_PLAN Section 5:
+    # "intermittent 5xx errors"). This keeps the DEPENDENCY_FAILURE incident's observable
+    # signature in the 5xx-rate feature rather than the distinct 4xx-rate one (Section 3).
+    if random.random() < failure_rate:
+        return _err(503, "PAYMENT_UNAVAILABLE", "payment service failed")
+    return _resp(200, data={"service": "payment", "outcome": "success"})
+
+
+def _log(event, context, status, start, cold):
+    elapsed_ms = round((time.perf_counter() - start) * 1000, 3)
+    request_id = (
+        (event.get("requestContext") or {}).get("requestId")
+        or getattr(context, "aws_request_id", None)
+        or str(uuid.uuid4())
+    )
+    # One line per request, matching infra/shared/telemetry_schema.json. Tier-1 and correlation
+    # fields only; never emit Tier-2 (error_type, db_throttled, ...). Payment makes no DB call and
+    # has no downstream dependency, so those fields are always null.
+    print(json.dumps({
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
         "request_id": request_id,
         "service": SERVICE,
-        "endpoint": "/payments",
-        "http_method": "POST",
-        "status_code": status_code,
-        "latency_ms": round((time.time() - start_time) * 1000, 3),
-        "lambda_duration_ms": round((time.time() - start_time) * 1000, 3),
-        "cold_start": _log.cold_start,
+        "endpoint": event.get("resource"),
+        "http_method": event.get("httpMethod"),
+        "status_code": status,
+        "latency_ms": elapsed_ms,
+        "lambda_duration_ms": elapsed_ms,
+        "cold_start": cold,
         "db_latency_ms": None,
         "db_consumed_capacity": None,
         "dependency": None,
         "dependency_latency_ms": None,
         "dependency_error": None,
-    }
-    print(json.dumps(line))
-    _log.cold_start = False
+    }))
 
-
-_log.cold_start = True
 
 def handler(event, context):
-    start_time = time.time()
-    request_id = (event.get("requestContext") or {}).get("requestId") or str(uuid.uuid4())
-
-    latency_ms, failure_rate, timeout_on = _read_knobs()
-
-    _apply_timeout(timeout_on)
-    _apply_latency(latency_ms)
-
-    if random.random() < failure_rate:
-        outcome = "failure"
-        resp = _resp(402, error={"code": "PAYMENT_DECLINED", "message": "Payment failed"})
-    else:
-        outcome = "success"
-        resp = _resp(200, data={"service": "payment", "outcome": outcome})
-
-    _log(request_id, resp["statusCode"], start_time, outcome)
+    global _cold_start
+    cold, _cold_start = _cold_start, False
+    start = time.perf_counter()
+    try:
+        resp = _process(event)
+    except Exception:
+        # Structured error, never a stack trace. The cause stays out of the log line (Tier-2).
+        resp = _err(500, "INTERNAL_ERROR", "payment processing failed")
+    _log(event, context, resp["statusCode"], start, cold)
     return resp

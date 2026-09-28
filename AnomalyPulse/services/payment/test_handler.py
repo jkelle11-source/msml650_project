@@ -48,13 +48,15 @@ def test_success_by_default():
     assert log["status_code"] == 200
 
 
-def test_guaranteed_failure():
+def test_guaranteed_failure_is_5xx():
+    # An injected fault must surface as a 5xx so the DEPENDENCY_FAILURE incident lands in the
+    # 5xx-rate feature, not the distinct 4xx-rate one (PROJECT_PLAN Sections 3 and 5).
     os.environ["PAYMENT_FAILURE_RATE"] = "1.0"
     resp, body, log = _invoke()
-    assert resp["statusCode"] == 402
+    assert resp["statusCode"] == 503
     assert body["data"] is None
-    assert body["error"]["code"] == "PAYMENT_DECLINED"
-    assert log["status_code"] == 402
+    assert body["error"]["code"] == "PAYMENT_UNAVAILABLE"
+    assert log["status_code"] == 503
 
 
 def test_guaranteed_success():
@@ -84,3 +86,33 @@ def test_timeout_knob_sleeps_30_seconds():
     with mock.patch("handler.time.sleep") as fake_sleep:
         _invoke()
     fake_sleep.assert_any_call(30)
+
+
+def test_unhandled_route_returns_501():
+    out = io.StringIO()
+    with redirect_stdout(out):
+        resp = payment.handler({"resource": "/payments", "httpMethod": "GET"}, None)
+    assert resp["statusCode"] == 501
+    assert json.loads(resp["body"])["error"]["code"] == "NOT_IMPLEMENTED"
+    # Still exactly one telemetry line, even on the rejected path.
+    assert len(out.getvalue().strip().splitlines()) == 1
+
+
+def test_unexpected_exception_returns_envelope_not_trace():
+    # An unexpected error must yield a structured 500 (never a stack trace) and still emit
+    # exactly one log line, so the "one JSON log line per request" invariant always holds.
+    with mock.patch("handler.random.random", side_effect=RuntimeError("boom")):
+        resp, body, log = _invoke()
+    assert resp["statusCode"] == 500
+    assert body["data"] is None
+    assert body["error"]["code"] == "INTERNAL_ERROR"
+    assert "boom" not in resp["body"]
+    assert log["status_code"] == 500
+
+
+def test_cold_start_only_first_invocation():
+    payment._cold_start = True
+    _, _, first = _invoke()
+    _, _, second = _invoke()
+    assert first["cold_start"] is True
+    assert second["cold_start"] is False
