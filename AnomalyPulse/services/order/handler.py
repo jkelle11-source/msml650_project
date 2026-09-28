@@ -1,11 +1,196 @@
 import json
+import os
+import time
+import uuid
+from datetime import datetime, timezone
+from decimal import Decimal
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 
+SERVICE_NAME = "order-service"  # must match telemetry_schema.json correlation.service enum
+TABLE_NAME = os.environ["TABLE_NAME"]
+PAYMENT_FUNCTION_NAME = os.environ.get("PAYMENT_FUNCTION_NAME", "anomalypulse-payment")
+USE_PAYMENT_STUB = os.environ.get("USE_PAYMENT_STUB", "true").lower() == "true"
+
+dynamodb = boto3.resource("dynamodb")
+lambda_client = boto3.client("lambda")
+table = dynamodb.Table(TABLE_NAME)
+
+# set once per cold container, then stays False for every warm invocation
+# that reuses this execution environment.
+_cold_start = True
+
+# CORS: the browser dashboard (Section 14) is a different origin, so every
+# response must carry these headers or the browser blocks the read. The API's
+# OPTIONS preflight is handled at the gateway (Cors: block in template.yaml);
+# each Lambda still sets them on its own responses. (Matches product/cart/payment.)
+_CORS_HEADERS = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
+}
+
+# helpers
+def _success(data, status_code=200):
+    return {"statusCode": status_code,"headers": dict(_CORS_HEADERS),"body": json.dumps({"data": data, "error": None}, default=_decimal_to_float)}
+
+
+def _error(message, status_code, code):
+    return {"statusCode": status_code, "headers": dict(_CORS_HEADERS), "body": json.dumps({"data": None, "error": {"message": message, "code": code}})}
+
+
+def _decimal_to_float(obj):
+    if isinstance(obj, Decimal):
+        return float(obj)
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
+# telemetry
+def _now_iso_ms():
+    now = datetime.now(timezone.utc)
+    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
+
+
+def _emit_telemetry(request_id, endpoint, http_method, status_code, latency_ms, lambda_duration_ms, cold_start, db=None, dependency=None):
+    # The schema (telemetry_schema.json) distinguishes latency_ms (end-to-end wall
+    # clock, includes the synchronous payment invoke) from lambda_duration_ms (CPU
+    # compute time of the handler body, excludes I/O wait). Keeping them separate is
+    # load-bearing here: a slow payment dependency must raise wall-clock latency_ms
+    # without inflating lambda_duration_ms, so DEPENDENCY_FAILURE stays distinct from
+    # LAMBDA_DEGRADATION for the classifier. (Matches product/cart/payment.)
+    db = db or {}
+    dependency = dependency or {}
+    record = {"timestamp": _now_iso_ms(),"request_id": request_id,"service": SERVICE_NAME,"endpoint": endpoint,
+              "http_method": http_method, "status_code": status_code,"latency_ms": latency_ms,"lambda_duration_ms": lambda_duration_ms,
+              "cold_start": cold_start,"db_latency_ms": db.get("latency_ms"),"db_consumed_capacity": db.get("consumed_capacity"),"dependency": dependency.get("name"),
+              "dependency_latency_ms": dependency.get("latency_ms"), "dependency_error": dependency.get("error")}
+    print(json.dumps(record))
+
+# payment
+def call_payment_service(order_id, amount, customer_id, request_id):
+    start = time.time()
+
+    if USE_PAYMENT_STUB:
+        envelope = {"data": {"service": "payment", "outcome": "success"}, "error": None}
+        return {"envelope": envelope, "latency_ms": round((time.time() - start) * 1000, 2), "error": False}
+    try:
+        # Propagate our request_id under requestContext so payment stamps the same
+        # correlation id on its telemetry line (payment reads requestContext.requestId
+        # first). This is what lets order and payment log lines be joined by request_id
+        # for cross-service ordering (PROJECT_PLAN Section 3).
+        # amount is a Decimal (order total); default=_decimal_to_float keeps json.dumps
+        # from raising TypeError on it when building the invoke payload.
+        response = lambda_client.invoke(FunctionName=PAYMENT_FUNCTION_NAME,InvocationType="RequestResponse",
+                                        Payload=json.dumps({ "action": "charge","order_id": order_id,"customer_id": customer_id, "amount": amount,
+                                                            "requestContext": {"requestId": request_id},}, default=_decimal_to_float).encode("utf-8"),)
+        elapsed_ms = round((time.time() - start) * 1000, 2)
+        payload = json.loads(response["Payload"].read())
+        if "body" in payload:  # payment's handler returns {"statusCode":..., "body": "..."} even invoked directly
+            payload = json.loads(payload["body"])
+        failed = bool(payload.get("error")) or payload.get("data", {}).get("outcome") != "success"
+        return {"envelope": payload, "latency_ms": elapsed_ms, "error": failed}
+    except (BotoCoreError, ClientError) as exc:
+        # BotoCoreError covers ReadTimeoutError/ConnectionError - i.e. exactly the
+        # dependency-failure/timeout cases. Return a clean error envelope (rather than
+        # letting it propagate to the generic 500) so the caller still records
+        # dependency telemetry with dependency_error=True.
+        elapsed_ms = round((time.time() - start) * 1000, 2)
+        envelope = {"data": None, "error": {"message": str(exc), "code": "PAYMENT_INVOKE_FAILED"}}
+        return {"envelope": envelope, "latency_ms": elapsed_ms, "error": True}
+
+def create_order(body, request_id):
+    customer_id = body.get("customer_id")
+    items = body.get("items")
+
+    if not customer_id or not items:
+        error = {"message": "customer_id and items are required", "code": "INVALID_BODY"}
+        return {"order": None, "error": error, "db": None, "dependency": None}
+
+    total = Decimal(str(sum(item.get("price", 0) * item.get("quantity", 1) for item in items)))
+    order_id = str(uuid.uuid4())
+    now = int(time.time())
+    payment = call_payment_service(order_id, total, customer_id, request_id)
+    dependency = {"name": "payment-service", "latency_ms": payment["latency_ms"], "error": payment["error"]}
+
+    if payment["envelope"].get("error"):
+        return {"order": None, "error": payment["envelope"]["error"], "db": None, "dependency": dependency}
+
+    payment_info = payment["envelope"]["data"]
+    # NOTE: the payment service's contract returns only {"service", "outcome"} - no
+    # payment_id - so we do not store one here. If payment starts returning an id,
+    # add it back and update services/payment accordingly.
+    order = { "order_id": order_id,"customer_id": customer_id,"items": items,"total": total,"status": "confirmed" if payment_info.get("outcome") == "success" else "payment_failed",
+             "created_at": now,"updated_at": now,}
+
+    db_start = time.time()
+    put_response = table.put_item(Item=order, ReturnConsumedCapacity="TOTAL")
+    db = {"latency_ms": round((time.time() - db_start) * 1000, 2), "consumed_capacity": put_response.get("ConsumedCapacity", {}).get("CapacityUnits")}
+
+    return {"order": order, "error": None, "db": db, "dependency": dependency}
+
+def get_order(order_id):
+    db_start = time.time()
+    response = table.get_item(Key={"order_id": order_id}, ReturnConsumedCapacity="TOTAL")
+    db = {"latency_ms": round((time.time() - db_start) * 1000, 2), "consumed_capacity": response.get("ConsumedCapacity", {}).get("CapacityUnits")}
+    return {"order": response.get("Item"), "db": db}
+
+# lambda
 def handler(event, context):
-    # Stub - proves the API -> Lambda wiring. 
-    # Melisa: Fill with real DynamoDB reads + writes + Payment invoke.
-    return {
-        "statusCode": 200,
-        "headers": {"Content-Type": "application/json"},
-        "body": json.dumps({"data": {"service": "order", "route": event.get("resource")},
-                            "error": None})
-    }
+    global _cold_start
+    is_cold_start = _cold_start
+    _cold_start = False
+    wall_start = time.time()          # wall clock, for latency_ms
+    proc_start = time.process_time()  # CPU time, for lambda_duration_ms
+    # Prefer the upstream (API Gateway) request id so it can be propagated to payment
+    # for cross-service correlation (Section 3); fall back to the Lambda id, then a uuid.
+    request_id = (event.get("requestContext") or {}).get("requestId") or getattr(context, "aws_request_id", None) or str(uuid.uuid4())
+    method = event.get("httpMethod", "GET")
+    order_id = (event.get("pathParameters") or {}).get("id")
+    endpoint = event.get("resource", "")
+    db = None
+    dependency = None
+
+    try:
+        body = json.loads(event["body"]) if event.get("body") else {}
+    except (json.JSONDecodeError, TypeError):
+        response = _error("Malformed JSON body", 400, "INVALID_BODY")
+        _finish(request_id, endpoint, method, response, wall_start, proc_start, is_cold_start, db, dependency)
+        return response
+
+    try:
+        if method == "POST" and not order_id:
+            result = create_order(body, request_id)
+            db, dependency = result["db"], result["dependency"]
+            if result["error"]:
+                status_code = 400 if result["error"]["code"] == "INVALID_BODY" else 502
+                response = _error(result["error"]["message"], status_code, result["error"]["code"])
+            else:
+                response = _success(result["order"], 201)
+        elif method == "GET" and order_id:
+            result = get_order(order_id)
+            db = result["db"]
+            response = _success(result["order"]) if result["order"] else _error("Order not found", 404, "NOT_FOUND")
+        else:
+            response = _error(f"Unsupported route: {method} {endpoint}", 404, "NOT_FOUND")
+    except ClientError:
+        # A DynamoDB failure (e.g. ProvisionedThroughputExceededException, the M3
+        # throttling path) gets its own DB_ERROR code, distinct from the generic
+        # INTERNAL_ERROR, so downstream can tell a database fault from any other.
+        # Payment-invoke ClientErrors never reach here - call_payment_service
+        # catches those. The cause is Tier-2 ground truth and stays out of both the
+        # response and stdout; the observable throttling signal is the 500 +
+        # db_latency + CloudWatch ThrottledRequests count. (Matches services/cart.)
+        response = _error("A database error occurred", 500, "DB_ERROR")
+    except Exception:  # noqa: BLE001 - surface a clean 500; keep the cause off stdout
+        # The exception message can encode the cause (Tier-2 ground truth), so it must
+        # never reach stdout on the request path - only the Tier-1 telemetry line does.
+        # (Matches services/product, cart, payment.)
+        response = _error("Internal server error", 500, "INTERNAL_ERROR")
+
+    _finish(request_id, endpoint, method, response, wall_start, proc_start, is_cold_start, db, dependency)
+    return response
+
+def _finish(request_id, endpoint, method, response, wall_start, proc_start, is_cold_start, db, dependency):
+    latency_ms = round((time.time() - wall_start) * 1000, 2)
+    lambda_duration_ms = round((time.process_time() - proc_start) * 1000, 2)
+    _emit_telemetry(request_id=request_id, endpoint=endpoint, http_method=method, status_code=response["statusCode"], latency_ms=latency_ms,lambda_duration_ms=lambda_duration_ms,cold_start=is_cold_start,db=db,dependency=dependency,)
