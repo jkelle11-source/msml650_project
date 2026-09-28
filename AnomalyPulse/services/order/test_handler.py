@@ -157,16 +157,6 @@ def test_unsupported_method(orders_table):
 
 # --- behaviour: payment dependency -----------------------------------------
 
-def test_create_order_payment_declined(orders_table, monkeypatch):
-    monkeypatch.setattr(handler_module, "call_payment_service", lambda order_id, amount, customer_id, request_id: {
-        "envelope": {"data": {"service": "payment", "outcome": "declined"}, "error": None},"latency_ms": 5.0, "error": False,},)
-    response = handler(_post_order_event({"customer_id": "cust-3", "items": [{"sku": "widget", "price": 10, "quantity": 1}]}), None)
-    body = json.loads(response["body"])
-    # Order still gets created, just marked payment_failed. this matches the handler's current logic of never raising on a declined payment.
-    assert response["statusCode"] == 201
-    assert body["data"]["status"] == "payment_failed"
-
-
 def test_create_order_payment_service_error(orders_table, monkeypatch):
     monkeypatch.setattr(handler_module, "call_payment_service",
                         lambda order_id, amount, customer_id, request_id: {"envelope": {"data": None, "error": {"message": "timeout", "code": "PAYMENT_TIMEOUT"}}, "latency_ms": 3000.0, "error": True,},)

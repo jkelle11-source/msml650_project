@@ -160,11 +160,15 @@ def create_order(body, request_id):
     if payment["envelope"].get("error"):
         return {"order": None, "error": payment["envelope"]["error"], "db": None, "dependency": dependency}
 
-    payment_info = payment["envelope"]["data"]
+    # We only reach here when payment succeeded: call_payment_service surfaces any
+    # non-success outcome as an error, handled above. Payment failures in this system
+    # are dependency incidents (5xx / timeout) that return a 502 and persist no order
+    # - there is no business "declined" outcome in the payment contract (PROJECT_PLAN
+    # "Payment Failure"; Milestone 03), so a persisted order is always confirmed.
     # NOTE: the payment service's contract returns only {"service", "outcome"} - no
     # payment_id - so we do not store one here. If payment starts returning an id,
     # add it back and update services/payment accordingly.
-    order = { "order_id": order_id,"customer_id": customer_id,"items": items,"total": total,"status": "confirmed" if payment_info.get("outcome") == "success" else "payment_failed",
+    order = { "order_id": order_id,"customer_id": customer_id,"items": items,"total": total,"status": "confirmed",
              "created_at": now,"updated_at": now,}
 
     db_start = time.time()
