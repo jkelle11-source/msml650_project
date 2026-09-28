@@ -66,11 +66,14 @@ def test_guaranteed_success():
     assert body["data"]["outcome"] == "success"
 
 
-def test_injected_latency_reflected_in_log():
+def test_injected_latency_raises_wall_clock_not_cpu():
+    # An injected latency fault is a sleep: it must show up in wall-clock latency_ms
+    # but NOT in CPU lambda_duration_ms. That split is what distinguishes a
+    # dependency-latency incident from LAMBDA_DEGRADATION (added computation).
     os.environ["PAYMENT_LATENCY_MS"] = "200"
     _, _, log = _invoke()
     assert log["latency_ms"] >= 200
-    assert log["lambda_duration_ms"] >= 200
+    assert log["lambda_duration_ms"] < 200
 
 
 def test_log_line_matches_schema_and_hides_tier2():
@@ -116,3 +119,13 @@ def test_cold_start_only_first_invocation():
     _, _, second = _invoke()
     assert first["cold_start"] is True
     assert second["cold_start"] is False
+
+
+def test_response_has_cors_header():
+    # The dashboard is a cross-origin browser client, so every response
+    # (including error envelopes) must carry Access-Control-Allow-Origin.
+    resp, _, _ = _invoke()
+    assert resp["headers"]["Access-Control-Allow-Origin"] == "*"
+    os.environ["PAYMENT_FAILURE_RATE"] = "1.0"
+    err, _, _ = _invoke()
+    assert err["headers"]["Access-Control-Allow-Origin"] == "*"

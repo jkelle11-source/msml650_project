@@ -8,13 +8,25 @@ from datetime import datetime, timezone
 
 SERVICE = "payment-service"
 
+# CORS: the AnomalyPulse dashboard (Section 14) is a browser client on a
+# different origin, so every response must carry these headers or the browser
+# blocks the call. "*" is fine for the course; tighten to the dashboard origin
+# if this ever leaves the sandbox. The API's OPTIONS preflight is handled at
+# the API Gateway layer (Cors: block in template.yaml). (Matches services/product.)
+_CORS_HEADERS = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
+}
+
 _cold_start = True
 
 
 def _resp(status, data=None, error=None):
     return {
         "statusCode": status,
-        "headers": {"Content-Type": "application/json"},
+        "headers": dict(_CORS_HEADERS),
         "body": json.dumps({"data": data, "error": error}),
     }
 
@@ -58,8 +70,18 @@ def _process(event):
     return _resp(200, data={"service": "payment", "outcome": "success"})
 
 
-def _log(event, context, status, start, cold):
-    elapsed_ms = round((time.perf_counter() - start) * 1000, 3)
+def _log(event, context, status, start_time, start_proc, cold):
+    # The schema defines two distinct timing fields:
+    #   latency_ms         = "End-to-end wall clock time ... as seen by the
+    #                         handler" -> wall clock, includes I/O wait and sleeps.
+    #   lambda_duration_ms = "Compute time of the Lambda body itself" -> CPU
+    #                         compute time, excludes sleeps.
+    # This distinction is load-bearing for payment: an injected PAYMENT_LATENCY_MS
+    # sleep raises wall-clock latency_ms but NOT CPU lambda_duration_ms, so a
+    # dependency-latency incident reads differently from a LAMBDA_DEGRADATION one
+    # (added computation) that raises compute time. (Matches services/product, cart.)
+    latency_ms = round((time.time() - start_time) * 1000, 3)
+    lambda_duration_ms = round((time.process_time() - start_proc) * 1000, 3)
     request_id = (
         (event.get("requestContext") or {}).get("requestId")
         or getattr(context, "aws_request_id", None)
@@ -75,8 +97,8 @@ def _log(event, context, status, start, cold):
         "endpoint": event.get("resource"),
         "http_method": event.get("httpMethod"),
         "status_code": status,
-        "latency_ms": elapsed_ms,
-        "lambda_duration_ms": elapsed_ms,
+        "latency_ms": latency_ms,
+        "lambda_duration_ms": lambda_duration_ms,
         "cold_start": cold,
         "db_latency_ms": None,
         "db_consumed_capacity": None,
@@ -89,11 +111,12 @@ def _log(event, context, status, start, cold):
 def handler(event, context):
     global _cold_start
     cold, _cold_start = _cold_start, False
-    start = time.perf_counter()
+    start_time = time.time()          # wall clock, for latency_ms
+    start_proc = time.process_time()  # CPU time, for lambda_duration_ms
     try:
         resp = _process(event)
     except Exception:
         # Structured error, never a stack trace. The cause stays out of the log line (Tier-2).
         resp = _err(500, "INTERNAL_ERROR", "payment processing failed")
-    _log(event, context, resp["statusCode"], start, cold)
+    _log(event, context, resp["statusCode"], start_time, start_proc, cold)
     return resp
