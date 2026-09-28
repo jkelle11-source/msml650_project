@@ -91,6 +91,12 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref OrdersTable
+          # Call the real payment Lambda in the deployed system. The handler
+          # defaults to the in-process stub for local unit tests; the deployed
+          # order service must exercise the real payment dependency so that
+          # DEPENDENCY_FAILURE incidents are observable through it (Sections 4/5).
+          USE_PAYMENT_STUB: 'false'
+          PAYMENT_FUNCTION_NAME: !Ref PaymentFunction
       Events:
         PostOrder:
           Type: Api
