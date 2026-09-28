@@ -102,6 +102,24 @@ def test_create_order(orders_table):
     assert "order_id" in body["data"]
 
 
+def test_create_order_with_float_prices(orders_table):
+    # Regression: item prices arrive from the JSON body as floats, which DynamoDB's
+    # serializer rejects unless coerced to Decimal. The other create tests all use
+    # integer prices, so this path (a float total that must persist and round-trip)
+    # went uncovered until the live smoke test (price 19.99) hit it. 19.99 * 2 = 39.98.
+    response = handler(_post_order_event(
+        {"customer_id": "cust-float", "items": [{"product_id": "prod-001", "price": 19.99, "quantity": 2}]}
+    ), None)
+    body = json.loads(response["body"])
+    assert response["statusCode"] == 201, body
+    assert body["error"] is None
+    assert body["data"]["total"] == 39.98
+    # the stored items (float prices) must round-trip back out of DynamoDB
+    order_id = body["data"]["order_id"]
+    got = json.loads(handler(_get_order_event(order_id), None)["body"])
+    assert got["data"]["items"][0]["price"] == 19.99
+
+
 def test_create_order_invalid_input(orders_table):
     response = handler(_post_order_event({"customer_id": "cust-1"}), None)
     body = json.loads(response["body"])
@@ -157,6 +175,49 @@ def test_create_order_payment_service_error(orders_table, monkeypatch):
     assert response["statusCode"] == 502
     assert body["data"] is None
     assert body["error"]["code"] == "PAYMENT_TIMEOUT"
+
+
+def test_real_payment_failure_envelope_becomes_502_no_order_persisted(orders_table, monkeypatch, capsys):
+    # Exercises payment's REAL 5xx failure shape (statusCode + a JSON body carrying a
+    # structured error), which the success-only fake never covers and which the live
+    # smoke path would hit under the PAYMENT_FAILURE_RATE incident knob. Order must
+    # turn it into a clean 502, record dependency_error telemetry, and persist NO
+    # order row.
+    def fail_invoke(**kwargs):
+        body = json.dumps({"data": None, "error": {"code": "PAYMENT_UNAVAILABLE", "message": "payment service failed"}})
+        raw = json.dumps({"statusCode": 503, "body": body}).encode("utf-8")
+        return {"Payload": _FakePayload(raw)}
+
+    monkeypatch.setattr(handler_module, "USE_PAYMENT_STUB", False)
+    monkeypatch.setattr(handler_module, "lambda_client", type("C", (), {"invoke": staticmethod(fail_invoke)})())
+    response = handler(_post_order_event(), None)
+    body = json.loads(response["body"])
+    assert response["statusCode"] == 502, body
+    assert body["error"]["code"] == "PAYMENT_UNAVAILABLE"
+    assert orders_table.scan()["Count"] == 0  # a failed payment must not persist an order
+    log = _last_log(capsys)
+    assert log["dependency"] == "payment-service"
+    assert log["dependency_error"] is True
+
+
+def test_payment_function_error_becomes_502_not_500(orders_table, monkeypatch, capsys):
+    # An UNHANDLED exception inside payment returns a Lambda FunctionError, where the
+    # payload is {"errorMessage","errorType"} - not our envelope. Order must treat it
+    # as a dependency failure (clean 502 + dependency_error), not dereference the
+    # missing envelope into a blank 500.
+    def error_invoke(**kwargs):
+        raw = json.dumps({"errorMessage": "boom", "errorType": "RuntimeError"}).encode("utf-8")
+        return {"FunctionError": "Unhandled", "Payload": _FakePayload(raw)}
+
+    monkeypatch.setattr(handler_module, "USE_PAYMENT_STUB", False)
+    monkeypatch.setattr(handler_module, "lambda_client", type("C", (), {"invoke": staticmethod(error_invoke)})())
+    response = handler(_post_order_event(), None)
+    body = json.loads(response["body"])
+    assert response["statusCode"] == 502, body
+    assert orders_table.scan()["Count"] == 0
+    log = _last_log(capsys)
+    assert log["dependency"] == "payment-service"
+    assert log["dependency_error"] is True
 
 
 def test_botocore_error_on_invoke_becomes_502_with_dependency_error(orders_table, monkeypatch, capsys):

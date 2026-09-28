@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 import boto3
+from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 SERVICE_NAME = "order-service"  # must match telemetry_schema.json correlation.service enum
@@ -13,7 +14,17 @@ PAYMENT_FUNCTION_NAME = os.environ.get("PAYMENT_FUNCTION_NAME", "anomalypulse-pa
 USE_PAYMENT_STUB = os.environ.get("USE_PAYMENT_STUB", "true").lower() == "true"
 
 dynamodb = boto3.resource("dynamodb")
-lambda_client = boto3.client("lambda")
+# The payment invoke is synchronous and runs inside the order function's own 10s
+# Lambda timeout. Bound botocore's read timeout BELOW that (its default is 60s) so
+# a hung/slow payment - the PAYMENT_TIMEOUT incident knob sleeps 30s - surfaces as
+# a ReadTimeoutError that call_payment_service catches (a clean 502 WITH dependency
+# telemetry), instead of the order Lambda being hard-killed at 10s with no
+# dependency line emitted. 6s sits between the injected-latency incident (a few
+# seconds, which should still succeed and show as high dependency_latency_ms) and
+# the timeout incident (30s). No retries: a 10s budget has no room for one, and a
+# retry would only mask the dependency signal the incident classifier keys on.
+_PAYMENT_INVOKE_CONFIG = Config(connect_timeout=2, read_timeout=6, retries={"max_attempts": 1})
+lambda_client = boto3.client("lambda", config=_PAYMENT_INVOKE_CONFIG)
 table = dynamodb.Table(TABLE_NAME)
 
 # set once per cold container, then stays False for every warm invocation
@@ -93,10 +104,28 @@ def call_payment_service(order_id, amount, customer_id, request_id):
                                                             "body": json.dumps({"order_id": order_id,"customer_id": customer_id,"amount": amount}, default=_decimal_to_float),
                                                             "requestContext": {"requestId": request_id},}, default=_decimal_to_float).encode("utf-8"),)
         elapsed_ms = round((time.time() - start) * 1000, 2)
+        # An unhandled exception inside payment comes back as a Lambda FunctionError,
+        # where Payload is {"errorMessage", "errorType"} rather than our envelope.
+        # Treat it as a dependency failure so it becomes a clean 502 with dependency
+        # telemetry, not a blank 500 from dereferencing a missing field below.
+        if response.get("FunctionError"):
+            envelope = {"data": None, "error": {"message": "payment service error", "code": "PAYMENT_INVOKE_FAILED"}}
+            return {"envelope": envelope, "latency_ms": elapsed_ms, "error": True}
         payload = json.loads(response["Payload"].read())
-        if "body" in payload:  # payment's handler returns {"statusCode":..., "body": "..."} even invoked directly
+        if isinstance(payload, dict) and "body" in payload:  # payment returns {"statusCode":..., "body": "..."} even invoked directly
             payload = json.loads(payload["body"])
-        failed = bool(payload.get("error")) or payload.get("data", {}).get("outcome") != "success"
+        # payment's error envelope carries data:null, so read outcome defensively -
+        # `payload.get("data", {})` would return None (the key exists), and None has
+        # no .get. `or {}` collapses a null/absent data to an empty dict.
+        data = payload.get("data") or {}
+        failed = bool(payload.get("error")) or data.get("outcome") != "success"
+        # Invariant the caller relies on: a failed payment ALWAYS has a structured
+        # error field. An unexpected shape (failed but no error, e.g. data:null with
+        # no error) would otherwise slip past create_order's error gate and
+        # dereference the null data into a 500; synthesize an error to keep it on the
+        # clean-502 path.
+        if failed and not payload.get("error"):
+            payload = {"data": None, "error": {"message": "unexpected payment response", "code": "PAYMENT_INVOKE_FAILED"}}
         return {"envelope": payload, "latency_ms": elapsed_ms, "error": failed}
     except (BotoCoreError, ClientError) as exc:
         # BotoCoreError covers ReadTimeoutError/ConnectionError - i.e. exactly the
@@ -114,6 +143,13 @@ def create_order(body, request_id):
     if not customer_id or not items:
         error = {"message": "customer_id and items are required", "code": "INVALID_BODY"}
         return {"order": None, "error": error, "db": None, "dependency": None}
+
+    # Item prices arrive from the JSON body as floats, which DynamoDB's serializer
+    # rejects ("Float types are not supported. Use Decimal types instead."). The
+    # items are stored verbatim on the order, so normalize every float in them to
+    # Decimal up front - this keeps both the computed total and the stored items
+    # DynamoDB-safe. The JSON response converts them back via _decimal_to_float.
+    items = json.loads(json.dumps(items), parse_float=Decimal)
 
     total = Decimal(str(sum(item.get("price", 0) * item.get("quantity", 1) for item in items)))
     order_id = str(uuid.uuid4())
