@@ -7,6 +7,18 @@ from decimal import Decimal
 
 SERVICE = "product-service"
 
+# CORS: the AnomalyPulse dashboard (Section 14) is a browser client on a
+# different origin, so every response must carry these headers or the browser
+# blocks the call. "*" is fine for the course; tighten to the dashboard origin
+# if this ever leaves the sandbox. The API's OPTIONS preflight is handled at
+# the API Gateway layer (Cors: block in template.yaml).
+_CORS_HEADERS = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
+}
+
 _cold_start = True
 _table_obj = None
 
@@ -31,7 +43,7 @@ def _json_default(obj):
 def _resp(status, data=None, error=None):
     return {
         "statusCode": status,
-        "headers": {"Content-Type": "application/json"},
+        "headers": dict(_CORS_HEADERS),
         "body": json.dumps({"data": data, "error": error}, default=_json_default),
     }
 
@@ -90,8 +102,20 @@ def _route(event, db):
     return _err(501, "NOT_IMPLEMENTED", f"{method} {route} is not handled by product-service")
 
 
-def _log(event, context, status, start, db, cold):
-    elapsed_ms = round((time.perf_counter() - start) * 1000, 3)
+def _log(event, context, status, start_time, start_proc, db, cold):
+    # The schema defines two distinct timing fields:
+    #   latency_ms         = "End-to-end wall clock time ... as seen by the
+    #                         handler" -> wall clock, includes I/O wait (DB call).
+    #   lambda_duration_ms = "Compute time of the Lambda body itself" -> CPU
+    #                         compute time, excludes I/O wait.
+    # So latency_ms uses wall clock (time.time) and lambda_duration_ms uses CPU
+    # time (time.process_time); duration <= latency, as the plan's example
+    # record shows. This also keeps the two signals independent for M3, where a
+    # Lambda-degradation incident from added computation raises compute time
+    # while an injected sleep raises wall-clock latency without raising compute.
+    # (Matches services/cart for consistent cross-service telemetry.)
+    latency_ms = round((time.time() - start_time) * 1000, 3)
+    lambda_duration_ms = round((time.process_time() - start_proc) * 1000, 3)
     request_id = (event.get("requestContext") or {}).get("requestId") or getattr(
         context, "aws_request_id", None
     )
@@ -104,8 +128,8 @@ def _log(event, context, status, start, db, cold):
         "endpoint": event.get("resource"),
         "http_method": event.get("httpMethod"),
         "status_code": status,
-        "latency_ms": elapsed_ms,
-        "lambda_duration_ms": elapsed_ms,
+        "latency_ms": latency_ms,
+        "lambda_duration_ms": lambda_duration_ms,
         "cold_start": cold,
         "db_latency_ms": round(db.latency_ms, 3) if db.latency_ms is not None else None,
         "db_consumed_capacity": db.capacity,
@@ -118,12 +142,13 @@ def _log(event, context, status, start, db, cold):
 def handler(event, context):
     global _cold_start
     cold, _cold_start = _cold_start, False
-    start = time.perf_counter()
+    start_time = time.time()          # wall clock, for latency_ms
+    start_proc = time.process_time()  # CPU time, for lambda_duration_ms
     db = _DbStats()
     try:
         resp = _route(event, db)
     except Exception:
         # Structured error, never a stack trace. The cause stays out of the log line (Tier-2).
         resp = _err(500, "INTERNAL_ERROR", "failed to read products")
-    _log(event, context, resp["statusCode"], start, db, cold)
+    _log(event, context, resp["statusCode"], start_time, start_proc, db, cold)
     return resp

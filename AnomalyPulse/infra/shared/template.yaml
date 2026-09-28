@@ -11,6 +11,15 @@ Resources:
     Properties:
       Name: anomalypulse-api
       StageName: dev
+      # CORS for the browser-based dashboard (Section 14). This generates the
+      # OPTIONS preflight responses at the gateway; each Lambda still returns
+      # Access-Control-Allow-Origin on its own responses. "*" is fine for the
+      # course sandbox; narrow AllowOrigin to the dashboard origin for anything
+      # beyond it.
+      Cors:
+        AllowOrigin: "'*'"
+        AllowHeaders: "'Content-Type'"
+        AllowMethods: "'GET,POST,DELETE,OPTIONS'"
   
   ProductFunction:
     Type: AWS::Serverless::Function
