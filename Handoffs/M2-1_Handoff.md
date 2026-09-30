@@ -1,141 +1,134 @@
-# M2-1 Handoff — Telemetry Schema Contract, Validator, Layer & S3 Landing Zone (in progress)
+# M2-1 Handoff — Telemetry Contract, Validator Layer & S3 Landing Zone
 
-> **For the next Claude session (and Jake).** This is a *working-session* handoff, not a team handoff. It captures (1) the **way Jake wants to work**, (2) the M2-1 deliverables and their status, and (3) exactly where things stand so you don't re-derive or re-litigate anything. The contract + validator + layer + S3 bucket are **done and deployed**; the remaining work is the **CloudWatch → S3 delivery path** and the **one-page contract doc**.
-
----
-
-## 0. How to work with Jake on this — READ FIRST
-
-**This is a Socratic, learning-by-doing session. Jake writes the code himself; you guide.**
-
-The loop:
-
-1. Take the ticket **one deliverable at a time** (see §2).
-2. **Jake proposes** an approach or writes a draft.
-3. **You give feedback** — point out errors, ask leading questions, explain *why* something bites later, surface trade-offs. Lead him to the answer; don't hand him the finished answer.
-4. Repeat until that deliverable is right, then move to the next.
-
-Guardrails:
-- **No `Write`/`Edit` on his deliverables.** Reading files, running read-only checks (`git status`, `sam validate --lint`, `make -n`), and validating/running *his* work are fine and encouraged.
-- **One explicit relaxation Jake made this session:** for **pure SAM/CloudFormation syntax**, he's fine with you just handing him the correct syntax ("asking you is pretty much the same as Googling the syntax"). This applies to *mechanical YAML/CFN syntax only* — keep the Socratic approach for design decisions, architecture, and the Python. Still flag correctness/design issues in whatever he writes.
-- Keep feedback **tight and prioritized** — lead with the blocker, not a wall of nits. (Jake gets frustrated when feedback is too dense; rank issues.)
-- When he asks "did I fix it?", **actually verify** against the files / by running it before answering.
-- **Writing this handoff is the sanctioned exception** to the no-write rule; he explicitly requested it.
+> **The one-sentence version:** Every request your service handles must now emit **one structured JSON telemetry line** that validates against the frozen schema — Jake has already built the schema, a shared validator you import from a Lambda layer, and the entire pipeline that carries your printed line into S3, so your M2 job is just to **`print()` a valid record per request**. (Rachel also builds one extra thing — the CloudWatch metrics extractor — see §6.) Everything Jake built is **live** in `us-east-2` (stack `anomalypulse-shared`).
 
 ---
 
-## 1. Context — the sources of truth
+## 1. Mental model (read this if telemetry is new to you)
 
-- **`Docs/PROJECT_PLAN.md`** — the whole AnomalyPulse plan. For M2-1 the load-bearing parts are **§3 (Telemetry; the Tier-1/Tier-2 Feature/Label Boundary; the ms-timestamp + `request_id` correlation discipline)** and **§12 (AWS service list + the "don't add services for logo-count" principle)**.
-- **`Milestones/Milestone_02_Observability.md`** — the milestone. **`M2-1` is Jake's issue** and it *blocks* M2-2..M2-5 (the four service owners' instrumentation). Scope is deliberately narrow: structured logs + metrics → S3. The async pipeline (EventBridge→SQS→Aggregator) is **M8**; one-minute-window aggregation is **M4**. Both out of scope here.
-- **`Handoffs/M1-1_Handoff.md`** — background on the deployed stack and team conventions.
+**Telemetry is structured data, not log text.** In M1 you may have `print()`ed human-readable log lines. In M2 each request emits **one JSON object** with a fixed set of fields. The reason is the whole point of the project: downstream, an ML model reads these records to detect and classify incidents. A model can't learn from `"order failed, took a while"`; it can learn from `{"latency_ms": 1842, "status_code": 500, ...}`.
 
-One-line frame: services emit structured telemetry → ML detects/classifies incidents → Bedrock explains them. M2-1 makes the telemetry **structured, enforced, and landable in S3**.
+**You just `print()` it — the plumbing is already built.** When your handler prints a JSON line to stdout, it lands in CloudWatch Logs.
+
+**The schema is enforced, not a suggestion.** There's a real JSON Schema plus a validator you import. The schema uses `additionalProperties: false`, which means: emit a field that isn't in the schema — a typo, an extra field, or a forbidden one — and the record is **rejected**. This is deliberate; it's what keeps five people's telemetry identical.
+
+**Two tiers of fields, and they never mix.** *Tier-1* (and *correlation*) fields are what a real monitor could observe — latency, status codes, DB capacity. *Tier-2* fields reveal the **cause** of a failure (`error_type`, `db_throttled`, the incident label). **A service must never emit a Tier-2 field.** If a cause-revealing field entered the model's input, the ML would be "solved by cheating" and every accuracy number would be meaningless.
 
 ---
 
-## 2. M2-1 deliverables & status
+## 2. What you do: emit a valid telemetry record
 
-| # | Deliverable | Status |
+Build a dict with the required fields and print it as a single JSON line, once per request. The validator lives in the layer, so `import` works in your deployed Lambda with no setup:
+
+```python
+import json
+from datetime import datetime, timezone
+from schema_validator import validate   # provided by the anomalypulse-telemetry layer
+
+def _now_ms() -> str:
+    # ms precision, UTC, trailing Z — matches the schema regex (exactly 3 decimals)
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+def emit(record: dict):
+    ok, errors = validate(record)
+    if not ok:
+        # NEVER let telemetry crash the request. Log the problem and move on.
+        print(json.dumps({"telemetry_error": str(errors[0].message)}))
+        return
+    print(json.dumps(record))   # one line → CloudWatch → shipper → S3
+```
+
+Three rules that trip people up (full details in [`Docs/TELEMETRY_CONTRACT.md`](../Docs/TELEMETRY_CONTRACT.md)):
+
+1. **Emit all 14 fields every time. If one doesn't apply, emit `null` — never omit it.** (Product has no dependency, so it emits `"dependency": null`, not a missing key.)
+2. **`timestamp` is millisecond precision, UTC, ending in `Z`** — e.g. `2026-09-30T22:12:42.081Z`. The schema regex demands exactly three decimal places, so a bare `.isoformat()` (6-digit microseconds) will **fail**. Use the `_now_ms()` helper above (`isoformat(timespec="milliseconds")` pins it to 3).
+3. **`request_id` ties a request together across services.** Source it the same way every service already does — API Gateway's id, falling back to the Lambda context id:
+
+   ```python
+   request_id = (event.get("requestContext") or {}).get("requestId") or getattr(context, "aws_request_id", None)
+   ```
+
+   And **propagate it downstream**: when Order invokes Payment, it injects `{"requestContext": {"requestId": request_id}}` into the invoke payload, and Payment reads `requestContext.requestId` first — so both records carry the *same* id and can be joined by correlation. (Already implemented in Order/Payment; mirror the pattern if your service ever calls another.)
+
+**Validate in your tests, log-and-continue in production.** A malformed telemetry line must never take down a real request — hence the `emit()` above swallows the error. But your **unit tests** should assert `validate(record)[0] is True` (or use `validate_or_raise`) so you catch schema drift before it ships.
+
+---
+
+## 4. The fields (summary — see the contract doc for the full table)
+
+**Correlation** (identity/timing; emitted by everyone, never a model feature):
+`timestamp`, `request_id`, `service`, `endpoint`, `http_method`
+
+**Tier-1 observable** (may become ML features; emit on every event, `null` if N/A):
+`status_code`, `latency_ms`, `lambda_duration_ms`, `cold_start`, `db_latency_ms`, `db_consumed_capacity`, `dependency`, `dependency_latency_ms`, `dependency_error`
+
+**Tier-2 ground-truth** (❌ **NEVER emit from a service** — labeling/eval only):
+`error_type`, `db_throttled`, `incident_type`, `severity`, `fault_injection_params`
+
+> `db_throttled` (a Tier-2 boolean you must **not** emit) is different from the observable CloudWatch **`ThrottledRequests` count** (a legitimate Tier-1 signal Rachel's extractor collects). Count = observable; boolean flag = the answer. Don't synthesize the flag.
+
+---
+
+## 5. How to see your records land in S3
+
+You need AWS access for this (same one-time setup as [`M1-1_Handoff.md`](M1-1_Handoff.md) §5; skip if you're relying on local tests + Jake's deploy). After your instrumented handler is deployed and you hit your route:
+
+```bash
+BUCKET=$(aws ssm get-parameter --name /anomalypulse/telemetry/bucket/name --query Parameter.Value --output text --profile <your-profile>)
+
+# your records should appear under your service's partition:
+aws s3 ls "s3://$BUCKET/raw/service=<your-service>/" --recursive --profile <your-profile>
+
+# read one to eyeball the fields:
+aws s3 cp "s3://$BUCKET/raw/service=<your-service>/dt=<date>/<the-object>.json" - --profile <your-profile>
+```
+
+- Landed under `raw/…`? The pipeline accepted your line. ✅
+- Landed under `errors/…` instead? Your line wasn't parseable JSON (or wasn't on a single line). Fix the emit.
+- Nothing at all? The subscription filter only forwards lines that **contain a `request_id`** — if your record is missing it, it never ships. Check that first.
+
+---
+
+## 6. Per-person quick start (your M2 ticket)
+
+Everyone: branch per ticket (`m2-<n>-<name>`), edit your `handler.py`, add the telemetry emit, write a validating test, open a PR. Then:
+
+- **Josh — Product (M2-2).** Emit full Tier-1 telemetry for both `GET /products` and `GET /products/{id}`: `latency_ms`, `status_code`, `lambda_duration_ms`, `cold_start`, and DynamoDB `db_latency_ms` / `db_consumed_capacity`. Dependency fields are `null` (Product calls nothing). You're the highest-traffic service, so get the record shape clean — it's the template the others mirror.
+- **Linu — Cart (M2-3).** Same Tier-1 record for all three cart routes (`POST /cart`, `GET /cart/{user}`, `DELETE /cart/{user}/{item}`). Dependency fields `null`. Make sure each of the three routes emits — not just the read path.
+- **Melisa — Order (M2-4).** The connected one. Populate the **dependency fields** from your Payment call: `dependency` (`"payment-service"`), `dependency_latency_ms` (measured call time), `dependency_error` (true if it failed/timed out). **Propagate your `request_id` into the Payment invoke** so Order and Payment records can be joined — that correlation is what makes dependency-failure and cascade analysis possible later.
+- **Rachel — Payment + metrics extractor (M2-5).** Two jobs:
+  1. **Instrument Payment.** Emit the Tier-1 record (no table, so `db_*` and `dependency_*` are `null`). ⚠️ **The injected delay is Tier-2 — it must NOT appear in the record.** Your `latency_ms` naturally *includes* any injected slowdown, and that's exactly the observable signal the ML should see **without being told the cause**. The injected value is recorded separately by the simulator (M3), never by your service.
+  2. **Build the CloudWatch metrics extractor.** A boto3 module that pulls the non-log signals every service needs: DynamoDB `ConsumedCapacity` and **`ThrottledRequests` counts**, and Lambda `Duration` / `Throttles` / `ColdStarts` (init duration). These come from the CloudWatch **metrics** API, aligned to the same timestamp discipline, and land in S3 alongside the log records. These throttle counts feed the DB-throttling incident you're adjacent to in M3.
+
+---
+
+## 7. Troubleshooting
+
+| Symptom | Cause | Fix |
 |---|---|---|
-| 1 | Validating **record schema** (`telemetry_schema.json`) | ✅ **Done** |
-| 1b | **Field catalog** with per-field tiers (all fields incl. Tier-2) | ✅ **Done** |
-| — | **Lambda layer** packaging (delivery mechanism for the helper) | ✅ **Done, build-proven & deployed** |
-| 2 | Shared **validation helper** (`schema_validator.py`) + tests | ✅ **Done, 36 tests pass** |
-| 3 | **S3 raw landing zone** + partitioning (`raw/service=<svc>/dt=<date>/…`) | ✅ **Done & deployed** (bucket only; nothing writes to it yet) |
-| 4 | **CloudWatch-logs → S3** delivery path | 🚧 **NEXT — design locked (see §4), not yet built** |
-| 5 | One-page **telemetry-contract doc** | ⬜ Not started |
+| `validate()` returns `False` | Missing field, extra/misspelled field, or a Tier-2 field | Emit **all 14** fields (`null` if N/A); check spelling; remove any Tier-2 field. `errors[0].message` names the problem. |
+| Validator rejects your `timestamp` | `datetime`'s `%f` gives 6 digits; schema wants exactly 3 | Use the `_now_ms()` helper (§3) — truncate microseconds to milliseconds. |
+| Record lands in `errors/`, not `raw/` | Line wasn't parseable JSON, or was split across multiple lines | Emit a single `json.dumps(record)` line; no embedded newlines. |
+| Nothing lands in S3 at all | The subscription filter only forwards lines containing `request_id` | Ensure every record has a `request_id`; confirm your handler is deployed. |
+| `AccessDeniedException` reading the bucket | Your profile lacks S3 read, or wrong profile | This is a read-only convenience; ask Jake if you need bucket read access. |
+| `import schema_validator` fails **locally** | The layer is only on the *deployed* Lambda's path | For local tests, add `AnomalyPulse/layers/telemetry/python/` to `sys.path` and `pip install jsonschema`. |
 
-**Definition of Done — remaining:**
-- [x] Schema validates a known-good record and rejects a record missing `timestamp`/`request_id` *(proven: 36 tests)*
-- [x] Every Tier-2 field explicitly marked & documented as *never a feature* *(field catalog + `additionalProperties:false` rejects them)*
-- [ ] Records from ≥1 deployed service visible in S3 under documented partitions *(blocked on deliverable 4)*
-- [ ] All four service owners have imported the shared validation helper *(layer deployed; owners import it in M2-2..M2-5)*
+**Golden rule:** if your record won't validate, print `errors[0].message` — the validator tells you exactly which field and why.
 
 ---
 
-## 3. Decisions already made — do NOT relitigate
+## 8. Your M2 checklist
 
-**From the prior session (still standing):**
-- **Standard JSON Schema (draft 2020-12) + a custom `tier` annotation.** Two artifacts on purpose: the **record schema** validates emitted lines (correlation + Tier-1 only, `additionalProperties:false` so any stray **Tier-2 field is rejected** — the leak-catcher); the **field catalog** is a registry listing *every* field with its tier (the only home for Tier-2 definitions).
-- **`required` = all 14 observable fields.** Emission rule: "never omit, emit `null`."
-- **Timestamp** enforced by a **`pattern` regex** pinning ms precision (`…\.\d{3}Z$`); `format: date-time` is advisory only (unenforced without a FormatChecker) — the regex does the real work.
-- **Validator contract:** `validate(record)` returns `(bool, list_of_errors)` (uniform type both ways); `validate_or_raise(record)` raises the first error. Live handlers log-and-continue; tests/CI/the M4 feature-guard use the raising variant. `Draft202012Validator.check_schema(schema)` runs at **import** so a malformed schema fails loudly at cold start.
-- **Sharing mechanism = a Lambda layer.** Single source of truth for the schema lives *inside the layer* (`layers/telemetry/python/telemetry_schema.json`); field catalog stays in `infra/shared/` (build-time artifact, doesn't ship to runtime).
-
-**New this session:**
-- **Layer build is no-Docker + cross-arch.** The Makefile copies `python/.` then `python3 -m pip install -r requirements.txt --platform manylinux2014_aarch64 --python-version 3.13 --only-binary=:all:`. Verified the built `rpds` extension is `…aarch64-linux-gnu.so` (Linux arm64 — correct for Graviton), not a macOS wheel. **Gotcha for the future:** that `--platform` pin is now the *only* thing keeping the layer arm64 (the `Globals.Function.Architectures: arm64` does **not** apply to LayerVersions — hence the harmless `BuildArchitecture x86_64` warning). Don't drop the pin.
-- **`requirements.txt` = `jsonschema` only.** `json`/`pathlib` are stdlib and were (correctly) removed — never pip-install stdlib (`pathlib` on PyPI is a broken Py2 backport).
-- **`pip` vs `python3 -m pip`:** this machine (Apple Silicon, Homebrew) has no bare `pip`, only `pip3` / `python3 -m pip`. The Makefile uses `python3 -m pip`.
-- **Use `sam validate --lint`, not plain `sam validate`.** Plain validate is only a schema smoke test; it passed a bad `$( )` Sub and a mis-indented `SSEAlgorithm` that `--lint` (cfn-lint) caught. Make `--lint` the default for this template.
-- **S3 landing zone = ONE bucket, prefix zones.** Bucket name is **zone-neutral** (`anomalypulse-telemetry-${AWS::AccountId}-${AWS::Region}`); `raw/` is this milestone's zone, `aggregated/` is reserved for M4. Zone isolation is done via **prefixes** (IAM scoping + prefix-scoped lifecycle), not separate buckets. Bucket is hardened: all 4 Block-Public-Access flags, SSE-S3 (AES256), `OwnershipControls: BucketOwnerEnforced`, and a lifecycle rule `expire-raw-telemetry` scoped to `Prefix: raw/` at 90 days. Name published to SSM at `/anomalypulse/telemetry/bucket/name`.
-- **Partition layout is a NAMING CONVENTION, not real S3 partitioning.** S3 is a flat key store; `service=…/dt=…` are Hive-style key segments that *downstream query engines* (Athena/Glue) interpret as partition columns. The `key=value` form (not `raw/<svc>/<date>/`) is deliberate — it's what enables automatic partition discovery later. `dt` = **date** granularity (not hour/minute); the one-minute ML windows live *inside* a day's data, and date aligns with the §6b separate-day train/test split.
-
-- **🚩 DE-SCOPED FIREHOSE — DO NOT RE-INTRODUCE IT.** We first sketched CloudWatch Logs → **Kinesis Firehose** → S3, then sanity-checked and rejected it for M2. Reasons: (1) Firehose/Kinesis is **not in PROJECT_PLAN §12's service list**, and §12 forbids adding services for logo-count; its real value (managed batching, file-size optimization, Parquet, backpressure) only pays off at volume / in M4/M8. (2) M2 scope is deliberately narrow. (3) Firehose does **not** avoid the gzip-unwrap step (that's inherent to a CloudWatch Logs *source*), so it's pure addition — extra service, second IAM role, buffering + dynamic-partition config — on top of an unwrap you need anyway. Lock-in is low because the **S3 `raw/service=/dt=/` layout is the durable interface**; the writer behind it can be upgraded in M8 without touching M4. **If the next session is tempted by Firehose, re-read this bullet first.**
+- [ ] Pulled `main`; created your ticket branch `m2-<n>-<name>`
+- [ ] Handler emits **one JSON telemetry line per request**, all 14 fields present (`null` where N/A)
+- [ ] `timestamp` is ms-precision UTC ending in `Z`; `request_id` set (and propagated downstream if you call another service)
+- [ ] **No Tier-2 field** anywhere in the emitted record
+- [ ] Telemetry never crashes the request (log-and-continue on invalid)
+- [ ] Unit test asserts a sample record **validates clean** against the schema
+- [ ] (Melisa) `dependency_*` fields populated from the real Payment call; `request_id` propagated
+- [ ] (Rachel) Payment instrumented (injected delay **not** in the record) **+** CloudWatch metrics extractor returning real throttle **counts** and Lambda health metrics
+- [ ] PR opened to `main`; after Jake's deploy, confirmed your records appear under `raw/service=<you>/…` in S3
 
 ---
 
-## 4. NEXT STEP — CloudWatch subscription → shipper Lambda → S3 (deliverable 4)
-
-**The chosen shape (simpler than Firehose, same decoupling):**
-
-```
-service Lambda  →  prints structured JSON telemetry line to stdout
-      │
-      ▼
-CloudWatch Logs  (/aws/lambda/<fn>)
-      │   ← SubscriptionFilter forwards matching events
-      ▼
-ONE shipper Lambda (Jake owns)  — decompress + unwrap + build key + put_object
-      │
-      ▼
-S3   raw/service=<svc>/dt=<date>/part-….json
-```
-
-Why this and not direct-write-from-handler: an in-handler S3 write adds I/O + a failure mode **to the request path**, which would contaminate the very latency the incident experiments measure. Staying async/off-path is the reason for the one hop. Service owners still just `print()` a JSON line — the shipper is Jake's infra, invisible to them.
-
-**Resources to build (suggested order, each deploy-and-verify before the next):**
-
-1. **Explicit log groups** (`AWS::Logs::LogGroup`), one per service (`/aws/lambda/anomalypulse-product`, `-cart`, `-order`, `-payment`). *Gotcha:* Lambda auto-creates its log group on first invoke; if you don't declare it, the SubscriptionFilter at deploy time has nothing to attach to (race/failure). Declaring them also lets you set retention.
-2. **Shipper Lambda (+ execution role)** — Jake owns it. It must:
-   - **Decompress + unwrap** the CloudWatch Logs payload. CW Logs does *not* send clean JSON — it sends a **gzip-compressed** envelope wrapping many events: `{ "messageType","logGroup","logStream","logEvents":[ {"id","timestamp","message"}, … ] }`. The Lambda gunzips, iterates `logEvents`, and takes each `message` (that's our telemetry JSON line). (AWS blueprint: `kinesis-firehose-cloudwatch-logs-processor` is a reference, but here it writes to S3 directly.)
-   - **Build the partition key** from each record: `raw/service=<record.service>/dt=<YYYY-MM-DD>/…`. Start `dt` from arrival/ingest date (simple); only switch to the record's own `timestamp` field (event-time) if the §6b separate-day split needs it.
-   - **`put_object`** newline-delimited JSON to the bucket (look it up from SSM `/anomalypulse/telemetry/bucket/name` or pass as env var). Execution role needs `s3:PutObject` on `arn:…:<bucket>/raw/*` + basic execution (logs). Consider a distinct `errors/` prefix for malformed/undecodable records so a bad batch isn't silently dropped.
-3. **SubscriptionFilters** (`AWS::Logs::SubscriptionFilter`), one per log group. `DestinationArn` = shipper Lambda ARN. `FilterPattern` should restrict to *our* telemetry lines (e.g. a JSON pattern like `{ $.request_id = * }`) so Lambda's own `START`/`END`/`REPORT`/init noise isn't shipped. **IAM note:** a filter → Lambda destination does **not** use a `RoleArn`; instead grant CloudWatch Logs permission to invoke the Lambda via an `AWS::Lambda::Permission` (principal `logs.<region>.amazonaws.com`, `SourceArn` the log group). This is why the role count stays at one.
-4. **Deploy, then fire a request** at a deployed service and confirm an object appears under `raw/service=…/dt=…/`. That closes the DoD box "records from ≥1 service visible in S3 under the documented partitions."
-
-**Then deliverable 5 (contract doc):** one page — field list, tiers, the ms-timestamp + `request_id` discipline, the S3 layout, and a note that **the canonical schema lives in the layer** (`layers/telemetry/python/telemetry_schema.json`) so teammates don't rely on word-of-mouth.
-
----
-
-## 5. File locations & how to run things
-
-```
-AnomalyPulse/
-├─ infra/shared/
-│  ├─ template.yaml          ← TelemetryLayer + TelemetryBucket + Globals attach + SSM params
-│  ├─ field_catalog.json     ← DONE (all fields, tier-tagged)
-│  └─ samconfig.toml
-└─ layers/telemetry/
-   ├─ Makefile               ← copies python/. then python3 -m pip install (arm64 cross-build)
-   ├─ requirements.txt       ← jsonschema ONLY
-   ├─ test_schema_validator.py  ← 36 tests; lives HERE (layer root), NOT in python/, so the
-   │                             Makefile's `cp -r python/.` doesn't ship it into the runtime layer
-   └─ python/
-      ├─ telemetry_schema.json   ← DONE (record schema; canonical copy)
-      └─ schema_validator.py     ← DONE (check_schema at import; validate; validate_or_raise)
-```
-
-- **Run the validator tests:** they need `jsonschema` + `pytest`. There's no project venv; the prior session used a throwaway venv (`python3 -m venv … && pip install jsonschema pytest`) then `python -m pytest AnomalyPulse/layers/telemetry/test_schema_validator.py -q`. The test adds `python/` to `sys.path` itself, so it runs from anywhere. Make sure `jsonschema` is in whatever dev/CI env runs tests.
-- **Validate infra:** `cd AnomalyPulse/infra/shared && sam validate --lint` (always `--lint`).
-- **Build/verify the layer:** `sam build`, then check `.aws-sam/build/TelemetryLayer/python/` has `schema_validator.py`, `telemetry_schema.json`, **and** `jsonschema`/`rpds` (with `rpds*.so` = `aarch64-linux-gnu`).
-
----
-
-## 6. Git state
-
-- Branch **`m2-1_jake`**, based on `main`, **clean working tree, fully pushed** to `origin/m2-1_jake` (0 ahead / 0 behind at handoff).
-- Recent commits this session: `3f27db3 Provisioning S3 bucket to hold telemetry`, `371ec66 Adjusting Makefile error`, `b611c79 Building and testing telemetry schema validator`, `6dc863d Defining telemetry schema and making schema validator usable by Lambdas`.
-- **Convention:** branch-per-ticket → PR to `main`. Jake owns `infra/` and deploys the single shared stack; teammates never run `sam deploy`. Bucket + layer are already **deployed** to AWS.
-
-*Remember: guide, don't do (except pure SAM/CFN syntax). Jake writes it; you make him get it right — and actually verify before you claim it works.*
+*Questions → ping Jake. The field reference of record is [`Docs/TELEMETRY_CONTRACT.md`](../Docs/TELEMETRY_CONTRACT.md); the schema that enforces it lives in the layer.*
