@@ -16,12 +16,14 @@ os.environ["AWS_SESSION_TOKEN"] = "testing"
 os.environ["TABLE_NAME"] = "test-orders-table"
 os.environ["USE_PAYMENT_STUB"] = "true"
 
+import sys
+_LAYER_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "layers", "telemetry", "python")
+sys.path.insert(0, os.path.abspath(_LAYER_PATH))
+
 from handler import handler
 import handler as handler_module
 
-# The exact per-request telemetry contract from infra/shared/telemetry_schema.json:
-# every service emits these fields (correlation + Tier-1 observable) and NEVER a
-# Tier-2 ground-truth field on the request path.
+
 SCHEMA_FIELDS = {
     "timestamp", "request_id", "service", "endpoint", "http_method",
     "status_code", "latency_ms", "lambda_duration_ms", "cold_start",
@@ -29,7 +31,6 @@ SCHEMA_FIELDS = {
     "dependency", "dependency_latency_ms", "dependency_error",
 }
 TIER2_FIELDS = {"error_type", "db_throttled", "incident_type", "severity", "fault_injection_params"}
-
 
 @pytest.fixture
 def orders_table():
@@ -42,9 +43,7 @@ def orders_table():
         handler_module._cold_start = True
         yield table
 
-
-# --- helpers ---------------------------------------------------------------
-
+# helpers
 def _post_order_event(body=None, request_id=None):
     body = {"customer_id": "cust-1", "items": [{"sku": "widget", "price": 10, "quantity": 2}]} if body is None else body
     event = {"resource": "/orders", "httpMethod": "POST", "pathParameters": None, "body": json.dumps(body)}
@@ -88,9 +87,7 @@ class _FakeLambdaClient:
         raw = json.dumps({"statusCode": 200, "body": body}).encode("utf-8")
         return {"Payload": _FakePayload(raw)}
 
-
-# --- behaviour: create / get -----------------------------------------------
-
+# create/get
 def test_create_order(orders_table):
     response = handler(_post_order_event(), None)
     body = json.loads(response["body"])
@@ -103,10 +100,6 @@ def test_create_order(orders_table):
 
 
 def test_create_order_with_float_prices(orders_table):
-    # Regression: item prices arrive from the JSON body as floats, which DynamoDB's
-    # serializer rejects unless coerced to Decimal. The other create tests all use
-    # integer prices, so this path (a float total that must persist and round-trip)
-    # went uncovered until the live smoke test (price 19.99) hit it. 19.99 * 2 = 39.98.
     response = handler(_post_order_event(
         {"customer_id": "cust-float", "items": [{"product_id": "prod-001", "price": 19.99, "quantity": 2}]}
     ), None)
@@ -154,8 +147,7 @@ def test_unsupported_method(orders_table):
     response = handler(event, None)
     assert response["statusCode"] == 404
 
-
-# --- behaviour: payment dependency -----------------------------------------
+# behaviour: payment dependency 
 
 def test_create_order_payment_service_error(orders_table, monkeypatch):
     monkeypatch.setattr(handler_module, "call_payment_service",
@@ -168,11 +160,6 @@ def test_create_order_payment_service_error(orders_table, monkeypatch):
 
 
 def test_real_payment_failure_envelope_becomes_502_no_order_persisted(orders_table, monkeypatch, capsys):
-    # Exercises payment's REAL 5xx failure shape (statusCode + a JSON body carrying a
-    # structured error), which the success-only fake never covers and which the live
-    # smoke path would hit under the PAYMENT_FAILURE_RATE incident knob. Order must
-    # turn it into a clean 502, record dependency_error telemetry, and persist NO
-    # order row.
     def fail_invoke(**kwargs):
         body = json.dumps({"data": None, "error": {"code": "PAYMENT_UNAVAILABLE", "message": "payment service failed"}})
         raw = json.dumps({"statusCode": 503, "body": body}).encode("utf-8")
@@ -191,10 +178,6 @@ def test_real_payment_failure_envelope_becomes_502_no_order_persisted(orders_tab
 
 
 def test_payment_function_error_becomes_502_not_500(orders_table, monkeypatch, capsys):
-    # An UNHANDLED exception inside payment returns a Lambda FunctionError, where the
-    # payload is {"errorMessage","errorType"} - not our envelope. Order must treat it
-    # as a dependency failure (clean 502 + dependency_error), not dereference the
-    # missing envelope into a blank 500.
     def error_invoke(**kwargs):
         raw = json.dumps({"errorMessage": "boom", "errorType": "RuntimeError"}).encode("utf-8")
         return {"FunctionError": "Unhandled", "Payload": _FakePayload(raw)}
@@ -211,10 +194,6 @@ def test_payment_function_error_becomes_502_not_500(orders_table, monkeypatch, c
 
 
 def test_botocore_error_on_invoke_becomes_502_with_dependency_error(orders_table, monkeypatch, capsys):
-    # A ReadTimeoutError/ConnectionError from the payment invoke is a dependency
-    # failure: call_payment_service catches BotoCoreError and returns an error
-    # envelope, so the caller returns 502 AND records dependency_error=True in
-    # telemetry rather than falling through to a blank 500.
     from botocore.exceptions import ReadTimeoutError
 
     def boom_invoke(**kwargs):
@@ -230,9 +209,6 @@ def test_botocore_error_on_invoke_becomes_502_with_dependency_error(orders_table
 
 
 def test_request_id_propagated_to_payment(orders_table, monkeypatch, capsys):
-    # The upstream request_id must be forwarded to payment (under requestContext,
-    # where payment reads it) so the two services' log lines share a correlation
-    # key (PROJECT_PLAN Section 3), and order's own telemetry must carry it too.
     fake = _FakeLambdaClient()
     monkeypatch.setattr(handler_module, "USE_PAYMENT_STUB", False)
     monkeypatch.setattr(handler_module, "lambda_client", fake)
@@ -245,18 +221,15 @@ def test_request_id_propagated_to_payment(orders_table, monkeypatch, capsys):
 
 
 def test_request_id_falls_back_to_context(orders_table, capsys):
-    # With no upstream requestContext, order falls back to the Lambda request id.
     ctx = type("Ctx", (), {"aws_request_id": "lambda-req-1"})()
     handler(_post_order_event(), ctx)
     assert _last_log(capsys)["request_id"] == "lambda-req-1"
 
 
-# --- telemetry contract -----------------------------------------------------
+# telemetry 
 
 def test_dependency_latency_raises_wall_clock_not_cpu(orders_table, monkeypatch, capsys):
-    # A slow payment dependency is I/O wait: it must raise wall-clock latency_ms
-    # but NOT CPU lambda_duration_ms. That split is what keeps DEPENDENCY_FAILURE
-    # distinct from LAMBDA_DEGRADATION (added computation) for the classifier.
+
     def slow_payment(order_id, amount, customer_id, request_id):
         time.sleep(0.2)
         return {"envelope": {"data": {"service": "payment", "outcome": "success"}, "error": None}, "latency_ms": 200.0, "error": False}
@@ -296,17 +269,14 @@ def test_log_line_matches_schema_on_get(orders_table, capsys):
     assert TIER2_FIELDS.isdisjoint(log)
     assert log["http_method"] == "GET"
     assert log["endpoint"] == "/orders/{id}"
-    # GET makes no downstream call, so the dependency fields are null...
+    # GET makes no downstream call, so the dependency fields are null
     assert log["dependency"] is None
     assert log["dependency_latency_ms"] is None
     assert log["dependency_error"] is None
-    # ...but it still hits DynamoDB.
     assert log["db_latency_ms"] is not None
 
 
 def test_exactly_one_log_line_per_request(orders_table, capsys):
-    # The "one JSON log line per request" invariant must hold on every path,
-    # including the malformed-body and unsupported-route rejections.
     handler(_post_order_event(), None)
     assert len(_json_logs(capsys)) == 1
     handler({"resource": "/orders", "httpMethod": "POST", "pathParameters": None, "body": "{bad"}, None)
@@ -325,19 +295,15 @@ def test_cold_start_only_first_invocation(orders_table, capsys):
 
 
 def test_response_has_cors_header(orders_table):
-    # The dashboard is a cross-origin browser client, so every response
-    # (success and error envelopes alike) must carry Access-Control-Allow-Origin.
     ok = handler(_post_order_event(), None)
     assert ok["headers"]["Access-Control-Allow-Origin"] == "*"
     err = handler(_post_order_event({"customer_id": "cust-1"}), None)
     assert err["headers"]["Access-Control-Allow-Origin"] == "*"
 
 
-# --- error paths must not leak the cause ------------------------------------
+# error paths must not leak the cause 
 
 def test_internal_error_returns_envelope_without_leak(orders_table, monkeypatch, capsys):
-    # An unexpected DynamoDB failure must yield a generic 500 (never the raw
-    # exception text) and must not print the cause or any Tier-2 field anywhere.
     def boom(*args, **kwargs):
         raise RuntimeError("secret internal detail")
 
@@ -355,10 +321,6 @@ def test_internal_error_returns_envelope_without_leak(orders_table, monkeypatch,
 
 
 def test_dynamodb_client_error_returns_db_error_without_leak(orders_table, monkeypatch, capsys):
-    # A DynamoDB ClientError (e.g. ProvisionedThroughputExceededException, the M3
-    # throttling path) gets the dedicated DB_ERROR code - distinct from the generic
-    # INTERNAL_ERROR - with a generic message and no leak of the cause on the
-    # request path. (Matches services/cart.)
     def throttle(*args, **kwargs):
         raise ClientError({"Error": {"Code": "ProvisionedThroughputExceededException", "Message": "Throughput exceeds the current capacity"}}, "PutItem")
 
