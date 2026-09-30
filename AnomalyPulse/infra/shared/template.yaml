@@ -2,8 +2,6 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: AnomalyPulse shared infrastructure - API skeleton (M1-1)
 
-# Run every function on arm64 (Graviton). 
-# Set once here so all functions inherit it.
 Globals:
   Function:
     Architectures:
@@ -13,18 +11,15 @@ Globals:
 
 Resources:
 
-  # ---- Shared API Gateway (M1-1) ---------------------------------------
+  # ---- Shared API Gateway ---------------------------------------
 
   RestApi:
     Type: AWS::Serverless::Api
     Properties:
       Name: anomalypulse-api
       StageName: dev
-      # CORS for the browser-based dashboard (Section 14). This generates the
-      # OPTIONS preflight responses at the gateway; each Lambda still returns
-      # Access-Control-Allow-Origin on its own responses. "*" is fine for the
-      # course sandbox; narrow AllowOrigin to the dashboard origin for anything
-      # beyond it.
+      # CORS for the browser-based dashboard (Section 14). Narrow 
+      # AllowOrigin to the dashboard origin later.
       Cors:
         AllowOrigin: "'*'"
         AllowHeaders: "'Content-Type'"
@@ -42,11 +37,8 @@ Resources:
     Metadata:
       BuildMethod: makefile
   
-  # -------- Telemetry landing zone (M2-1) ---------------
-  # One telemetry bucket; raw/ and (later) aggregated/ are
-  # prefix zones within it, holding raw telemetry and 
-  # minute-aggregated telemetry, respectively. Hive-style
-  # keys raw/service=<svc>/dt=<date>/...
+  # ---- Telemetry Landing Zone ---------------------------------------
+
   TelemetryBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -70,6 +62,8 @@ Resources:
             Prefix: raw/
             ExpirationInDays: 90
   
+  # ---- CloudWatch Log Groups ---------------------------------------
+
   ProductLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -94,7 +88,8 @@ Resources:
       LogGroupName: /aws/lambda/anomalypulse-payment
       RetentionInDays: 90
 
-  
+  # ---- Lambda Functions ---------------------------------------
+
   ProductFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -126,7 +121,7 @@ Resources:
     Properties:
       FunctionName: anomalypulse-cart
       CodeUri: ../../services/cart/
-      Handler: handler.handler        # file handler.py, function handler()
+      Handler: handler.handler
       Runtime: python3.13
       Timeout: 10
       Role: !GetAtt CartRole.Arn
@@ -158,17 +153,13 @@ Resources:
     Properties:
       FunctionName: anomalypulse-order
       CodeUri: ../../services/order/
-      Handler: handler.handler          # file handler.py, function handler()
+      Handler: handler.handler
       Runtime: python3.13
       Timeout: 10
       Role: !GetAtt OrderRole.Arn
       Environment:
         Variables:
           TABLE_NAME: !Ref OrdersTable
-          # Call the real payment Lambda in the deployed system. The handler
-          # defaults to the in-process stub for local unit tests; the deployed
-          # order service must exercise the real payment dependency so that
-          # DEPENDENCY_FAILURE incidents are observable through it (Sections 4/5).
           USE_PAYMENT_STUB: 'false'
           PAYMENT_FUNCTION_NAME: !Ref PaymentFunction
       Events:
@@ -190,7 +181,7 @@ Resources:
     Properties:
       FunctionName: anomalypulse-payment
       CodeUri: ../../services/payment/
-      Handler: handler.handler          # file handler.py, function handler()
+      Handler: handler.handler
       Runtime: python3.13
       Timeout: 10
       Role: !GetAtt PaymentRole.Arn
@@ -206,10 +197,21 @@ Resources:
             RestApiId: !Ref RestApi
             Path: /payments
             Method: POST
-        
+
+  ShipperFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: anomalypulse-telemetry-shipper
+      CodeUri: ./shipper/
+      Handler: handler.handler
+      Runtime: python3.13
+      Timeout: 30
+      Role: !GetAtt ShipperRole.Arn
+      Environment: 
+        Variables:
+          BUCKET_NAME: !Ref TelemetryBucket
           
-  # ---- Catch-all 501 stub (M1-1) ---------------------------------------
-  # Every real route (/orders, /cart, etc.) is defined above in this stack. 
+  # ---- Catch-all 501 Stub ---------------------------------------
   # This stub is mapped to /{proxy+} ANY - a greedy wildcard that API Gateway
   # prefers least, so it catches only paths matching no defined route and 
   # answers them with 501 NOT_IMPLEMENTED. A defined route always wins over it.
@@ -239,11 +241,8 @@ Resources:
             Path: /{proxy+}
             Method: ANY
   
-  # ---- DynamoDB tables (M1-1) ------------------------------------------
-  # Only KEY attributes are declared. Everything else (name, price, items,
-  # status, ...) is schemaless and written by the service Lambdas later.
-  # Billing mode is on-demand (PAY_PER_REQUEST): zero idle cost, no capacity
-  # to size. NOTE (M3): the DynamoDB-throttling incident needs a table in
+  # ---- DynamoDB Tables ---------------------------------------
+  # NOTE (M3): the DynamoDB-throttling incident needs a table in
   # PROVISIONED mode with low RCU/WCU to produce *real* throttling. Revisit
   # the Products table then; PAY_PER_REQUEST is correct for M1.
 
@@ -287,11 +286,7 @@ Resources:
         - AttributeName: order_id
           KeyType: HASH
   
-  # ---- Per-service IAM roles (M1-1) ------------------------------------
-  # Each role = a trust policy (only Lambda may assume it) + the AWS-managed
-  # basic-execution policy (CloudWatch Logs; required because we set Role:
-  # explicitly, so SAM won't add it) + a tight inline policy scoped to just
-  # that service's table. ARNs are published to SSM in step 4.
+  # ---- Per-service IAM Roles ----------------------------------------
 
   ProductRole:
     Type: AWS::IAM::Role
@@ -388,12 +383,76 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
   
-  # ---- Published config: API address book (M1-1) -----------------------
-  # The shared API's URL and ID, published to SSM so later tooling looks 
-  # them up by a fixed path instead of hardcoding values that change
-  # on redeploy.
-  # base-url: full invoke URL 
-  # rest-api-id: what a service stack attaches to
+  ShipperRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: 
+          - Effect: Allow
+            Principal: 
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: shipper-s3-write
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: 
+                  - !Sub '${TelemetryBucket.Arn}/raw/*'
+                  - !Sub '${TelemetryBucket.Arn}/errors/*'
+  
+  # ---- Invoke Permissions ---------------------------------------
+
+  ShipperInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: !Ref ShipperFunction
+      Action: lambda:InvokeFunction
+      Principal: !Sub 'logs.${AWS::Region}.amazonaws.com'
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/anomalypulse-*:*'
+
+  # ---- Subscription Filters ---------------------------------------
+
+  ProductSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn: ShipperInvokePermission
+    Properties:
+      LogGroupName: !Ref ProductLogGroup
+      DestinationArn: !GetAtt ShipperFunction.Arn
+      FilterPattern: '{ $.request_id = "*" }'
+  
+  CartSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn: ShipperInvokePermission
+    Properties:
+      LogGroupName: !Ref CartLogGroup
+      DestinationArn: !GetAtt ShipperFunction.Arn
+      FilterPattern: '{ $.request_id = "*" }'
+  
+  PaymentSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn: ShipperInvokePermission
+    Properties:
+      LogGroupName: !Ref PaymentLogGroup
+      DestinationArn: !GetAtt ShipperFunction.Arn
+      FilterPattern: '{ $.request_id = "*" }'
+  
+  OrderSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn: ShipperInvokePermission
+    Properties:
+      LogGroupName: !Ref OrderLogGroup
+      DestinationArn: !GetAtt ShipperFunction.Arn
+      FilterPattern: '{ $.request_id = "*" }'
+      
+  
+  # ---- SSM Parameters ---------------------------------------
 
   SsmApiUrl: 
     Type: AWS::SSM::Parameter
@@ -415,17 +474,13 @@ Resources:
       Name: /anomalypulse/telemetry/bucket/name
       Type: String
       Value: !Ref TelemetryBucket
-      
-  
-  # ---- Published config: table names  --------------------------------------
-  # The "address book". Teammates look these up by path instead of hardcoding.
 
   SsmProductsTableName:
     Type: AWS::SSM::Parameter
     Properties:
       Name: /anomalypulse/tables/products/name
       Type: String
-      Value: !Ref ProductsTable       # Ref on a DynamoDB table = its name
+      Value: !Ref ProductsTable
   
   SsmCartsTableName:
     Type: AWS::SSM::Parameter
