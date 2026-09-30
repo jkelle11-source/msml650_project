@@ -46,8 +46,7 @@ Resources:
   # One telemetry bucket; raw/ and (later) aggregated/ are
   # prefix zones within it, holding raw telemetry and 
   # minute-aggregated telemetry, respectively. Hive-style
-  # keys raw/service=<svc>/dt=<date>/... are written by 
-  # Firehose.
+  # keys raw/service=<svc>/dt=<date>/...
   TelemetryBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -70,6 +69,30 @@ Resources:
             Status: Enabled
             Prefix: raw/
             ExpirationInDays: 90
+  
+  ProductLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/anomalypulse-product
+      RetentionInDays: 90
+      
+  CartLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/anomalypulse-cart
+      RetentionInDays: 90
+  
+  OrderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/anomalypulse-order
+      RetentionInDays: 90
+  
+  PaymentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/anomalypulse-payment
+      RetentionInDays: 90
 
   
   ProductFunction:
