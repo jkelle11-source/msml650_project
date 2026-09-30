@@ -11,9 +11,9 @@ service (M2-2…M2-5), this page plus the layer is all you need.
 
 | Artifact | Path | Role |
 |---|---|---|
-| **Record schema** (enforced) | `layers/telemetry/python/telemetry_schema.json` | Validates every emitted line. `additionalProperties: false`. |
-| **Validator** | `layers/telemetry/python/schema_validator.py` | `validate(record) -> (ok, errors)`; `validate_or_raise(record)`. |
-| **Field catalog** (all tiers) | `infra/shared/field_catalog.json` | Registry of every field incl. Tier-2. The only home for Tier-2 definitions. |
+| **Record schema** (enforced) | `AnomalyPulse/layers/telemetry/python/telemetry_schema.json` | Validates every emitted line. `additionalProperties: false`. |
+| **Validator** | `AnomalyPulse/layers/telemetry/python/schema_validator.py` | `validate(record) -> (ok, errors)`; `validate_or_raise(record)`. |
+| **Field catalog** (all tiers) | `AnomalyPulse/infra/shared/field_catalog.json` | Registry of every field incl. Tier-2. The only home for Tier-2 definitions. |
 
 Both schema and validator ship in the **`anomalypulse-telemetry` Lambda layer** (attached to
 every function via `Globals`). **Import the layer — never transcribe the field list.**
@@ -87,7 +87,7 @@ fails the build if any Tier-2 name reaches the training matrix.
 Bucket name is published to SSM at `/anomalypulse/telemetry/bucket/name`
 (`anomalypulse-telemetry-<account>-<region>`).
 
-```
+```text
 raw/service=<svc>/dt=<YYYY-MM-DD>/part-<request_id>.json   ← NDJSON, one object per shipper batch
 errors/service=<svc>/dt=<YYYY-MM-DD>/part-<request_id>.json ← lines that failed to parse (quarantine)
 aggregated/                                                 ← reserved for M4 (one-minute windows)
@@ -101,7 +101,7 @@ aggregated/                                                 ← reserved for M4 
 
 ## Pipeline (how a record gets from `print()` to S3)
 
-```
+```text
 service Lambda  print(json)
       │
       ▼
