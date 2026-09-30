@@ -1,0 +1,82 @@
+{
+    "schema_version": "1.0",
+    "frozen_in": "M2-1",
+    "description": "Catalog of all fields across tiers, including labels (ONLY used for evaluation).",
+    "category_rules": {
+        "correlation": "Identity and timing. Emitted by every service. Used for window agg and ordering ONLY, NOT model training.",
+        "tier1_observable": "Emitted by all services on every event. If field is not applicable, emit null, DO NOT OMIT.",
+        "tier2_ground_truth": ["FORBIDDEN as features and NEVER emitted on the request path. Used ONLY for labeling/evaluation.",
+                                "Feature-engineering build guard must fail the build if any tier2 field appears in training data."]
+    },
+    "fields": {
+        "timestamp": {
+            "tier": "correlation"
+        },
+        "request_id": {
+            "tier": "correlation"
+        },
+        "service": {
+            "tier": "correlation"
+        },
+        "endpoint": {
+            "tier": "correlation"
+        },
+        "http_method": {
+            "tier": "correlation"
+        },
+        "status_code": {
+            "tier": "tier1_observable"
+        },
+        "latency_ms": {
+            "tier": "tier1_observable"
+        },
+        "lambda_duration_ms": {
+            "tier": "tier1_observable"
+        },
+        "cold_start": {
+            "tier": "tier1_observable"
+        },
+        "db_latency_ms": {
+            "tier": "tier1_observable"
+        },
+        "db_consumed_capacity": {
+            "tier": "tier1_observable"
+        },
+        "dependency": {
+            "tier": "tier1_observable"
+        },
+        "dependency_latency_ms": {
+            "tier": "tier1_observable"
+        },
+        "dependency_error": {
+            "tier": "tier1_observable"
+        },
+        "error_type": {
+            "tier": "tier2_ground_truth",
+            "type": "string", 
+            "example": "DynamoDBThrottle", 
+            "description": "Encodes the cause. Diagnostic only."
+        },
+         "db_throttled": {
+            "tier": "tier2_ground_truth",
+            "type": "boolean", 
+            "description": "Distinct from the observable CloudWatch ThrottledRequests COUNT, a legitimate Tier-1 aggregate."
+        },
+        "incident_type": {
+            "tier": "tier2_ground_truth",
+            "type": "string", 
+            "enum": ["NORMAL", "TRAFFIC_SPIKE", "DATABASE_THROTTLING", "LAMBDA_DEGRADATION", "DEPENDENCY_FAILURE", "CASCADING_FAILURE"], 
+            "description": "The classification label"
+        },
+        "severity": {
+            "tier": "tier2_ground_truth",
+            "type": "string", 
+            "enum": ["LOW", "MEDIUM", "HIGH"]
+        },
+        "fault_injection_params": {
+            "tier": "tier2_ground_truth",
+            "type": "object", 
+            "description": "The exact knobs the simulator set for this experiment (intensity, multiplier, added latency, etc.)."
+        }
+    }
+}
