@@ -1,0 +1,70 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "timestamp": {
+            "type": "string", 
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+        },
+        "request_id": {
+            "type": "string"
+        },
+        "service": {   
+            "type": "string", 
+            "enum": ["product-service", "cart-service", "order-service", "payment-service"] 
+        },
+        "endpoint": {
+            "type": "string"
+        },
+        "http_method": {
+            "type": "string", 
+            "enum": ["GET", "POST", "DELETE"] 
+        },
+        "status_code": {
+            "type": "integer", 
+            "minimum": 100, 
+            "maximum": 599
+        },
+        "latency_ms": {
+            "type": "number", 
+            "minimum": 0,
+            "description": "End-to-end wall clock time for the request as seen by the handler"
+        },
+        "lambda_duration_ms": {
+            "type": "number", 
+            "minimum": 0,
+            "description": "Compute time of the Lambda body itself."
+        },
+        "cold_start": {
+            "type": "boolean", 
+            "description": "True if this invocation paid a cold-start penalty."
+        },
+        "db_latency_ms": {
+            "type": ["number", "null"], 
+            "minimum": 0,
+            "description": "DynamoDB call time. Null for services that make no DB call (Payment)."
+        },
+        "db_consumed_capacity": {
+            "type": ["number", "null"], 
+            "minimum": 0,
+            "description": "DynamoDB consumed capacity units for this request. Null when no DB call."
+        },
+        "dependency": {
+            "type": ["string", "null"], 
+            "enum": ["product-service", "cart-service", "order-service", "payment-service", null],
+            "description": "Downstream service called. Null when none (Product, Cart, Payment)."
+        },
+        "dependency_latency_ms": {
+            "type": ["number", "null"], 
+            "minimum": 0,
+            "description": "Measured call time to the dependency. Null when none (Product, Cart, Payment)."
+        },
+        "dependency_error": {
+            "type": ["boolean", "null"], 
+            "description": "True if dependency call failed or timed out."
+        }
+    },
+    "required": ["timestamp", "request_id", "service", "endpoint", "http_method", "status_code", "latency_ms", "lambda_duration_ms", "cold_start", "db_latency_ms", "db_consumed_capacity", "dependency", "dependency_latency_ms", "dependency_error"],
+    "additionalProperties": false
+}

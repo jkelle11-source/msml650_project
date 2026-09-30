@@ -2,14 +2,14 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: AnomalyPulse shared infrastructure - API skeleton (M1-1)
 
-# Run every function on arm64 (Graviton). The handlers are pure Python with no
-# native dependencies, so the architecture is a free choice: arm64 builds
-# natively on Apple Silicon dev machines (no Docker emulation) and costs less to
-# run on Lambda. Set once here so all functions inherit it.
+# Run every function on arm64 (Graviton). 
+# Set once here so all functions inherit it.
 Globals:
   Function:
     Architectures:
       - arm64
+    Layers: 
+      - !Ref TelemetryLayer
 
 Resources:
 
@@ -29,6 +29,18 @@ Resources:
         AllowOrigin: "'*'"
         AllowHeaders: "'Content-Type'"
         AllowMethods: "'GET,POST,DELETE,OPTIONS'"
+  
+  TelemetryLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: anomalypulse-telemetry
+      ContentUri: ../../layers/telemetry
+      CompatibleRuntimes:
+        - python3.13
+      CompatibleArchitectures:
+        - arm64
+    Metadata:
+      BuildMethod: makefile
   
   ProductFunction:
     Type: AWS::Serverless::Function
