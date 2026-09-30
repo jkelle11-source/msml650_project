@@ -42,6 +42,36 @@ Resources:
     Metadata:
       BuildMethod: makefile
   
+  # -------- Telemetry landing zone (M2-1) ---------------
+  # One telemetry bucket; raw/ and (later) aggregated/ are
+  # prefix zones within it, holding raw telemetry and 
+  # minute-aggregated telemetry, respectively. Hive-style
+  # keys raw/service=<svc>/dt=<date>/... are written by 
+  # Firehose.
+  TelemetryBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'anomalypulse-telemetry-${AWS::AccountId}-${AWS::Region}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules: 
+          - ObjectOwnership: BucketOwnerEnforced
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-raw-telemetry
+            Status: Enabled
+            Prefix: raw/
+            ExpirationInDays: 90
+
+  
   ProductFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -355,6 +385,14 @@ Resources:
       Name: /anomalypulse/api/rest-api-id
       Type: String
       Value: !Ref RestApi
+  
+  SsmBucketName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /anomalypulse/telemetry/bucket/name
+      Type: String
+      Value: !Ref TelemetryBucket
+      
   
   # ---- Published config: table names  --------------------------------------
   # The "address book". Teammates look these up by path instead of hardcoding.
