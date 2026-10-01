@@ -13,21 +13,19 @@ from botocore.exceptions import BotoCoreError, ClientError
 # (see test_handler.py) and `pip install jsonschema`.
 from schema_validator import validate
 
-SERVICE_NAME = "order-service"  # must match telemetry_schema.json correlation.service enum
+SERVICE_NAME = "order-service"  # must match the service enum in telemetry_schema.json
 TABLE_NAME = os.environ["TABLE_NAME"]
 PAYMENT_FUNCTION_NAME = os.environ.get("PAYMENT_FUNCTION_NAME", "anomalypulse-payment")
 USE_PAYMENT_STUB = os.environ.get("USE_PAYMENT_STUB", "true").lower() == "true"
 
 dynamodb = boto3.resource("dynamodb")
-# The payment invoke is synchronous and runs inside the order function's own 10s
-# Lambda timeout. Bound botocore's read timeout BELOW that (its default is 60s) so
-# a hung/slow payment - the PAYMENT_TIMEOUT incident knob sleeps 30s - surfaces as
-# a ReadTimeoutError that call_payment_service catches (a clean 502 WITH dependency
-# telemetry), instead of the order Lambda being hard-killed at 10s with no
-# dependency line emitted. 6s sits between the injected-latency incident (a few
-# seconds, which should still succeed and show as high dependency_latency_ms) and
-# the timeout incident (30s). No retries: a 10s budget has no room for one, and a
-# retry would only mask the dependency signal the incident classifier keys on.
+# The payment invoke is synchronous and runs inside order's own 10s Lambda timeout, so
+# bound botocore's read timeout (default 60s) BELOW that: a hung payment (the 30s
+# PAYMENT_TIMEOUT knob) then surfaces as a ReadTimeoutError that call_payment_service
+# catches - a clean 502 WITH dependency telemetry - instead of a hard 10s kill with no
+# dependency line. 6s sits above the injected-latency incident (a few seconds, still
+# succeeds as high dependency_latency_ms) and below the 30s timeout. No retries: a 10s
+# budget has no room, and a retry would mask the dependency signal the classifier keys on.
 _PAYMENT_INVOKE_CONFIG = Config(connect_timeout=2, read_timeout=6, retries={"max_attempts": 1})
 lambda_client = boto3.client("lambda", config=_PAYMENT_INVOKE_CONFIG)
 table = dynamodb.Table(TABLE_NAME)
@@ -36,10 +34,9 @@ table = dynamodb.Table(TABLE_NAME)
 # that reuses this execution environment.
 _cold_start = True
 
-# CORS: the browser dashboard (Section 14) is a different origin, so every
-# response must carry these headers or the browser blocks the read. The API's
-# OPTIONS preflight is handled at the gateway (Cors: block in template.yaml);
-# each Lambda still sets them on its own responses. (Matches product/cart/payment.)
+# CORS: the browser dashboard (Section 14) is a different origin, so every response
+# must carry these headers. The OPTIONS preflight is handled at the gateway
+# (template.yaml); each Lambda still sets them on its responses. (Matches product/cart/payment.)
 _CORS_HEADERS = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
@@ -109,7 +106,7 @@ def _emit_telemetry(**kwargs):
         # NEVER let telemetry crash the request -- log the problem and move on.
         print(json.dumps({"telemetry_error": str(errors[0].message)}))
         return
-    print(json.dumps(record))  # one line -> CloudWatch -> shipper -> S3
+    print(json.dumps(record))
 
 
 # payment
@@ -120,20 +117,13 @@ def call_payment_service(order_id, amount, customer_id, request_id):
         envelope = {"data": {"service": "payment", "outcome": "success"}, "error": None}
         return {"envelope": envelope, "latency_ms": round((time.time() - start) * 1000, 2), "error": False}
     try:
-        # Invoke payment with the same event shape API Gateway would deliver for
-        # POST /payments, so a single payment code path serves both its HTTP callers
-        # and this direct Lambda-to-Lambda invoke - and, crucially, payment's
-        # fault-injection knobs (PAYMENT_LATENCY_MS / PAYMENT_FAILURE_RATE /
-        # PAYMENT_TIMEOUT) still apply on this dependency path, which the
-        # DEPENDENCY_FAILURE incident relies on (Sections 4/5). Payment routes on
-        # resource + httpMethod, so both must be present.
-        # Propagate our request_id under requestContext so payment stamps the same
-        # correlation id on its telemetry line (payment reads requestContext.requestId
-        # first). This is what lets order and payment log lines be joined by request_id
-        # for cross-service ordering (PROJECT_PLAN Section 3 / M2-1 handoff §3).
-        # amount is a Decimal (order total); default=_decimal_to_float keeps json.dumps
-        # from raising TypeError on it when building the invoke payload (both the inner
-        # body string and the outer envelope).
+        # Invoke payment with the same event shape API Gateway delivers for POST
+        # /payments, so one payment code path serves HTTP and this Lambda-to-Lambda
+        # invoke - and its fault-injection knobs still apply, which DEPENDENCY_FAILURE
+        # relies on (Sections 4/5). Payment routes on resource + httpMethod.
+        # Propagate request_id under requestContext (where payment reads it) so the two
+        # services' telemetry lines join by request_id (PROJECT_PLAN Section 3).
+        # amount is a Decimal; default=_decimal_to_float keeps json.dumps from raising on it.
         response = lambda_client.invoke(FunctionName=PAYMENT_FUNCTION_NAME, InvocationType="RequestResponse",
                                          Payload=json.dumps({"resource": "/payments", "httpMethod": "POST",
                                                              "body": json.dumps({"order_id": order_id, "customer_id": customer_id, "amount": amount}, default=_decimal_to_float),
