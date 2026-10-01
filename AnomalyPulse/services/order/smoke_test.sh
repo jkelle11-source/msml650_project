@@ -7,16 +7,19 @@
 # runs on every exit path (assertion failure, `set -e` abort, Ctrl-C), and
 # DynamoDB's delete-item is idempotent so it is harmless when nothing was created.
 #
-# Covers the happy path + a 404, plus a live payment-failure path: it flips
-# payment's PAYMENT_FAILURE_RATE knob (M3 incident simulator) to 1.0, confirms
-# POST /orders surfaces a clean 502 (not a 500) from the dependency failure, and
-# restores the knob afterwards. POST invokes payment for real, but payment is
+# Covers the happy path + a 404, a live CloudWatch cross-service correlation check
+# (the created order's telemetry line and the payment line it triggered must share
+# one request_id -- M2-4 DoD, PROJECT_PLAN Section 3), plus a live payment-failure
+# path: it flips payment's PAYMENT_FAILURE_RATE knob (M3 incident simulator) to 1.0,
+# confirms POST /orders surfaces a clean 502 (not a 500) from the dependency failure,
+# and restores the knob afterwards. POST invokes payment for real, but payment is
 # stateless (no residue to clean); the failure path persists no order.
 #
-# Requires: jq, and an AWS profile with dynamodb:DeleteItem on the Orders table
-# plus lambda:GetFunctionConfiguration and lambda:UpdateFunctionConfiguration on
-# the payment function. The payment knob is always restored on exit (EXIT trap),
-# even on assertion failure or Ctrl-C.
+# Requires: jq, and an AWS profile with dynamodb:DeleteItem on the Orders table,
+# lambda:GetFunctionConfiguration and lambda:UpdateFunctionConfiguration on the
+# payment function, and logs:FilterLogEvents on the order and payment log groups
+# (/aws/lambda/anomalypulse-order, /aws/lambda/anomalypulse-payment). The payment
+# knob is always restored on exit (EXIT trap), even on assertion failure or Ctrl-C.
 # Run after Jake redeploys the merged PR.
 #   ./smoke_test.sh <your-profile>
 set -euo pipefail
@@ -34,6 +37,8 @@ TABLE=$(aws ssm get-parameter --name /anomalypulse/tables/orders/name \
 BODY=/tmp/order_smoke_body
 ORDER_ID=""
 PAYMENT_FN=anomalypulse-payment
+ORDER_LOG=/aws/lambda/anomalypulse-order
+PAYMENT_LOG=/aws/lambda/anomalypulse-payment
 PAYMENT_ENV_SAVED=""   # original payment env Variables JSON; set only while the knob is flipped
 
 cleanup() {
@@ -111,6 +116,47 @@ check() {
   fi
 }
 
+# Pull telemetry records emitted since CORR_START_MS from a log group. START/END/REPORT
+# lines are not JSON, so `try fromjson catch empty` drops them; each surviving line is
+# one telemetry record. Filtering happens in jq (the window is only a few seconds of
+# traffic), so there is no CloudWatch filter-pattern quoting to get wrong. `|| true`
+# keeps a transient logs error (throttle, not-yet-created group) from aborting under
+# set -e. ($rid is a jq --arg, used by the payment filter; empty for the order one.)
+_logs_since() {  # _logs_since <log-group> <jq-select-filter> [request-id] -> newest match's request_id
+  aws logs filter-log-events --log-group-name "$1" --start-time "$CORR_START_MS" \
+      --output json --profile "$PROFILE" --region "$REGION" 2>/dev/null \
+    | jq -r --arg rid "${3:-}" \
+        "[.events[].message|(try fromjson catch empty)|select($2)|.request_id]|last//empty" \
+    || true
+}
+
+correlate() {
+  # The created order's telemetry line and the payment line that order's dependency
+  # call produced must carry the SAME request_id, so the two services' records join
+  # (M2-4 DoD). CloudWatch ingestion lags the request by a few seconds, so poll both
+  # groups until each appears or a 60s deadline passes. We read order's POST/201 line
+  # to learn the id (it is not in the HTTP response body), then look for a
+  # payment-service line stamped with that id.
+  echo "-- CloudWatch correlation check (order & payment share request_id) --"
+  local deadline=$(( $(date +%s) + 60 )) req="" pay=""
+  while [[ $(date +%s) -lt $deadline ]]; do
+    [[ -z "$req" ]] && req=$(_logs_since "$ORDER_LOG" \
+      '.service=="order-service" and .http_method=="POST" and .endpoint=="/orders" and .status_code==201')
+    if [[ -n "$req" ]]; then
+      pay=$(_logs_since "$PAYMENT_LOG" '.service=="payment-service" and .request_id==$rid' "$req")
+      [[ -n "$pay" ]] && break
+    fi
+    sleep 4
+  done
+  if [[ -n "$req" && "$pay" == "$req" ]]; then
+    echo "PASS  correlation: order & payment share request_id=$req"
+  else
+    echo "FAIL  correlation: order request_id='${req:-<none>}', payment match='${pay:-<none>}'"
+    echo "      (telemetry can lag; confirm both Lambdas deployed and logs:FilterLogEvents is granted)"
+    fail=1
+  fi
+}
+
 # Guard: refuse to start if payment is already failing. That means a previous run
 # did not restore the knob - proceeding would make the happy-path checks below fail
 # confusingly, and step 5 would save '1.0' as the "original" and restore back to it,
@@ -124,6 +170,10 @@ if [[ "$START_RATE" != "0.0" && "$START_RATE" != "0" ]]; then
   exit 2
 fi
 
+# Window start for the correlation check below. Whole-second epoch *1000 (BSD `date`
+# has no %N for ms), minus 5s of slack so clock skew can't push it past our request.
+CORR_START_MS=$(( ($(date +%s) - 5) * 1000 ))
+
 # 1. create an order (invokes payment for real; payment is stateless)
 check POST /orders 201 \
   '{"customer_id":"smoke-test-customer","items":[{"product_id":"prod-001","price":19.99,"quantity":2}]}'
@@ -136,6 +186,10 @@ fi
 if [[ -n "$ORDER_ID" ]]; then
   check GET "/orders/$ORDER_ID" 200
 fi
+
+# 2b. the create above drove order -> payment; confirm both telemetry records
+# landed in CloudWatch carrying the same request_id (cross-service correlation).
+correlate
 
 # 3. an unknown id returns a structured 404, not a stack trace
 check GET "/orders/does-not-exist" 404

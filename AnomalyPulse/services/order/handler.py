@@ -8,21 +8,24 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
-SERVICE_NAME = "order-service"  # must match telemetry_schema.json correlation.service enum
+# Provided by the anomalypulse-telemetry Lambda layer (live per M2-1 handoff).
+# For local tests, add AnomalyPulse/layers/telemetry/python/ to sys.path first
+# (see test_handler.py) and `pip install jsonschema`.
+from schema_validator import validate
+
+SERVICE_NAME = "order-service"  # must match the service enum in telemetry_schema.json
 TABLE_NAME = os.environ["TABLE_NAME"]
 PAYMENT_FUNCTION_NAME = os.environ.get("PAYMENT_FUNCTION_NAME", "anomalypulse-payment")
 USE_PAYMENT_STUB = os.environ.get("USE_PAYMENT_STUB", "true").lower() == "true"
 
 dynamodb = boto3.resource("dynamodb")
-# The payment invoke is synchronous and runs inside the order function's own 10s
-# Lambda timeout. Bound botocore's read timeout BELOW that (its default is 60s) so
-# a hung/slow payment - the PAYMENT_TIMEOUT incident knob sleeps 30s - surfaces as
-# a ReadTimeoutError that call_payment_service catches (a clean 502 WITH dependency
-# telemetry), instead of the order Lambda being hard-killed at 10s with no
-# dependency line emitted. 6s sits between the injected-latency incident (a few
-# seconds, which should still succeed and show as high dependency_latency_ms) and
-# the timeout incident (30s). No retries: a 10s budget has no room for one, and a
-# retry would only mask the dependency signal the incident classifier keys on.
+# The payment invoke is synchronous and runs inside order's own 10s Lambda timeout, so
+# bound botocore's read timeout (default 60s) BELOW that: a hung payment (the 30s
+# PAYMENT_TIMEOUT knob) then surfaces as a ReadTimeoutError that call_payment_service
+# catches - a clean 502 WITH dependency telemetry - instead of a hard 10s kill with no
+# dependency line. 6s sits above the injected-latency incident (a few seconds, still
+# succeeds as high dependency_latency_ms) and below the 30s timeout. No retries: a 10s
+# budget has no room, and a retry would mask the dependency signal the classifier keys on.
 _PAYMENT_INVOKE_CONFIG = Config(connect_timeout=2, read_timeout=6, retries={"max_attempts": 1})
 lambda_client = boto3.client("lambda", config=_PAYMENT_INVOKE_CONFIG)
 table = dynamodb.Table(TABLE_NAME)
@@ -31,10 +34,9 @@ table = dynamodb.Table(TABLE_NAME)
 # that reuses this execution environment.
 _cold_start = True
 
-# CORS: the browser dashboard (Section 14) is a different origin, so every
-# response must carry these headers or the browser blocks the read. The API's
-# OPTIONS preflight is handled at the gateway (Cors: block in template.yaml);
-# each Lambda still sets them on its own responses. (Matches product/cart/payment.)
+# CORS: the browser dashboard (Section 14) is a different origin, so every response
+# must carry these headers. The OPTIONS preflight is handled at the gateway
+# (template.yaml); each Lambda still sets them on its responses. (Matches product/cart/payment.)
 _CORS_HEADERS = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
@@ -42,9 +44,10 @@ _CORS_HEADERS = {
     "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
 }
 
+
 # helpers
 def _success(data, status_code=200):
-    return {"statusCode": status_code,"headers": dict(_CORS_HEADERS),"body": json.dumps({"data": data, "error": None}, default=_decimal_to_float)}
+    return {"statusCode": status_code, "headers": dict(_CORS_HEADERS), "body": json.dumps({"data": data, "error": None}, default=_decimal_to_float)}
 
 
 def _error(message, status_code, code):
@@ -56,26 +59,55 @@ def _decimal_to_float(obj):
         return float(obj)
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
+
 # telemetry
-def _now_iso_ms():
-    now = datetime.now(timezone.utc)
-    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
+def _now_ms() -> str:
+    # ms precision, UTC, trailing Z -- matches the schema regex (exactly 3 decimals).
+    # A bare .isoformat() gives 6-digit microseconds and fails validation, so this
+    # pins it to timespec="milliseconds" per the M2-1 handoff doc.
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def _emit_telemetry(request_id, endpoint, http_method, status_code, latency_ms, lambda_duration_ms, cold_start, db=None, dependency=None):
+def _build_telemetry_record(request_id, endpoint, http_method, status_code, latency_ms,
+                             lambda_duration_ms, cold_start, db=None, dependency=None):
     # The schema (telemetry_schema.json) distinguishes latency_ms (end-to-end wall
     # clock, includes the synchronous payment invoke) from lambda_duration_ms (CPU
     # compute time of the handler body, excludes I/O wait). Keeping them separate is
     # load-bearing here: a slow payment dependency must raise wall-clock latency_ms
     # without inflating lambda_duration_ms, so DEPENDENCY_FAILURE stays distinct from
     # LAMBDA_DEGRADATION for the classifier. (Matches product/cart/payment.)
+    #
+    # All 14 schema fields are always present -- null where not applicable -- per
+    # the M2-1 contract: "emit all 14 fields every time... never omit it."
     db = db or {}
     dependency = dependency or {}
-    record = {"timestamp": _now_iso_ms(),"request_id": request_id,"service": SERVICE_NAME,"endpoint": endpoint,
-              "http_method": http_method, "status_code": status_code,"latency_ms": latency_ms,"lambda_duration_ms": lambda_duration_ms,
-              "cold_start": cold_start,"db_latency_ms": db.get("latency_ms"),"db_consumed_capacity": db.get("consumed_capacity"),"dependency": dependency.get("name"),
-              "dependency_latency_ms": dependency.get("latency_ms"), "dependency_error": dependency.get("error")}
+    return {
+        "timestamp": _now_ms(),
+        "request_id": request_id,
+        "service": SERVICE_NAME,
+        "endpoint": endpoint,
+        "http_method": http_method,
+        "status_code": status_code,
+        "latency_ms": latency_ms,
+        "lambda_duration_ms": lambda_duration_ms,
+        "cold_start": cold_start,
+        "db_latency_ms": db.get("latency_ms"),
+        "db_consumed_capacity": db.get("consumed_capacity"),
+        "dependency": dependency.get("name"),
+        "dependency_latency_ms": dependency.get("latency_ms"),
+        "dependency_error": dependency.get("error"),
+    }
+
+
+def _emit_telemetry(**kwargs):
+    record = _build_telemetry_record(**kwargs)
+    ok, errors = validate(record)
+    if not ok:
+        # NEVER let telemetry crash the request -- log the problem and move on.
+        print(json.dumps({"telemetry_error": str(errors[0].message)}))
+        return
     print(json.dumps(record))
+
 
 # payment
 def call_payment_service(order_id, amount, customer_id, request_id):
@@ -85,24 +117,17 @@ def call_payment_service(order_id, amount, customer_id, request_id):
         envelope = {"data": {"service": "payment", "outcome": "success"}, "error": None}
         return {"envelope": envelope, "latency_ms": round((time.time() - start) * 1000, 2), "error": False}
     try:
-        # Invoke payment with the same event shape API Gateway would deliver for
-        # POST /payments, so a single payment code path serves both its HTTP callers
-        # and this direct Lambda-to-Lambda invoke - and, crucially, payment's
-        # fault-injection knobs (PAYMENT_LATENCY_MS / PAYMENT_FAILURE_RATE /
-        # PAYMENT_TIMEOUT) still apply on this dependency path, which the
-        # DEPENDENCY_FAILURE incident relies on (Sections 4/5). Payment routes on
-        # resource + httpMethod, so both must be present.
-        # Propagate our request_id under requestContext so payment stamps the same
-        # correlation id on its telemetry line (payment reads requestContext.requestId
-        # first). This is what lets order and payment log lines be joined by request_id
-        # for cross-service ordering (PROJECT_PLAN Section 3).
-        # amount is a Decimal (order total); default=_decimal_to_float keeps json.dumps
-        # from raising TypeError on it when building the invoke payload (both the inner
-        # body string and the outer envelope).
-        response = lambda_client.invoke(FunctionName=PAYMENT_FUNCTION_NAME,InvocationType="RequestResponse",
-                                        Payload=json.dumps({ "resource": "/payments","httpMethod": "POST",
-                                                            "body": json.dumps({"order_id": order_id,"customer_id": customer_id,"amount": amount}, default=_decimal_to_float),
-                                                            "requestContext": {"requestId": request_id},}, default=_decimal_to_float).encode("utf-8"),)
+        # Invoke payment with the same event shape API Gateway delivers for POST
+        # /payments, so one payment code path serves HTTP and this Lambda-to-Lambda
+        # invoke - and its fault-injection knobs still apply, which DEPENDENCY_FAILURE
+        # relies on (Sections 4/5). Payment routes on resource + httpMethod.
+        # Propagate request_id under requestContext (where payment reads it) so the two
+        # services' telemetry lines join by request_id (PROJECT_PLAN Section 3).
+        # amount is a Decimal; default=_decimal_to_float keeps json.dumps from raising on it.
+        response = lambda_client.invoke(FunctionName=PAYMENT_FUNCTION_NAME, InvocationType="RequestResponse",
+                                         Payload=json.dumps({"resource": "/payments", "httpMethod": "POST",
+                                                             "body": json.dumps({"order_id": order_id, "customer_id": customer_id, "amount": amount}, default=_decimal_to_float),
+                                                             "requestContext": {"requestId": request_id}, }, default=_decimal_to_float).encode("utf-8"), )
         elapsed_ms = round((time.time() - start) * 1000, 2)
         # An unhandled exception inside payment comes back as a Lambda FunctionError,
         # where Payload is {"errorMessage", "errorType"} rather than our envelope.
@@ -136,6 +161,7 @@ def call_payment_service(order_id, amount, customer_id, request_id):
         envelope = {"data": None, "error": {"message": str(exc), "code": "PAYMENT_INVOKE_FAILED"}}
         return {"envelope": envelope, "latency_ms": elapsed_ms, "error": True}
 
+
 def create_order(body, request_id):
     customer_id = body.get("customer_id")
     items = body.get("items")
@@ -168,8 +194,8 @@ def create_order(body, request_id):
     # NOTE: the payment service's contract returns only {"service", "outcome"} - no
     # payment_id - so we do not store one here. If payment starts returning an id,
     # add it back and update services/payment accordingly.
-    order = { "order_id": order_id,"customer_id": customer_id,"items": items,"total": total,"status": "confirmed",
-             "created_at": now,"updated_at": now,}
+    order = {"order_id": order_id, "customer_id": customer_id, "items": items, "total": total, "status": "confirmed",
+              "created_at": now, "updated_at": now, }
 
     db_start = time.time()
     put_response = table.put_item(Item=order, ReturnConsumedCapacity="TOTAL")
@@ -177,11 +203,13 @@ def create_order(body, request_id):
 
     return {"order": order, "error": None, "db": db, "dependency": dependency}
 
+
 def get_order(order_id):
     db_start = time.time()
     response = table.get_item(Key={"order_id": order_id}, ReturnConsumedCapacity="TOTAL")
     db = {"latency_ms": round((time.time() - db_start) * 1000, 2), "consumed_capacity": response.get("ConsumedCapacity", {}).get("CapacityUnits")}
     return {"order": response.get("Item"), "db": db}
+
 
 # lambda
 def handler(event, context):
@@ -191,7 +219,7 @@ def handler(event, context):
     wall_start = time.time()          # wall clock, for latency_ms
     proc_start = time.process_time()  # CPU time, for lambda_duration_ms
     # Prefer the upstream (API Gateway) request id so it can be propagated to payment
-    # for cross-service correlation (Section 3); fall back to the Lambda id, then a uuid.
+    # for cross-service correlation (M2-1 handoff §3); fall back to the Lambda id, then a uuid.
     request_id = (event.get("requestContext") or {}).get("requestId") or getattr(context, "aws_request_id", None) or str(uuid.uuid4())
     method = event.get("httpMethod", "GET")
     order_id = (event.get("pathParameters") or {}).get("id")
@@ -239,7 +267,10 @@ def handler(event, context):
     _finish(request_id, endpoint, method, response, wall_start, proc_start, is_cold_start, db, dependency)
     return response
 
+
 def _finish(request_id, endpoint, method, response, wall_start, proc_start, is_cold_start, db, dependency):
     latency_ms = round((time.time() - wall_start) * 1000, 2)
     lambda_duration_ms = round((time.process_time() - proc_start) * 1000, 2)
-    _emit_telemetry(request_id=request_id, endpoint=endpoint, http_method=method, status_code=response["statusCode"], latency_ms=latency_ms,lambda_duration_ms=lambda_duration_ms,cold_start=is_cold_start,db=db,dependency=dependency,)
+    _emit_telemetry(request_id=request_id, endpoint=endpoint, http_method=method, status_code=response["statusCode"],
+                     latency_ms=latency_ms, lambda_duration_ms=lambda_duration_ms, cold_start=is_cold_start,
+                     db=db, dependency=dependency)

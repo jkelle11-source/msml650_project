@@ -16,10 +16,15 @@ os.environ["AWS_SESSION_TOKEN"] = "testing"
 os.environ["TABLE_NAME"] = "test-orders-table"
 os.environ["USE_PAYMENT_STUB"] = "true"
 
+import sys
+_LAYER_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "layers", "telemetry", "python")
+sys.path.insert(0, os.path.abspath(_LAYER_PATH))
+
 from handler import handler
 import handler as handler_module
 
-# The exact per-request telemetry contract from infra/shared/telemetry_schema.json:
+
+# The exact per-request telemetry contract from layers/telemetry/python/telemetry_schema.json:
 # every service emits these fields (correlation + Tier-1 observable) and NEVER a
 # Tier-2 ground-truth field on the request path.
 SCHEMA_FIELDS = {
@@ -251,7 +256,81 @@ def test_request_id_falls_back_to_context(orders_table, capsys):
     assert _last_log(capsys)["request_id"] == "lambda-req-1"
 
 
+def test_request_id_joins_order_and_payment_records(orders_table, monkeypatch, capsys):
+    # End-to-end correlation (M2-4 DoD; PROJECT_PLAN Section 3): the id order forwards
+    # to payment must be the SAME id payment stamps on its own telemetry line, so the
+    # two services' records are joinable by request_id. We capture the exact payload
+    # order sends to payment and feed it to payment's REAL handler, then assert both
+    # emitted records carry the one id -- proving the join, not just that order sends it.
+    import importlib.util
+
+    fake = _FakeLambdaClient()
+    monkeypatch.setattr(handler_module, "USE_PAYMENT_STUB", False)
+    monkeypatch.setattr(handler_module, "lambda_client", fake)
+    handler(_post_order_event(request_id="corr-xyz"), None)
+    order_log = _last_log(capsys)
+
+    # Load payment's handler under a distinct module name -- order's handler.py already
+    # owns the "handler" entry in sys.modules, so a plain import would return the wrong one.
+    pay_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "payment", "handler.py"))
+    spec = importlib.util.spec_from_file_location("payment_handler", pay_path)
+    payment_handler = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(payment_handler)
+
+    sent_payload = json.loads(fake.calls[0]["Payload"].decode("utf-8"))
+    payment_handler.handler(sent_payload, None)
+    payment_log = _last_log(capsys)
+
+    assert order_log["request_id"] == "corr-xyz"
+    assert payment_log["request_id"] == "corr-xyz"
+    assert order_log["service"] == "order-service"
+    assert payment_log["service"] == "payment-service"
+
+
+def test_payment_failed_without_error_field_synthesizes_502(orders_table, monkeypatch, capsys):
+    # Defensive dependency path: payment returns a NON-success outcome but omits the
+    # structured error field (an unexpected shape). call_payment_service must synthesize
+    # an error so this stays on the clean-502 path instead of dereferencing null data
+    # into a blank 500, and must still record dependency_error and persist no order.
+    def weird_invoke(**kwargs):
+        body = json.dumps({"data": {"outcome": "declined"}, "error": None})
+        raw = json.dumps({"statusCode": 200, "body": body}).encode("utf-8")
+        return {"Payload": _FakePayload(raw)}
+
+    monkeypatch.setattr(handler_module, "USE_PAYMENT_STUB", False)
+    monkeypatch.setattr(handler_module, "lambda_client", type("C", (), {"invoke": staticmethod(weird_invoke)})())
+    response = handler(_post_order_event(), None)
+    body = json.loads(response["body"])
+    assert response["statusCode"] == 502, body
+    assert body["error"]["code"] == "PAYMENT_INVOKE_FAILED"
+    assert orders_table.scan()["Count"] == 0  # a non-success payment must not persist an order
+    log = _last_log(capsys)
+    assert log["dependency"] == "payment-service"
+    assert log["dependency_error"] is True
+
+
 # --- telemetry contract -----------------------------------------------------
+
+def test_emit_telemetry_never_crashes_on_invalid_record(capsys):
+    # The telemetry path must never crash the request (handler.py's "NEVER let
+    # telemetry crash the request" guarantee): a record that fails schema validation
+    # is logged as a telemetry_error and swallowed, not raised. http_method "PATCH"
+    # is outside the schema enum, so the built record fails validation.
+    handler_module._emit_telemetry(
+        request_id="r", endpoint="/orders", http_method="PATCH",
+        status_code=201, latency_ms=1.0, lambda_duration_ms=1.0, cold_start=False,
+    )
+    logs = _json_logs(capsys)
+    assert len(logs) == 1
+    assert "telemetry_error" in logs[0]
+
+
+def test_decimal_to_float_rejects_unsupported_type():
+    # The json.dumps default hook only knows how to coerce Decimal; any other
+    # unserializable type must raise TypeError rather than pass silently.
+    with pytest.raises(TypeError):
+        handler_module._decimal_to_float(object())
+
 
 def test_dependency_latency_raises_wall_clock_not_cpu(orders_table, monkeypatch, capsys):
     # A slow payment dependency is I/O wait: it must raise wall-clock latency_ms
