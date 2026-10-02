@@ -129,3 +129,24 @@ def test_response_has_cors_header():
     os.environ["PAYMENT_FAILURE_RATE"] = "1.0"
     err, _, _ = _invoke()
     assert err["headers"]["Access-Control-Allow-Origin"] == "*"
+
+def test_telemetry_never_crashes_on_invalid_record(monkeypatch, capsys):
+    # If the schema validator ever rejects a record (e.g. future schema change,
+    # or a bug), the handler must log a telemetry_error and continue -- never
+    # raise and break the actual payment response (M2-1 Handoff golden rule).
+    import handler as handler_module
+
+    def fake_validate(record):
+        from jsonschema.exceptions import ValidationError
+        return False, [ValidationError("simulated validation failure")]
+
+    monkeypatch.setattr(handler_module, "validate", fake_validate)
+    resp = handler_module.handler(_event(), None)
+
+    # The actual payment response must still succeed normally...
+    assert resp["statusCode"] == 200
+
+    # ...while the printed output shows a telemetry_error instead of a normal record.
+    printed = capsys.readouterr().out.strip()
+    log = json.loads(printed)
+    assert "telemetry_error" in log
