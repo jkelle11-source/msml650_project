@@ -6,6 +6,16 @@ import time
 import uuid
 from datetime import datetime, timezone
 
+# Provided by the anomalypulse-telemetry Lambda layer on real AWS (auto-attached
+# via template.yaml). For local runs, fall back to adding the layer's path manually.
+try:
+    from schema_validator import validate
+except ImportError:
+    import sys
+    _LAYER_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "layers", "telemetry", "python")
+    sys.path.insert(0, os.path.abspath(_LAYER_PATH))
+    from schema_validator import validate
+
 SERVICE = "payment-service"
 
 # CORS: the AnomalyPulse dashboard (Section 14) is a browser client on a
@@ -90,7 +100,7 @@ def _log(event, context, status, start_time, start_proc, cold):
     # One line per request, matching infra/shared/telemetry_schema.json. Tier-1 and correlation
     # fields only; never emit Tier-2 (error_type, db_throttled, ...). Payment makes no DB call and
     # has no downstream dependency, so those fields are always null.
-    print(json.dumps({
+    record = {
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
         "request_id": request_id,
         "service": SERVICE,
@@ -105,7 +115,14 @@ def _log(event, context, status, start_time, start_proc, cold):
         "dependency": None,
         "dependency_latency_ms": None,
         "dependency_error": None,
-    }))
+    }
+    ok, errors = validate(record)
+    if not ok:
+        # NEVER let telemetry crash the request (M2-1 Handoff golden rule).
+        # Log the validation problem and move on instead of raising.
+        print(json.dumps({"telemetry_error": str(errors[0].message)}))
+        return
+    print(json.dumps(record))
 
 
 def handler(event, context):
