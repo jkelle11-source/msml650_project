@@ -2,6 +2,7 @@ import json
 import os
 import re
 import sys
+import uuid
 from types import SimpleNamespace
 
 import boto3
@@ -392,37 +393,129 @@ def test_each_route_emits_one_schema_valid_record(cart_table, capsys):
         assert record["dependency_error"] is None
 
 
-@pytest.mark.parametrize("event, status", [
+_GET = {"resource": "/cart/{user}", "httpMethod": "GET"}
+_DELETE = {"resource": "/cart/{user}/{item}", "httpMethod": "DELETE"}
+
+
+# (event, expected status, whether the request reaches DynamoDB)
+@pytest.mark.parametrize("event, status, hits_db", [
     ({"resource": "/cart", "httpMethod": "POST", "pathParameters": None,
-      "body": "{not valid json"}, 400),
-    ({"resource": "/cart/{user}", "httpMethod": "GET", "pathParameters": None}, 400),
-    ({"resource": "/cart/{user}/{item}", "httpMethod": "DELETE",
-      "pathParameters": {"user": "nobody", "item": "nothing"}}, 404),
+      "body": "{not valid json"}, 400, False),
+    (_post_cart_event({"user_id": "", "item_id": "i1", "quantity": 1}), 400, False),
+    (_post_cart_event({"user_id": "u1", "item_id": 7, "quantity": 1}), 400, False),
+    (_post_cart_event({"user_id": "u1", "item_id": "i1"}), 400, False),
+    (_post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": "abc"}), 400, False),
+    (_post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": 0}), 400, False),
+    ({**_GET, "pathParameters": None}, 400, False),
+    ({**_DELETE, "pathParameters": None}, 400, False),
+    ({**_DELETE, "pathParameters": {"user": "u1"}}, 400, False),
+    ({**_DELETE, "pathParameters": {"user": "nobody", "item": "nothing"}}, 404, True),
     ({"resource": "/cart", "httpMethod": "DELETE", "pathParameters": None,
-      "body": None}, 501),
+      "body": None}, 501, False),
 ])
-def test_error_paths_emit_schema_valid_record(cart_table, capsys, event, status):
+def test_error_paths_emit_schema_valid_record(cart_table, capsys, event, status, hits_db):
     response = handler(event, None)
     assert response["statusCode"] == status
     records = _records(capsys)
     assert len(records) == 1
     _assert_valid(records[0])
     assert records[0]["status_code"] == status
+    assert (records[0]["db_latency_ms"] is not None) == hits_db
+    assert (records[0]["db_consumed_capacity"] is not None) == hits_db
 
 
-def test_db_failure_still_emits_schema_valid_record(cart_table, monkeypatch, capsys):
+@pytest.mark.parametrize("op, event", [
+    ("put_item", _post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": 1})),
+    ("query", {**_GET, "pathParameters": {"user": "u1"}}),
+    ("delete_item", {**_DELETE, "pathParameters": {"user": "u1", "item": "i1"}}),
+])
+def test_db_failure_still_emits_schema_valid_record(cart_table, monkeypatch, capsys, op, event):
     def throttle(*args, **kwargs):
         raise ClientError({"Error": {"Code": "ProvisionedThroughputExceededException",
                                      "Message": "Throughput exceeds the current capacity"}},
-                          "PutItem")
+                          op)
 
-    monkeypatch.setattr(cart_table, "put_item", throttle)
-    response = handler(_post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": 1}), None)
+    monkeypatch.setattr(cart_table, op, throttle)
+    response = handler(event, None)
+    assert response["statusCode"] == 500
+    assert json.loads(response["body"])["error"]["code"] == "DB_ERROR"
+    records = _records(capsys)
+    assert len(records) == 1
+    _assert_valid(records[0])
+    assert records[0]["status_code"] == 500
+    # The failed call is still a DB call: its duration is the observable
+    # throttling signal, while no capacity figure comes back.
+    assert records[0]["db_latency_ms"] is not None
+    assert records[0]["db_consumed_capacity"] is None
+
+
+def test_internal_error_still_emits_schema_valid_record(cart_table, monkeypatch, capsys):
+    def boom(*args, **kwargs):
+        raise RuntimeError("secret internal detail")
+
+    monkeypatch.setattr(cart_table, "query", boom)
+    response = handler({**_GET, "pathParameters": {"user": "u1"}}, None)
     assert response["statusCode"] == 500
     records = _records(capsys)
     assert len(records) == 1
     _assert_valid(records[0])
     assert records[0]["status_code"] == 500
+
+
+def test_get_empty_cart_returns_empty_list(cart_table, capsys):
+    response = handler({**_GET, "pathParameters": {"user": "nobody"}}, None)
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"])["data"] == []
+    records = _records(capsys)
+    assert len(records) == 1
+    _assert_valid(records[0])
+
+
+def test_fractional_quantity_round_trips(cart_table):
+    response = handler(
+        _post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": 1.5}), None
+    )
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"])["data"]["quantity"] == 1.5
+
+
+def test_encoder_rejects_non_decimal_unserializable():
+    with pytest.raises(TypeError):
+        json.dumps({"x": object()}, cls=handler_module._DecimalEncoder)
+
+
+def test_timing_fields_are_consistent(cart_table, capsys):
+    handler(_post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": 1}), None)
+    record = _records(capsys)[0]
+    # The DB call happens inside the handler, so wall-clock latency bounds it.
+    assert record["latency_ms"] >= record["db_latency_ms"] >= 0
+    assert record["lambda_duration_ms"] >= 0
+
+
+def test_unsupported_method_is_not_emitted_as_a_record(cart_table, capsys):
+    # http_method is an enum (GET/POST/DELETE) in the schema, so a method outside
+    # it cannot form a valid record; it is reported as a telemetry_error instead.
+    response = handler({"resource": "/cart", "httpMethod": "PUT",
+                        "pathParameters": None, "body": None}, None)
+    assert response["statusCode"] == 501
+    printed = _records(capsys)
+    assert len(printed) == 1
+    assert set(printed[0]) == {"telemetry_error"}
+
+
+def test_request_id_prefers_api_gateway_over_lambda_context(cart_table, capsys):
+    event = _post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": 1})
+    event["requestContext"] = {"requestId": "apigw-req-1"}
+    handler(event, SimpleNamespace(aws_request_id="lambda-req-1"))
+    assert _records(capsys)[0]["request_id"] == "apigw-req-1"
+
+
+def test_request_id_falls_back_to_generated_uuid(cart_table, capsys):
+    handler(_post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": 1}), None)
+    handler(_post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": 1}), None)
+    first, second = (r["request_id"] for r in _records(capsys))
+    assert uuid.UUID(first) and uuid.UUID(second)
+    assert first != second
 
 
 def test_request_id_falls_back_to_lambda_context(cart_table, capsys):

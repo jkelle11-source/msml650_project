@@ -4,6 +4,8 @@
 set -euo pipefail
 
 command -v jq >/dev/null || { echo "jq is required (brew install jq)" >&2; exit 2; }
+python3 -c 'import jsonschema' 2>/dev/null \
+  || { echo "jsonschema is required (pip install -r requirements-dev.txt)" >&2; exit 2; }
 
 PROFILE="${1:?usage: $0 <aws-profile>}"
 REGION=us-east-2
@@ -20,6 +22,9 @@ LAYER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../layers/telemetry/python" &
 S3_PREFIX="raw/service=cart-service"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+HDRS="$TMP/headers"
+SENT="$TMP/sent.tsv"   # one line per request sent: request_id <TAB> method <TAB> status
+: > "$SENT"
 
 START_EPOCH=$(( $(date +%s) - 5 ))
 fmt_utc() { date -u -r "$1" +"$2" 2>/dev/null || date -u -d "@$1" +"$2"; }  # BSD, then GNU
@@ -29,13 +34,17 @@ START_DT=$(fmt_utc "$START_EPOCH" '%Y-%m-%d')
 
 fail=0
 check() {
-  local method="$1" path="$2" expected="$3" data="${4:-}" code
+  local method="$1" path="$2" expected="$3" data="${4:-}" code rid
   if [[ -n "$data" ]]; then
-    code=$(curl -s -o "$BODY" -w '%{http_code}' -X "$method" \
+    code=$(curl -s -D "$HDRS" -o "$BODY" -w '%{http_code}' -X "$method" \
       -H 'Content-Type: application/json' -d "$data" "$API$path")
   else
-    code=$(curl -s -o "$BODY" -w '%{http_code}' -X "$method" "$API$path")
+    code=$(curl -s -D "$HDRS" -o "$BODY" -w '%{http_code}' -X "$method" "$API$path")
   fi
+  # API Gateway returns its request id in x-amzn-RequestId; the handler stamps the
+  # same id on the telemetry record, so check_s3 can match records to requests.
+  rid=$(tr -d '\r' < "$HDRS" | awk -F': *' 'tolower($1)=="x-amzn-requestid"{print $2}' | tail -1)
+  printf '%s\t%s\t%s\n' "${rid:-<no-x-amzn-requestid>}" "$method" "$code" >> "$SENT"
   if [[ "$code" == "$expected" ]]; then
     echo "PASS  $method $path -> $code"
   else
@@ -53,7 +62,7 @@ s3_list_keys() {
 check_s3() {
   echo "-- S3 landing check ($S3_PREFIX/) --"
   local err deadline want=("POST /cart" "GET /cart/{user}" "DELETE /cart/{user}/{item}")
-  local dt key route missing=()
+  local dt key route missing=() rid method code got pending
 
   if ! err=$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "$S3_PREFIX/" \
                --max-items 1 --profile "$PROFILE" --region "$REGION" 2>&1 >/dev/null); then
@@ -81,7 +90,12 @@ check_s3() {
     for route in "${want[@]}"; do
       grep -qxF "$route" "$TMP/routes.txt" || missing+=("$route")
     done
-    [[ ${#missing[@]} -eq 0 || $(date +%s) -ge $deadline ]] && break
+    pending=0
+    while IFS=$'\t' read -r rid method code; do
+      jq -e --arg r "$rid" 'select(.request_id==$r)' "$TMP/run.ndjson" >/dev/null 2>&1 \
+        || pending=$((pending + 1))
+    done < "$SENT"
+    [[ ( ${#missing[@]} -eq 0 && $pending -eq 0 ) || $(date +%s) -ge $deadline ]] && break
     sleep 5
   done
 
@@ -94,10 +108,19 @@ check_s3() {
   fi
   echo "PASS  S3: records for all 3 routes landed ($(wc -l < "$TMP/run.ndjson" | tr -d ' ') from this run)"
 
-  if ! python3 -c 'import jsonschema' 2>/dev/null; then
-    echo "SKIP  schema validation (pip install jsonschema to enable)"
-    return
-  fi
+  # Every request this run sent must have exactly one record, carrying the
+  # method and status the client actually saw.
+  while IFS=$'\t' read -r rid method code; do
+    got=$(jq -r --arg r "$rid" 'select(.request_id==$r) | "\(.http_method) \(.status_code)"' \
+      "$TMP/run.ndjson" | paste -sd, -)
+    if [[ "$got" == "$method $code" ]]; then
+      echo "PASS  S3: one record for $method -> $code (request_id=$rid)"
+    else
+      echo "FAIL  S3: request_id=$rid expected one record '$method $code', got '${got:-<none>}'"
+      fail=1
+    fi
+  done < "$SENT"
+
   local out
   if out=$(python3 - "$LAYER_DIR" "$TMP/run.ndjson" <<'PY'
 import json, sys

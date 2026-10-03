@@ -130,8 +130,10 @@ def handler(event, context):
             item = {"user_id": user_id, "item_id": item_id, "quantity": quantity}
 
             db_start = time.time()
-            db_resp = table.put_item(Item=item, ReturnConsumedCapacity="TOTAL")
-            db_latency_ms = round((time.time() - db_start) * 1000, 3)
+            try:
+                db_resp = table.put_item(Item=item, ReturnConsumedCapacity="TOTAL")
+            finally:
+                db_latency_ms = round((time.time() - db_start) * 1000, 3)
             db_consumed_capacity = db_resp.get("ConsumedCapacity", {}).get("CapacityUnits")
 
             resp = _resp(200, data=item)
@@ -145,11 +147,13 @@ def handler(event, context):
                 return resp
 
             db_start = time.time()
-            db_resp = table.query(
-                KeyConditionExpression=Key("user_id").eq(user_id),
-                ReturnConsumedCapacity="TOTAL",
-            )
-            db_latency_ms = round((time.time() - db_start) * 1000, 3)
+            try:
+                db_resp = table.query(
+                    KeyConditionExpression=Key("user_id").eq(user_id),
+                    ReturnConsumedCapacity="TOTAL",
+                )
+            finally:
+                db_latency_ms = round((time.time() - db_start) * 1000, 3)
             db_consumed_capacity = db_resp.get("ConsumedCapacity", {}).get("CapacityUnits")
 
             resp = _resp(200, data=db_resp.get("Items", []))
@@ -164,12 +168,14 @@ def handler(event, context):
                 return resp
 
             db_start = time.time()
-            db_resp = table.delete_item(
-                Key={"user_id": user_id, "item_id": item_id},
-                ReturnValues="ALL_OLD",
-                ReturnConsumedCapacity="TOTAL",
-            )
-            db_latency_ms = round((time.time() - db_start) * 1000, 3)
+            try:
+                db_resp = table.delete_item(
+                    Key={"user_id": user_id, "item_id": item_id},
+                    ReturnValues="ALL_OLD",
+                    ReturnConsumedCapacity="TOTAL",
+                )
+            finally:
+                db_latency_ms = round((time.time() - db_start) * 1000, 3)
             db_consumed_capacity = db_resp.get("ConsumedCapacity", {}).get("CapacityUnits")
 
             if "Attributes" not in db_resp:
