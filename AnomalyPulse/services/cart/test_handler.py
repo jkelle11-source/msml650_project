@@ -87,28 +87,6 @@ def _post_cart_event(body):
     }
 
 
-def test_create_cart_missing_ids(cart_table):
-    response = handler(
-        _post_cart_event({"user_id": "", "item_id": "", "quantity": 2}), None
-    )
-    assert response["statusCode"] == 400
-
-
-def test_create_cart_missing_quantity(cart_table):
-    response = handler(
-        _post_cart_event({"user_id": "u1", "item_id": "i1"}), None
-    )
-    assert response["statusCode"] == 400
-
-
-@pytest.mark.parametrize("quantity", [0, -1])
-def test_create_cart_non_positive_quantity(cart_table, quantity):
-    response = handler(
-        _post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": quantity}), None
-    )
-    assert response["statusCode"] == 400
-
-
 def test_get_cart(cart_table):
     # Seed an item so the GET actually exercises retrieval, not just an empty table.
     create_response = handler(
@@ -164,39 +142,6 @@ def test_delete_cart(cart_table):
     assert response["statusCode"] == 200
     assert body["data"]["deleted"] is True
 
-def test_delete_missing_item(cart_table):
-    event = {
-        "resource": "/cart/{user}/{item}",
-        "httpMethod": "DELETE",
-        "pathParameters": {
-            "user": "missing-user",
-            "item": "missing-item",
-        },
-    }
-
-    response = handler(event, None)
-    assert response["statusCode"] == 404
-
-
-def test_create_cart_non_string_id(cart_table):
-    # A JSON number for a String-typed key must be rejected as 400, not reach
-    # DynamoDB and surface as a 500.
-    response = handler(
-        _post_cart_event({"user_id": 123, "item_id": "i1", "quantity": 1}), None
-    )
-    assert response["statusCode"] == 400
-
-
-def test_get_cart_missing_user(cart_table):
-    event = {
-        "resource": "/cart/{user}",
-        "httpMethod": "GET",
-        "pathParameters": None,
-    }
-    response = handler(event, None)
-    assert response["statusCode"] == 400
-
-
 def test_post_cart_overwrites_quantity(cart_table):
     # POST /cart is "set quantity": re-posting the same item replaces the
     # quantity rather than accumulating it. This pins the intended semantics.
@@ -217,45 +162,6 @@ def test_response_has_cors_header(cart_table):
         _post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": 1}), None
     )
     assert response["headers"]["Access-Control-Allow-Origin"] == "*"
-
-
-def test_invalid_json_body_returns_400(cart_table):
-    # A malformed JSON body must be rejected as a 400, not crash into a 500.
-    event = {
-        "resource": "/cart",
-        "httpMethod": "POST",
-        "pathParameters": None,
-        "body": "{not valid json",
-    }
-    response = handler(event, None)
-    body = json.loads(response["body"])
-    assert response["statusCode"] == 400
-    assert body["error"]["code"] == "BAD_REQUEST"
-
-
-def test_create_cart_non_numeric_quantity(cart_table):
-    # A non-numeric quantity must be rejected as 400 (the Decimal(InvalidOperation)
-    # path), not reach DynamoDB and surface as a 500.
-    response = handler(
-        _post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": "abc"}), None
-    )
-    body = json.loads(response["body"])
-    assert response["statusCode"] == 400
-    assert body["error"]["code"] == "BAD_REQUEST"
-
-
-def test_unhandled_route_returns_501(cart_table):
-    # A method/route combination the service does not implement returns 501.
-    event = {
-        "resource": "/cart",
-        "httpMethod": "PUT",
-        "pathParameters": None,
-        "body": None,
-    }
-    response = handler(event, None)
-    body = json.loads(response["body"])
-    assert response["statusCode"] == 501
-    assert body["error"]["code"] == "NOT_IMPLEMENTED"
 
 
 def test_cold_start_only_first_invocation(cart_table, capsys):
@@ -397,25 +303,35 @@ _GET = {"resource": "/cart/{user}", "httpMethod": "GET"}
 _DELETE = {"resource": "/cart/{user}/{item}", "httpMethod": "DELETE"}
 
 
-# (event, expected status, whether the request reaches DynamoDB)
-@pytest.mark.parametrize("event, status, hits_db", [
+# Every non-happy branch in one place: the response envelope (status + error
+# code), that exactly one record is emitted, that it validates against the shared
+# schema, and whether the request reached DynamoDB (so the db_* fields are
+# non-null only when a real call was made).
+# (event, status, error code, whether the request reaches DynamoDB)
+@pytest.mark.parametrize("event, status, err_code, hits_db", [
     ({"resource": "/cart", "httpMethod": "POST", "pathParameters": None,
-      "body": "{not valid json"}, 400, False),
-    (_post_cart_event({"user_id": "", "item_id": "i1", "quantity": 1}), 400, False),
-    (_post_cart_event({"user_id": "u1", "item_id": 7, "quantity": 1}), 400, False),
-    (_post_cart_event({"user_id": "u1", "item_id": "i1"}), 400, False),
-    (_post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": "abc"}), 400, False),
-    (_post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": 0}), 400, False),
-    ({**_GET, "pathParameters": None}, 400, False),
-    ({**_DELETE, "pathParameters": None}, 400, False),
-    ({**_DELETE, "pathParameters": {"user": "u1"}}, 400, False),
-    ({**_DELETE, "pathParameters": {"user": "nobody", "item": "nothing"}}, 404, True),
+      "body": "{not valid json"}, 400, "BAD_REQUEST", False),
+    (_post_cart_event({"user_id": "", "item_id": "i1", "quantity": 1}), 400, "BAD_REQUEST", False),
+    (_post_cart_event({"user_id": "u1", "item_id": 7, "quantity": 1}), 400, "BAD_REQUEST", False),
+    (_post_cart_event({"user_id": "u1", "item_id": "i1"}), 400, "BAD_REQUEST", False),
+    (_post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": "abc"}), 400, "BAD_REQUEST", False),
+    (_post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": 0}), 400, "BAD_REQUEST", False),
+    (_post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": -1}), 400, "BAD_REQUEST", False),
+    # NaN/Infinity are valid Decimals but not usable quantities; they must be a
+    # 400, not a 500 (handler rejects them with Decimal.is_finite()).
+    (_post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": "NaN"}), 400, "BAD_REQUEST", False),
+    (_post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": "Infinity"}), 400, "BAD_REQUEST", False),
+    ({**_GET, "pathParameters": None}, 400, "BAD_REQUEST", False),
+    ({**_DELETE, "pathParameters": None}, 400, "BAD_REQUEST", False),
+    ({**_DELETE, "pathParameters": {"user": "u1"}}, 400, "BAD_REQUEST", False),
+    ({**_DELETE, "pathParameters": {"user": "nobody", "item": "nothing"}}, 404, "NOT_FOUND", True),
     ({"resource": "/cart", "httpMethod": "DELETE", "pathParameters": None,
-      "body": None}, 501, False),
+      "body": None}, 501, "NOT_IMPLEMENTED", False),
 ])
-def test_error_paths_emit_schema_valid_record(cart_table, capsys, event, status, hits_db):
+def test_error_paths_emit_schema_valid_record(cart_table, capsys, event, status, err_code, hits_db):
     response = handler(event, None)
     assert response["statusCode"] == status
+    assert json.loads(response["body"])["error"]["code"] == err_code
     records = _records(capsys)
     assert len(records) == 1
     _assert_valid(records[0])

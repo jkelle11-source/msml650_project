@@ -122,8 +122,12 @@ def handler(event, context):
                 log(request_id, route, method, resp["statusCode"], start_time, start_proc)
                 return resp
 
-            if quantity <= 0:
-                resp = _resp(400, error={"code": "BAD_REQUEST", "message": "quantity must be greater than 0"})
+            # is_finite() is checked first (and short-circuits) because NaN/Infinity
+            # are valid Decimals: Decimal("NaN") <= 0 raises InvalidOperation and
+            # Decimal("Infinity") sails through to put_item, so both would otherwise
+            # surface as a 500 for what is really a bad client request.
+            if not quantity.is_finite() or quantity <= 0:
+                resp = _resp(400, error={"code": "BAD_REQUEST", "message": "quantity must be a positive number"})
                 log(request_id, route, method, resp["statusCode"], start_time, start_proc)
                 return resp
 
