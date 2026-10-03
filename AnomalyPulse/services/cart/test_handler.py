@@ -1,5 +1,8 @@
 import json
 import os
+import re
+import sys
+from types import SimpleNamespace
 
 import boto3
 import pytest
@@ -15,8 +18,14 @@ os.environ["AWS_SECURITY_TOKEN"] = "testing"
 os.environ["AWS_SESSION_TOKEN"] = "testing"
 os.environ["TABLE_NAME"] = "test-cart-table"
 
+# The validator ships in the anomalypulse-telemetry Lambda layer; locally it is
+# only importable once the layer's python/ dir is on sys.path.
+_LAYER_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "layers", "telemetry", "python")
+sys.path.insert(0, os.path.abspath(_LAYER_PATH))
+
 from handler import handler
 import handler as handler_module
+from schema_validator import validate
 
 
 @pytest.fixture
@@ -282,7 +291,7 @@ def test_client_error_returns_db_error_without_leak(cart_table, monkeypatch, cap
             "PutItem",
         )
 
-    monkeypatch.setattr(handler_module.table, "put_item", throttle)
+    monkeypatch.setattr(cart_table, "put_item", throttle)
     response = handler(
         _post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": 1}), None
     )
@@ -302,7 +311,7 @@ def test_internal_error_does_not_leak_detail(cart_table, monkeypatch, capsys):
     def boom(*args, **kwargs):
         raise RuntimeError("secret internal detail")
 
-    monkeypatch.setattr(handler_module.table, "put_item", boom)
+    monkeypatch.setattr(cart_table, "put_item", boom)
     response = handler(
         _post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": 1}), None
     )
@@ -333,6 +342,104 @@ def test_telemetry_line_is_tier1_only(cart_table, capsys):
                     "fault_injection_params"}
     assert set(record.keys()) == expected_fields
     assert tier2_fields.isdisjoint(record.keys())
+
+
+# --- telemetry validates against the shared schema (M2-3) --------------------
+
+_TIMESTAMP_MS = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+
+
+def _records(capsys):
+    return [json.loads(l) for l in capsys.readouterr().out.splitlines()
+            if l.strip().startswith("{")]
+
+
+def _assert_valid(record):
+    ok, errors = validate(record)
+    assert ok, errors[0].message if errors else "invalid"
+
+
+def test_each_route_emits_one_schema_valid_record(cart_table, capsys):
+    calls = [
+        ("rid-post", "/cart", "POST", {
+            "resource": "/cart", "httpMethod": "POST", "pathParameters": None,
+            "body": json.dumps({"user_id": "u1", "item_id": "i1", "quantity": 2})}),
+        ("rid-get", "/cart/{user}", "GET", {
+            "resource": "/cart/{user}", "httpMethod": "GET",
+            "pathParameters": {"user": "u1"}}),
+        ("rid-delete", "/cart/{user}/{item}", "DELETE", {
+            "resource": "/cart/{user}/{item}", "httpMethod": "DELETE",
+            "pathParameters": {"user": "u1", "item": "i1"}}),
+    ]
+    for request_id, endpoint, method, event in calls:
+        event["requestContext"] = {"requestId": request_id}
+        response = handler(event, None)
+        assert response["statusCode"] == 200
+
+        records = _records(capsys)
+        assert len(records) == 1, f"{method} {endpoint} emitted {len(records)} records"
+        record = records[0]
+        _assert_valid(record)
+        assert record["service"] == "cart-service"
+        assert record["endpoint"] == endpoint
+        assert record["http_method"] == method
+        assert record["request_id"] == request_id
+        assert _TIMESTAMP_MS.match(record["timestamp"])
+        assert record["db_latency_ms"] is not None
+        assert record["db_consumed_capacity"] is not None
+        assert record["dependency"] is None
+        assert record["dependency_latency_ms"] is None
+        assert record["dependency_error"] is None
+
+
+@pytest.mark.parametrize("event, status", [
+    ({"resource": "/cart", "httpMethod": "POST", "pathParameters": None,
+      "body": "{not valid json"}, 400),
+    ({"resource": "/cart/{user}", "httpMethod": "GET", "pathParameters": None}, 400),
+    ({"resource": "/cart/{user}/{item}", "httpMethod": "DELETE",
+      "pathParameters": {"user": "nobody", "item": "nothing"}}, 404),
+    ({"resource": "/cart", "httpMethod": "DELETE", "pathParameters": None,
+      "body": None}, 501),
+])
+def test_error_paths_emit_schema_valid_record(cart_table, capsys, event, status):
+    response = handler(event, None)
+    assert response["statusCode"] == status
+    records = _records(capsys)
+    assert len(records) == 1
+    _assert_valid(records[0])
+    assert records[0]["status_code"] == status
+
+
+def test_db_failure_still_emits_schema_valid_record(cart_table, monkeypatch, capsys):
+    def throttle(*args, **kwargs):
+        raise ClientError({"Error": {"Code": "ProvisionedThroughputExceededException",
+                                     "Message": "Throughput exceeds the current capacity"}},
+                          "PutItem")
+
+    monkeypatch.setattr(cart_table, "put_item", throttle)
+    response = handler(_post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": 1}), None)
+    assert response["statusCode"] == 500
+    records = _records(capsys)
+    assert len(records) == 1
+    _assert_valid(records[0])
+    assert records[0]["status_code"] == 500
+
+
+def test_request_id_falls_back_to_lambda_context(cart_table, capsys):
+    handler(_post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": 1}),
+            SimpleNamespace(aws_request_id="lambda-req-1"))
+    assert _records(capsys)[0]["request_id"] == "lambda-req-1"
+
+
+def test_invalid_record_is_dropped_without_failing_request(cart_table, monkeypatch, capsys):
+    monkeypatch.setattr(handler_module, "validate",
+                        lambda record: (False, [SimpleNamespace(message="bad record")]))
+    handler_module.log.cold_start = True
+    response = handler(_post_cart_event({"user_id": "u1", "item_id": "i1", "quantity": 1}), None)
+    assert response["statusCode"] == 200
+    printed = [json.loads(l) for l in capsys.readouterr().out.splitlines() if l.strip()]
+    assert printed == [{"telemetry_error": "bad record"}]
+    assert handler_module.log.cold_start is False
 
 
 if __name__ == "__main__":
