@@ -4,8 +4,6 @@
 set -euo pipefail
 
 command -v jq >/dev/null || { echo "jq is required (brew install jq)" >&2; exit 2; }
-python3 -c 'import jsonschema' 2>/dev/null \
-  || { echo "jsonschema is required (pip install -r requirements-dev.txt)" >&2; exit 2; }
 
 PROFILE="${1:?usage: $0 <aws-profile>}"
 REGION=us-east-2
@@ -121,6 +119,17 @@ check_s3() {
     fi
   done < "$SENT"
 
+  # The live-API and S3-landing checks above need no local Python deps, so they
+  # always run. Only this final step re-validates the landed records against the
+  # shared schema, which needs jsonschema on the python3 that runs it. A missing
+  # lib is a FAIL (not a silent skip) so an un-validated run can't look clean —
+  # install it (pip install -r requirements-dev.txt, or activate the project venv
+  # so `python3` resolves to it) and re-run.
+  if ! python3 -c 'import jsonschema' 2>/dev/null; then
+    echo "FAIL  schema: jsonschema not installed for $(command -v python3); landed records were"
+    echo "      not validated locally. pip install -r requirements-dev.txt (or use the venv), re-run."
+    fail=1; return
+  fi
   local out
   if out=$(python3 - "$LAYER_DIR" "$TMP/run.ndjson" <<'PY'
 import json, sys
