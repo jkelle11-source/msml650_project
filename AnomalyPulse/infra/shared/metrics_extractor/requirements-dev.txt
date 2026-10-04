@@ -1,0 +1,5 @@
+# Test-only dependencies for the metrics extractor (NOT deployed to Lambda;
+# boto3 ships in the Lambda runtime). The tests mock boto3 clients via
+# unittest.mock -- no live AWS or credentials needed. pytest is the shared runner.
+pytest
+boto3

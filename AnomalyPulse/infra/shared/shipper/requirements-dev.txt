@@ -1,0 +1,5 @@
+# Test-only dependencies for the telemetry shipper (NOT deployed to Lambda;
+# boto3 ships in the Lambda runtime). Tests mock the s3 client via unittest.mock
+# -- no live AWS or credentials needed. pytest is the shared test runner.
+pytest
+boto3
