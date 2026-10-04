@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from schema_validator import validate  # anomalypulse-telemetry layer
+from schema_validator import validate
 
 SERVICE = "product-service"
 

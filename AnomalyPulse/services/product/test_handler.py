@@ -48,10 +48,11 @@ def _event(resource, method="GET", path_params=None):
 
 
 class FakeTable:
-    def __init__(self, items, pages=1, fail=False):
+    def __init__(self, items, pages=1, fail=False, capacity=True):
         self.items = items
         self.pages = pages
         self.fail = fail
+        self.capacity = capacity  # False => responses omit ConsumedCapacity
 
     def scan(self, ReturnConsumedCapacity=None, ExclusiveStartKey=None):
         if self.fail:
@@ -60,10 +61,9 @@ class FakeTable:
         # Split into `pages` pages to exercise pagination.
         start = ExclusiveStartKey["page"] if ExclusiveStartKey else 0
         size = -(-len(values) // self.pages)
-        page = {
-            "Items": values[start * size:(start + 1) * size],
-            "ConsumedCapacity": {"CapacityUnits": 0.5},
-        }
+        page = {"Items": values[start * size:(start + 1) * size]}
+        if self.capacity:
+            page["ConsumedCapacity"] = {"CapacityUnits": 0.5}
         if start + 1 < self.pages:
             page["LastEvaluatedKey"] = {"page": start + 1}
         return page
@@ -71,7 +71,9 @@ class FakeTable:
     def get_item(self, Key, ReturnConsumedCapacity=None):
         if self.fail:
             raise RuntimeError("boom")
-        page = {"ConsumedCapacity": {"CapacityUnits": 0.5}}
+        page = {}
+        if self.capacity:
+            page["ConsumedCapacity"] = {"CapacityUnits": 0.5}
         if Key["id"] in self.items:
             page["Item"] = self.items[Key["id"]]
         return page
@@ -228,6 +230,42 @@ class ProductHandlerTest(unittest.TestCase):
         _, _, second = self.invoke(_event("/products"))
         self.assertTrue(first["cold_start"])
         self.assertFalse(second["cold_start"])
+
+    def test_malformed_event_drops_telemetry_without_failing_request(self):
+        # An event missing resource/httpMethod is still served (501), but the
+        # record it would emit has null endpoint/http_method, fails the schema,
+        # and is dropped -- a served request that ships no telemetry. This
+        # documents that silent-loss behaviour so a regression that instead
+        # shipped a half-null record would fail here.
+        resp, body, log = self.invoke({"requestContext": {"requestId": "req-x"}})
+        self.assertEqual(resp["statusCode"], 501)
+        self.assertEqual(body["error"]["code"], "NOT_IMPLEMENTED")
+        self.assertEqual(set(log), {"telemetry_error"})
+
+    def test_db_capacity_null_when_dynamodb_omits_it(self):
+        # If a DynamoDB response carries no ConsumedCapacity, the record must
+        # still validate with db_consumed_capacity=null, while db_latency_ms is
+        # set because a call did happen.
+        _, _, log = self.invoke(_event("/products"), FakeTable(PRODUCTS, capacity=False))
+        self.assertIsNone(log["db_consumed_capacity"])
+        self.assertIsNotNone(log["db_latency_ms"])
+        self.assertGreaterEqual(log["db_latency_ms"], 0)
+        self.assertTrue(validate(log)[0])
+
+    def test_db_latency_sums_across_pages(self):
+        # Two scan pages -> two timed DB calls -> db_latency_ms is their sum.
+        # perf_counter is stubbed (start, end per call) so the sum is exact.
+        ticks = iter([0.0, 1.0, 1.0, 3.0])  # call 1: 0->1s, call 2: 1->3s
+        with mock.patch.object(product.time, "perf_counter", lambda: next(ticks)):
+            _, _, log = self.invoke(_event("/products"), FakeTable(PRODUCTS, pages=2))
+        self.assertEqual(log["db_latency_ms"], 3000.0)  # 1000ms + 2000ms
+        self.assertEqual(log["db_consumed_capacity"], 1.0)  # 0.5 + 0.5
+
+    def test_json_default_rejects_unserializable(self):
+        # Decimal is handled (covered by test_list_products); anything else must
+        # raise rather than silently coerce or crash the response.
+        with self.assertRaises(TypeError):
+            product._json_default(object())
 
 
 if __name__ == "__main__":
