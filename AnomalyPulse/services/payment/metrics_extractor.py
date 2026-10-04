@@ -16,6 +16,7 @@ metrics to the per-request log records by service + one-minute time bucket.
 import boto3
 from datetime import datetime, timedelta, timezone
 import json
+import os
 
 # Region-less clients: on Lambda, boto3 resolves the region from the AWS_REGION
 # the runtime injects -- i.e. the stack's own region -- so the module isn't
@@ -39,9 +40,14 @@ def _weighted_average(datapoints):
     return weighted_sum / total_samples
 
 
-def get_dynamodb_metrics(table_name, minutes=5):
-    """Pull Tier-1 DynamoDB signals for one table over the last `minutes`."""
-    end = datetime.now(timezone.utc)
+def get_dynamodb_metrics(table_name, window_end=None, minutes=1):
+    """Pull Tier-1 DynamoDB signals for the `minutes` ending at `window_end`.
+
+    `window_end` is the (settled) end of the slice to read: the handler passes a
+    minute boundary a couple of minutes in the past, so CloudWatch has finished
+    publishing that minute before we ask for it. Defaults to now for ad-hoc calls.
+    """
+    end = window_end or datetime.now(timezone.utc)
     start = end - timedelta(minutes=minutes)
 
     def _sum(metric_name):
@@ -74,9 +80,13 @@ def get_dynamodb_metrics(table_name, minutes=5):
     }
 
 
-def get_lambda_metrics(function_name, minutes=5):
-    """Pull Tier-1 Lambda signals for one function over the last `minutes`."""
-    end = datetime.now(timezone.utc)
+def get_lambda_metrics(function_name, window_end=None, minutes=1):
+    """Pull Tier-1 Lambda signals for the `minutes` ending at `window_end`.
+
+    `window_end` works exactly as in get_dynamodb_metrics: the settled end of
+    the slice to read. Defaults to now for ad-hoc calls.
+    """
+    end = window_end or datetime.now(timezone.utc)
     start = end - timedelta(minutes=minutes)
 
     def _datapoints(metric_name, statistics):
@@ -133,3 +143,70 @@ def write_metrics_to_s3(bucket_name, service_name, metrics, now=None):
         Body=json.dumps(record).encode("utf-8"),
     )
     return key
+
+
+# ---------------------------------------------------------------------------
+# Scheduled entry point. EventBridge invokes handler() once a minute (wired in
+# template.yaml); each run reads one *settled* minute of metrics for every
+# monitored service and writes one snapshot per service to S3.
+# ---------------------------------------------------------------------------
+
+def _parse_resource_map(raw):
+    """Parse a 'service=resource,service=resource' env string into pairs.
+
+    Returns [(service, resource), ...]. Blank entries are skipped, so a trailing
+    comma or an unset variable is harmless.
+    """
+    pairs = []
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        service, _, resource = item.partition("=")
+        pairs.append((service.strip(), resource.strip()))
+    return pairs
+
+
+def _settled_window_end(now, lag_minutes):
+    """End of the most recent minute that is `lag_minutes` old.
+
+    Floor `now` to the minute boundary, then step back `lag_minutes` so
+    CloudWatch has finished publishing that minute before we read it. Paired
+    with get_*_metrics(..., minutes=1) this reads exactly one settled minute.
+    """
+    current_minute = now.replace(second=0, microsecond=0)
+    return current_minute - timedelta(minutes=lag_minutes)
+
+
+def handler(event, context):
+    bucket = os.environ["BUCKET_NAME"]
+    lag_minutes = int(os.environ.get("METRICS_LAG_MINUTES", "2"))
+
+    # Fold the two env lists into service -> {"table": name, "function": name}.
+    resources = {}
+    for service, table_name in _parse_resource_map(os.environ.get("MONITORED_TABLES", "")):
+        resources.setdefault(service, {})["table"] = table_name
+    for service, function_name in _parse_resource_map(os.environ.get("MONITORED_FUNCTIONS", "")):
+        resources.setdefault(service, {})["function"] = function_name
+
+    window_end = _settled_window_end(datetime.now(timezone.utc), lag_minutes)
+
+    written, failed = [], []
+    for service, refs in resources.items():
+        try:
+            metrics = {}
+            if "table" in refs:
+                metrics["dynamodb"] = get_dynamodb_metrics(refs["table"], window_end=window_end, minutes=1)
+            if "function" in refs:
+                metrics["lambda"] = get_lambda_metrics(refs["function"], window_end=window_end, minutes=1)
+            # Stamp the snapshot with the minute it represents (window_end), not
+            # wall-clock now, so M4 joins it to the matching one-minute window.
+            written.append(write_metrics_to_s3(bucket, service, metrics, now=window_end))
+        except Exception as exc:
+            # Orchestration-layer guard (deferred from review): one service's
+            # failure must not sink the others, and we must NOT persist a
+            # snapshot of false zeros -- a gap M4 can see beats a fabricated 0.
+            print(json.dumps({"metrics_error": str(exc), "service": service}))
+            failed.append(service)
+
+    return {"window_end": window_end.isoformat(), "written": written, "failed": failed}

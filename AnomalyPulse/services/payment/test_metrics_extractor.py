@@ -29,6 +29,23 @@ def test_get_dynamodb_metrics_handles_no_datapoints():
     assert result["write_throttle_events"] == 0
 
 
+def test_getter_reads_the_single_minute_ending_at_window_end():
+    import datetime as _dt
+    window_end = _dt.datetime(2026, 1, 15, 10, 3, 0, tzinfo=_dt.timezone.utc)
+    captured = {}
+
+    def capture(**kwargs):
+        captured.update(kwargs)
+        return {"Datapoints": []}
+
+    with mock.patch.object(metrics_extractor.cloudwatch, "get_metric_statistics", side_effect=capture):
+        metrics_extractor.get_dynamodb_metrics("tbl", window_end=window_end, minutes=1)
+
+    assert captured["EndTime"] == window_end
+    assert captured["StartTime"] == window_end - _dt.timedelta(minutes=1)
+    assert captured["Period"] == 60
+
+
 def test_get_lambda_metrics_weights_averages_and_counts_cold_starts():
     # Two Duration minutes: one slow invocation (100ms x1) and three fast-ish
     # (200ms x3). A naive mean-of-means is 150; the SampleCount-weighted mean is
@@ -101,3 +118,71 @@ def test_write_metrics_to_s3_builds_correct_key_and_body():
     body = json.loads(captured["Body"])
     assert body["service"] == "payment-service"
     assert body["metrics"] == {"throttled_requests": 0}
+
+
+# --- Scheduled handler -----------------------------------------------------
+
+def test_parse_resource_map_handles_blanks_and_spaces():
+    pairs = metrics_extractor._parse_resource_map(
+        "product-service=anomalypulse-products, order-service=anomalypulse-orders,"
+    )
+    assert pairs == [("product-service", "anomalypulse-products"),
+                     ("order-service", "anomalypulse-orders")]
+
+
+def test_settled_window_end_floors_then_lags():
+    import datetime as _dt
+    now = _dt.datetime(2026, 1, 15, 10, 5, 30, 123000, tzinfo=_dt.timezone.utc)
+    end = metrics_extractor._settled_window_end(now, lag_minutes=2)
+    # Floored to 10:05:00, stepped back 2 minutes -> read the 10:02-10:03 bucket.
+    assert end == _dt.datetime(2026, 1, 15, 10, 3, 0, tzinfo=_dt.timezone.utc)
+
+
+def test_handler_writes_one_snapshot_per_service(monkeypatch):
+    monkeypatch.setenv("BUCKET_NAME", "b")
+    monkeypatch.setenv("MONITORED_TABLES",
+                       "product-service=anomalypulse-products,order-service=anomalypulse-orders")
+    monkeypatch.setenv("MONITORED_FUNCTIONS",
+                       "product-service=anomalypulse-product,payment-service=anomalypulse-payment")
+
+    monkeypatch.setattr(metrics_extractor, "get_dynamodb_metrics",
+                        lambda name, window_end, minutes: {"table_name": name})
+    monkeypatch.setattr(metrics_extractor, "get_lambda_metrics",
+                        lambda name, window_end, minutes: {"function_name": name})
+    writes = []
+    monkeypatch.setattr(metrics_extractor, "write_metrics_to_s3",
+                        lambda bucket, service, metrics, now: writes.append((service, metrics)) or f"key/{service}")
+
+    result = metrics_extractor.handler({}, None)
+
+    by_service = dict(writes)
+    assert set(by_service) == {"product-service", "order-service", "payment-service"}
+    # product-service has both a table and a function; order only a table;
+    # payment only a function (no DynamoDB table exists for it).
+    assert set(by_service["product-service"]) == {"dynamodb", "lambda"}
+    assert set(by_service["order-service"]) == {"dynamodb"}
+    assert set(by_service["payment-service"]) == {"lambda"}
+    assert result["failed"] == []
+    assert len(result["written"]) == 3
+
+
+def test_handler_isolates_a_failing_service(monkeypatch):
+    monkeypatch.setenv("BUCKET_NAME", "b")
+    monkeypatch.setenv("MONITORED_TABLES", "")
+    monkeypatch.setenv("MONITORED_FUNCTIONS", "good-service=fn-good,bad-service=fn-bad")
+
+    def flaky(name, window_end, minutes):
+        if name == "fn-bad":
+            raise RuntimeError("cloudwatch blew up")
+        return {"function_name": name}
+
+    monkeypatch.setattr(metrics_extractor, "get_lambda_metrics", flaky)
+    writes = []
+    monkeypatch.setattr(metrics_extractor, "write_metrics_to_s3",
+                        lambda bucket, service, metrics, now: writes.append(service) or "k")
+
+    result = metrics_extractor.handler({}, None)
+
+    assert writes == ["good-service"]           # the healthy service still landed
+    assert result["failed"] == ["bad-service"]  # the bad one is reported, not fatal
+    assert result["written"] == ["k"]
