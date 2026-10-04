@@ -61,6 +61,10 @@ Resources:
             Status: Enabled
             Prefix: raw/
             ExpirationInDays: 90
+          - Id: expire-metrics-telemetry
+            Status: Enabled
+            Prefix: metrics/
+            ExpirationInDays: 90
   
   # ---- CloudWatch Log Groups ---------------------------------------
 
@@ -210,6 +214,27 @@ Resources:
       Environment: 
         Variables:
           BUCKET_NAME: !Ref TelemetryBucket
+  
+  MetricsExtractorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: anomalypulse-metrics-extractor
+      CodeUri: ./metrics_extractor/
+      Handler: handler.handler
+      Runtime: python3.13
+      Timeout: 30
+      Role: !GetAtt MetricsExtractorRole.Arn
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref TelemetryBucket
+          METRICS_LAG_MINUTES: '2'
+          MONITORED_TABLES: !Sub 'product-service=${ProductsTable},cart-service=${CartsTable},order-service=${OrdersTable}'
+          MONITORED_FUNCTIONS: !Sub 'product-service=${ProductFunction},cart-service=${CartFunction},order-service=${OrderFunction},payment-service=${PaymentFunction}'
+      Events:
+        EveryMinute:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
           
   # ---- Catch-all 501 Stub ---------------------------------------
   # This stub is mapped to /{proxy+} ANY - a greedy wildcard that API Gateway
@@ -406,6 +431,34 @@ Resources:
                   - !Sub '${TelemetryBucket.Arn}/raw/*'
                   - !Sub '${TelemetryBucket.Arn}/errors/*'
   
+  MetricsExtractorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: 
+          - Effect: Allow
+            Principal: 
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: metrics-extractor-cloudwatch-read
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement: 
+              - Effect: Allow
+                Action: cloudwatch:GetMetricStatistics
+                Resource: '*'
+        - PolicyName: metrics-extractor-s3-write
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub '${TelemetryBucket.Arn}/metrics/*'
+  
   # ---- Invoke Permissions ---------------------------------------
 
   ShipperInvokePermission:
@@ -450,8 +503,7 @@ Resources:
       LogGroupName: !Ref OrderLogGroup
       DestinationArn: !GetAtt ShipperFunction.Arn
       FilterPattern: '{ $.request_id = "*" }'
-      
-  
+
   # ---- SSM Parameters ---------------------------------------
 
   SsmApiUrl: 
