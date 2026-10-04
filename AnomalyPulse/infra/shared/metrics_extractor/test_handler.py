@@ -2,7 +2,7 @@
 boto3 clients are mocked so these tests run offline, fast, and without credentials."""
 from unittest import mock
 
-import metrics_extractor
+import handler as metrics_extractor
 
 
 def test_get_dynamodb_metrics_sums_datapoints():
