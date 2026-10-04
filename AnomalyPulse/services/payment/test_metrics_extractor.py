@@ -14,6 +14,9 @@ def test_get_dynamodb_metrics_sums_datapoints():
     assert result["consumed_read_capacity"] == 5.0
     assert result["consumed_write_capacity"] == 5.0
     assert result["throttled_requests"] == 5.0
+    # Table-level throttle counters are summed the same way.
+    assert result["read_throttle_events"] == 5.0
+    assert result["write_throttle_events"] == 5.0
 
 
 def test_get_dynamodb_metrics_handles_no_datapoints():
@@ -22,26 +25,49 @@ def test_get_dynamodb_metrics_handles_no_datapoints():
 
     assert result["consumed_read_capacity"] == 0
     assert result["throttled_requests"] == 0
+    assert result["read_throttle_events"] == 0
+    assert result["write_throttle_events"] == 0
 
 
-def test_get_lambda_metrics_computes_averages_and_cold_starts():
+def test_get_lambda_metrics_weights_averages_and_counts_cold_starts():
+    # Two Duration minutes: one slow invocation (100ms x1) and three fast-ish
+    # (200ms x3). A naive mean-of-means is 150; the SampleCount-weighted mean is
+    # (100*1 + 200*3) / 4 = 175. We assert 175 to lock in the weighting.
     def fake_stats(**kwargs):
         if kwargs["MetricName"] == "Duration":
-            return {"Datapoints": [{"Average": 100.0}, {"Average": 200.0}]}
+            return {"Datapoints": [{"Average": 100.0, "SampleCount": 1.0},
+                                   {"Average": 200.0, "SampleCount": 3.0}]}
         if kwargs["MetricName"] == "Throttles":
             return {"Datapoints": [{"Sum": 1.0}]}
         if kwargs["MetricName"] == "InitDuration":
-            return {"Datapoints": [{"Average": 300.0}]}
+            # One minute, but TWO cold starts within it -- cold_starts must read
+            # the SampleCount (2), not the number of datapoints (1).
+            return {"Datapoints": [{"Average": 300.0, "SampleCount": 2.0}]}
         return {"Datapoints": []}
 
     with mock.patch.object(metrics_extractor.cloudwatch, "get_metric_statistics", side_effect=fake_stats):
         result = metrics_extractor.get_lambda_metrics("fake-function", minutes=5)
 
     assert result["function_name"] == "fake-function"
-    assert result["avg_duration_ms"] == 150.0
+    assert result["avg_duration_ms"] == 175.0
     assert result["throttle_count"] == 1.0
-    assert result["cold_starts"] == 1
+    assert result["cold_starts"] == 2
     assert result["avg_init_duration_ms"] == 300.0
+
+
+def test_get_lambda_metrics_cold_starts_sum_across_minutes():
+    # Regression guard for the original bug: cold starts spread across minutes
+    # must sum (2 + 1 = 3), never be counted as "2 minutes had a cold start".
+    def fake_stats(**kwargs):
+        if kwargs["MetricName"] == "InitDuration":
+            return {"Datapoints": [{"Average": 250.0, "SampleCount": 2.0},
+                                   {"Average": 250.0, "SampleCount": 1.0}]}
+        return {"Datapoints": []}
+
+    with mock.patch.object(metrics_extractor.cloudwatch, "get_metric_statistics", side_effect=fake_stats):
+        result = metrics_extractor.get_lambda_metrics("bursty-function", minutes=5)
+
+    assert result["cold_starts"] == 3
 
 
 def test_get_lambda_metrics_handles_no_invocations():
@@ -50,6 +76,7 @@ def test_get_lambda_metrics_handles_no_invocations():
 
     assert result["avg_duration_ms"] is None
     assert result["cold_starts"] == 0
+    assert result["avg_init_duration_ms"] is None
 
 
 def test_write_metrics_to_s3_builds_correct_key_and_body():
@@ -65,7 +92,9 @@ def test_write_metrics_to_s3_builds_correct_key_and_body():
         )
 
     assert key == captured["Key"]
-    assert key.startswith("raw/service=payment-service/dt=2026-01-15/metrics-")
+    # Snapshots land under metrics/ (not raw/) so the aggregator's raw/ scan
+    # never sees them, while keeping the service+date partitioning for joins.
+    assert key.startswith("metrics/service=payment-service/dt=2026-01-15/metrics-")
     assert captured["Bucket"] == "fake-bucket"
 
     import json
