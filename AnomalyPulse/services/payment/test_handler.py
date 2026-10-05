@@ -5,7 +5,9 @@ Run from this folder:  python3 -m pytest -v
 import io
 import json
 import os
+import uuid
 from contextlib import redirect_stdout
+from types import SimpleNamespace
 
 import handler as payment
 from unittest import mock
@@ -31,6 +33,16 @@ def _invoke():
     log_lines = out.getvalue().strip().splitlines()
     assert len(log_lines) == 1, "exactly one log line per request"
     return resp, json.loads(resp["body"]), json.loads(log_lines[0])
+
+
+def _run(event, context=None):
+    """Invoke the handler with a custom event/context; return its one log line."""
+    out = io.StringIO()
+    with redirect_stdout(out):
+        payment.handler(event, context)
+    lines = out.getvalue().strip().splitlines()
+    assert len(lines) == 1, "exactly one log line per request"
+    return json.loads(lines[-1])
 
 
 def setup_function():
@@ -150,3 +162,28 @@ def test_telemetry_never_crashes_on_invalid_record(monkeypatch, capsys):
     printed = capsys.readouterr().out.strip()
     log = json.loads(printed)
     assert "telemetry_error" in log
+
+
+def test_request_id_prefers_request_context():
+    # Correlation contract (PROJECT_PLAN Section 3): when the caller supplies
+    # requestContext.requestId -- API Gateway, or Order's Lambda-to-Lambda invoke
+    # which forwards its id there -- payment must stamp THAT id on its telemetry
+    # line so its record joins the caller's. It must win over the Lambda context id.
+    log = _run({**_event(), "requestContext": {"requestId": "apigw-req-1"}},
+               SimpleNamespace(aws_request_id="lambda-req-1"))
+    assert log["request_id"] == "apigw-req-1"
+
+
+def test_request_id_falls_back_to_lambda_context():
+    # No upstream requestContext -> fall back to the Lambda request id.
+    log = _run(_event(), SimpleNamespace(aws_request_id="lambda-req-1"))
+    assert log["request_id"] == "lambda-req-1"
+
+
+def test_request_id_falls_back_to_uuid_and_is_never_null():
+    # Neither an upstream id nor a Lambda context -> a generated uuid: non-null,
+    # parseable, and distinct per request.
+    first = _run(_event(), None)
+    second = _run(_event(), None)
+    assert uuid.UUID(first["request_id"]) and uuid.UUID(second["request_id"])
+    assert first["request_id"] != second["request_id"]

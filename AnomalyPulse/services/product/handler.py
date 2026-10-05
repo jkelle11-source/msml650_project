@@ -1,9 +1,17 @@
-"""Product Service (M1-2): GET /products and GET /products/{id}, read-only against Products."""
+"""Product Service: GET /products and GET /products/{id}, read-only against Products.
+
+M1-2 built the endpoints; M2-2 emits one schema-validated Tier-1 telemetry
+record per request, which CloudWatch -> the shipper Lambda lands in
+s3://<telemetry-bucket>/raw/service=product-service/dt=<date>/.
+"""
 import json
 import os
 import time
+import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
+
+from schema_validator import validate
 
 SERVICE = "product-service"
 
@@ -102,7 +110,17 @@ def _route(event, db):
     return _err(501, "NOT_IMPLEMENTED", f"{method} {route} is not handled by product-service")
 
 
-def _log(event, context, status, start_time, start_proc, db, cold):
+def _request_id(event, context):
+    # API Gateway's id, so the record joins to the x-amzn-RequestId the client saw.
+    # Never null: the S3 subscription filter only ships lines with a request_id.
+    return (
+        (event.get("requestContext") or {}).get("requestId")
+        or getattr(context, "aws_request_id", None)
+        or str(uuid.uuid4())
+    )
+
+
+def _record(event, context, status, start_time, start_proc, db, cold):
     # The schema defines two distinct timing fields:
     #   latency_ms         = "End-to-end wall clock time ... as seen by the
     #                         handler" -> wall clock, includes I/O wait (DB call).
@@ -116,14 +134,12 @@ def _log(event, context, status, start_time, start_proc, db, cold):
     # (Matches services/cart for consistent cross-service telemetry.)
     latency_ms = round((time.time() - start_time) * 1000, 3)
     lambda_duration_ms = round((time.process_time() - start_proc) * 1000, 3)
-    request_id = (event.get("requestContext") or {}).get("requestId") or getattr(
-        context, "aws_request_id", None
-    )
-    # One line per request, matching infra/shared/telemetry_schema.json.
-    # Tier-1 and correlation fields only; never emit Tier-2 (error_type, db_throttled, ...).
-    print(json.dumps({
+    # All 14 schema fields, null where N/A. Correlation + Tier-1 only; never
+    # emit Tier-2 (error_type, db_throttled, ...). request_rate is not a record
+    # field: it's derived downstream by counting these records per window (M4).
+    return {
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
-        "request_id": request_id,
+        "request_id": _request_id(event, context),
         "service": SERVICE,
         "endpoint": event.get("resource"),
         "http_method": event.get("httpMethod"),
@@ -136,7 +152,17 @@ def _log(event, context, status, start_time, start_proc, db, cold):
         "dependency": None,
         "dependency_latency_ms": None,
         "dependency_error": None,
-    }))
+    }
+
+
+def _emit(record):
+    # Telemetry must never fail the request: an invalid record is reported
+    # (without request_id, so it isn't shipped to raw/) and dropped.
+    ok, errors = validate(record)
+    if not ok:
+        print(json.dumps({"telemetry_error": str(errors[0].message)}))
+        return
+    print(json.dumps(record))
 
 
 def handler(event, context):
@@ -150,5 +176,8 @@ def handler(event, context):
     except Exception:
         # Structured error, never a stack trace. The cause stays out of the log line (Tier-2).
         resp = _err(500, "INTERNAL_ERROR", "failed to read products")
-    _log(event, context, resp["statusCode"], start_time, start_proc, db, cold)
+    try:
+        _emit(_record(event, context, resp["statusCode"], start_time, start_proc, db, cold))
+    except Exception:
+        print(json.dumps({"telemetry_error": "failed to build telemetry record"}))
     return resp

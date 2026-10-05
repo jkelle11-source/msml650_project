@@ -1,4 +1,8 @@
 # Test-only dependencies for the Product service (NOT deployed to Lambda).
 # The tests use a fake table and the stdlib unittest framework; pytest is the
-# shared test runner across the repo.
+# shared test runner across the repo. jsonschema backs the telemetry layer's
+# validator, which the tests (and check_telemetry.py) import locally; boto3 is
+# for seed.py and check_telemetry.py only.
 pytest
+jsonschema
+boto3
