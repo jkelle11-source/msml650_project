@@ -160,6 +160,24 @@ def test_unsupported_method(orders_table):
     assert response["statusCode"] == 404
 
 
+def test_get_without_id_is_unsupported_route(orders_table, capsys):
+    # GET /orders with no {id} matches neither create (POST) nor get (GET + id),
+    # so it falls through to the catch-all 404. Pins that else-branch and its one
+    # schema-valid record: the rejected path makes no DB call and no dependency call.
+    response = handler({"resource": "/orders", "httpMethod": "GET", "pathParameters": None}, None)
+    body = json.loads(response["body"])
+    assert response["statusCode"] == 404
+    assert body["error"]["code"] == "NOT_FOUND"
+    log = _last_log(capsys)
+    assert set(log) == SCHEMA_FIELDS
+    assert TIER2_FIELDS.isdisjoint(log)
+    assert log["http_method"] == "GET"
+    assert log["endpoint"] == "/orders"
+    assert log["status_code"] == 404
+    assert log["db_latency_ms"] is None
+    assert log["dependency"] is None
+
+
 # --- behaviour: payment dependency -----------------------------------------
 
 def test_create_order_payment_service_error(orders_table, monkeypatch):

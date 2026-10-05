@@ -1,3 +1,5 @@
 # Test-only dependencies for the Payment service (NOT deployed to Lambda).
-# The tests use stdlib unittest.mock; pytest is the shared test runner.
+# pytest is the shared runner; jsonschema backs the schema_validator the handler
+# imports (so the tests can import it) and the smoke test's S3 schema re-validation.
 pytest
+jsonschema
