@@ -1,0 +1,16 @@
+{
+  "baseline_s": 300,
+  "cascade_s": 600,
+  "recovery_s": 300,
+  "stages": [
+    {"injector": "traffic-spike", "intensity": 0.6,
+     "band": {"parameter": "multiplier", "low": 2, "high": 4}},
+    {"injector": "db-throttling", "intensity": 0.6, "onset_delay_s": 90, "onset_jitter_s": 15,
+     "band": {"parameter": "load_ratio", "low": 1.5, "high": 2.5}},
+    {"injector": "lambda-degradation", "target": "order-service", "intensity": 0.6,
+     "onset_delay_s": 60, "onset_jitter_s": 15,
+     "band": {"parameter": "added_latency_ms", "low": 200, "high": 500}},
+    {"injector": "retry-amplification", "intensity": 0.6, "onset_delay_s": 60, "onset_jitter_s": 10,
+     "band": {"parameter": "retries_per_failure", "low": 0.5, "high": 2.5}}
+  ]
+}

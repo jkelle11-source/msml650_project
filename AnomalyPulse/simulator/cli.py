@@ -6,6 +6,7 @@ Handoffs/M3-1_Handoff.md:
     python -m simulator start-incident --type noop --duration 60
     python -m simulator start-incident --type <injector> --intensity 0.8 \\
         --duration 300 --band <low> <high>
+    python -m simulator start-cascade --spec cascades/<spec>.json
     python -m simulator cleanup
 
 Add --dry-run to start-incident to see the manifest a run would start with,
@@ -21,7 +22,7 @@ import time
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
-from simulator import injectors, runner
+from simulator import cascade, injectors, runner
 from simulator.lock import LockHeld
 from simulator.stack import Stack
 
@@ -90,6 +91,34 @@ def _start_incident(args) -> int:
     return 0
 
 
+def _start_cascade(args) -> int:
+    # Same split as _start_incident: a bad spec is reported before AWS is involved.
+    try:
+        plan = cascade.build_plan(
+            **cascade.load_spec(args.spec),
+            seed=secrets.randbelow(2**32) if args.seed is None else args.seed,
+            created_by=args.created_by or getpass.getuser(),
+            **({"max_run_s": args.max_run} if args.max_run is not None else {}))
+        preview = runner.preview(plan)
+    except (ValueError, LookupError, OSError) as e:
+        return _fail(e)
+    if args.dry_run:
+        print(json.dumps(preview, indent=2))
+        print("\nplanned concurrency:\n" + cascade.describe_timeline(preview))
+        return 0
+
+    try:
+        stack = _connect(args)
+    except (BotoCoreError, ClientError, RuntimeError) as e:
+        return _fail(f"could not reach the stack with AWS profile {args.profile!r}: {e}")
+    try:
+        final = runner.run(plan, stack)
+    except LockHeld as e:
+        return _fail(e)
+    print("\nconcurrency:\n" + cascade.describe_timeline(final))
+    return 0
+
+
 def _cleanup(args) -> int:
     try:
         stack = _connect(args)
@@ -149,6 +178,24 @@ def _parser() -> argparse.ArgumentParser:
                        help="print the manifest the run would start with; touches no AWS")
     aws_arguments(start)
     start.set_defaults(handler=_start_incident)
+
+    casc = commands.add_parser(
+        "start-cascade", help="run one cascading-failure experiment from a spec file",
+        description="Run a cascade: several faults that begin one after another and overlap. "
+                    "The spec file lists the stages, their bands and onset delays.")
+    casc.add_argument("--spec", required=True, metavar="FILE", help="cascade spec (JSON)")
+    casc.add_argument("--seed", type=int,
+                      help="RNG seed (default: a random one, recorded in the manifest)")
+    casc.add_argument("--created-by", metavar="NAME",
+                      help="recorded in the manifest (default: your username)")
+    casc.add_argument("--max-run", type=number, metavar="SECONDS",
+                      help=f"longest run allowed (default: {cascade.MAX_RUN_S}); the workload "
+                           f"sends traffic the whole time, so this bounds the cost")
+    casc.add_argument("--dry-run", action="store_true",
+                      help="print the manifest and concurrency the run would start with; "
+                           "touches no AWS")
+    aws_arguments(casc)
+    casc.set_defaults(handler=_start_cascade)
 
     cleanup = commands.add_parser(
         "cleanup", help="delete leftover faults and a dead run's lock",
