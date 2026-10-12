@@ -1,0 +1,179 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "AnomalyPulse experiment manifest",
+    "description": "Ground-truth record of one simulator run, stored at experiments/<experiment_id>/manifest.json. Every field is Tier-2: nothing in a manifest may enter the feature matrix.",
+    "type": "object",
+    "properties": {
+        "schema_version": {
+            "const": "1.0"
+        },
+        "experiment_id": {
+            "type": "string",
+            "pattern": "^exp-\\d{8}T\\d{6}Z-[0-9a-f]{4}$",
+            "description": "exp-<UTC start time>-<4 hex>. Not a sequence number; the M4 registry assigns those."
+        },
+        "status": {
+            "type": "string",
+            "enum": ["RUNNING", "COMPLETED", "FAILED", "ABORTED"],
+            "description": "RUNNING is written when the run starts; the manifest is rewritten with a final status when it ends. A manifest still at RUNNING after its run is a run that died."
+        },
+        "incident_type": {
+            "type": "string",
+            "enum": ["NORMAL", "TRAFFIC_SPIKE", "DATABASE_THROTTLING", "LAMBDA_DEGRADATION", "DEPENDENCY_FAILURE", "CASCADING_FAILURE"],
+            "description": "Intended experiment-level label. Per-window labels are derived from activations in M4. A confounder run is a single-fault type with more than one activation."
+        },
+        "severity": {
+            "type": ["string", "null"],
+            "enum": ["LOW", "MEDIUM", "HIGH", null],
+            "description": "Derived from the highest activation intensity: LOW below 1/3, MEDIUM below 2/3, HIGH otherwise. Intensity is a position within its band, so severity does not compare magnitude across bands. Null for NORMAL."
+        },
+        "seed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295,
+            "description": "RNG seed the resolved params were drawn with. Kept within 32 bits so numpy accepts it."
+        },
+        "created_by": {
+            "type": "string",
+            "minLength": 1
+        },
+        "started_at": {
+            "$ref": "#/$defs/timestamp"
+        },
+        "ended_at": {
+            "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }],
+            "description": "Null while RUNNING."
+        },
+        "workload": {
+            "type": "object",
+            "description": "Baseline workload settings for the run. Open: the workload generator owner defines the keys."
+        },
+        "activations": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/activation" },
+            "description": "One entry per injected fault. Empty for NORMAL. Overlapping windows record which faults were concurrently active."
+        },
+        "telemetry": {
+            "type": "object",
+            "properties": {
+                "bucket": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "prefixes": {
+                    "type": "array",
+                    "items": { "type": "string", "pattern": "/$" },
+                    "minItems": 1,
+                    "uniqueItems": true
+                }
+            },
+            "required": ["bucket", "prefixes"],
+            "additionalProperties": false,
+            "description": "Where this run's telemetry lives. The run's slice is everything under these prefixes between started_at and ended_at."
+        }
+    },
+    "required": ["schema_version", "experiment_id", "status", "incident_type", "severity", "seed", "created_by", "started_at", "ended_at", "workload", "activations", "telemetry"],
+    "additionalProperties": false,
+    "allOf": [
+        {
+            "if": {
+                "properties": { "status": { "const": "RUNNING" } },
+                "required": ["status"]
+            },
+            "then": {
+                "properties": { "ended_at": { "type": "null" } }
+            },
+            "else": {
+                "properties": { "ended_at": { "type": "string" } }
+            }
+        },
+        {
+            "if": {
+                "properties": { "incident_type": { "const": "NORMAL" } },
+                "required": ["incident_type"]
+            },
+            "then": {
+                "properties": {
+                    "severity": { "type": "null" },
+                    "activations": { "maxItems": 0 }
+                }
+            },
+            "else": {
+                "properties": {
+                    "severity": { "type": "string" },
+                    "activations": { "minItems": 1 }
+                }
+            }
+        }
+    ],
+    "$defs": {
+        "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+        },
+        "activation": {
+            "type": "object",
+            "properties": {
+                "fault_id": {
+                    "type": "string",
+                    "pattern": "^exp-\\d{8}T\\d{6}Z-[0-9a-f]{4}#\\d+$",
+                    "description": "<experiment_id>#<n>. Same value as the fault-config item when the injector uses the control plane."
+                },
+                "injector": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Registry name of the injector that produced this activation."
+                },
+                "target": {
+                    "type": ["string", "null"],
+                    "enum": ["product-service", "cart-service", "order-service", "payment-service", null],
+                    "description": "Service the fault is applied to. Null when the fault has no single service target (a traffic spike)."
+                },
+                "intensity": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Normalized 0-1 position requested within the band."
+                },
+                "band": {
+                    "type": "object",
+                    "properties": {
+                        "parameter": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Native parameter the band is expressed in, e.g. timeout_ms."
+                        },
+                        "low": {
+                            "type": "number"
+                        },
+                        "high": {
+                            "type": "number"
+                        }
+                    },
+                    "required": ["parameter", "low", "high"],
+                    "additionalProperties": false,
+                    "description": "The band the intensity was mapped onto."
+                },
+                "params": {
+                    "type": "object",
+                    "description": "Resolved native values the injector applied. Open: the injector owner defines the keys."
+                },
+                "observed": {
+                    "type": "object",
+                    "description": "Outcomes the injector measured during the run, e.g. a throttle count. Empty until the run ends. Open: the injector owner defines the keys. Unlike params, these do not repeat from the seed."
+                },
+                "active_from": {
+                    "$ref": "#/$defs/timestamp",
+                    "description": "Start of the fault window, inclusive."
+                },
+                "active_until": {
+                    "$ref": "#/$defs/timestamp",
+                    "description": "End of the fault window, exclusive."
+                }
+            },
+            "required": ["fault_id", "injector", "target", "intensity", "band", "params", "observed", "active_from", "active_until"],
+            "additionalProperties": false
+        }
+    }
+}

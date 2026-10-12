@@ -106,6 +106,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref ProductsTable
+          FAULT_CONFIG_TABLE: !Ref FaultConfigTable
       Events:
         ListProducts:
           Type: Api
@@ -132,6 +133,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref CartsTable
+          FAULT_CONFIG_TABLE: !Ref FaultConfigTable
       Events: 
         PostCart:
           Type: Api
@@ -166,6 +168,7 @@ Resources:
           TABLE_NAME: !Ref OrdersTable
           USE_PAYMENT_STUB: 'false'
           PAYMENT_FUNCTION_NAME: !Ref PaymentFunction
+          FAULT_CONFIG_TABLE: !Ref FaultConfigTable
       Events:
         PostOrder:
           Type: Api
@@ -194,6 +197,7 @@ Resources:
           PAYMENT_LATENCY_MS: '0'
           PAYMENT_FAILURE_RATE: '0.0'
           PAYMENT_TIMEOUT: 'false'
+          FAULT_CONFIG_TABLE: !Ref FaultConfigTable
       Events:
         PostPayment:
           Type: Api
@@ -311,6 +315,42 @@ Resources:
         - AttributeName: order_id
           KeyType: HASH
   
+  ExperimentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: anomalypulse-experiments
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions: 
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+  
+  # Fault-injection control plane (M3-1). The simulator writes one item per
+  # fault activation; each service Lambda queries its own partition and applies
+  # any fault whose time window covers "now". Kept apart from ExperimentsTable 
+  # so service roles never touch the lock.
+
+  FaultConfigTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: anomalypulse-fault-config
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: service
+          AttributeType: S
+        - AttributeName: fault_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: service
+          KeyType: HASH           # which lambda applies the fault
+        - AttributeName: fault_id
+          KeyType: RANGE          # one item per fault activation
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
+  
   # ---- Per-service IAM Roles ----------------------------------------
 
   ProductRole:
@@ -337,6 +377,13 @@ Resources:
                   - dynamodb:Scan
                   - dynamodb:BatchGetItem
                 Resource: !GetAtt ProductsTable.Arn
+        - PolicyName: product-fault-config-read
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:Query
+                Resource: !GetAtt FaultConfigTable.Arn
   
   CartRole:
     Type: AWS::IAM::Role
@@ -363,6 +410,13 @@ Resources:
                   - dynamodb:DeleteItem
                   - dynamodb:BatchWriteItem
                 Resource: !GetAtt CartsTable.Arn
+        - PolicyName: cart-fault-config-read
+          PolicyDocument: 
+            Version: '2012-10-17'
+            Statement: 
+              - Effect: Allow
+                Action: dynamodb:Query
+                Resource: !GetAtt FaultConfigTable.Arn
     
   OrderRole:
     Type: AWS::IAM::Role
@@ -394,7 +448,14 @@ Resources:
               - Effect: Allow
                 Action: lambda:InvokeFunction
                 Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:anomalypulse-payment'
-  
+        - PolicyName: order-fault-config-read
+          PolicyDocument: 
+            Version: '2012-10-17'
+            Statement: 
+              - Effect: Allow
+                Action: dynamodb:Query
+                Resource: !GetAtt FaultConfigTable.Arn
+
   PaymentRole: 
     Type: AWS::IAM::Role
     Properties:
@@ -407,6 +468,14 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: payment-fault-config-read
+          PolicyDocument: 
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:Query
+                Resource: !GetAtt FaultConfigTable.Arn
   
   ShipperRole:
     Type: AWS::IAM::Role
@@ -458,7 +527,70 @@ Resources:
               - Effect: Allow
                 Action: s3:PutObject
                 Resource: !Sub '${TelemetryBucket.Arn}/metrics/*'
-  
+
+  # ---- Simulator Role ---------------------------------------
+  # Assumed by teammates to run the incident simulator (M3). It bounds what the
+  # simulator process can touch; each injector's PR adds only what it needs.
+  # Trust: the account root is the principal and the ArnLike condition narrows
+  # it to sessions of the AnomalyPulseDeveloper permission set. Matching on the
+  # name pattern (not the exact role ARN) survives the permission set's role
+  # being re-created with a new random suffix.
+
+  SimulatorRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      RoleName: anomalypulse-simulator
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: 
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+            Condition:
+              ArnLike:
+                aws:PrincipalArn: !Sub 'arn:aws:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/us-east-2/AWSReservedSSO_AnomalyPulseDeveloper_*'
+      Policies:
+        - PolicyName: simulator-discovery
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement: 
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/anomalypulse/*'
+        - PolicyName: simulator-experiment-lock
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                Resource: !GetAtt ExperimentsTable.Arn
+        - PolicyName: simulator-fault-config-write
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                Resource: !GetAtt FaultConfigTable.Arn
+        - PolicyName: simulator-manifest-readwrite
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub '${TelemetryBucket.Arn}/experiments/*'
+
+
   # ---- Invoke Permissions ---------------------------------------
 
   ShipperInvokePermission:
@@ -547,3 +679,24 @@ Resources:
       Name: /anomalypulse/tables/orders/name
       Type: String
       Value: !Ref OrdersTable
+  
+  SsmExperimentsTableName:
+    Type: AWS::SSM::Parameter
+    Properties: 
+      Name: /anomalypulse/tables/experiments/name
+      Type: String
+      Value: !Ref ExperimentsTable
+  
+  SsmFaultConfigTableName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /anomalypulse/tables/fault-config/name
+      Type: String
+      Value: !Ref FaultConfigTable
+  
+  SsmSimulatorRoleArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /anomalypulse/simulator/role-arn
+      Type: String
+      Value: !GetAtt SimulatorRole.Arn

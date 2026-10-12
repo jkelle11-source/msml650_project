@@ -1,0 +1,6 @@
+# Runtime dependencies for the incident simulator. It is a local CLI, not a
+# Lambda, so nothing here is bundled by `sam build` and boto3 has to be
+# installed (the Lambda runtime is what supplies it to the services).
+# jsonschema validates every manifest before it is written.
+boto3
+jsonschema

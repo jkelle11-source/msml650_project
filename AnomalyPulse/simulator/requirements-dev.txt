@@ -1,0 +1,8 @@
+# Test-only dependencies for the incident simulator, on top of the runtime ones
+# (the first line pulls those in). pytest is the shared test runner. No test
+# reaches AWS or needs credentials: calls are either stubbed with botocore's
+# Stubber or answered by moto, which the lock tests need because it evaluates
+# DynamoDB condition expressions.
+-r requirements.txt
+pytest
+moto[dynamodb,s3,ssm]
