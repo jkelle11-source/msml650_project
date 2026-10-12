@@ -252,6 +252,16 @@ def test_botocore_error_on_invoke_becomes_502_with_dependency_error(orders_table
     assert log["dependency_error"] is True
 
 
+def test_payment_invoke_client_never_retries():
+    # The test above swaps lambda_client for a fake, so botocore's own retry logic
+    # never runs there. Pin the real client's setting instead: one attempt only.
+    # total_max_attempts counts the first try, so 1 means no retries. The similarly
+    # named max_attempts counts RETRIES: max_attempts=1 is two 6s attempts on a hung
+    # payment, past order's 10s Lambda timeout, so the invocation would be killed
+    # before it emits its telemetry line.
+    assert handler_module.lambda_client.meta.config.retries["total_max_attempts"] == 1
+
+
 def test_request_id_propagated_to_payment(orders_table, monkeypatch, capsys):
     # The upstream request_id must be forwarded to payment (under requestContext,
     # where payment reads it) so the two services' log lines share a correlation
