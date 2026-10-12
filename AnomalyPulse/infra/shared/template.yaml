@@ -571,16 +571,26 @@ Resources:
                   - dynamodb:DeleteItem
                 Resource: !GetAtt ExperimentsTable.Arn
         - PolicyName: simulator-fault-config-write
-          PolicyDocument: 
+          PolicyDocument:
             Version: '2012-10-17'
-            Statement: 
+            Statement:
               - Effect: Allow
-                Action: 
+                Action:
+                  - dynamodb:Query
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                Resource: !GetAtt FaultConfigTable.Arn
+        - PolicyName: simulator-manifest-readwrite
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
                   - s3:GetObject
                   - s3:PutObject
                 Resource: !Sub '${TelemetryBucket.Arn}/experiments/*'
-      
-  
+
+
   # ---- Invoke Permissions ---------------------------------------
 
   ShipperInvokePermission:
