@@ -23,7 +23,7 @@ EXPERIMENT_ID = "exp-20261012T041500Z-3f9a"
 KEY = f"experiments/{EXPERIMENT_ID}/manifest.json"
 MINUTE = 60_000
 
-# The run in the handoff's example manifest: it starts at 04:15:00, the fault is
+# The run in the interface doc's example manifest: it starts at 04:15:00, the fault is
 # active from 04:20 to 04:25, and it ends at 04:30. Epoch milliseconds, worked
 # out with the stdlib and not with the code under test.
 T0 = calendar.timegm((2026, 10, 12, 4, 15, 0)) * 1000
@@ -280,8 +280,8 @@ def test_finalize_does_not_change_the_manifest_it_is_given():
 
 
 def test_built_manifest_matches_the_documented_example():
-    # The example in Handoffs/M3-1_Handoff.md, field for field and in the same
-    # key order.
+    # The example in Docs/SIMULATOR_INTERFACE.md, field for field and in the
+    # same key order.
     expected = {
         "schema_version": "1.0",
         "experiment_id": EXPERIMENT_ID,
