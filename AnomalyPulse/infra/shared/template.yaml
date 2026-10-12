@@ -527,6 +527,59 @@ Resources:
               - Effect: Allow
                 Action: s3:PutObject
                 Resource: !Sub '${TelemetryBucket.Arn}/metrics/*'
+
+  # ---- Simulator Role ---------------------------------------
+  # Assumed by teammates to run the incident simulator (M3). It bounds what the
+  # simulator process can touch; each injector's PR adds only what it needs.
+  # Trust: the account root is the principal and the ArnLike condition narrows
+  # it to sessions of the AnomalyPulseDeveloper permission set. Matching on the
+  # name pattern (not the exact role ARN) survives the permission set's role
+  # being re-created with a new random suffix.
+
+  SimulatorRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      RoleName: anomalypulse-simulator
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: 
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+            Condition:
+              ArnLike:
+                aws:PrincipalArn: !Sub 'arn:aws:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/us-east-2/AWSReservedSSO_AnomalyPulseDeveloper_*'
+      Policies:
+        - PolicyName: simulator-discovery
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement: 
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/anomalypulse/*'
+        - PolicyName: simulator-experiment-lock
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                Resource: !GetAtt ExperimentsTable.Arn
+        - PolicyName: simulator-fault-config-write
+          PolicyDocument: 
+            Version: '2012-10-17'
+            Statement: 
+              - Effect: Allow
+                Action: 
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub '${TelemetryBucket.Arn}/experiments/*'
+      
   
   # ---- Invoke Permissions ---------------------------------------
 
@@ -630,3 +683,10 @@ Resources:
       Name: /anomalypulse/tables/fault-config/name
       Type: String
       Value: !Ref FaultConfigTable
+  
+  SsmSimulatorRoleArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /anomalypulse/simulator/role-arn
+      Type: String
+      Value: !GetAtt SimulatorRole.Arn
