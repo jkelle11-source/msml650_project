@@ -26,7 +26,9 @@ dynamodb = boto3.resource("dynamodb")
 # dependency line. 6s sits above the injected-latency incident (a few seconds, still
 # succeeds as high dependency_latency_ms) and below the 30s timeout. No retries: a 10s
 # budget has no room, and a retry would mask the dependency signal the classifier keys on.
-_PAYMENT_INVOKE_CONFIG = Config(connect_timeout=2, read_timeout=6, retries={"max_attempts": 1})
+# total_max_attempts counts the first try, so 1 means no retries; botocore's similarly
+# named max_attempts counts RETRIES (max_attempts=1 would be two attempts).
+_PAYMENT_INVOKE_CONFIG = Config(connect_timeout=2, read_timeout=6, retries={"total_max_attempts": 1})
 lambda_client = boto3.client("lambda", config=_PAYMENT_INVOKE_CONFIG)
 table = dynamodb.Table(TABLE_NAME)
 
