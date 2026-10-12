@@ -97,8 +97,9 @@ Reader (in the telemetry layer, `fault_config.py`, ships to every Lambda automat
 
 - In a botocore `Config`, `retries={"max_attempts": N}` means N RETRIES, i.e. N+1 total attempts. "No retries" is `retries={"total_max_attempts": 1}` (or `{"max_attempts": 0}`).
 - Measured 2026-10-11 against a local server that accepts the connection and never replies (boto3 1.43): `max_attempts: 1` → 2 attempts, `total_max_attempts: 1` → 1 attempt. Same for the DynamoDB and Lambda clients. Read timeouts ARE retried.
-- `services/order/handler.py` builds its payment-invoke client with `read_timeout=6, retries={"max_attempts": 1}` and a comment saying "No retries". By the measurement above that is one retry.
-- INFERRED, not reproduced on the deployed stack: with a hung payment (the timeout fault) that is ~6 s + backoff + ~6 s, past Order's 10 s Lambda timeout. Order would be killed before it emits its telemetry line, instead of returning the clean 502 with `dependency_error=true` that the comment describes, and payment would be invoked twice per order. Worth confirming before the payment-timeout injector is built. Not changed in M3-1.
+- `services/order/handler.py` built its payment-invoke client with `read_timeout=6, retries={"max_attempts": 1}` and a comment saying "No retries". By the measurement above that was one retry. FIXED in PR #62 (merged to main 2026-10-12, also merged into `m3-1_jake`): now `retries={"total_max_attempts": 1}`, pinned by `test_payment_invoke_client_never_retries`. NOT live until the next deploy.
+- INFERRED, not reproduced on the deployed stack: with a hung payment (the timeout fault) that is ~6 s + backoff + ~6 s, past Order's 10 s Lambda timeout. Order would be killed before it emits its telemetry line, instead of returning the clean 502 with `dependency_error=true` that the comment describes, and payment would be invoked twice per order. This is what the old setting would have done; still worth confirming the clean 502 on the deployed stack when the payment-timeout injector is validated (M3-4).
+- Behaviour change from the fix: transient payment-invoke failures the retry used to hide (e.g. Lambda throttling during a traffic spike) now surface as 502s with `dependency_error=true`.
 
 ## Simulator IAM role [DECIDED in principle, details TBD]
 
