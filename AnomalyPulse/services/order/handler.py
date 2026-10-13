@@ -12,6 +12,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 # For local tests, add AnomalyPulse/layers/telemetry/python/ to sys.path first
 # (see test_handler.py) and `pip install jsonschema`.
 from schema_validator import validate
+from fault_config import active_faults
 
 SERVICE_NAME = "order-service"  # must match the service enum in telemetry_schema.json
 TABLE_NAME = os.environ["TABLE_NAME"]
@@ -213,6 +214,29 @@ def get_order(order_id):
     return {"order": response.get("Item"), "db": db}
 
 
+def _added_cpu_ms():
+    # Extra CPU work asked for by an active lambda-degradation fault (0 if none).
+    # Called on EVERY request, fault or not, so its cost is not a fingerprint of
+    # incident runs. What was read is NEVER printed or logged (Tier-2 ground truth).
+    try:
+        total = 0.0
+        for fault in active_faults(SERVICE_NAME):
+            if fault.get("injector") == "lambda-degradation":
+                total += float((fault.get("params") or {}).get("added_latency_ms", 0))
+        return total
+    except Exception:
+        return 0.0
+
+
+def _burn_cpu_ms(ms):
+    # Real computation: spin until this process's CPU clock has advanced by `ms`,
+    # so lambda_duration_ms (CPU time) rises, unlike with a sleep.
+    if ms > 0:
+        end = time.process_time() + ms / 1000.0
+        while time.process_time() < end:
+            pass
+
+
 # lambda
 def handler(event, context):
     global _cold_start
@@ -220,6 +244,7 @@ def handler(event, context):
     _cold_start = False
     wall_start = time.time()          # wall clock, for latency_ms
     proc_start = time.process_time()  # CPU time, for lambda_duration_ms
+    _burn_cpu_ms(_added_cpu_ms())     # after the timers start, so both latency and CPU time rise
     # Prefer the upstream (API Gateway) request id so it can be propagated to payment
     # for cross-service correlation (M2-1 handoff §3); fall back to the Lambda id, then a uuid.
     request_id = (event.get("requestContext") or {}).get("requestId") or getattr(context, "aws_request_id", None) or str(uuid.uuid4())
