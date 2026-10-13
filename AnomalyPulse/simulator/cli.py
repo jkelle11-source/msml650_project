@@ -9,7 +9,11 @@ Handoffs/M3-1_Handoff.md:
     python -m simulator cleanup
 
 Add --dry-run to start-incident to see the manifest a run would start with,
-without touching AWS.
+without touching AWS. Add --rps to send baseline traffic during the run (M3-2):
+
+    python -m simulator start-incident --type noop --duration 600 --rps 20
+    python -m simulator start-incident --type traffic-spike --intensity 0.5 \\
+        --band 2 4 --duration 300 --rps 20
 """
 import argparse
 import getpass
@@ -21,7 +25,7 @@ import time
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
-from simulator import injectors, runner
+from simulator import injectors, runner, workload
 from simulator.lock import LockHeld
 from simulator.stack import Stack
 
@@ -66,13 +70,28 @@ def _plan(args) -> runner.Plan:
     )
 
 
+def _workload(args, plan):
+    """The run's workload from --rps/--users/--mix, or None without --rps."""
+    if args.rps is None:
+        if args.users is not None or args.mix is not None:
+            raise ValueError("--users and --mix need --rps")
+        if getattr(injectors.get(args.type), "needs_workload", False):
+            raise ValueError(f"{args.type} changes the workload's traffic, so it needs --rps")
+        return None
+    mix = None if args.mix is None else dict(zip(workload.ROUTES, args.mix))
+    users = 50 if args.users is None else args.users
+    # The plan's seed, so the run's request sequence repeats with its params.
+    return workload.Workload(rps=args.rps, users=users, mix=mix, seed=plan.seed)
+
+
 def _start_incident(args) -> int:
     # Everything that can be wrong with the request is found here, before AWS
     # is involved. An error raised later, during the run, is a real failure and
     # is left to show its traceback.
     try:
         plan = _plan(args)
-        preview = runner.preview(plan)
+        load = _workload(args, plan)
+        preview = runner.preview(plan, workload=load)
     except (ValueError, LookupError) as e:
         return _fail(e)
     if args.dry_run:
@@ -81,10 +100,15 @@ def _start_incident(args) -> int:
 
     try:
         stack = _connect(args)
+        if load is not None:
+            load.base_url = workload.api_base_url(stack.session)
     except (BotoCoreError, ClientError, RuntimeError) as e:
         return _fail(f"could not reach the stack with AWS profile {args.profile!r}: {e}")
     try:
-        runner.run(plan, stack)
+        if load is None:
+            runner.run(plan, stack)
+        else:
+            runner.run(plan, stack, workload=load)
     except LockHeld as e:
         return _fail(e)
     return 0
@@ -145,6 +169,14 @@ def _parser() -> argparse.ArgumentParser:
                        help="RNG seed (default: a random one, recorded in the manifest)")
     start.add_argument("--created-by", metavar="NAME",
                        help="recorded in the manifest (default: your username)")
+    start.add_argument("--rps", type=number, metavar="RPS",
+                       help="send baseline traffic at this many requests per second during "
+                            "the run (default: none). Needed by traffic-spike")
+    start.add_argument("--users", type=int, metavar="N",
+                       help="simulated users the traffic is spread over (default: 50; needs --rps)")
+    start.add_argument("--mix", type=number, nargs=len(workload.ROUTES), metavar="W",
+                       help="endpoint weights in the order " + ", ".join(workload.ROUTES)
+                            + " (default: 60 15 10 10 5; needs --rps)")
     start.add_argument("--dry-run", action="store_true",
                        help="print the manifest the run would start with; touches no AWS")
     aws_arguments(start)
