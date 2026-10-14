@@ -1,6 +1,6 @@
 # AnomalyPulse Incident Simulator — Injector Interface, Manifest & Teardown
 
-**Status:** built in M3-1, awaiting sign-off from the injector owners · **Manifest schema version:** 1.0 · **Owner:** Jake (infra)
+**Status:** built in M3-1; the workload and traffic spike landed in M3-2 · **Manifest schema version:** 1.0 · **Owner:** Jake (infra)
 
 The reference for anyone writing an injector (M3-2…M3-5) or reading a manifest (M4). If you
 just want to get your injector going, start with
@@ -19,6 +19,8 @@ just want to get your injector going, start with
 | **Manifest code** | `AnomalyPulse/simulator/manifest.py` | Build, validate, write; the checks the schema cannot express. |
 | **Fault control plane** | `AnomalyPulse/simulator/control_plane.py` (writer), `AnomalyPulse/layers/telemetry/python/fault_config.py` (reader in every Lambda) | How a fault reaches a handler. |
 | **Runner / CLI** | `AnomalyPulse/simulator/runner.py`, `cli.py` | One run from lock to final manifest. |
+| **Workload** | `AnomalyPulse/simulator/workload.py` | The baseline traffic every CLI run sends (M3-2). |
+| **Telemetry report** | `AnomalyPulse/simulator/telemetry_report.py` | One run's effect in landed telemetry, phase by phase. |
 
 ---
 
@@ -43,7 +45,10 @@ python -m simulator cleanup                                                  # a
 | `--duration` | How long the fault is active, in **seconds**. |
 | `--baseline`, `--recovery` | Seconds before and after the fault. Default 300 each. |
 | `--target` | The service to aim at, for an injector that supports more than one. |
-| `--seed` | RNG seed. Default: a random one, recorded in the manifest. |
+| `--seed` | RNG seed. Default: a random one, recorded in the manifest. The workload's request sequence uses it too. |
+| `--rps` | Baseline traffic, in requests per second, sent for the whole run. Default `20`, the plan's normal rate. Every CLI run sends traffic: a run without it would have no telemetry. |
+| `--users` | How many simulated users the traffic is spread over. Default `50`. |
+| `--mix W W W W W` | Endpoint weights, in the order `GET /products`, `GET /products/{id}`, `POST /cart`, `GET /orders/{id}`, `POST /orders`. Default `60 15 10 10 5` (plan §7). |
 | `--created-by` | Recorded in the manifest. Default: your username. |
 | `--dry-run` | Print the manifest the run would start with. Opens no AWS session. |
 | `--profile`, `--region` | Default `sim` and `us-east-2`. |
@@ -65,9 +70,9 @@ import boto3
 
 from simulator.runner import Fault, Plan, run
 from simulator.stack import Stack
+from simulator.workload import Workload, api_base_url
 
-# The injector names and band parameters are whatever their owners register;
-# these two are placeholders.
+# `db-throttling` and its band parameter are placeholders for whatever M3-3 registers.
 plan = Plan(
     incident_type="CASCADING_FAILURE", recovery_s=300, seed=7, created_by="melisa",
     faults=(
@@ -77,18 +82,38 @@ plan = Plan(
               band={"parameter": "load_ratio", "low": 1.5, "high": 2.5}),
     ),
 )
-manifest = run(plan, Stack.connect(boto3.Session(profile_name="sim", region_name="us-east-2")))
+session = boto3.Session(profile_name="sim", region_name="us-east-2")
+load = Workload(rps=20, seed=plan.seed, base_url=api_base_url(session))
+manifest = run(plan, Stack.connect(session), workload=load)
 ```
 
 `offset_s` is from the start of the run to that fault's window opening. Each fault gets its own
 RNG, derived from the seed and its position in the list, so adding a fault never changes what
-another one resolves. `runner.preview(plan)` returns the starting manifest without touching AWS.
+another one resolves. `runner.preview(plan, workload=load)` returns the starting manifest without
+touching AWS.
+
+**Pass a workload.** Unlike the CLI, `run()` sends no traffic unless it is given a `workload`, and
+it refuses a plan containing an injector with `needs_workload` (the traffic spike) when none is
+given. Give the workload the plan's seed so its request sequence repeats with the run.
+
+### Checking a run in landed telemetry
+
+```bash
+python -m simulator.telemetry_report <experiment_id> --profile <your-profile>   # not sim
+```
+
+It prints request rate, p50/p95 latency and 4xx and 5xx share per service for each phase, plus
+client-facing requests per minute. Phases are cut wherever a fault starts or stops, so an overlap
+of faults in a cascade is its own phase. A run still at `RUNNING` is refused: it has no end time. Wait about two minutes after the
+run ends, because the shipper lands records in batches. It needs a profile that can read `raw/`,
+which the simulator role cannot.
 
 ### What one run does
 
 1. Resolves the plan into activations and builds the starting manifest. **Everything that can be
    wrong is refused here, before anything is touched:** bad intensity or band, a missing target,
-   a label that contradicts the faults, too little baseline for a fault's lead time.
+   a label that contradicts the faults, too little baseline for a fault's lead time, a traffic
+   spike with no workload.
 2. Takes the lock, or stops with "experiment X is already running, started by Y".
 3. Writes the manifest with `status: RUNNING`; starts the workload.
 4. Calls each injector's `start()` and `stop()` on schedule.
@@ -122,6 +147,7 @@ injector wraps another.
 | `parameter` | The native parameter its band is expressed in (`timeout_ms`, `multiplier`, …). A band for a different parameter is rejected. `None` only for `NORMAL`. |
 | `targets` | The services it can be aimed at. `()` when there is no single service (a traffic spike → `target: null`). With one target it is used automatically; with several, the run must name one. |
 | `lead_ms` | How long before the window opens `start()` must be called. `0` (the default) means "as the window opens". |
+| `needs_workload` | `True` when the fault is applied through `self.ctx.workload`, as the traffic spike's is. A run with such an injector and no workload is refused before anything is touched. Default `False`. |
 
 `@register` checks all of this **when the file is imported** and raises there, so a mistake
 shows up before any experiment runs. A file that fails to import fails *every* lookup, so a
@@ -210,8 +236,29 @@ is not a fingerprint of incident runs), and returns plain numbers.
 The runner calls three methods on the workload object: `describe()` (a plain dict, recorded as
 the manifest's `workload`), `start()` and `stop()` (safe to repeat). Everything else on the
 object is between the workload and the injectors, which receive it as `self.ctx.workload`.
-`runner.NoWorkload` is the stand-in that sends nothing. Wiring a real generator into
-`start-incident` is part of M3-2.
+`runner.NoWorkload` is the stand-in that sends nothing; `run()` uses it when it is given no
+workload.
+
+The real one is `simulator.workload.Workload` (M3-2), and every `start-incident` run gets one.
+It sends requests to the deployed API (URL from SSM, `/anomalypulse/api/base-url`) as an
+**open-loop Poisson process**: arrivals keep coming at the configured rate whether or not earlier
+requests have finished, so a slow service gets the same offered load, not less. The request
+sequence (routes, users, items) comes from an RNG seeded with the plan's seed. If more than
+`max_in_flight` (256) requests are outstanding, new arrivals are dropped and counted, not queued.
+
+| On the workload | For |
+|---|---|
+| `describe()` | `generator`, `request_rate_rps`, `users`, `mix` (normalized to fractions), `max_in_flight` |
+| `set_rate_multiplier(m)` | Injectors: scale the arrival rate; `1` is baseline. The traffic spike uses it. |
+| `outcomes()` | Injectors: what the client has seen so far, `{"sent", "dropped", "responses": {"2xx": …, "5xx": …, "error": …}}`. A response counts when it comes back; `error` is no HTTP response at all. The traffic spike records the difference across its window. |
+| `requests_sent()`, `current_rps` | Injectors: how much has been sent, and the rate right now |
+
+`GET /orders/{id}` reads back orders the run created. Until the first one exists (about a second
+into a run) it gets a 404, as a stale link would. Which order a read picks is the one thing in
+the sequence that depends on the API's answers.
+
+A traffic spike's `observed` is the client's view of its window: `requests_sent`,
+`achieved_rps`, `requests_dropped`, and `responses` by class.
 
 ---
 
@@ -287,6 +334,12 @@ matches the intensities; every timestamp is a real date; and the whole thing is 
   `CASCADING_FAILURE`" only when `incident_type` is `CASCADING_FAILURE`.
 - **Use only `COMPLETED` runs.** A `FAILED` or `ABORTED` manifest keeps the windows it had
   *planned*, which may run past `ended_at`.
+- **Skip a run whose `workload` is `{}`.** It sent no traffic, so it has no telemetry behind its
+  label. Runs from before M3-2 made traffic the default look like this: two `COMPLETED` NORMAL
+  manifests in the bucket (`exp-20261012T054951Z-ec18`, `exp-20261013T162018Z-bdcd`) are such
+  runs.
+- **Deduplicate records by `(service, request_id)`.** The shipper delivers at least once: one
+  M3-2 validation run landed 43 records twice, byte for byte.
 - **`severity` is relative to the band**, not to the native value: 0.9 in a 2×–4× band is `HIGH`,
   0.1 in a 6×–8× band is `LOW`. To compare magnitudes across bands, read `params`.
 - **A `NORMAL` run has no activations**, including a run of the `noop` injector.
@@ -327,6 +380,28 @@ labels. `--force` overrides that; only use it when you know the run is dead.
 cost of an experiment is the traffic the workload sends and whatever an injector drives
 (Lambda invocations, DynamoDB capacity), which each injector owner documents with their
 injector.
+
+**The workload's traffic** is the larger part. A default 15-minute run at 20 rps sends about
+18,000 requests. At list price, API Gateway ($3.50 per million REST requests) makes up most of
+the roughly $0.07 per run, and Lambda, CloudWatch Logs and DynamoDB add about a cent between
+them. A traffic spike multiplies the traffic in its window. Nothing keeps sending after a run ends: the
+workload lives in the simulator process.
+
+**Lambda concurrency is a real limit.** The account allowed 10 concurrent executions when M3-2
+was validated, shared by every function, including the shipper. CloudWatch showed the limit
+being hit in both validation runs:
+
+- **Starting cold.** The NORMAL run began with every function cold. Cold-start init time pushed
+  concurrency past 10, and 110 requests were throttled in its first minute, none after.
+- **A 3x spike (60 rps).** About 0.3% of the window's requests were throttled, steadily
+  throughout the window.
+
+A client request that Lambda throttles never reaches its handler, so it leaves **no telemetry
+record**; only the client's 5xx count (a spike's `observed.responses`) sees it. A throttled
+Order-to-Payment invoke is worse for labels: Order records a 502 with `dependency_error: true`,
+which reads like a dependency failure. An increase to 1,000 was requested on 2026-10-14 (Service
+Quotas case 179201347400929). Check it has been applied before M4 generates runs, and especially
+before the 10x bands and the stress slice.
 
 ---
 

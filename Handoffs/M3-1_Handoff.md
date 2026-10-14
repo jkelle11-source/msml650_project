@@ -63,18 +63,21 @@ class TrafficSpike(Injector):
     incident_type = "TRAFFIC_SPIKE"
     parameter = "multiplier"
     # targets stays (): a spike has no single service behind it
+    needs_workload = True   # its fault goes through self.ctx.workload
 
     @classmethod
     def configure(cls, intensity, band, rng):
         return {"multiplier": cls.native_value(intensity, band)}
 
     def start(self):
-        # self.ctx.workload is the workload driver; this method name is made up.
+        # self.ctx.workload is the workload driver (simulator/workload.py).
         self.ctx.workload.set_rate_multiplier(self.activation.params["multiplier"])
 
     def stop(self):
         self.ctx.workload.set_rate_multiplier(1)
 ```
+
+(The real one, built in M3-2, is `simulator/injectors/traffic_spike.py`.)
 
 Four rules that trip people up (full details in [`Docs/SIMULATOR_INTERFACE.md`](../Docs/SIMULATOR_INTERFACE.md)):
 
@@ -132,6 +135,8 @@ python -m simulator start-incident --type <your-injector> --intensity 0.8 --band
 ```
 
 - `--duration` is the fault's window in **seconds**. `--baseline` and `--recovery` default to 300 seconds each, so the second command above is a 15-minute run.
+- **Every run sends baseline traffic** for its whole length (added in M3-2): 20 requests per second in the plan's 60/15/10/10/5 endpoint mix. `--rps`, `--users` and `--mix` change it.
+- To see a run's effect in landed telemetry: `python -m simulator.telemetry_report <experiment_id> --profile <your-profile>` (your own profile, not `sim`), about two minutes after the run ends.
 - The run prints its experiment id and where the manifest is. Ctrl-C is safe: the run winds down and records itself as `ABORTED`.
 - The role's session lasts an hour and is renewed automatically when the profile is set up as above, so long runs are fine.
 - **If your injector needs an AWS permission the role doesn't have** (reading a CloudWatch metric, describing a table), add exactly that to `SimulatorRole` in `template.yaml` in your PR. Jake reviews and deploys.
@@ -169,7 +174,7 @@ Both `params` and `observed` must be plain JSON. A `Decimal` straight out of Dyn
 Everyone: branch per ticket (`m3-<n>-<name>`), add your injector file and its test file, open a PR.
 
 - **Josh — Workload generator + traffic spike (M3-2).** Two pieces.
-  1. **The workload generator.** The runner calls three methods on it: `describe()` (a plain dict of its settings, recorded in the manifest), `start()` and `stop()` (safe to call twice). Everything else on the object is yours to design. The CLI currently always runs with *no* workload; wiring yours into `start-incident` is part of your ticket — talk to Jake about how you want to select it.
+  1. **The workload generator.** The runner calls three methods on it: `describe()` (a plain dict of its settings, recorded in the manifest), `start()` and `stop()` (safe to call twice). Everything else on the object is yours to design. *(Done in M3-2: `simulator/workload.py`, and every `start-incident` run now sends it, at 20 rps by default.)*
   2. **The traffic-spike injector.** Like the second example in §2: `parameter = "multiplier"`, no targets, and `start()`/`stop()` change the request rate through `self.ctx.workload`. It is started exactly as its window opens. This is the MVP incident, so land it first.
 - **Linu — DynamoDB throttling (M3-3).** Subclass `Injector`. Things to know before you design it:
   - **Don't change capacity per experiment.** DynamoDB allows a provisioned → on-demand switch only 4 times per 24 hours, and capacity *decreases* are capped near 27 per day; M4 needs 140 throttling runs. The workable design is a table that sits at a **fixed low provisioned capacity** while your injector varies the **offered load**. That is also what the plan asks for: the knob is the offered-load-to-capacity ratio.
@@ -183,7 +188,7 @@ Everyone: branch per ticket (`m3-<n>-<name>`), add your injector file and its te
   - **Payment's knobs move off environment variables** (`PAYMENT_LATENCY_MS`, `PAYMENT_FAILURE_RATE`, `PAYMENT_TIMEOUT`). Changing an environment variable recycles every warm execution environment, so each incident would start and end with a cold-start burst that normal runs never have — and `cold_start` is a model feature.
   - A handler must **never print or log** the fault it read.
   - Faults are scheduled ahead, not switched on: the framework writes the item 15 seconds before the window, so your injector needs at least 15 seconds of baseline (the default is 300).
-- **Melisa — Cascading failure (M3-5).** A cascade is **several activations with staggered, overlapping windows**, not an injector that wraps others. Build a `runner.Plan` with one `runner.Fault` per activation and `incident_type="CASCADING_FAILURE"`, and call `runner.run()` — there is a worked example under "Runs with several faults" in the interface doc. The overlapping windows in the manifest *are* the "which faults are concurrently active" record your M4 labeling needs. Retry amplification is yours to design, either as its own injector or as a workload behaviour you agree with Josh.
+- **Melisa — Cascading failure (M3-5).** A cascade is **several activations with staggered, overlapping windows**, not an injector that wraps others. Build a `runner.Plan` with one `runner.Fault` per activation and `incident_type="CASCADING_FAILURE"`, and call `runner.run()` — there is a worked example under "Runs with several faults" in the interface doc. The overlapping windows in the manifest *are* the "which faults are concurrently active" record your M4 labeling needs. Retry amplification is yours to design, either as its own injector or as a workload behaviour you agree with Josh. **Pass a workload to `runner.run()`** (`workload=Workload(...)`; example in the interface doc): without one the run sends no traffic, and a plan with a `traffic-spike` fault is refused.
 
 Two things for Melisa and Rachel from the Order/Payment path:
 
