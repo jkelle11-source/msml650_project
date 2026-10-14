@@ -18,7 +18,7 @@ class TrafficSpike(Injector):
     incident_type = "TRAFFIC_SPIKE"
     parameter = "multiplier"
     # targets stays (): a spike has no single service behind it.
-    # The CLI refuses to run this injector without a workload (--rps).
+    # The runner refuses a plan with this injector and no workload.
     needs_workload = True
 
     @classmethod
@@ -31,20 +31,20 @@ class TrafficSpike(Injector):
 
     def __init__(self, ctx, activation):
         super().__init__(ctx, activation)
-        self._started = None   # (monotonic s, requests sent) when the spike began
+        self._started = None   # (monotonic s, workload outcomes) when the spike began
         self._stopped = None   # same, when it ended
 
     def _workload(self):
         workload = self.ctx.workload
-        if not hasattr(workload, "set_rate_multiplier"):
+        if not (hasattr(workload, "set_rate_multiplier") and hasattr(workload, "outcomes")):
             raise RuntimeError(f"{self.name}: needs a workload that can change its rate "
-                               f"(start-incident --rps ...)")
+                               f"(simulator.workload.Workload)")
         return workload
 
     def start(self):
         workload = self._workload()
         workload.set_rate_multiplier(self.activation.params["multiplier"])
-        self._started = (time.monotonic(), workload.requests_sent())
+        self._started = (time.monotonic(), workload.outcomes())
         return None
 
     def stop(self):
@@ -54,15 +54,28 @@ class TrafficSpike(Injector):
             return None
         workload.set_rate_multiplier(1)
         if self._started is not None and self._stopped is None:
-            self._stopped = (time.monotonic(), workload.requests_sent())
+            self._stopped = (time.monotonic(), workload.outcomes())
         return None
 
     def observe(self):
-        """The request rate the simulator actually sent during the window (Tier-2, manifest only)."""
+        """What the client sent and got back during the window (Tier-2, manifest only).
+
+        `responses` counts by class the responses that came back inside the
+        window. Requests throttled before reaching a handler land in telemetry
+        as nothing at all, so their 5xx here is the only record of them.
+        """
         if self._started is None or self._stopped is None:
             return {}
         seconds = self._stopped[0] - self._started[0]
-        sent = self._stopped[1] - self._started[1]
         if seconds <= 0:
             return {}
-        return {"requests_sent": sent, "achieved_rps": round(sent / seconds, 2)}
+        (_, before), (_, after) = self._started, self._stopped
+        sent = after["sent"] - before["sent"]
+        classes = {"2xx", "4xx", "5xx", "error"} | set(before["responses"]) | set(after["responses"])
+        return {
+            "requests_sent": sent,
+            "achieved_rps": round(sent / seconds, 2),
+            "requests_dropped": after["dropped"] - before["dropped"],
+            "responses": {k: after["responses"].get(k, 0) - before["responses"].get(k, 0)
+                          for k in sorted(classes)},
+        }

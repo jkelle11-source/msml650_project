@@ -46,6 +46,8 @@ def _problem_with(cls) -> str | None:
         return f"targets must be a tuple of distinct services from {', '.join(SERVICES)}"
     if not isinstance(cls.lead_ms, int) or isinstance(cls.lead_ms, bool) or cls.lead_ms < 0:
         return "lead_ms must be a whole number of milliseconds, 0 or more"
+    if not isinstance(cls.needs_workload, bool):
+        return "needs_workload must be True or False"
 
     if issubclass(cls, ControlPlaneInjector):
         if not cls.targets:

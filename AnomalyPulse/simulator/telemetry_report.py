@@ -1,9 +1,10 @@
 """Telemetry report for one experiment (M3-2): did the fault show up in landed telemetry?
 
 Reads the experiment's manifest, pulls every telemetry record in its time range
-from s3://<bucket>/raw/, and splits them into baseline / fault / recovery by the
-manifest's windows. Prints request rate, latency and 5xx share per phase and per
-service, plus per-minute request counts so a NORMAL run's stability can be seen.
+from s3://<bucket>/raw/, and splits them into phases at every point a fault
+starts or stops (baseline, each fault or overlap of faults, recovery). Prints
+request rate, latency, and 4xx and 5xx share per phase and per service, plus
+per-minute request counts so a NORMAL run's stability can be seen.
 
 Run from AnomalyPulse/ with a profile that can read raw/ (your own, not `sim`):
 
@@ -14,6 +15,7 @@ Wait about two minutes after the run ends: the shipper lands records in batches.
 import argparse
 import json
 import statistics
+import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 
@@ -39,51 +41,75 @@ def _percentile(values, q):
 
 
 def phases(manifest: dict) -> list[tuple[str, datetime, datetime]]:
-    """(name, start, end) for baseline, each fault window, and recovery."""
+    """Contiguous (name, start, end) spans covering the run, cut wherever a fault starts or stops.
+
+    Before the first fault is "baseline" and after the last is "recovery". A
+    span with faults active is named after all of them in the order they
+    started, so where a cascade's faults overlap the overlap is its own span
+    ("fault: traffic-spike + db-throttling"); a gap between faults is
+    "no fault". A NORMAL run is one span, "normal".
+    """
     start = _parse(manifest["started_at"])
     end = _parse(manifest["ended_at"])
-    windows = sorted((_parse(a["active_from"]), _parse(a["active_until"]), a["injector"])
-                     for a in manifest["activations"])
+    windows = [(_parse(a["active_from"]), _parse(a["active_until"]), a["injector"])
+               for a in manifest["activations"]]
     if not windows:
         return [("normal", start, end)]
-    first, last = windows[0][0], max(w[1] for w in windows)
-    out = [("baseline", start, first)]
-    out += [(f"fault: {name}", a, b) for a, b, name in windows]
-    out.append(("recovery", last, end))
+    first, last = min(w[0] for w in windows), max(w[1] for w in windows)
+    cuts = sorted({start, end, *(t for a, b, _ in windows for t in (a, b) if start < t < end)})
+    out = []
+    for a, b in zip(cuts, cuts[1:]):
+        # Every window boundary is a cut, so what is active at `a` is active until `b`.
+        active = [name for f, u, name in sorted(windows) if f <= a < u]
+        if active:
+            name = "fault: " + " + ".join(active)
+        elif b <= first:
+            name = "baseline"
+        elif a >= last:
+            name = "recovery"
+        else:
+            name = "no fault"
+        out.append((name, a, b))
     return out
+
+
+def _share(recs, low, high):
+    if not recs:
+        return None
+    return round(sum(low <= r["status_code"] <= high for r in recs) / len(recs), 4)
 
 
 def summarize(manifest: dict, records: list[dict]) -> dict:
     """Per-phase, per-service stats, and per-minute client-facing request counts. Pure."""
     spans = phases(manifest)
     start, end = _parse(manifest["started_at"]), _parse(manifest["ended_at"])
-    grouped = defaultdict(list)          # (phase, service) -> records
+    grouped = defaultdict(list)          # (phase index, service) -> records
     per_minute = Counter()               # minute index -> client-facing records
     for record in records:
         ts = _parse(record["timestamp"])
         if not start <= ts < end:
             continue
         per_minute[int((ts - start).total_seconds() // 60)] += record["service"] in CLIENT_FACING
-        for name, a, b in spans:
+        for index, (_, a, b) in enumerate(spans):
             if a <= ts < b:
-                grouped[(name, record["service"])].append(record)
+                grouped[(index, record["service"])].append(record)
                 break
 
     report = {"phases": [], "per_minute": [per_minute[m] for m in
                                            range(int((end - start).total_seconds() // 60))]}
-    for name, a, b in spans:
+    for index, (name, a, b) in enumerate(spans):
         seconds = (b - a).total_seconds()
         rows = {}
         for service in SERVICES:
-            recs = grouped.get((name, service), [])
+            recs = grouped.get((index, service), [])
             latencies = [r["latency_ms"] for r in recs]
             rows[service] = {
                 "records": len(recs),
                 "rps": round(len(recs) / seconds, 2) if seconds > 0 else None,
                 "p50_ms": _percentile(latencies, 0.50),
                 "p95_ms": _percentile(latencies, 0.95),
-                "5xx_share": round(sum(r["status_code"] >= 500 for r in recs) / len(recs), 4)
-                if recs else None,
+                "4xx_share": _share(recs, 400, 499),
+                "5xx_share": _share(recs, 500, 599),
             }
         total = sum(rows[s]["records"] for s in CLIENT_FACING)
         report["phases"].append({
@@ -126,18 +152,20 @@ def _print(manifest, report):
     for a in manifest["activations"]:
         print(f"  {a['injector']}: params={a['params']} observed={a['observed']}")
     print()
-    print(f"{'phase':<26}{'client rps':>11}   " + "".join(f"{s.split('-')[0]:>22}" for s in SERVICES))
-    print(f"{'':<26}{'':>11}   " + "".join(f"{'rps  p50  p95  5xx':>22}" for _ in SERVICES))
+    # Shares to one decimal: a handful of errors in thousands of requests must not round to 0%.
+    width = max(26, *(len(p["phase"]) + 2 for p in report["phases"]))
+    print(f"{'phase':<{width}}{'client rps':>11}   " + "".join(f"{s.split('-')[0]:>34}" for s in SERVICES))
+    print(f"{'':<{width}}{'':>11}   " + "".join(f"{'rps  p50  p95    4xx    5xx':>34}" for _ in SERVICES))
     for phase in report["phases"]:
         cells = []
         for service in SERVICES:
             row = phase["services"][service]
             if not row["records"]:
-                cells.append(f"{'-':>22}")
+                cells.append(f"{'-':>34}")
                 continue
-            cells.append(f"{row['rps']:>6} {row['p50_ms']:>5.0f} {row['p95_ms']:>5.0f} "
-                         f"{row['5xx_share']:>4.0%}")
-        print(f"{phase['phase']:<26}{phase['client_rps']:>11}   " + "".join(cells))
+            cells.append(f"{row['rps']:>10} {row['p50_ms']:>4.0f} {row['p95_ms']:>4.0f} "
+                         f"{row['4xx_share']:>6.1%} {row['5xx_share']:>6.1%}")
+        print(f"{phase['phase']:<{width}}{phase['client_rps']:>11}   " + "".join(cells))
     print()
     print("client-facing records per minute:", report["per_minute"])
     if "per_minute_cv" in report:
@@ -158,6 +186,12 @@ def main(argv=None) -> int:
     s3 = session.client("s3")
     manifest = json.loads(s3.get_object(Bucket=bucket, Key=mf.manifest_key(args.experiment_id))
                           ["Body"].read())
+    if manifest["ended_at"] is None:
+        # Still RUNNING: the run died without recording an end, so there is no
+        # time range to report on.
+        print(f"error: {args.experiment_id} is still {manifest['status']} with no end time: "
+              f"the run died, and its telemetry isn't usable", file=sys.stderr)
+        return 1
     if manifest["status"] != "COMPLETED":
         print(f"warning: this run is {manifest['status']}, not COMPLETED; M4 won't use it")
     records = _load_records(s3, bucket, _parse(manifest["started_at"]), _parse(manifest["ended_at"]))

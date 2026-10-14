@@ -8,7 +8,7 @@ meant to produce.
 
 The runner calls describe(), start() and stop(). Injectors reach the rest
 through ctx.workload; the traffic spike uses set_rate_multiplier() and
-requests_sent().
+outcomes().
 
 Default endpoint mix, from project plan section 7:
 
@@ -30,6 +30,9 @@ from urllib.parse import urlsplit
 
 ROUTES = ("GET /products", "GET /products/{id}", "POST /cart", "GET /orders/{id}", "POST /orders")
 DEFAULT_MIX = dict(zip(ROUTES, (60, 15, 10, 10, 5)))
+# The plan's "normal" rate (section 5: normal 20 requests/sec).
+DEFAULT_RPS = 20
+DEFAULT_USERS = 50
 
 # The ids services/product/seed.py writes: prod-001 ... prod-025.
 PRODUCT_IDS = tuple(f"prod-{i:03d}" for i in range(1, 26))
@@ -54,7 +57,7 @@ class Workload:
     is sent, and no AWS or network call is made, until start().
     """
 
-    def __init__(self, *, rps: float, users: int = 50, mix: dict | None = None, seed: int = 0,
+    def __init__(self, *, rps: float, users: int = DEFAULT_USERS, mix: dict | None = None, seed: int = 0,
                  base_url: str | None = None, timeout_s: float = 10, max_in_flight: int = 256,
                  log=print):
         mix = dict(DEFAULT_MIX if mix is None else mix)
@@ -155,14 +158,23 @@ class Workload:
         with self._lock:
             return self._sent
 
-    def summary(self) -> str:
+    def outcomes(self) -> dict:
+        """What the client has seen so far: requests sent, dropped, and responses by class.
+
+        A response is counted when it comes back. "error" is a request that got
+        no HTTP response (a timeout or a reset). A request Lambda throttles
+        leaves no telemetry record, so these counts are the only place it shows.
+        """
         with self._lock:
-            by_class = Counter()
+            responses = Counter()
             for (_, status_class), n in self._results.items():
-                by_class[status_class] += n
-            sent, dropped = self._sent, self._dropped
-        parts = ", ".join(f"{k} {by_class[k]}" for k in sorted(by_class))
-        return f"sent {sent} ({parts or 'no responses'}), dropped {dropped}"
+                responses[status_class] += n
+            return {"sent": self._sent, "dropped": self._dropped, "responses": dict(responses)}
+
+    def summary(self) -> str:
+        seen = self.outcomes()
+        parts = ", ".join(f"{k} {n}" for k, n in sorted(seen["responses"].items()))
+        return f"sent {seen['sent']} ({parts or 'no responses'}), dropped {seen['dropped']}"
 
     # --- internals ---------------------------------------------------------------
 
@@ -171,7 +183,13 @@ class Workload:
         return self._rng.expovariate(self.current_rps)
 
     def _next_request(self) -> tuple:
-        """(route, method, path, body) for the next request. Draws only from the seeded RNG."""
+        """(route, method, path, body) for the next request. Draws only from the seeded RNG.
+
+        Each route draws the same values every time, whatever the API has
+        answered so far, so the same seed gives the same sequence of routes,
+        users and items. Only which existing order a GET /orders/{id} reads
+        depends on the API.
+        """
         rng = self._rng
         route = rng.choices(self._routes, self._weights)[0]
         user = f"user-{rng.randrange(self.users):04d}"
@@ -193,9 +211,12 @@ class Workload:
         # one exists (about the first second of a run) the id is unknown, so the
         # read is a 404, as it would be for a user with a stale link.
         pick = rng.random()
+        # Drawn even when an order exists: a draw that depended on whether the
+        # first order had come back yet would shift the rest of the sequence.
+        unknown_id = uuid.UUID(int=rng.getrandbits(128))
         with self._lock:
             order_id = self._order_ids[int(pick * len(self._order_ids))] if self._order_ids else None
-        return route, "GET", f"/orders/{order_id or uuid.UUID(int=rng.getrandbits(128))}", None
+        return route, "GET", f"/orders/{order_id or unknown_id}", None
 
     def _schedule(self) -> None:
         next_at = time.monotonic()

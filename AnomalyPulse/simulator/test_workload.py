@@ -123,6 +123,22 @@ def test_same_seed_sends_the_same_sequence():
     assert _sequence(7) != _sequence(8)
 
 
+def test_the_sequence_does_not_depend_on_when_orders_come_back():
+    # How soon the first POST /orders answers is up to the API. The routes,
+    # users and items drawn after it must not move with that timing.
+    def sequence(first_order_at):
+        load = Workload(rps=20, seed=7, mix={"POST /orders": 1, "GET /orders/{id}": 1})
+        drawn = []
+        for i in range(200):
+            if i == first_order_at:
+                load._order_ids.append("order-1")
+            route, _, _, body = load._next_request()
+            drawn.append((route, body))
+        return drawn
+
+    assert sequence(3) == sequence(50)
+
+
 def test_route_frequencies_follow_the_mix():
     load = Workload(rps=20, seed=3)
     counts = Counter(load._next_request()[0] for _ in range(20_000))
@@ -202,6 +218,11 @@ def test_it_sends_traffic_and_reads_back_created_orders(api):
     # After the first order exists, reads use ids the API returned.
     assert any(path.startswith("/dev/orders/order-") for path in reads)
     assert "dropped 0" in load.summary()
+    seen = load.outcomes()
+    assert seen["sent"] == load.requests_sent() and seen["dropped"] == 0
+    # The fake API answers 201 to a POST and 200 to a GET.
+    assert seen["responses"] == {"2xx": len(received)}
+    assert json.loads(json.dumps(seen)) == seen
 
 
 def test_it_stops_sending_when_stopped(api):
@@ -237,6 +258,7 @@ def test_unreachable_api_is_counted_not_raised():
     load.stop()
     assert load.requests_sent() > 0
     assert "error" in load.summary()
+    assert set(load.outcomes()["responses"]) == {"error"}
 
 
 def test_api_base_url_reads_ssm():

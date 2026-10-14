@@ -126,6 +126,8 @@ def _draft(plan: Plan, started_at_ms: int, bucket: str, workload) -> _Draft:
     planned = []
     for index, fault in enumerate(plan.faults):
         cls = injectors.get(fault.injector)
+        if cls.needs_workload and isinstance(workload, NoWorkload):
+            raise ValueError(f"{cls.name}: is applied through the workload, so the run needs one")
         if fault.offset_s < 0:
             raise ValueError(f"{cls.name}: its window cannot open before the run starts")
         active_from_ms = started_at_ms + round(fault.offset_s * 1000)

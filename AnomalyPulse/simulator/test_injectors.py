@@ -135,6 +135,8 @@ def test_registering_the_same_class_twice_is_harmless(registry):
     ({"targets": ("order-service", "order-service")}, "targets must be a tuple of distinct services"),
     ({"lead_ms": -1}, "lead_ms must be a whole number"),
     ({"lead_ms": 2.5}, "lead_ms must be a whole number"),
+    ({"needs_workload": 1}, "needs_workload must be True or False"),
+    ({"needs_workload": None}, "needs_workload must be True or False"),
 ])
 def test_register_rejects_a_class_that_breaks_the_interface(registry, attributes, problem):
     # Checked when the module is imported, so a mistake shows up before any

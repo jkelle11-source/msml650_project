@@ -3,7 +3,9 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -49,8 +51,39 @@ def asked():
 
 
 @pytest.fixture
-def mocked(aws, stack, monkeypatch, asked):
-    # The CLI opens its own session from --profile. Hand it the mocked one.
+def api():
+    # A local stand-in for the deployed API, so a run's baseline traffic has
+    # somewhere to go. Yields its base URL and the paths it was sent.
+    received = []
+
+    class Api(BaseHTTPRequestHandler):
+        def _answer(self):
+            self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            received.append(self.path)
+            body = b'{"data": {}, "error": null}'
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        do_GET = do_POST = _answer
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Api)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_address[1]}/dev", received
+    server.shutdown()
+    server.server_close()
+
+
+@pytest.fixture
+def mocked(aws, stack, monkeypatch, asked, api):
+    # The CLI opens its own session from --profile. Hand it the mocked one,
+    # whose API URL in SSM points at the local stand-in.
+    aws.client("ssm").put_parameter(Name="/anomalypulse/api/base-url", Value=api[0], Type="String")
+
     def session(**kwargs):
         asked.update(kwargs)
         return aws
@@ -204,11 +237,30 @@ def test_noop_runs_end_to_end_through_the_cli(mocked, aws, capsys):
     assert mf.validate(manifest) == (True, [])
     assert manifest["status"] == "COMPLETED"
     assert manifest["incident_type"] == "NORMAL"
+    assert manifest["workload"]["request_rate_rps"] == 20
     assert mocked.lock.holder() is None
     output = capsys.readouterr().out
     assert manifest["experiment_id"] in output
     assert f"s3://{BUCKET}/experiments/{manifest['experiment_id']}/manifest.json" in output
     assert output.strip().endswith("COMPLETED")
+
+
+def test_a_run_sends_baseline_traffic_to_the_api_in_ssm(mocked, aws, api):
+    _, received = api
+    assert cli.main(["start-incident", "--type", "noop", "--baseline", "0", "--duration", "0.5",
+                     "--recovery", "0", "--rps", "200"]) == 0
+    assert _manifest_in_bucket(aws)["workload"]["request_rate_rps"] == 200
+    assert len(received) > 10     # ~100 expected
+    assert all(path.startswith("/dev/") for path in received)
+
+
+def test_stack_without_an_api_url_is_explained(mocked, aws, capsys):
+    aws.client("ssm").delete_parameter(Name="/anomalypulse/api/base-url")
+    assert cli.main(QUICK_NOOP) == 1
+    error = capsys.readouterr().err
+    assert "could not reach the stack with AWS profile 'sim'" in error
+    assert "ParameterNotFound" in error
+    assert aws.client("s3").list_objects_v2(Bucket=BUCKET).get("Contents") is None
 
 
 def test_cli_uses_the_sim_profile_by_default(mocked, asked):
@@ -250,7 +302,7 @@ def test_stack_that_is_not_deployed_is_explained(mocked, aws, capsys):
 
 
 def test_ctrl_c_exits_with_130(mocked, monkeypatch, capsys):
-    def interrupted(plan, stack):
+    def interrupted(plan, stack, **kwargs):
         raise KeyboardInterrupt
 
     monkeypatch.setattr(cli.runner, "run", interrupted)
@@ -260,7 +312,7 @@ def test_ctrl_c_exits_with_130(mocked, monkeypatch, capsys):
 
 def test_failure_during_a_run_is_not_swallowed(mocked, monkeypatch):
     # A bug in an injector must show its traceback, not a one-line "error:".
-    def broken(plan, stack):
+    def broken(plan, stack, **kwargs):
         raise KeyError("multiplier")
 
     monkeypatch.setattr(cli.runner, "run", broken)
