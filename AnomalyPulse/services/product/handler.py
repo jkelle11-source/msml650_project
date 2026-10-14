@@ -41,6 +41,19 @@ def _table():
     return _table_obj
 
 
+# Inside Lambda, build the table while the module loads, as cart and order do.
+# Built on the first request instead, it took ~5.6 s at 128 MB (M3-2
+# validation): a concurrency slot held all that time, and a 5.6 s latency_ms
+# on every new environment's first record. AWS_LAMBDA_FUNCTION_NAME is set
+# only by Lambda, so the tests still import without boto3. A failure here is
+# left to the first request, which answers 500 with telemetry as before.
+if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    try:
+        _table()
+    except Exception:
+        pass
+
+
 def _json_default(obj):
     # DynamoDB returns numbers as Decimal, which json can't serialize.
     if isinstance(obj, Decimal):
