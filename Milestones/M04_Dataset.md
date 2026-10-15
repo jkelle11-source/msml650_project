@@ -23,7 +23,7 @@
 - **Generation settings, fixed by M3-2's validation** (details in [`Docs/SIMULATOR_INTERFACE.md`](../Docs/SIMULATOR_INTERFACE.md), "Running an experiment" and "Reading a manifest"):
   - **20 rps baseline for all 1,000 experiments**, test set included. It is the CLI default. A rate change partway through would put a shift in `request_rate` that tracks generation date, which is the temporal-split variable.
   - **Batches run on an EC2 instance in us-east-2, not on a laptop** (set up in `M4-1`). Generation takes days of continuous running. A laptop that sleeps fails the run in progress (the runner records it `FAILED`), and one that drops its Wi-Fi can record a `COMPLETED` run with a gap in its traffic. The instance does neither, and being in-region lets the DB-throttling injector reach its higher read rates. Every experiment runs from that instance, test set included: a change of client partway through would track the split, as a rate change would. `caffeinate -is` stays the rule for one-off runs from a laptop.
-  - **The stack keeps PR #67's configuration** (1,769 MB functions; Product builds its table at load) for the whole dataset. Deploy only from `main` or an up-to-date branch, never mid-generation.
+  - **The stack keeps its configuration as of PR #70** for the whole dataset: 1,769 MB functions (PR #67); Product builds its table at load; the Products table `anomalypulse-products-v2`, created provisioned at 200 RCU / 5 WCU and never switched (a `GET /products` scan costs 0.5 RCU); DynamoDB retries stated in Product, Cart and Order (legacy mode, 7 attempts); the Lambda runtime pinned (`UpdateRuntimeOn: FunctionUpdate`). Deploy only from `main` or an up-to-date branch, never mid-generation.
   - **The registry holds only runs M4 launched.** The six manifests written before M4 are test and validation runs, and none ran on these settings.
   - **Labeling and features:** use `COMPLETED` runs only, deduplicate raw records by `(service, request_id)`, and consider dropping each run's first minute (startup 404s, cold starts after an idle gap).
   - **Throughput:** runs are serial, and a default run lasts 15 minutes, so 700 runs take ~175 hours back to back. Run length is the lever; decide it before generation starts.
@@ -49,6 +49,7 @@
   - *Before each batch:* refuse to start unless the stack matches the frozen configuration: function memory 1,769 MB, Products provisioned at 200 RCU, and one `Scan` of Products costing 0.5 RCU (a partition change would raise it). Record the configuration with the batch.
   - *After each run that has no `db-throttling` fault:* read the Products table's `ThrottledRequests` and `ReadThrottleEvents` for the run's window. Any throttling marks the run contaminated, and it is rerun.
   - *After each `db-throttling` run:* rerun it if `observed.achieved_fraction` is below 0.97 or `observed.label_from` is null (it never throttled).
+  - *After every run:* check the client kept sending. The batch runner holds the `Workload` and reads `outcomes()` after `run()`: rerun the run if any requests were dropped or more than 0.1% got no response (`error`). The manifest records the workload's settings, not what it sent, so a network drop mid-run can otherwise leave a `COMPLETED` run with a gap in its traffic.
 - **Runner host:** one small EC2 instance in us-east-2 that runs every batch (training and test). Non-burstable, such as `c7g.large` (about $0.07 an hour; check current pricing), because a burstable T instance runs short of CPU credits over days of load. It runs as `anomalypulse-simulator`, as `--profile sim` does on a laptop: an instance role allowed to assume it (added to `SimulatorRole`'s trust policy in `template.yaml`; Jake deploys) and a `sim` profile on the instance with `credential_source = Ec2InstanceMetadata`. Reach it through Session Manager (no SSH keys or open ports) and run each batch in `tmux`, so a dropped session doesn't stop it. Stop it between batches and terminate it after `M9-1`.
 
 **Definition of Done**
@@ -90,6 +91,7 @@
 
 **Deliverables**
 - **Interleaved parameter-space partitioning:** codify the training vs held-out test bands from §6b for every incident type; test bands sit inside the trained range.
+- **Cascade specs and retry bands** (M3-5 left both to M4; `Docs/CASCADE.md`, "Open for M4"): the stage lists, bands and onset delays for the 70 training and 30 test cascades, and interleaved bands for `retry-amplification`'s `retries_per_failure`, which §6b doesn't cover. A spec with `retry-amplification` must overlap it with a stage that fails requests, or it has nothing to amplify (M3-5's validation retried 1 request). In training cascades that stage is `payment-failure`: DB throttling's training bands stop at 4.5×, where Product barely fails.
 - **Temporal-split logic:** enforce 1–700 = train/val, 701–1000 = test, keyed off generation date (test generated on a separate day).
 - **Simulator diversity protocol** for the test set: varied incident durations (2-min, 12-min), shifted endpoint distribution, and confounder experiments (co-occurring types **not** labeled cascading).
 - Definition (not yet execution) of the separate **extreme-extrapolation stress slice** (traffic >10×, added latency >1500ms, offered-load >6×, timeout >5000ms).
@@ -115,6 +117,7 @@
 - **Activity threshold:** a window is labeled with an incident class only if the incident is active ≥50% of the window; else `NORMAL`.
 - **Cascade rule:** `CASCADING_FAILURE` only when ≥2 injected faults are concurrently active; early single-fault windows labeled by the observable single fault.
 - **Recovery exclusion:** recovery-phase windows excluded from the MVP training set (no fuzzy sixth class).
+- **Does `retry-amplification` count as a fault** for "two or more faults concurrently active"? It adds load and fails nothing itself. Decide, and if not, pass `exclude_injectors=("retry-amplification",)` to `cascade.multi_fault_windows()`.
 - **DB-throttling onset:** a `db-throttling` activation counts as active from `observed.label_from` (5 s after the first throttle), not `active_from`. Until then DynamoDB's burst capacity is absorbing the load (the injector surges to spend it) and then the surge's aftermath settles, so the stretch before it is excluded like recovery (`Docs/DB_THROTTLING_INJECTOR.md`).
 
 **Definition of Done**

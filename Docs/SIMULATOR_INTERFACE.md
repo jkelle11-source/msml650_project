@@ -377,7 +377,8 @@ time; every timestamp is a real date; and the whole thing is JSON-serializable
   | `exp-20261014T230012Z-2427` | 5 rps; the laptop slept through its recovery (it still says `COMPLETED`); 10× is a test-band value |
   | `exp-20261015T000130Z-85b4` | 10× is a test-band value; it was the 20 rps capacity check |
 
-  A run whose `workload` is `{}` never belongs, whenever it was made.
+  A run whose `workload` is `{}` never belongs, whenever it was made. The M3 validation runs of
+  2026-10-15 (`created_by: jake-validation`) are test runs too, and the registry rule excludes them.
 - **Check every run's `workload.request_rate_rps` is 20.**
 - **Deduplicate records by `(service, request_id)`.** The shipper delivers at least once: one
   M3-2 validation run landed 43 records twice, byte for byte.
