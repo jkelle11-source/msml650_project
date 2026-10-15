@@ -18,17 +18,19 @@ is the front door: what the repo contains, its current status, and how to plug i
 
 ## Status
 
-**Milestone 3 — Incident Simulator** (in progress). Build the tool that deliberately
+**Milestone 3 — Incident Simulator** (complete, merged to `main` and validated on the deployed
+stack, 2026-10-15). Next is Milestone 4, the dataset
+([Milestones/M04_Dataset.md](Milestones/M04_Dataset.md)). M3 built the tool that deliberately
 creates *known* failures against the live application, so M4 can generate a labeled
 dataset with real ground truth. See
 [Milestones/M03_Incident_Simulator.md](Milestones/M03_Incident_Simulator.md).
 
 | Piece | Owner | Status |
 |---|---|---|
-| **M3-1** Simulator framework + CLI, experiment manifest, fault control plane, experiment lock | Jake | 🚧 Merged and run on the deployed stack; confirmed buildable by M3-2, awaiting the other injector owners |
+| **M3-1** Simulator framework + CLI, experiment manifest, fault control plane, experiment lock | Jake | ✅ Done: every injector builds on it; runs fail as `FellBehind` if the machine sleeps (PRs #63, #66) |
 | **M3-2** Workload generator + traffic-spike injector *(MVP incident)* | Josh | ✅ Done: steady baseline, a 3× spike, and a 10× spike at 20 rps validated in landed telemetry (PR #66) |
 | **M3-3** DynamoDB throttling injector | Linu | ✅ Done: real throttling at 1.75×–8× on a new provisioned Products table, validated in landed telemetry |
-| **M3-4** Payment-failure + Lambda-degradation injectors | Rachel | 🚧 In review (PR #65) |
+| **M3-4** Payment-failure + Lambda-degradation injectors | Rachel | ✅ Done: Order's clean 502s and the `lambda_duration_ms` shift validated in landed telemetry (PRs #65, #68) |
 | **M3-5** Cascading-failure orchestration | Melisa | ✅ Done: a four-stage cascade validated in landed telemetry; retry amplification needs a failing stage (`Docs/CASCADE.md`) |
 
 M3-1 is the harness the injectors plug into: a local Python CLI
@@ -55,8 +57,9 @@ a run's effect in landed telemetry, phase by phase.
 - **M4's batches run on an EC2 instance in us-east-2**, not a laptop (M4-1 in
   [Milestones/M04_Dataset.md](Milestones/M04_Dataset.md)).
 - **Run one experiment at a time.** Don't send other traffic to the API during a run.
-- **Leave the stack's configuration alone.** It runs PR #67's (1,769 MB functions);
-  deploy only from `main` or a branch that's up to date with it.
+- **Leave the stack's configuration alone.** M4 keeps it as of PR #70 (the list is in
+  [Milestones/M04_Dataset.md](Milestones/M04_Dataset.md)); deploy only from `main` or a
+  branch that's up to date with it.
 
 **Milestone 2 — Observability** (complete, merged to `main`). Every request emits
 structured telemetry against an enforced schema, and that telemetry lands centrally

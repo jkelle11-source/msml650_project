@@ -7,6 +7,8 @@
 > **Description:**
 > Build the Python/boto3 tool that deliberately creates **known** failures against the live application, so M4 can generate a labeled dataset with real ground truth. Five injectors plus a framework: traffic spike, DynamoDB throttling, Lambda slowdown, payment failure, and cascading failure. Sticky ownership continues — Rachel owns payment/Lambda-degradation injection because she built the hooks in M1; the rest map to whoever owns the affected surface. **MVP-first sequencing:** Josh's **traffic-spike injector is the thin-slice incident** (README §18) — land and validate it end-to-end (inject → visible telemetry shift) *before* the medium/hard injectors, because it's the one already targeted for the MVP loop.
 
+**Status: complete (2026-10-15).** All five tickets merged (PRs #63–#66, #68, #70, #64; capacity fixes in #67) and validated on the deployed stack. Experiment ids below are validation runs, excluded from the dataset.
+
 ## Assignment summary
 - **Jake** — Simulator framework/CLI + experiment manifest schema (the harness everyone plugs injectors into)
 - **Josh** — Workload generator **+** Traffic-spike injector *(MVP incident — do first)*
@@ -38,9 +40,9 @@
 - Manifest and telemetry land in S3 keyed by `experiment_id` (feeds M4's registry).
 
 **Definition of Done**
-- [ ] A no-op/echo injector runs end-to-end through the CLI and writes a valid manifest.
-- [ ] Injector interface documented; each owner has confirmed it's buildable against.
-- [ ] Manifests are reproducible (same params → same recorded config) and cost-bounded (documented teardown).
+- [x] A no-op/echo injector runs end-to-end through the CLI and writes a valid manifest. (`exp-20261012T054951Z-ec18`, and every run since)
+- [x] Injector interface documented; each owner has confirmed it's buildable against. (`Docs/SIMULATOR_INTERFACE.md`; M3-2…M3-5 all built on it)
+- [x] Manifests are reproducible (same params → same recorded config) and cost-bounded (documented teardown). (seeded params, contract-tested for every injector; the lock and fault items are removed on every exit; `python -m simulator cleanup`)
 
 ---
 
@@ -58,9 +60,9 @@
 - End-to-end validation: spike injected → telemetry shows the rate/latency shift in S3.
 
 **Definition of Done**
-- [ ] Baseline workload produces stable "normal" telemetry over a full run.
-- [ ] Traffic-spike injector accepts a multiplier **band** as config (not hardcoded).
-- [ ] **MVP loop demonstrated:** a traffic spike is injected and the shift is visible in landed telemetry — this is the thin slice §18 asks for.
+- [x] Baseline workload produces stable "normal" telemetry over a full run. (`exp-20261015T040828Z-0382`: 15 min at 20 rps, 0% errors, per-minute CV 0.027)
+- [x] Traffic-spike injector accepts a multiplier **band** as config (not hardcoded). (`--band LOW HIGH`; no default bands)
+- [x] **MVP loop demonstrated:** a traffic spike is injected and the shift is visible in landed telemetry — this is the thin slice §18 asks for. (3×: `exp-20261013T030821Z-9aed`; 10×: `exp-20261015T165252Z-cd32`, 199.96 rps landed, no errors)
 
 ---
 
@@ -78,10 +80,10 @@
 - Documented teardown that restores capacity to avoid lingering cost.
 
 **Definition of Done**
-- [ ] Injector reliably produces observable `ThrottledRequests > 0` at target ratios.
-- [ ] Controllable parameter is the **ratio**; throttle rate is recorded as an outcome, not an input.
-- [ ] No `db_throttled` flag written to telemetry features; only CloudWatch counts are used.
-- [ ] Capacity is restored on teardown; cost impact documented.
+- [x] Injector reliably produces observable `ThrottledRequests > 0` at target ratios. (1.75×, 3.0×, 5.5×, 8.0× on the 200 RCU table: the app's `GetItem` and `Scan` throttled in every run; `Docs/DB_THROTTLING_INJECTOR.md`)
+- [x] Controllable parameter is the **ratio**; throttle rate is recorded as an outcome, not an input. (`load_ratio` in `params`; throttle rates and CloudWatch counts in `observed`)
+- [x] No `db_throttled` flag written to telemetry features; only CloudWatch counts are used.
+- [x] Capacity is restored on teardown; cost impact documented. (The injector never changes capacity, so there is nothing to restore: the table sits at a fixed 200 RCU, about $0.70/day, deleted after M9.)
 
 ---
 
@@ -101,10 +103,10 @@
 **Decided (2026-10-15): every payment in the window fails, not an intermittent share.** The injector's one parameter is `timeout_ms`, the only dependency-failure axis the §6b bands define: each payment call waits that long, then answers 503, and Order records a slow 502 with `dependency_error`. Above Order's 6 s client timeout (the extreme slice) it becomes a real timeout. A failure rate would be a second parameter with no train/test bands; add one, with bands from `M4-3`, only if the classifier finds dependency failures too easy.
 
 **Definition of Done**
-- [ ] Payment-failure injector produces observable dependency errors/timeouts on Order's telemetry.
-- [ ] Lambda-degradation injector produces the intended `lambda_duration_ms` shift.
-- [ ] Both accept latency/timeout **bands** as config.
-- [ ] Injected magnitudes recorded to the manifest as Tier-2 ground truth (kept out of features).
+- [x] Payment-failure injector produces observable dependency errors/timeouts on Order's telemetry. (`exp-20261015T143135Z-19bc`: all 302 `POST /orders` in the window answered 502 with `dependency_error: true`)
+- [x] Lambda-degradation injector produces the intended `lambda_duration_ms` shift. (`exp-20261015T144039Z-4344`: Product 2.7 → 953 ms for 950 asked, starting and ending on schedule)
+- [x] Both accept latency/timeout **bands** as config.
+- [x] Injected magnitudes recorded to the manifest as Tier-2 ground truth (kept out of features). (`params`; handlers never log the fault they read, and tests check it)
 
 ---
 
@@ -122,6 +124,6 @@
 - Manifest recording of **which faults are concurrently active over time**, so M4 can label `CASCADING_FAILURE` only during genuine multi-fault windows.
 
 **Definition of Done**
-- [ ] A cascade run reproduces correlated symptoms across ≥3 services in landed telemetry.
-- [ ] Concurrency timeline recorded so early single-fault windows are distinguishable from true multi-fault windows.
-- [ ] Run is reproducible and cost-bounded via documented teardown.
+- [x] A cascade run reproduces correlated symptoms across ≥3 services in landed telemetry. (`exp-20261015T181216Z-ab5c`; `Docs/CASCADE.md`, "Validation")
+- [x] Concurrency timeline recorded so early single-fault windows are distinguishable from true multi-fault windows. (the manifest's activations; `cascade.concurrency_timeline()` and the telemetry report's phases agree)
+- [x] Run is reproducible and cost-bounded via documented teardown. (seeded params and onsets, a 30-minute cap, the framework's teardown)
