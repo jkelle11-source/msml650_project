@@ -79,6 +79,53 @@ class FakeTable:
         return page
 
 
+def _load_handler(env, boto3_module):
+    """A fresh copy of handler.py, imported with `env` set and `boto3_module` as boto3."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("product_handler_fresh", os.path.join(_HERE, "handler.py"))
+    module = importlib.util.module_from_spec(spec)
+    with mock.patch.dict(os.environ, env), mock.patch.dict(sys.modules, {"boto3": boto3_module}):
+        spec.loader.exec_module(module)
+    return module
+
+
+class TableAtLoadTest(unittest.TestCase):
+    # Building the table on the first request held a concurrency slot for ~5.6 s
+    # and put that latency in the first record, so inside Lambda it is built at load.
+    def _boto3(self, fail=False):
+        boto3 = mock.Mock()
+        if fail:
+            boto3.resource.side_effect = RuntimeError("no credentials")
+        return boto3
+
+    def test_inside_lambda_the_table_is_built_at_load(self):
+        boto3 = self._boto3()
+        module = _load_handler({"AWS_LAMBDA_FUNCTION_NAME": "anomalypulse-product",
+                                "TABLE_NAME": "anomalypulse-products"}, boto3)
+        boto3.resource.assert_called_once_with("dynamodb")
+        boto3.resource.return_value.Table.assert_called_once_with("anomalypulse-products")
+        self.assertIs(module._table(), boto3.resource.return_value.Table.return_value)
+        boto3.resource.assert_called_once()   # reused, not rebuilt
+
+    def test_outside_lambda_nothing_is_built_at_load(self):
+        boto3 = self._boto3()
+        env = {k: v for k, v in os.environ.items() if k != "AWS_LAMBDA_FUNCTION_NAME"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            module = _load_handler({}, boto3)
+        boto3.resource.assert_not_called()
+        self.assertIsNone(module._table_obj)
+
+    def test_a_failure_at_load_is_left_to_the_first_request(self):
+        module = _load_handler({"AWS_LAMBDA_FUNCTION_NAME": "anomalypulse-product",
+                                "TABLE_NAME": "anomalypulse-products"}, self._boto3(fail=True))
+        self.assertIsNone(module._table_obj)
+        out = io.StringIO()
+        with mock.patch.dict(sys.modules, {"boto3": self._boto3(fail=True)}), redirect_stdout(out):
+            resp = module.handler(_event("/products"), None)
+        self.assertEqual(resp["statusCode"], 500)
+        self.assertEqual(json.loads(out.getvalue())["status_code"], 500)
+
+
 class ProductHandlerTest(unittest.TestCase):
     def invoke(self, event, table=None, context=None):
         table = table or FakeTable(PRODUCTS)

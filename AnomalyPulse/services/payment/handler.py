@@ -1,7 +1,6 @@
-"""Payment Service (M1-5): POST /payments, with fault-injection knobs (latency, failures, timeout)."""
+"""Payment Service (M1-5): POST /payments. Applies payment-failure and lambda-degradation faults from the M3 control plane."""
 import json
 import os
-import random
 import time
 import uuid
 from datetime import datetime, timezone
@@ -10,12 +9,13 @@ from datetime import datetime, timezone
 # via template.yaml). For local runs, fall back to adding the layer's path manually.
 try:
     from schema_validator import validate
+    from fault_config import active_faults
 except ImportError:
     import sys
     _LAYER_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "layers", "telemetry", "python")
     sys.path.insert(0, os.path.abspath(_LAYER_PATH))
     from schema_validator import validate
-
+    from fault_config import active_faults
 SERVICE = "payment-service"
 
 # CORS: the AnomalyPulse dashboard (Section 14) is a browser client on a
@@ -44,38 +44,52 @@ def _resp(status, data=None, error=None):
 def _err(status, code, message):
     return _resp(status, error={"code": code, "message": message})
 
-
-def _read_knobs():
-    # Read at call time so the incident simulator can flip knobs without a redeploy.
-    latency_ms = float(os.environ.get("PAYMENT_LATENCY_MS", "0") or "0")
-    failure_rate = float(os.environ.get("PAYMENT_FAILURE_RATE", "0.0") or "0.0")
-    timeout_on = os.environ.get("PAYMENT_TIMEOUT", "false").lower() == "true"
-    return latency_ms, failure_rate, timeout_on
+def _sleep_ms(ms):
+    # A wait: raises wall-clock latency_ms but not CPU lambda_duration_ms.
+    if ms > 0:
+        time.sleep(ms / 1000.0)
 
 
-def _apply_latency(latency_ms):
-    if latency_ms > 0:
-        time.sleep(latency_ms / 1000.0)
+def _burn_cpu_ms(ms):
+    # Real computation: spin until this process's CPU clock has advanced by `ms`.
+    # This is what raises lambda_duration_ms (CPU time), unlike a sleep.
+    if ms > 0:
+        end = time.process_time() + ms / 1000.0
+        while time.process_time() < end:
+            pass
 
 
-def _apply_timeout(timeout_on):
-    if timeout_on:
-        time.sleep(30)  # exceeds the Lambda timeout so the caller's own timeout trips first
-
+def _read_faults():
+    # Look up the fault notices for this service. active_faults() never raises,
+    # and it is called on EVERY request (fault or not) so its cost is not a
+    # fingerprint of incident runs. Returns (added_cpu_ms, fail_after_ms):
+    #   added_cpu_ms  - extra CPU work from a lambda-degradation fault (0 if none)
+    #   fail_after_ms - wait this long, then fail, for a payment-failure fault (None if none)
+    # What was read is NEVER printed or logged: it is Tier-2 ground truth.
+    added_cpu_ms = 0
+    fail_after_ms = None
+    for fault in active_faults(SERVICE):
+        params = fault.get("params") or {}
+        if fault.get("injector") == "lambda-degradation":
+            added_cpu_ms += params.get("added_latency_ms", 0)
+        elif fault.get("injector") == "payment-failure":
+            fail_after_ms = max(fail_after_ms or 0, params.get("timeout_ms", 0))
+    return added_cpu_ms, fail_after_ms
 
 def _process(event):
     route, method = event.get("resource"), event.get("httpMethod")
     if route != "/payments" or method != "POST":
         return _err(501, "NOT_IMPLEMENTED", f"{method} {route} is not handled by payment-service")
 
-    latency_ms, failure_rate, timeout_on = _read_knobs()
-    _apply_timeout(timeout_on)
-    _apply_latency(latency_ms)
+    # Read faults on every request, fault or not, so the cost is the same either way.
+    added_cpu_ms, fail_after_ms = _read_faults()
+    _burn_cpu_ms(added_cpu_ms)
 
-    # An injected failure is a *service* fault, so it surfaces as a 5xx (PROJECT_PLAN Section 5:
-    # "intermittent 5xx errors"). This keeps the DEPENDENCY_FAILURE incident's observable
-    # signature in the 5xx-rate feature rather than the distinct 4xx-rate one (Section 3).
-    if random.random() < failure_rate:
+    # An injected failure is a *service* fault, so it surfaces as a 5xx (PROJECT_PLAN Section 5).
+    # The handler waits first (a slow, then failing, dependency), so Order sees both a high
+    # dependency_latency_ms and dependency_error=true.
+    if fail_after_ms is not None:
+        _sleep_ms(fail_after_ms)
         return _err(503, "PAYMENT_UNAVAILABLE", "payment service failed")
     return _resp(200, data={"service": "payment", "outcome": "success"})
 
@@ -86,7 +100,7 @@ def _log(event, context, status, start_time, start_proc, cold):
     #                         handler" -> wall clock, includes I/O wait and sleeps.
     #   lambda_duration_ms = "Compute time of the Lambda body itself" -> CPU
     #                         compute time, excludes sleeps.
-    # This distinction is load-bearing for payment: an injected PAYMENT_LATENCY_MS
+    # This distinction is load-bearing for payment: an injected wait
     # sleep raises wall-clock latency_ms but NOT CPU lambda_duration_ms, so a
     # dependency-latency incident reads differently from a LAMBDA_DEGRADATION one
     # (added computation) that raises compute time. (Matches services/product, cart.)

@@ -3,9 +3,9 @@
 # S3-landing check (handler -> CloudWatch -> shipper -> raw/service=payment-service/)
 # that re-validates the landed record against the shared telemetry schema.
 #
-# Stateless: no DB writes, nothing to clean up. The fault-injection knobs
-# (PAYMENT_LATENCY_MS / PAYMENT_FAILURE_RATE / PAYMENT_TIMEOUT) are env vars driven
-# by the M3 incident simulator, not here, so this covers the default happy path.
+# Stateless: no DB writes, nothing to clean up. Faults come from the M3 control
+# plane (the fault-config table), written by the incident simulator, not here, so
+# this covers the default happy path.
 # Run after Jake redeploys the merged PR.
 #   ./smoke_test.sh <your-profile>
 set -euo pipefail
