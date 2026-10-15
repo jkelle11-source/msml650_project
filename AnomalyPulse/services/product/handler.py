@@ -31,6 +31,15 @@ _CORS_HEADERS = {
 _cold_start = True
 _table_obj = None
 
+# DynamoDB retries, stated rather than left to the runtime's boto3 default. The
+# default (legacy mode) retries a throttled call 9 times, waiting 0.05 s, then
+# 0.1, 0.2 ... 12.8 s: up to 25.5 s, past this function's 10 s timeout, and a
+# request that times out leaves no telemetry. 7 attempts keeps the first six
+# waits (3.15 s in all), which is what a throttled GET looked like in M3-3's
+# validation (p95 3.2 s), and turns a longer streak into a 500 with telemetry.
+# Cart and Order use the same setting.
+_DYNAMODB_RETRIES = {"mode": "legacy", "total_max_attempts": 7}
+
 
 def _table():
     # Created lazily so the module imports without boto3 (local unit tests)
@@ -38,7 +47,8 @@ def _table():
     global _table_obj
     if _table_obj is None:
         import boto3
-        _table_obj = boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"])
+        config = boto3.session.Config(retries=_DYNAMODB_RETRIES)
+        _table_obj = boto3.resource("dynamodb", config=config).Table(os.environ["TABLE_NAME"])
     return _table_obj
 
 
