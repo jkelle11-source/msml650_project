@@ -202,9 +202,8 @@ Resources:
       Role: !GetAtt PaymentRole.Arn
       Environment:
         Variables:
-          PAYMENT_LATENCY_MS: '0'
-          PAYMENT_FAILURE_RATE: '0.0'
-          PAYMENT_TIMEOUT: 'false'
+          # Faults come from this table (M3 control plane), not environment
+          # variables: changing a variable recycles every warm environment.
           FAULT_CONFIG_TABLE: !Ref FaultConfigTable
       Events:
         PostPayment:

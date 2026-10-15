@@ -21,12 +21,13 @@ USE_PAYMENT_STUB = os.environ.get("USE_PAYMENT_STUB", "true").lower() == "true"
 
 dynamodb = boto3.resource("dynamodb")
 # The payment invoke is synchronous and runs inside order's own 10s Lambda timeout, so
-# bound botocore's read timeout (default 60s) BELOW that: a hung payment (the 30s
-# PAYMENT_TIMEOUT knob) then surfaces as a ReadTimeoutError that call_payment_service
-# catches - a clean 502 WITH dependency telemetry - instead of a hard 10s kill with no
-# dependency line. 6s sits above the injected-latency incident (a few seconds, still
-# succeeds as high dependency_latency_ms) and below the 30s timeout. No retries: a 10s
-# budget has no room, and a retry would mask the dependency signal the classifier keys on.
+# bound botocore's read timeout (default 60s) BELOW that: a hung payment (a
+# payment-failure fault whose timeout_ms exceeds 6s) then surfaces as a ReadTimeoutError
+# that call_payment_service catches - a clean 502 WITH dependency telemetry - instead of
+# a hard 10s kill with no dependency line. 6s sits above the payment-failure bands
+# (up to 4.5s, which answer as a slow 503: high dependency_latency_ms, dependency_error)
+# and below order's own 10s timeout. No retries: a 10s budget has no room, and a retry
+# would mask the dependency signal the classifier keys on.
 # total_max_attempts counts the first try, so 1 means no retries; botocore's similarly
 # named max_attempts counts RETRIES (max_attempts=1 would be two attempts).
 _PAYMENT_INVOKE_CONFIG = Config(connect_timeout=2, read_timeout=6, retries={"total_max_attempts": 1})
@@ -122,7 +123,7 @@ def call_payment_service(order_id, amount, customer_id, request_id):
     try:
         # Invoke payment with the same event shape API Gateway delivers for POST
         # /payments, so one payment code path serves HTTP and this Lambda-to-Lambda
-        # invoke - and its fault-injection knobs still apply, which DEPENDENCY_FAILURE
+        # invoke - and its control-plane faults still apply, which DEPENDENCY_FAILURE
         # relies on (Sections 4/5). Payment routes on resource + httpMethod.
         # Propagate request_id under requestContext (where payment reads it) so the two
         # services' telemetry lines join by request_id (PROJECT_PLAN Section 3).

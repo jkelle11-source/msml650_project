@@ -1,4 +1,4 @@
-"""Payment Service (M1-5): POST /payments, with fault-injection knobs (latency, failures, timeout)."""
+"""Payment Service (M1-5): POST /payments. Applies payment-failure and lambda-degradation faults from the M3 control plane."""
 import json
 import os
 import time
