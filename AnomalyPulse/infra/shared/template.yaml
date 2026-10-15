@@ -589,19 +589,6 @@ Resources:
                   - s3:GetObject
                   - s3:PutObject
                 Resource: !Sub '${TelemetryBucket.Arn}/experiments/*'
-        - PolicyName: simulator-db-throttling
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:DescribeTable
-                  - dynamodb:GetItem
-                  - dynamodb:Scan
-                Resource: !GetAtt ProductsTable.Arn
-              - Effect: Allow
-                Action: cloudwatch:GetMetricStatistics
-                Resource: '*'
 
 
   # ---- Invoke Permissions ---------------------------------------
