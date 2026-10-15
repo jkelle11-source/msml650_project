@@ -34,6 +34,7 @@
 **Deliverables**
 - 350 test experiments per §17 Phase 2: 60 normal, 60 traffic (4×–6×, 8×–10×), 60 DB throttling (2.5×–3.5×, 4.5×–5.5×), 45 Lambda degradation (500–800ms, 1100–1400ms), 45 dependency (1500–2500ms, 3500–4500ms), 30 cascading, 30 confounders (not labeled cascading), 20 varied-duration (2-min/12-min).
 - Shifted endpoint distribution applied per the diversity protocol.
+- Generated from the same EC2 runner host as the training set (`M4-1`), at the same 20 rps baseline. A different client or rate would be a train/test difference that has nothing to do with the incidents.
 - Separate **extreme-extrapolation stress slice** (traffic >10×, latency >1500ms, offered-load >6×, timeout >5000ms) generated and tagged distinctly.
 - Test set registered, dated, and confirmed **not inspected** until all training/validation work was complete.
 
