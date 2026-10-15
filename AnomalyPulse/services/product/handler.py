@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from schema_validator import validate
+from fault_config import active_faults
 
 SERVICE = "product-service"
 
@@ -114,6 +115,28 @@ def _get_product(event, db):
     return _resp(200, data=item)
 
 
+def _added_cpu_ms():
+    # Extra CPU work asked for by an active lambda-degradation fault (0 if none).
+    # Called on EVERY request, fault or not, so its cost is not a fingerprint of
+    # incident runs. What was read is NEVER printed or logged (Tier-2 ground truth).
+    try:
+        total = 0.0
+        for fault in active_faults(SERVICE):
+            if fault.get("injector") == "lambda-degradation":
+                total += float((fault.get("params") or {}).get("added_latency_ms", 0))
+        return total
+    except Exception:
+        return 0.0
+
+
+def _burn_cpu_ms(ms):
+    # Real computation: spin until this process's CPU clock has advanced by `ms`,
+    # so lambda_duration_ms (CPU time) rises, unlike with a sleep.
+    if ms > 0:
+        end = time.process_time() + ms / 1000.0
+        while time.process_time() < end:
+            pass
+
 def _route(event, db):
     route, method = event.get("resource"), event.get("httpMethod")
     if route == "/products" and method == "GET":
@@ -183,6 +206,7 @@ def handler(event, context):
     cold, _cold_start = _cold_start, False
     start_time = time.time()          # wall clock, for latency_ms
     start_proc = time.process_time()  # CPU time, for lambda_duration_ms
+    _burn_cpu_ms(_added_cpu_ms())     # after the timers start, so both latency and CPU time rise
     db = _DbStats()
     try:
         resp = _route(event, db)
