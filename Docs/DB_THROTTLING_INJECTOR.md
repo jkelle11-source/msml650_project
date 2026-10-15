@@ -189,10 +189,22 @@ Do not curl the API or run smoke tests while an experiment is running: telemetry
 - [x] No `db_throttled` flag is written anywhere; only CloudWatch counts are used.
 - [x] Capacity is never changed by the injector, so nothing needs restoring; idle cost and teardown are documented above.
 
-To validate after deploying the new table (and reseeding it):
+Validated on the new table, 2026-10-15 (200 RCU, from a laptop, 20 rps):
 
-- [ ] One `GET /products` scan costs 0.5 RCU.
-- [ ] A 10× traffic spike does not throttle (`ThrottledRequests` and `ReadThrottleEvents` stay 0).
-- [ ] At 1.75×, 3.0× and 5.5×: the surge ends `throttled` within about 40 s, `achieved_fraction` ≥ 0.97, and the
-  steady throttle rate rises with the ratio.
-- [ ] Product's p95 rises with the ratio, and any 5xx have telemetry records.
+- [x] One `GET /products` scan costs 0.5 RCU.
+- [x] A 10× traffic spike does not throttle: 73.6–75.1 RCU/s (38% of capacity), no `ThrottledRequests` or
+  `ReadThrottleEvents` on any operation (`exp-20261015T165252Z-cd32`).
+- [x] The surge ends `throttled` after 33.6–33.7 s at every ratio (a full bank, as predicted), `achieved_fraction`
+  is 1.00, no calls are dropped, and the steady throttle rate is within a point of 1 − 1/`offered_ratio`.
+- [x] Product's p95 rises with the ratio, and every 5xx the client saw has a telemetry record.
+
+| Ratio (run) | Steady throttle rate | Product p50 / p95, steady | Product 5xx, steady |
+|---|---|---|---|
+| 1.75× (`exp-20261015T170156Z-0031`) | 44.9% | 5 ms / ~0.78 s | 0 |
+| 3.0× (`exp-20261015T171702Z-c4c8`) | 67.9% | 5–6 ms / ~1.59 s | 0 |
+| 5.5× (`exp-20261015T173208Z-a378`) | 82.4% | 9–15 ms / ~3.2 s | ~1% |
+| 8.0×, stress (`exp-20261015T174713Z-7f32`) | 87.6% | 380–780 ms / ~3.2 s | ~8–11% (344, all with telemetry) |
+
+In the minute the bank runs out, a few requests fail as the app meets the surge's throttling (3 at 1.75×); that is
+why labeling starts at `label_from`, 5 s after the first throttle. These runs predate `label_from`, and none of them
+belongs in the dataset.
