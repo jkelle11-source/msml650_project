@@ -5,9 +5,21 @@ from unittest import mock
 import handler as metrics_extractor
 
 
+def _operation_metric(table, operation):
+    return {"Namespace": "AWS/DynamoDB", "MetricName": "ThrottledRequests",
+            "Dimensions": [{"Name": "TableName", "Value": table},
+                           {"Name": "Operation", "Value": operation}]}
+
+
+def _no_metrics(**kwargs):
+    return {"Metrics": []}
+
+
 def test_get_dynamodb_metrics_sums_datapoints():
     fake_response = {"Datapoints": [{"Sum": 2.0}, {"Sum": 3.0}]}
-    with mock.patch.object(metrics_extractor.cloudwatch, "get_metric_statistics", return_value=fake_response):
+    listed = {"Metrics": [_operation_metric("fake-table", "GetItem")]}
+    with mock.patch.object(metrics_extractor.cloudwatch, "get_metric_statistics", return_value=fake_response), \
+         mock.patch.object(metrics_extractor.cloudwatch, "list_metrics", return_value=listed):
         result = metrics_extractor.get_dynamodb_metrics("fake-table", minutes=5)
 
     assert result["table_name"] == "fake-table"
@@ -19,8 +31,40 @@ def test_get_dynamodb_metrics_sums_datapoints():
     assert result["write_throttle_events"] == 5.0
 
 
+def test_throttled_requests_add_up_every_operation():
+    # CloudWatch has ThrottledRequests only per (TableName, Operation); a query
+    # for TableName alone returns nothing. Each operation is read on its own.
+    per_operation = {"GetItem": 7.0, "Scan": 3.0, "BatchGetItem": 1.0}
+    pages = [
+        {"Metrics": [_operation_metric("t", "GetItem"), _operation_metric("t", "Scan")], "NextToken": "p2"},
+        {"Metrics": [_operation_metric("t", "BatchGetItem")]},
+    ]
+    listed = []
+
+    def list_metrics(**kwargs):
+        listed.append(kwargs)
+        return pages[len(listed) - 1]
+
+    def statistics(**kwargs):
+        names = {d["Name"]: d["Value"] for d in kwargs["Dimensions"]}
+        if kwargs["MetricName"] == "ThrottledRequests":
+            assert set(names) == {"TableName", "Operation"}
+            return {"Datapoints": [{"Sum": per_operation[names["Operation"]]}]}
+        assert names == {"TableName": "t"}
+        return {"Datapoints": []}
+
+    with mock.patch.object(metrics_extractor.cloudwatch, "get_metric_statistics", side_effect=statistics), \
+         mock.patch.object(metrics_extractor.cloudwatch, "list_metrics", side_effect=list_metrics):
+        result = metrics_extractor.get_dynamodb_metrics("t", minutes=1)
+
+    assert result["throttled_requests"] == 11.0
+    assert listed[0]["Dimensions"] == [{"Name": "TableName", "Value": "t"}]
+    assert listed[1]["NextToken"] == "p2"
+
+
 def test_get_dynamodb_metrics_handles_no_datapoints():
-    with mock.patch.object(metrics_extractor.cloudwatch, "get_metric_statistics", return_value={"Datapoints": []}):
+    with mock.patch.object(metrics_extractor.cloudwatch, "get_metric_statistics", return_value={"Datapoints": []}), \
+         mock.patch.object(metrics_extractor.cloudwatch, "list_metrics", side_effect=_no_metrics):
         result = metrics_extractor.get_dynamodb_metrics("quiet-table", minutes=5)
 
     assert result["consumed_read_capacity"] == 0
@@ -38,7 +82,8 @@ def test_getter_reads_the_single_minute_ending_at_window_end():
         captured.update(kwargs)
         return {"Datapoints": []}
 
-    with mock.patch.object(metrics_extractor.cloudwatch, "get_metric_statistics", side_effect=capture):
+    with mock.patch.object(metrics_extractor.cloudwatch, "get_metric_statistics", side_effect=capture), \
+         mock.patch.object(metrics_extractor.cloudwatch, "list_metrics", side_effect=_no_metrics):
         metrics_extractor.get_dynamodb_metrics("tbl", window_end=window_end, minutes=1)
 
     assert captured["EndTime"] == window_end

@@ -518,7 +518,11 @@ Resources:
             Version: '2012-10-17'
             Statement: 
               - Effect: Allow
-                Action: cloudwatch:GetMetricStatistics
+                # ListMetrics finds the operations ThrottledRequests is
+                # published under; CloudWatch has no table-wide total for it.
+                Action:
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListMetrics
                 Resource: '*'
         - PolicyName: metrics-extractor-s3-write
           PolicyDocument:
@@ -594,13 +598,18 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
+                # DescribeTable for the capacity, Scan for the item keys,
+                # BatchGetItem for the load.
                 Action:
                   - dynamodb:DescribeTable
-                  - dynamodb:GetItem
                   - dynamodb:Scan
+                  - dynamodb:BatchGetItem
                 Resource: !GetAtt ProductsTable.Arn
               - Effect: Allow
-                Action: cloudwatch:GetMetricStatistics
+                # CloudWatch metric reads can't be scoped to a resource.
+                Action:
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListMetrics
                 Resource: '*'
 
 
