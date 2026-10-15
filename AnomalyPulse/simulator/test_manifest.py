@@ -403,7 +403,20 @@ def test_params_observed_and_workload_are_open():
     "CASCADING_FAILURE",
 ])
 def test_incident_types_are_the_plans_classes(incident_type):
-    assert _errors(_final(incident_type=incident_type)) == []
+    # A cascade needs a second fault active at the same time (checked below).
+    extra = {"activations": [_activation(0), _activation(1)]} if incident_type == "CASCADING_FAILURE" else {}
+    assert _errors(_final(incident_type=incident_type, **extra)) == []
+
+
+@pytest.mark.parametrize("windows", [
+    [(5, 10)],                       # one fault
+    [(3, 6), (6, 9)],                # two, one after the other (end is exclusive)
+])
+def test_a_cascade_without_overlapping_faults_is_refused(windows):
+    activations = [_activation(i, active_from_ms=T0 + a * MINUTE, active_until_ms=T0 + b * MINUTE)
+                   for i, (a, b) in enumerate(windows)]
+    assert _errors(_final(incident_type="CASCADING_FAILURE", activations=activations)) == [
+        "a CASCADING_FAILURE run needs two or more faults active at the same time"]
 
 
 def test_incident_types_constant_lists_the_six_labels():

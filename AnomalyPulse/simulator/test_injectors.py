@@ -479,12 +479,12 @@ def test_noop_does_not_draw_from_the_rng():
 # These run against each injector in the package, so a new injector file is
 # checked against the interface as soon as it exists.
 
-def _plan_any(cls, seed):
+def _plan_any(cls, seed, index=0):
     if cls.incident_type == "NORMAL":
         intensity, band = None, None
     else:
         intensity, band = 0.5, {"parameter": cls.parameter, "low": 1, "high": 2}
-    return cls.plan(EXPERIMENT_ID, 0, active_from_ms=START, active_until_ms=END,
+    return cls.plan(EXPERIMENT_ID, index, active_from_ms=START, active_until_ms=END,
                     rng=random.Random(seed), intensity=intensity, band=band,
                     target=cls.targets[0] if cls.targets else None)
 
@@ -508,6 +508,9 @@ def test_every_injectors_activation_fits_the_manifest(name):
     activation = _plan_any(cls, seed=1)
     # A NORMAL injector injects nothing, so its run records no activation.
     entries = [] if cls.incident_type == "NORMAL" else [activation.manifest_entry()]
+    if cls.incident_type == "CASCADING_FAILURE":
+        # Only valid with another fault active at the same time: add a second copy.
+        entries.append(_plan_any(cls, seed=1, index=1).manifest_entry())
     manifest = mf.build_manifest(
         experiment_id=EXPERIMENT_ID, incident_type=cls.incident_type, seed=1, created_by="jake",
         started_at_ms=T0, workload={}, activations=entries, bucket=BUCKET)

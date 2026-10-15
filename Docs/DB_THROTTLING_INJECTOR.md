@@ -71,7 +71,9 @@ baseline, so about +0.04 on the ratio at 200 RCU. `observed.offered_ratio` recor
   really sent after the surge. **M4's batch runner reruns a run whose `achieved_fraction` is below 0.97.**
 - `app_reads_per_s`: the table's consumed RCU per second in the 3 minutes before the window (the application's own
   reads, including a traffic spike's in a cascade). `offered_ratio` = (`steady_reads_per_s` + `app_reads_per_s`) /
-  capacity: the ratio DynamoDB actually saw.
+  capacity: the ratio DynamoDB actually saw. **In a cascade it is a lower bound**: a spike that began less than
+  3 minutes before the window is only partly counted (validation cascade: 2.16 recorded, about 2.22 seen by
+  DynamoDB; `Docs/CASCADE.md`). M4's bands use `load_ratio`, which this does not affect.
 - `steady_throttle_rate`: the share of the injector's reads throttled after the surge. `client_throttle_rate` is over
   the whole window.
 - `cw_throttled_requests`: CloudWatch `ThrottledRequests`, summed over **every operation** on the table for the window's

@@ -29,7 +29,7 @@ dataset with real ground truth. See
 | **M3-2** Workload generator + traffic-spike injector *(MVP incident)* | Josh | ✅ Done: steady baseline, a 3× spike, and a 10× spike at 20 rps validated in landed telemetry (PR #66) |
 | **M3-3** DynamoDB throttling injector | Linu | ✅ Done: real throttling at 1.75×–8× on a new provisioned Products table, validated in landed telemetry |
 | **M3-4** Payment-failure + Lambda-degradation injectors | Rachel | 🚧 In review (PR #65) |
-| **M3-5** Cascading-failure orchestration | Melisa | 🚧 In review (PR #64); blocked on M3-3 and M3-4 |
+| **M3-5** Cascading-failure orchestration | Melisa | ✅ Done: a four-stage cascade validated in landed telemetry; retry amplification needs a failing stage (`Docs/CASCADE.md`) |
 
 M3-1 is the harness the injectors plug into: a local Python CLI
 (`python -m simulator start-incident …`) that takes a lock, records an experiment

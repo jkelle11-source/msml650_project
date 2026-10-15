@@ -282,6 +282,7 @@ sequence (routes, users, items) comes from an RNG seeded with the plan's seed. I
 | `set_rate_multiplier(m)` | Injectors: scale the arrival rate; `1` is baseline. The traffic spike uses it. |
 | `outcomes()` | Injectors: what the client has seen so far, `{"sent", "dropped", "responses": {"2xx": …, "5xx": …, "error": …}}`. A response counts when it comes back; `error` is no HTTP response at all. The traffic spike records the difference across its window. |
 | `requests_sent()`, `current_rps` | Injectors: how much has been sent, and the rate right now |
+| `set_retry_policy(r)`, `retry_stats()` | Injectors: resend failed requests (5xx or no response) `r` times on average, a second apart, until one succeeds; `0` turns retries off. Retry amplification (M3-5) uses them; `Docs/CASCADE.md` has the details. |
 
 `GET /orders/{id}` reads back orders the run created. Until the first one exists (about a second
 into a run) it gets a 404, as a stale link would. Which order a read picks is the one thing in
@@ -350,7 +351,8 @@ The schema is closed (`additionalProperties: false`) everywhere except `workload
 schema, `manifest.validate()` checks: the run ends after it starts; each window has a positive
 length and does not open before the run; a `COMPLETED` run's windows end inside it; each
 `fault_id` belongs to this experiment and is unique; `band.low <= band.high`; `severity`
-matches the intensities; every timestamp is a real date; and the whole thing is JSON-serializable
+matches the intensities; a `CASCADING_FAILURE` run has two or more faults active at the same
+time; every timestamp is a real date; and the whole thing is JSON-serializable
 (a `Decimal` straight from DynamoDB, or NaN, is a validation error rather than a crash mid-write).
 
 ### Reading a manifest (M4)
@@ -375,7 +377,8 @@ matches the intensities; every timestamp is a real date; and the whole thing is 
   | `exp-20261014T230012Z-2427` | 5 rps; the laptop slept through its recovery (it still says `COMPLETED`); 10× is a test-band value |
   | `exp-20261015T000130Z-85b4` | 10× is a test-band value; it was the 20 rps capacity check |
 
-  A run whose `workload` is `{}` never belongs, whenever it was made.
+  A run whose `workload` is `{}` never belongs, whenever it was made. The M3 validation runs of
+  2026-10-15 (`created_by: jake-validation`) are test runs too, and the registry rule excludes them.
 - **Check every run's `workload.request_rate_rps` is 20.**
 - **Deduplicate records by `(service, request_id)`.** The shipper delivers at least once: one
   M3-2 validation run landed 43 records twice, byte for byte.

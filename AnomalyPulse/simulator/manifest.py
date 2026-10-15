@@ -199,6 +199,14 @@ def _cross_field_errors(manifest: dict) -> list[str]:
     if manifest["severity"] != expected:
         errors.append(f"severity must be {expected} for the highest intensity")
 
+    # Project plan section 3: CASCADING_FAILURE means two or more faults active at
+    # once. A run whose faults never overlap (or that has only one) is not a cascade.
+    if manifest["incident_type"] == "CASCADING_FAILURE" and not any(
+            a_from < b_until and b_from < a_until
+            for i, (a_from, a_until) in enumerate(windows)
+            for b_from, b_until in windows[i + 1:]):
+        errors.append("a CASCADING_FAILURE run needs two or more faults active at the same time")
+
     return errors
 
 
