@@ -6,7 +6,15 @@ Globals:
   Function:
     Architectures:
       - arm64
-    Layers: 
+    # One full vCPU (Lambda gives CPU in proportion to memory; 1769 MB = 1
+    # vCPU). At the 128 MB default a function measured ~6% of a vCPU (M3-2
+    # validation), so CPU-bound work ran ~16x slower than its CPU time: a
+    # Lambda-degradation fault of +X ms of CPU took ~16X of wall time and timed
+    # out above ~620 ms, and every request held its concurrency slot ~3x longer
+    # than its telemetry showed. Changing this changes every latency and
+    # duration feature, so it must not change during dataset generation (M4).
+    MemorySize: 1769
+    Layers:
       - !Ref TelemetryLayer
 
 Resources:

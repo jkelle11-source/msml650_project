@@ -161,6 +161,23 @@ defined in the shared template and attached to each function there.
 All four service roles also have `dynamodb:Query` on the fault-config table, and
 nothing else on it, so a handler can read the faults aimed at it (M3).
 
+### Lambda functions
+
+Every function runs on `python3.13`, `arm64`, at **1,769 MB**, which is one full vCPU
+(`Globals` in the template). Lambda gives CPU in proportion to memory: at the
+128 MB default a function measured about 6% of a vCPU, so CPU-bound work ran ~16×
+slower than its CPU time, and every request held its concurrency slot ~3× longer
+than its telemetry showed. Product also builds its DynamoDB table while the
+module loads, as Cart and Order do; built on the first request, it made each new
+execution environment's first request take ~5.6 s.
+
+The account allows **1,000 concurrent executions** (raised from 10 on 2026-10-14),
+shared by every function, the shipper included.
+
+**Don't change memory or these handlers' timing while M4 generates its dataset.**
+They move every latency and duration feature, so runs before and after a change
+are not comparable.
+
 ### Telemetry landing zone (S3)
 
 Structured telemetry lands in `anomalypulse-telemetry-<account>-<region>` (name
@@ -226,6 +243,11 @@ sam deploy
 `sam build` also builds the `anomalypulse-telemetry` layer (via its `Makefile`) and
 the shipper Lambda. Config (stack name, region, capabilities) is saved in
 `samconfig.toml`, so routine deploys are just `sam deploy`.
+
+**Deploy from `main`, or from a branch that is up to date with it.** A deploy
+replaces the whole stack with that branch's template and code, so an older
+branch rolls back whatever it lacks, such as the 1,769 MB memory setting. Merge
+`main` into a branch before deploying from it.
 
 ## Running the tests
 
