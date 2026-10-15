@@ -63,18 +63,21 @@ class TrafficSpike(Injector):
     incident_type = "TRAFFIC_SPIKE"
     parameter = "multiplier"
     # targets stays (): a spike has no single service behind it
+    needs_workload = True   # its fault goes through self.ctx.workload
 
     @classmethod
     def configure(cls, intensity, band, rng):
         return {"multiplier": cls.native_value(intensity, band)}
 
     def start(self):
-        # self.ctx.workload is the workload driver; this method name is made up.
+        # self.ctx.workload is the workload driver (simulator/workload.py).
         self.ctx.workload.set_rate_multiplier(self.activation.params["multiplier"])
 
     def stop(self):
         self.ctx.workload.set_rate_multiplier(1)
 ```
+
+(The real one, built in M3-2, is `simulator/injectors/traffic_spike.py`.)
 
 Four rules that trip people up (full details in [`Docs/SIMULATOR_INTERFACE.md`](../Docs/SIMULATOR_INTERFACE.md)):
 
@@ -124,14 +127,18 @@ aws ssm get-parameter --name /anomalypulse/simulator/role-arn --query Parameter.
 aws sts get-caller-identity --profile sim     # should show assumed-role/anomalypulse-simulator
 ```
 
-Then, from `AnomalyPulse/`:
+Then, from `AnomalyPulse/` (one level above `simulator/`; "No module named simulator" means you are in the wrong directory), on a branch that has the simulator code:
 
 ```bash
-python -m simulator start-incident --type noop --duration 60 --baseline 30 --recovery 30   # a NORMAL run
-python -m simulator start-incident --type <your-injector> --intensity 0.8 --band <low> <high> --duration 300
+caffeinate -is python -m simulator start-incident --type noop --duration 60 --baseline 30 --recovery 30   # a NORMAL run
+caffeinate -is python -m simulator start-incident --type <your-injector> --intensity 0.8 --band <low> <high> --duration 300
 ```
 
+- **Always start a real run with `caffeinate -is`** (macOS). It stops the laptop idle-sleeping while on power. A sleeping Mac stops the simulator, and an M3-2 validation run that slept finished 25 minutes late with its traffic stopped. The runner now fails a run whose steps come more than 10 s late, but the run is lost. Closing the lid still sleeps the Mac.
+- **Don't deploy the stack from your branch** unless it's up to date with `main`. A deploy from an out-of-date branch rolls back fixes it doesn't have, such as the 1,769 MB memory setting in PR #67. Jake deploys.
 - `--duration` is the fault's window in **seconds**. `--baseline` and `--recovery` default to 300 seconds each, so the second command above is a 15-minute run.
+- **Every run sends baseline traffic** for its whole length (added in M3-2): 20 requests per second in the plan's 60/15/10/10/5 endpoint mix. `--rps`, `--users` and `--mix` change it.
+- To see a run's effect in landed telemetry: `python -m simulator.telemetry_report <experiment_id> --profile <your-profile>` (your own profile, not `sim`), about two minutes after the run ends.
 - The run prints its experiment id and where the manifest is. Ctrl-C is safe: the run winds down and records itself as `ABORTED`.
 - The role's session lasts an hour and is renewed automatically when the profile is set up as above, so long runs are fine.
 - **If your injector needs an AWS permission the role doesn't have** (reading a CloudWatch metric, describing a table), add exactly that to `SimulatorRole` in `template.yaml` in your PR. Jake reviews and deploys.
@@ -169,7 +176,7 @@ Both `params` and `observed` must be plain JSON. A `Decimal` straight out of Dyn
 Everyone: branch per ticket (`m3-<n>-<name>`), add your injector file and its test file, open a PR.
 
 - **Josh — Workload generator + traffic spike (M3-2).** Two pieces.
-  1. **The workload generator.** The runner calls three methods on it: `describe()` (a plain dict of its settings, recorded in the manifest), `start()` and `stop()` (safe to call twice). Everything else on the object is yours to design. The CLI currently always runs with *no* workload; wiring yours into `start-incident` is part of your ticket — talk to Jake about how you want to select it.
+  1. **The workload generator.** The runner calls three methods on it: `describe()` (a plain dict of its settings, recorded in the manifest), `start()` and `stop()` (safe to call twice). Everything else on the object is yours to design. *(Done in M3-2: `simulator/workload.py`, and every `start-incident` run now sends it, at 20 rps by default.)*
   2. **The traffic-spike injector.** Like the second example in §2: `parameter = "multiplier"`, no targets, and `start()`/`stop()` change the request rate through `self.ctx.workload`. It is started exactly as its window opens. This is the MVP incident, so land it first.
 - **Linu — DynamoDB throttling (M3-3).** Subclass `Injector`. Things to know before you design it:
   - **Don't change capacity per experiment.** DynamoDB allows a provisioned → on-demand switch only 4 times per 24 hours, and capacity *decreases* are capped near 27 per day; M4 needs 140 throttling runs. The workable design is a table that sits at a **fixed low provisioned capacity** while your injector varies the **offered load**. That is also what the plan asks for: the knob is the offered-load-to-capacity ratio.
@@ -183,7 +190,7 @@ Everyone: branch per ticket (`m3-<n>-<name>`), add your injector file and its te
   - **Payment's knobs move off environment variables** (`PAYMENT_LATENCY_MS`, `PAYMENT_FAILURE_RATE`, `PAYMENT_TIMEOUT`). Changing an environment variable recycles every warm execution environment, so each incident would start and end with a cold-start burst that normal runs never have — and `cold_start` is a model feature.
   - A handler must **never print or log** the fault it read.
   - Faults are scheduled ahead, not switched on: the framework writes the item 15 seconds before the window, so your injector needs at least 15 seconds of baseline (the default is 300).
-- **Melisa — Cascading failure (M3-5).** A cascade is **several activations with staggered, overlapping windows**, not an injector that wraps others. Build a `runner.Plan` with one `runner.Fault` per activation and `incident_type="CASCADING_FAILURE"`, and call `runner.run()` — there is a worked example under "Runs with several faults" in the interface doc. The overlapping windows in the manifest *are* the "which faults are concurrently active" record your M4 labeling needs. Retry amplification is yours to design, either as its own injector or as a workload behaviour you agree with Josh.
+- **Melisa — Cascading failure (M3-5).** A cascade is **several activations with staggered, overlapping windows**, not an injector that wraps others. Build a `runner.Plan` with one `runner.Fault` per activation and `incident_type="CASCADING_FAILURE"`, and call `runner.run()` — there is a worked example under "Runs with several faults" in the interface doc. The overlapping windows in the manifest *are* the "which faults are concurrently active" record your M4 labeling needs. Retry amplification is yours to design, either as its own injector or as a workload behaviour you agree with Josh. **Pass a workload to `runner.run()`** (`workload=Workload(...)`; example in the interface doc): without one the run sends no traffic, and a plan with a `traffic-spike` fault is refused.
 
 Two things for Melisa and Rachel from the Order/Payment path:
 
@@ -197,6 +204,12 @@ Two things for Melisa and Rachel from the Order/Payment path:
 - **Label windows from `activations`, but read `incident_type` first** (Melisa, Linu). A cascade and a confounder both have two or more overlapping activations. Only the top-level label tells them apart: a cascade is `CASCADING_FAILURE`; a confounder is a single-fault type with two activations.
 - **Use only `COMPLETED` manifests.** `FAILED` and `ABORTED` ones keep the windows they had planned. A manifest still at `RUNNING` is a run that died.
 - **`severity` is relative to the band.** 0.9 in a 2×–4× band is `HIGH`; 0.1 in a 6×–8× band is `LOW`. To compare magnitudes, read `params`.
+- **How M4 runs experiments** (settled by M3-2's validation, 2026-10-14/15; details in the interface doc):
+  - **20 rps baseline for every run, test set included**, which is the CLI default. Don't change it partway through the dataset.
+  - **Every batch runs under `caffeinate -is`**, or on a machine that doesn't sleep.
+  - **The stack keeps PR #67's configuration** (1,769 MB functions, Product building its table at load). Nothing is redeployed in a way that changes it while the dataset is generated.
+  - **Only runs M4's registry launched go in the dataset.** The six manifests written before M4 are test and validation runs; the interface doc lists them.
+  - **Deduplicate raw records by `(service, request_id)`.** The shipper delivers at least once.
 - **Experiments run one at a time, so M4's runs are serial** (Josh, Linu). 700 training runs at about 10 minutes each is roughly 117 hours — five days back to back. At 15 minutes each (the CLI default with a 5-minute fault) it is about 175 hours, and the test set is on top of that. The per-run length is the main lever and nobody has decided it yet.
 - **`experiment_id` is a timestamp, not a number.** M4's registry assigns the 1–1000 sequence.
 - **Project plan §17 lists 350 Phase 2 experiments but numbers them 701–1000 (300).** Unresolved.
@@ -216,6 +229,9 @@ Two things for Melisa and Rachel from the Order/Payment path:
 | A run was killed and the next one is refused | The dead run's lock hasn't expired (5 minutes after its planned end) | `python -m simulator cleanup`; add `--force` only if you are sure it is dead. |
 | `invalid manifest: not JSON-serializable` | A `Decimal` or NaN in `params` / `observed` | Convert to `int` / `float` before returning it. |
 | `could not reach the stack with AWS profile 'sim'` | The profile isn't set up, or your SSO session expired | §4; then `aws sso login --profile <your-profile>`. |
+| `No module named simulator` | You are not in `AnomalyPulse/`, or your branch doesn't have the simulator | `cd` to `AnomalyPulse/` on a branch with `simulator/` (and `traffic-spike`, `--rps`: M3-2 or later). |
+| `… came N s late, so this run is not what its manifest says` | The machine slept mid-run (its timers stop while asleep) | The run is recorded `FAILED`; run it again under `caffeinate -is`, lid open. |
+| The telemetry report shows minutes of zeros, or a run ended far past its planned end | The machine slept before the lateness check existed | Don't use that run. Check the sleep log: `pmset -g log \| grep -E " (Sleep\|Wake) "`. |
 | The handler never applies the fault | The handler doesn't call `active_faults`, or checks a different `injector` name | The `injector` string in the item is your class's `name`. |
 | `AccessDenied` from inside your injector | The simulator role lacks that permission | Add it to `SimulatorRole` in your PR (§4). |
 

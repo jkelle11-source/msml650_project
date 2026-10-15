@@ -12,6 +12,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 # For local tests, add AnomalyPulse/layers/telemetry/python/ to sys.path first
 # (see test_handler.py) and `pip install jsonschema`.
 from schema_validator import validate
+from fault_config import active_faults
 
 SERVICE_NAME = "order-service"  # must match the service enum in telemetry_schema.json
 TABLE_NAME = os.environ["TABLE_NAME"]
@@ -20,12 +21,13 @@ USE_PAYMENT_STUB = os.environ.get("USE_PAYMENT_STUB", "true").lower() == "true"
 
 dynamodb = boto3.resource("dynamodb")
 # The payment invoke is synchronous and runs inside order's own 10s Lambda timeout, so
-# bound botocore's read timeout (default 60s) BELOW that: a hung payment (the 30s
-# PAYMENT_TIMEOUT knob) then surfaces as a ReadTimeoutError that call_payment_service
-# catches - a clean 502 WITH dependency telemetry - instead of a hard 10s kill with no
-# dependency line. 6s sits above the injected-latency incident (a few seconds, still
-# succeeds as high dependency_latency_ms) and below the 30s timeout. No retries: a 10s
-# budget has no room, and a retry would mask the dependency signal the classifier keys on.
+# bound botocore's read timeout (default 60s) BELOW that: a hung payment (a
+# payment-failure fault whose timeout_ms exceeds 6s) then surfaces as a ReadTimeoutError
+# that call_payment_service catches - a clean 502 WITH dependency telemetry - instead of
+# a hard 10s kill with no dependency line. 6s sits above the payment-failure bands
+# (up to 4.5s, which answer as a slow 503: high dependency_latency_ms, dependency_error)
+# and below order's own 10s timeout. No retries: a 10s budget has no room, and a retry
+# would mask the dependency signal the classifier keys on.
 # total_max_attempts counts the first try, so 1 means no retries; botocore's similarly
 # named max_attempts counts RETRIES (max_attempts=1 would be two attempts).
 _PAYMENT_INVOKE_CONFIG = Config(connect_timeout=2, read_timeout=6, retries={"total_max_attempts": 1})
@@ -121,7 +123,7 @@ def call_payment_service(order_id, amount, customer_id, request_id):
     try:
         # Invoke payment with the same event shape API Gateway delivers for POST
         # /payments, so one payment code path serves HTTP and this Lambda-to-Lambda
-        # invoke - and its fault-injection knobs still apply, which DEPENDENCY_FAILURE
+        # invoke - and its control-plane faults still apply, which DEPENDENCY_FAILURE
         # relies on (Sections 4/5). Payment routes on resource + httpMethod.
         # Propagate request_id under requestContext (where payment reads it) so the two
         # services' telemetry lines join by request_id (PROJECT_PLAN Section 3).
@@ -213,6 +215,29 @@ def get_order(order_id):
     return {"order": response.get("Item"), "db": db}
 
 
+def _added_cpu_ms():
+    # Extra CPU work asked for by an active lambda-degradation fault (0 if none).
+    # Called on EVERY request, fault or not, so its cost is not a fingerprint of
+    # incident runs. What was read is NEVER printed or logged (Tier-2 ground truth).
+    try:
+        total = 0.0
+        for fault in active_faults(SERVICE_NAME):
+            if fault.get("injector") == "lambda-degradation":
+                total += float((fault.get("params") or {}).get("added_latency_ms", 0))
+        return total
+    except Exception:
+        return 0.0
+
+
+def _burn_cpu_ms(ms):
+    # Real computation: spin until this process's CPU clock has advanced by `ms`,
+    # so lambda_duration_ms (CPU time) rises, unlike with a sleep.
+    if ms > 0:
+        end = time.process_time() + ms / 1000.0
+        while time.process_time() < end:
+            pass
+
+
 # lambda
 def handler(event, context):
     global _cold_start
@@ -220,6 +245,7 @@ def handler(event, context):
     _cold_start = False
     wall_start = time.time()          # wall clock, for latency_ms
     proc_start = time.process_time()  # CPU time, for lambda_duration_ms
+    _burn_cpu_ms(_added_cpu_ms())     # after the timers start, so both latency and CPU time rise
     # Prefer the upstream (API Gateway) request id so it can be propagated to payment
     # for cross-service correlation (M2-1 handoff §3); fall back to the Lambda id, then a uuid.
     request_id = (event.get("requestContext") or {}).get("requestId") or getattr(context, "aws_request_id", None) or str(uuid.uuid4())
