@@ -10,36 +10,45 @@
 # Covers the happy path + a 404, a live CloudWatch cross-service correlation check
 # (the created order's telemetry line and the payment line it triggered must share
 # one request_id -- M2-4 DoD, PROJECT_PLAN Section 3), plus a live payment-failure
-# path: it flips payment's PAYMENT_FAILURE_RATE knob (M3 incident simulator) to 1.0,
-# confirms POST /orders surfaces a clean 502 (not a 500) from the dependency failure,
-# and restores the knob afterwards. POST invokes payment for real, but payment is
-# stateless (no residue to clean); the failure path persists no order.
+# path: it schedules a one-minute payment-failure fault in the fault-config table
+# (the M3 control plane, as the simulator does), confirms POST /orders surfaces a
+# clean 502 (not a 500) from the dependency failure, and deletes the fault
+# afterwards. POST invokes payment for real, but payment is stateless (no residue
+# to clean); the failure path persists no order.
 #
-# Requires: jq, and an AWS profile with dynamodb:DeleteItem on the Orders table,
-# lambda:GetFunctionConfiguration and lambda:UpdateFunctionConfiguration on the
-# payment function, and logs:FilterLogEvents on the order and payment log groups
-# (/aws/lambda/anomalypulse-order, /aws/lambda/anomalypulse-payment). The payment
-# knob is always restored on exit (EXIT trap), even on assertion failure or Ctrl-C.
+# Never run it during an experiment: its requests and its fault would land in that
+# experiment's telemetry. It refuses to start while the experiment lock is held.
+#
+# Requires: jq; an AWS profile with dynamodb:DeleteItem on the Orders table and
+# logs:FilterLogEvents on the order and payment log groups (/aws/lambda/anomalypulse-order,
+# /aws/lambda/anomalypulse-payment); and the simulator profile (default `sim`, set up
+# as in Handoffs/M3-1_Handoff.md) to read the lock and write the fault. The fault is
+# deleted on exit (EXIT trap), even on assertion failure or Ctrl-C, and its window
+# closes on its own a minute after it opens.
 # Run after Jake redeploys the merged PR.
-#   ./smoke_test.sh <your-profile>
+#   ./smoke_test.sh <your-profile> [simulator-profile]
 set -euo pipefail
 
 command -v jq >/dev/null || { echo "jq is required (brew install jq)" >&2; exit 2; }
 
-PROFILE="${1:?usage: $0 <aws-profile>}"
+PROFILE="${1:?usage: $0 <aws-profile> [simulator-profile]}"
+SIM_PROFILE="${2:-sim}"
 REGION=us-east-2
 API=$(aws ssm get-parameter --name /anomalypulse/api/base-url \
   --query Parameter.Value --output text --profile "$PROFILE" --region "$REGION")
 API="${API%/}"
 TABLE=$(aws ssm get-parameter --name /anomalypulse/tables/orders/name \
   --query Parameter.Value --output text --profile "$PROFILE" --region "$REGION")
+FAULT_TABLE=$(aws ssm get-parameter --name /anomalypulse/tables/fault-config/name \
+  --query Parameter.Value --output text --profile "$SIM_PROFILE" --region "$REGION")
+LOCK_TABLE=$(aws ssm get-parameter --name /anomalypulse/tables/experiments/name \
+  --query Parameter.Value --output text --profile "$SIM_PROFILE" --region "$REGION")
 
 BODY=/tmp/order_smoke_body
 ORDER_ID=""
-PAYMENT_FN=anomalypulse-payment
 ORDER_LOG=/aws/lambda/anomalypulse-order
 PAYMENT_LOG=/aws/lambda/anomalypulse-payment
-PAYMENT_ENV_SAVED=""   # original payment env Variables JSON; set only while the knob is flipped
+FAULT_ID=""   # the payment-failure fault this run scheduled; set only while it exists
 
 cleanup() {
   # Remove the order this run created, wherever the script exits. delete-item is
@@ -55,47 +64,25 @@ cleanup() {
   fi
 }
 
-restore_payment() {
-  # Put payment's env back exactly as it was before we flipped the failure knob.
-  # Guarded so it is a no-op if we never flipped it (or already restored), which is
-  # why the whole original Variables map is written back verbatim rather than just
-  # zeroing PAYMENT_FAILURE_RATE (update-function-configuration replaces the map).
-  [[ -n "$PAYMENT_ENV_SAVED" ]] || return 0
-
-  local want got
-  want=$(printf '%s' "$PAYMENT_ENV_SAVED" | jq -r '.PAYMENT_FAILURE_RATE // empty')
-
-  if aws lambda update-function-configuration --function-name "$PAYMENT_FN" \
-       --environment "{\"Variables\": $PAYMENT_ENV_SAVED}" \
-       --profile "$PROFILE" --region "$REGION" >/dev/null 2>&1 \
-     && aws lambda wait function-updated --function-name "$PAYMENT_FN" \
-       --profile "$PROFILE" --region "$REGION" >/dev/null 2>&1; then
-    # Verify the knob actually reads back as the saved value - a successful API call
-    # is not proof the config took, and a silently-flipped payment would poison
-    # every later order. Only clear the saved state once the read-back confirms it.
-    got=$(aws lambda get-function-configuration --function-name "$PAYMENT_FN" \
-      --query 'Environment.Variables.PAYMENT_FAILURE_RATE' --output text \
-      --profile "$PROFILE" --region "$REGION" 2>/dev/null || echo "<read-failed>")
-    if [[ "$got" == "$want" ]]; then
-      echo "CLEAN payment env restored ($PAYMENT_FN, PAYMENT_FAILURE_RATE=$got)"
-      PAYMENT_ENV_SAVED=""
-      return 0
-    fi
-    echo "WARN  payment restore did NOT verify: PAYMENT_FAILURE_RATE reads '$got', expected '$want'"
+remove_fault() {
+  # Delete the payment-failure fault this run scheduled. A no-op if none was written
+  # (or it is already gone). Even if this fails, the fault's window closes on its
+  # own a minute after it opened, and DynamoDB's TTL removes the item later.
+  [[ -n "$FAULT_ID" ]] || return 0
+  if aws dynamodb delete-item --table-name "$FAULT_TABLE" \
+       --key "{\"service\": {\"S\": \"payment-service\"}, \"fault_id\": {\"S\": \"$FAULT_ID\"}}" \
+       --profile "$SIM_PROFILE" --region "$REGION" >/dev/null 2>&1; then
+    echo "CLEAN fault $FAULT_ID deleted from $FAULT_TABLE"
+    FAULT_ID=""
   else
-    echo "WARN  could not restore payment env on $PAYMENT_FN"
+    echo "WARN  could not delete fault $FAULT_ID from $FAULT_TABLE; its window closes on its own"
   fi
-  # Leave PAYMENT_ENV_SAVED set so the EXIT-trap call retries once more, and make the
-  # unclean state impossible to miss.
-  echo "WARN  >>> ACTION NEEDED: set PAYMENT_FAILURE_RATE='$want' on $PAYMENT_FN (or redeploy payment)"
-  fail=1
-  return 1
 }
-trap 'cleanup; restore_payment' EXIT
+trap 'cleanup; remove_fault' EXIT
 # Convert Ctrl-C / SIGTERM into a normal exit so the single EXIT trap above runs the
 # cleanup exactly once (rather than bash resuming the script, or not running EXIT
 # reliably for these signals). SIGKILL (kill -9) and a host crash cannot be trapped
-# by anything - in that case reset PAYMENT_FAILURE_RATE manually.
+# by anything - in that case the fault still expires with its window.
 trap 'echo; echo "interrupted - cleaning up"; exit 130' INT TERM
 
 fail=0
@@ -157,16 +144,13 @@ correlate() {
   fi
 }
 
-# Guard: refuse to start if payment is already failing. That means a previous run
-# did not restore the knob - proceeding would make the happy-path checks below fail
-# confusingly, and step 5 would save '1.0' as the "original" and restore back to it,
-# masking the stuck state permanently. Reset it (or redeploy payment) first.
-START_RATE=$(aws lambda get-function-configuration --function-name "$PAYMENT_FN" \
-  --query 'Environment.Variables.PAYMENT_FAILURE_RATE' --output text \
-  --profile "$PROFILE" --region "$REGION")
-if [[ "$START_RATE" != "0.0" && "$START_RATE" != "0" ]]; then
-  echo "ABORT $PAYMENT_FN PAYMENT_FAILURE_RATE is '$START_RATE', not 0.0 - a previous run may not have cleaned up." >&2
-  echo "      Reset PAYMENT_FAILURE_RATE to 0.0 (or redeploy payment) before running this smoke test." >&2
+# Guard: refuse to start while an experiment holds the lock. Telemetry is tied to
+# an experiment by time alone, so this script's requests and its payment fault
+# would land in that experiment's labels. A lock past its expires_at is a dead run's.
+LOCK_EXPIRES=$(aws dynamodb get-item --table-name "$LOCK_TABLE" --key '{"pk": {"S": "LOCK"}}' \
+  --query 'Item.expires_at.N' --output text --profile "$SIM_PROFILE" --region "$REGION")
+if [[ "$LOCK_EXPIRES" != "None" && "$LOCK_EXPIRES" -ge $(date +%s) ]]; then
+  echo "ABORT an experiment holds the lock (until epoch $LOCK_EXPIRES). Run this after it ends." >&2
   exit 2
 fi
 
@@ -201,18 +185,24 @@ if [[ -n "$ORDER_ID" ]]; then
   ORDER_ID=""   # cleaned already; disarm the EXIT trap's re-delete
 fi
 
-# 5. live payment-failure path: force payment to fail every call, then confirm a
-# POST /orders surfaces a clean 502 (dependency failure) rather than a 500. We save
-# payment's current env first and restore it on exit (EXIT trap), so the knob is
-# never left flipped even if the assertion below fails. Merge only PAYMENT_FAILURE_RATE
-# so payment's other knobs are preserved.
-echo "-- payment failure-path check (flips PAYMENT_FAILURE_RATE=1.0 on $PAYMENT_FN) --"
-PAYMENT_ENV_SAVED=$(aws lambda get-function-configuration --function-name "$PAYMENT_FN" \
-  --query 'Environment.Variables' --output json --profile "$PROFILE" --region "$REGION")
-NEW_ENV=$(printf '%s' "$PAYMENT_ENV_SAVED" | jq -c '. + {"PAYMENT_FAILURE_RATE": "1.0"}')
-aws lambda update-function-configuration --function-name "$PAYMENT_FN" \
-  --environment "{\"Variables\": $NEW_ENV}" --profile "$PROFILE" --region "$REGION" >/dev/null
-aws lambda wait function-updated --function-name "$PAYMENT_FN" --profile "$PROFILE" --region "$REGION"
+# 5. live payment-failure path: schedule a payment-failure fault, as the simulator's
+# payment-failure injector does, then confirm a POST /orders surfaces a clean 502
+# (dependency failure) rather than a 500. Payment caches fault items for 5 s, so the
+# window opens 12 s after the write, when every warm payment environment has it. The
+# window lasts a minute and the EXIT trap deletes the item, so payment is never left
+# failing. timeout_ms is how long payment waits before it fails.
+NOW_S=$(date +%s)
+FAULT_ID="smoke-test-$NOW_S#0"
+FROM_MS=$(( (NOW_S + 12) * 1000 ))
+UNTIL_MS=$(( FROM_MS + 60000 ))
+echo "-- payment failure-path check (fault $FAULT_ID in $FAULT_TABLE) --"
+aws dynamodb put-item --table-name "$FAULT_TABLE" --profile "$SIM_PROFILE" --region "$REGION" --item "$(jq -cn \
+  --arg id "$FAULT_ID" --arg from "$FROM_MS" --arg until "$UNTIL_MS" --arg exp "$(( UNTIL_MS / 1000 + 3600 ))" \
+  '{service: {S: "payment-service"}, fault_id: {S: $id}, injector: {S: "payment-failure"},
+    params: {M: {timeout_ms: {N: "200"}}}, active_from_ms: {N: $from},
+    active_until_ms: {N: $until}, expires_at: {N: $exp}}')"
+WAIT_S=$(( FROM_MS / 1000 - $(date +%s) + 1 ))
+(( WAIT_S > 0 )) && sleep "$WAIT_S"
 
 FAIL_BODY=/tmp/order_smoke_fail_body
 code=$(curl -s -o "$FAIL_BODY" -w '%{http_code}' -X POST \
@@ -227,6 +217,6 @@ else
   fail=1
 fi
 
-restore_payment || true   # also runs via the EXIT trap; the guard makes a clean second call a no-op
+remove_fault   # also runs via the EXIT trap; the guard makes a second call a no-op
 
 exit $fail
