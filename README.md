@@ -52,6 +52,8 @@ a run's effect in landed telemetry, phase by phase.
   `caffeinate -is python -m simulator start-incident …`. A sleeping laptop stops the
   run, and the runner then records it as `FAILED`.
 - **Keep the 20 rps default.** M4 uses it for every run, test set included.
+- **M4's batches run on an EC2 instance in us-east-2**, not a laptop (M4-1 in
+  [Milestones/M04_Dataset.md](Milestones/M04_Dataset.md)).
 - **Run one experiment at a time.** Don't send other traffic to the API during a run.
 - **Leave the stack's configuration alone.** It runs PR #67's (1,769 MB functions);
   deploy only from `main` or a branch that's up to date with it.

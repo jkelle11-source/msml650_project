@@ -414,6 +414,8 @@ Each experiment should record:
 
 This gives us a proper evaluation dataset.
 
+**Where generation runs.** Experiments run one at a time against the shared stack, so generating the dataset takes days of continuous running. It runs on a small EC2 instance in the stack's region, not on a team member's laptop. A laptop that sleeps fails the run in progress, and one that drops its network can finish a run with a gap in its traffic; an instance runs unattended for as long as generation takes. Being in-region also puts the simulator milliseconds from the application and its tables, which the DynamoDB-throttling injector needs to drive its higher load ratios. Every experiment, training and test, comes from the same instance, for the same reason the baseline request rate never changes: a change of client partway through would track the train/test split. The instance is tooling, not part of the monitored application or AnomalyPulse's runtime path, and it is stopped whenever no batch is running.
+
 ---
 
 # 6b. Evaluation Integrity
@@ -775,6 +777,7 @@ This would make the GenAI component more useful and give us a concrete way to ev
 | Bedrock | Generative AI diagnosis |
 | IAM | Security and permissions |
 | CloudFormation/CDK | Infrastructure deployment |
+| EC2 | Runs the dataset-generation batches (simulator and workload) unattended, in the stack's region (Section 6). Tooling only: not on the application or inference path |
 
 ## Stretch Services
 
