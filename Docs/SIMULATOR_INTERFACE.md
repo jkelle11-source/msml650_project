@@ -26,16 +26,34 @@ just want to get your injector going, start with
 
 ## Running an experiment
 
-From `AnomalyPulse/`, with `pip install -r simulator/requirements.txt` and the `sim` AWS profile
-(setup is in the handoff):
+Run from **`AnomalyPulse/`** (one level above `simulator/`), on a branch that has the simulator
+code, with `pip install -r simulator/requirements.txt` and the `sim` AWS profile (setup is in
+the handoff). "No module named simulator" means you are in the wrong directory.
 
 ```bash
-python -m simulator start-incident --type noop --duration 60                 # a NORMAL run
-python -m simulator start-incident --type <injector> --intensity 0.8 \
+caffeinate -is python -m simulator start-incident --type noop --duration 60      # a NORMAL run
+caffeinate -is python -m simulator start-incident --type <injector> --intensity 0.8 \
     --duration 300 --band <low> <high> [--target <service>]
-python -m simulator start-incident ... --dry-run                             # no AWS at all
-python -m simulator cleanup                                                  # after a run that died
+python -m simulator start-incident ... --dry-run                 # no AWS at all; check it first
+python -m simulator cleanup                                      # after a run that died
 ```
+
+Four things M3-2's validation runs taught us:
+
+- **Keep the machine awake: run every real experiment under `caffeinate -is`** (macOS; it
+  stops idle sleep while on power). A sleeping laptop stops the simulator, whose timers count
+  only time awake. One validation run slept through its recovery and finished 25 minutes late.
+  Its traffic had stopped, but the manifest still said `COMPLETED`. The runner now fails a run
+  whose steps come more than 10 s late (`FellBehind`), but a run that fails that way is lost.
+  Closing the lid still sleeps the Mac, `caffeinate` or not.
+- **Baseline traffic is 20 rps** (`--rps` defaults to it). M4 uses 20 rps for every run, test set
+  included. Don't change the rate partway through a dataset: request rate is a feature, and a
+  shift would track the generation date.
+- **The stack must have PR #67's configuration** (1,769 MB functions, Product building its table at
+  load). It is deployed. Until PR #67 is merged, deploying any other branch would roll it back
+  and change every latency feature.
+- **After a run, wait about two minutes** for the shipper, then check it with
+  `python -m simulator.telemetry_report <experiment_id> --profile <your-profile>` (below).
 
 | Option | Meaning |
 |---|---|
@@ -53,8 +71,9 @@ python -m simulator cleanup                                                  # a
 | `--dry-run` | Print the manifest the run would start with. Opens no AWS session. |
 | `--profile`, `--region` | Default `sim` and `us-east-2`. |
 
-Exit codes: `0` completed · `1` refused (bad request, lock held, stack unreachable) · `130` Ctrl-C.
-A failure *during* a run shows its traceback.
+Exit codes: `0` completed · `1` refused (bad request, lock held, stack unreachable), or the run
+fell behind schedule because the machine slept (recorded as `FAILED`) · `130` Ctrl-C. Any other
+failure *during* a run shows its traceback.
 
 **One experiment at a time.** Telemetry is tied to an experiment by time alone, so two runs
 that overlap contaminate each other's labels. A lock in the `anomalypulse-experiments` table
@@ -64,6 +83,8 @@ someone's experiment is running.**
 
 **Runs with several faults** (a cascade, a confounder) don't go through the CLI. Build a plan
 in Python:
+
+Run the script under `caffeinate -is` too (`caffeinate -is python my_cascade.py`).
 
 ```python
 import boto3
@@ -104,9 +125,13 @@ python -m simulator.telemetry_report <experiment_id> --profile <your-profile>   
 
 It prints request rate, p50/p95 latency and 4xx and 5xx share per service for each phase, plus
 client-facing requests per minute. Phases are cut wherever a fault starts or stops, so an overlap
-of faults in a cascade is its own phase. A run still at `RUNNING` is refused: it has no end time. Wait about two minutes after the
-run ends, because the shipper lands records in batches. It needs a profile that can read `raw/`,
-which the simulator role cannot.
+of faults in a cascade is its own phase. A run still at `RUNNING` is refused: it has no end time.
+Wait about two minutes after the run ends, because the shipper lands records in batches. It needs
+a profile that can read `raw/`, which the simulator role cannot.
+
+**Check the per-minute counts.** In a healthy run they hold steady through each phase and rise
+by the spike's multiplier in its window. Minutes of zeros mean the client stopped sending, and
+the usual cause is that the machine slept.
 
 ### What one run does
 
@@ -116,8 +141,11 @@ which the simulator role cannot.
    spike with no workload.
 2. Takes the lock, or stops with "experiment X is already running, started by Y".
 3. Writes the manifest with `status: RUNNING`; starts the workload.
-4. Calls each injector's `start()` and `stop()` on schedule.
-5. Waits out the recovery period; calls each `observe()`; stops the workload.
+4. Calls each injector's `start()` and `stop()` on schedule. A step that comes more than 10 s late
+   (`runner.MAX_LATE_MS`) fails the run with `FellBehind`: the machine slept, and the windows in
+   the manifest are no longer what happened.
+5. Waits out the recovery period (the same lateness check applies); calls each `observe()`; stops
+   the workload.
 6. Rewrites the manifest as `COMPLETED`, with real times and what was observed; releases the lock.
 
 If anything fails after the lock is taken, or you press Ctrl-C, the same wind-down still runs:
@@ -334,12 +362,26 @@ matches the intensities; every timestamp is a real date; and the whole thing is 
   `CASCADING_FAILURE`" only when `incident_type` is `CASCADING_FAILURE`.
 - **Use only `COMPLETED` runs.** A `FAILED` or `ABORTED` manifest keeps the windows it had
   *planned*, which may run past `ended_at`.
-- **Skip a run whose `workload` is `{}`.** It sent no traffic, so it has no telemetry behind its
-  label. Runs from before M3-2 made traffic the default look like this: two `COMPLETED` NORMAL
-  manifests in the bucket (`exp-20261012T054951Z-ec18`, `exp-20261013T162018Z-bdcd`) are such
-  runs.
+- **Use only runs M4's registry launched.** Every manifest written before M4 is a test or
+  validation run. None of them ran on M4's settings (20 rps, PR #67's configuration, the
+  machine kept awake), so none belong in the dataset:
+
+  | Manifest | Why it is excluded |
+  |---|---|
+  | `exp-20261012T054951Z-ec18`, `exp-20261013T162018Z-bdcd` | `workload` is `{}`: no traffic, so no telemetry behind the label |
+  | `exp-20261013T025625Z-a826`, `exp-20261013T030821Z-9aed` | Before PR #67: 128 MB functions, slow Product cold starts, an account limit of 10 |
+  | `exp-20261014T230012Z-2427` | 5 rps; the laptop slept through its recovery (it still says `COMPLETED`); 10× is a test-band value |
+  | `exp-20261015T000130Z-85b4` | 10× is a test-band value; it was the 20 rps capacity check |
+
+  A run whose `workload` is `{}` never belongs, whenever it was made.
+- **Check every run's `workload.request_rate_rps` is 20.**
 - **Deduplicate records by `(service, request_id)`.** The shipper delivers at least once: one
   M3-2 validation run landed 43 records twice, byte for byte.
+- **A run's first minute differs from the rest of its baseline.** For the first second or so,
+  `GET /orders/{id}` gets 404s (no order exists yet). After an idle gap, the run also starts on
+  cold functions: at 20 rps the first minute had 9 Product cold starts and peaked at 18
+  concurrent executions, against 5–9 later. Back-to-back runs start warm. Dropping each run's
+  first minute (M4-4) costs one of its five baseline windows and keeps every run's baseline alike.
 - **`severity` is relative to the band**, not to the native value: 0.9 in a 2×–4× band is `HIGH`,
   0.1 in a 6×–8× band is `LOW`. To compare magnitudes across bands, read `params`.
 - **A `NORMAL` run has no activations**, including a run of the `noop` injector.
@@ -384,24 +426,32 @@ injector.
 **The workload's traffic** is the larger part. A default 15-minute run at 20 rps sends about
 18,000 requests. At list price, API Gateway ($3.50 per million REST requests) makes up most of
 the roughly $0.07 per run, and Lambda, CloudWatch Logs and DynamoDB add about a cent between
-them. A traffic spike multiplies the traffic in its window. Nothing keeps sending after a run ends: the
-workload lives in the simulator process.
+them. A traffic spike multiplies the traffic in its window: the 10× capacity check sent 72,000
+requests, about $0.30. By estimate, all of M4's runs come to roughly $100. Nothing keeps sending
+after a run ends: the workload lives in the simulator process.
 
-**Lambda concurrency is a real limit.** The account allowed 10 concurrent executions when M3-2
-was validated, shared by every function, including the shipper. CloudWatch showed the limit
-being hit in both validation runs:
+### Capacity
 
-- **Starting cold.** The NORMAL run began with every function cold. Cold-start init time pushed
-  concurrency past 10, and 110 requests were throttled in its first minute, none after.
-- **A 3x spike (60 rps).** About 0.3% of the window's requests were throttled, steadily
-  throughout the window.
+**The account allows 1,000 concurrent Lambda executions** (raised from 10 on 2026-10-14), shared
+by every function, the shipper included. With PR #67's configuration, the 20 rps capacity check
+(`exp-20261015T000130Z-85b4`, a 10× spike to 200 rps) had:
 
-A client request that Lambda throttles never reaches its handler, so it leaves **no telemetry
-record**; only the client's 5xx count (a spike's `observed.responses`) sees it. A throttled
-Order-to-Payment invoke is worse for labels: Order records a 502 with `dependency_error: true`,
-which reads like a dependency failure. An increase to 1,000 was requested on 2026-10-14 (Service
-Quotas case 179201347400929). Check it has been applied before M4 generates runs, and especially
-before the 10x bands and the stress slice.
+- **No throttles anywhere.** Peak concurrency was 55 during the spike and 5–9 at baseline.
+- **A client that kept up:** it sent 200.04 rps, and 200.01 rps landed, with nothing dropped and
+  no errors.
+- **A clean telemetry signature:** Product's p95 latency went from 11 to 22 ms during the spike.
+  Product's 42 cold starts took 35 ms at the median and 87 ms at most.
+
+**Not tested above 200 rps.** Only the extreme-extrapolation slice (more than 10×) goes higher.
+Check the client keeps up before generating it: compare a spike's `observed.achieved_rps` with
+what was asked for.
+
+**What throttling looks like, if it ever comes back.** A client request that Lambda throttles
+never reaches its handler, so it leaves **no telemetry record**. Only the client's 5xx count
+sees it, in a spike's `observed.responses`. A throttled Order-to-Payment invoke is worse for
+labels: Order records a 502 with `dependency_error: true`, which reads like a dependency
+failure. At the old limit of 10, a cold 20 rps run lost 110 requests in its first minute, and a
+3× spike lost about 0.3% of its window.
 
 ---
 

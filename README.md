@@ -26,7 +26,7 @@ dataset with real ground truth. See
 | Piece | Owner | Status |
 |---|---|---|
 | **M3-1** Simulator framework + CLI, experiment manifest, fault control plane, experiment lock | Jake | 🚧 Merged and run on the deployed stack; confirmed buildable by M3-2, awaiting the other injector owners |
-| **M3-2** Workload generator + traffic-spike injector *(MVP incident)* | Josh | ✅ Done: steady baseline and a 3× spike validated in landed telemetry (PR #66) |
+| **M3-2** Workload generator + traffic-spike injector *(MVP incident)* | Josh | ✅ Done: steady baseline, a 3× spike, and a 10× spike at 20 rps validated in landed telemetry (PR #66) |
 | **M3-3** DynamoDB throttling injector | Linu | ⬜ Pending |
 | **M3-4** Payment-failure + Lambda-degradation injectors | Rachel | 🚧 In review (PR #65) |
 | **M3-5** Cascading-failure orchestration | Melisa | 🚧 In review (PR #64); blocked on M3-3 and M3-4 |
@@ -45,6 +45,16 @@ Poisson traffic, 20 requests per second in the plan's 60/15/10/10/5 endpoint mix
 by default, and the `traffic-spike` injector multiplies that rate by a band-driven
 factor for its window. `python -m simulator.telemetry_report <experiment_id>` shows
 a run's effect in landed telemetry, phase by phase.
+
+**Running an experiment** (details in the interface doc's "Running an experiment"):
+
+- **Run from `AnomalyPulse/` under `caffeinate -is`:**
+  `caffeinate -is python -m simulator start-incident …`. A sleeping laptop stops the
+  run, and the runner then records it as `FAILED`.
+- **Keep the 20 rps default.** M4 uses it for every run, test set included.
+- **Run one experiment at a time.** Don't send other traffic to the API during a run.
+- **Leave the stack's configuration alone.** It runs PR #67's (1,769 MB functions);
+  deploy only from `main` or a branch that's up to date with it.
 
 **Milestone 2 — Observability** (complete, merged to `main`). Every request emits
 structured telemetry against an enforced schema, and that telemetry lands centrally

@@ -127,13 +127,15 @@ aws ssm get-parameter --name /anomalypulse/simulator/role-arn --query Parameter.
 aws sts get-caller-identity --profile sim     # should show assumed-role/anomalypulse-simulator
 ```
 
-Then, from `AnomalyPulse/`:
+Then, from `AnomalyPulse/` (one level above `simulator/`; "No module named simulator" means you are in the wrong directory), on a branch that has the simulator code:
 
 ```bash
-python -m simulator start-incident --type noop --duration 60 --baseline 30 --recovery 30   # a NORMAL run
-python -m simulator start-incident --type <your-injector> --intensity 0.8 --band <low> <high> --duration 300
+caffeinate -is python -m simulator start-incident --type noop --duration 60 --baseline 30 --recovery 30   # a NORMAL run
+caffeinate -is python -m simulator start-incident --type <your-injector> --intensity 0.8 --band <low> <high> --duration 300
 ```
 
+- **Always start a real run with `caffeinate -is`** (macOS). It stops the laptop idle-sleeping while on power. A sleeping Mac stops the simulator, and an M3-2 validation run that slept finished 25 minutes late with its traffic stopped. The runner now fails a run whose steps come more than 10 s late, but the run is lost. Closing the lid still sleeps the Mac.
+- **Don't deploy the stack from your branch** unless it's up to date with `main`. A deploy from an out-of-date branch rolls back fixes it doesn't have, such as the 1,769 MB memory setting in PR #67. Jake deploys.
 - `--duration` is the fault's window in **seconds**. `--baseline` and `--recovery` default to 300 seconds each, so the second command above is a 15-minute run.
 - **Every run sends baseline traffic** for its whole length (added in M3-2): 20 requests per second in the plan's 60/15/10/10/5 endpoint mix. `--rps`, `--users` and `--mix` change it.
 - To see a run's effect in landed telemetry: `python -m simulator.telemetry_report <experiment_id> --profile <your-profile>` (your own profile, not `sim`), about two minutes after the run ends.
@@ -202,6 +204,12 @@ Two things for Melisa and Rachel from the Order/Payment path:
 - **Label windows from `activations`, but read `incident_type` first** (Melisa, Linu). A cascade and a confounder both have two or more overlapping activations. Only the top-level label tells them apart: a cascade is `CASCADING_FAILURE`; a confounder is a single-fault type with two activations.
 - **Use only `COMPLETED` manifests.** `FAILED` and `ABORTED` ones keep the windows they had planned. A manifest still at `RUNNING` is a run that died.
 - **`severity` is relative to the band.** 0.9 in a 2×–4× band is `HIGH`; 0.1 in a 6×–8× band is `LOW`. To compare magnitudes, read `params`.
+- **How M4 runs experiments** (settled by M3-2's validation, 2026-10-14/15; details in the interface doc):
+  - **20 rps baseline for every run, test set included**, which is the CLI default. Don't change it partway through the dataset.
+  - **Every batch runs under `caffeinate -is`**, or on a machine that doesn't sleep.
+  - **The stack keeps PR #67's configuration** (1,769 MB functions, Product building its table at load). Nothing is redeployed in a way that changes it while the dataset is generated.
+  - **Only runs M4's registry launched go in the dataset.** The six manifests written before M4 are test and validation runs; the interface doc lists them.
+  - **Deduplicate raw records by `(service, request_id)`.** The shipper delivers at least once.
 - **Experiments run one at a time, so M4's runs are serial** (Josh, Linu). 700 training runs at about 10 minutes each is roughly 117 hours — five days back to back. At 15 minutes each (the CLI default with a 5-minute fault) it is about 175 hours, and the test set is on top of that. The per-run length is the main lever and nobody has decided it yet.
 - **`experiment_id` is a timestamp, not a number.** M4's registry assigns the 1–1000 sequence.
 - **Project plan §17 lists 350 Phase 2 experiments but numbers them 701–1000 (300).** Unresolved.
@@ -221,6 +229,9 @@ Two things for Melisa and Rachel from the Order/Payment path:
 | A run was killed and the next one is refused | The dead run's lock hasn't expired (5 minutes after its planned end) | `python -m simulator cleanup`; add `--force` only if you are sure it is dead. |
 | `invalid manifest: not JSON-serializable` | A `Decimal` or NaN in `params` / `observed` | Convert to `int` / `float` before returning it. |
 | `could not reach the stack with AWS profile 'sim'` | The profile isn't set up, or your SSO session expired | §4; then `aws sso login --profile <your-profile>`. |
+| `No module named simulator` | You are not in `AnomalyPulse/`, or your branch doesn't have the simulator | `cd` to `AnomalyPulse/` on a branch with `simulator/` (and `traffic-spike`, `--rps`: M3-2 or later). |
+| `… came N s late, so this run is not what its manifest says` | The machine slept mid-run (its timers stop while asleep) | The run is recorded `FAILED`; run it again under `caffeinate -is`, lid open. |
+| The telemetry report shows minutes of zeros, or a run ended far past its planned end | The machine slept before the lateness check existed | Don't use that run. Check the sleep log: `pmset -g log \| grep -E " (Sleep\|Wake) "`. |
 | The handler never applies the fault | The handler doesn't call `active_faults`, or checks a different `injector` name | The `injector` string in the item is your class's `name`. |
 | `AccessDenied` from inside your injector | The simulator role lacks that permission | Add it to `SimulatorRole` in your PR (§4). |
 
