@@ -7,10 +7,10 @@ a sleeping machine stops the run, and the runner then records it as FAILED.
     caffeinate -is python -m simulator start-incident --type noop --duration 60
     caffeinate -is python -m simulator start-incident --type <injector> --intensity 0.8 \\
         --duration 300 --band <low> <high>
-    python -m simulator start-cascade --spec cascades/<spec>.json
+    caffeinate -is python -m simulator start-cascade --spec simulator/cascades/<spec>.json
     python -m simulator cleanup
 
-Add --dry-run to start-incident to see the manifest a run would start with,
+Add --dry-run to either command to see the manifest a run would start with,
 without touching AWS. Every run sends baseline traffic for its whole length
 (M3-2): 20 requests per second in the plan's endpoint mix, unless --rps,
 --users or --mix say otherwise. M4 keeps the 20 rps default for every run.
@@ -117,7 +117,8 @@ def _start_cascade(args) -> int:
             seed=secrets.randbelow(2**32) if args.seed is None else args.seed,
             created_by=args.created_by or getpass.getuser(),
             **({"max_run_s": args.max_run} if args.max_run is not None else {}))
-        preview = runner.preview(plan)
+        load = _workload(args, plan)
+        preview = runner.preview(plan, workload=load)
     except (ValueError, LookupError, OSError) as e:
         return _fail(e)
     if args.dry_run:
@@ -127,11 +128,12 @@ def _start_cascade(args) -> int:
 
     try:
         stack = _connect(args)
+        load.base_url = workload.api_base_url(stack.session)
     except (BotoCoreError, ClientError, RuntimeError) as e:
         return _fail(f"could not reach the stack with AWS profile {args.profile!r}: {e}")
     try:
-        final = runner.run(plan, stack)
-    except LockHeld as e:
+        final = runner.run(plan, stack, workload=load)
+    except (LockHeld, runner.FellBehind) as e:
         return _fail(e)
     print("\nconcurrency:\n" + cascade.describe_timeline(final))
     return 0
@@ -169,6 +171,17 @@ def _parser() -> argparse.ArgumentParser:
                              help="AWS profile that assumes the simulator role (default: sim)")
         command.add_argument("--region", default="us-east-2")
 
+    def traffic_arguments(command):
+        command.add_argument("--rps", type=number, default=workload.DEFAULT_RPS, metavar="RPS",
+                             help="baseline traffic sent for the whole run, in requests per second "
+                                  f"(default: {workload.DEFAULT_RPS}, the plan's normal rate)")
+        command.add_argument("--users", type=int, default=workload.DEFAULT_USERS, metavar="N",
+                             help="simulated users the traffic is spread over "
+                                  f"(default: {workload.DEFAULT_USERS})")
+        command.add_argument("--mix", type=number, nargs=len(workload.ROUTES), metavar="W",
+                             help="endpoint weights in the order " + ", ".join(workload.ROUTES)
+                                  + " (default: 60 15 10 10 5)")
+
     start = commands.add_parser(
         "start-incident", help="run one experiment",
         description="Run one experiment: baseline, the fault's window, recovery. "
@@ -192,15 +205,7 @@ def _parser() -> argparse.ArgumentParser:
                        help="RNG seed (default: a random one, recorded in the manifest)")
     start.add_argument("--created-by", metavar="NAME",
                        help="recorded in the manifest (default: your username)")
-    start.add_argument("--rps", type=number, default=workload.DEFAULT_RPS, metavar="RPS",
-                       help="baseline traffic sent for the whole run, in requests per second "
-                            f"(default: {workload.DEFAULT_RPS}, the plan's normal rate)")
-    start.add_argument("--users", type=int, default=workload.DEFAULT_USERS, metavar="N",
-                       help="simulated users the traffic is spread over "
-                            f"(default: {workload.DEFAULT_USERS})")
-    start.add_argument("--mix", type=number, nargs=len(workload.ROUTES), metavar="W",
-                       help="endpoint weights in the order " + ", ".join(workload.ROUTES)
-                            + " (default: 60 15 10 10 5)")
+    traffic_arguments(start)
     start.add_argument("--dry-run", action="store_true",
                        help="print the manifest the run would start with; touches no AWS")
     aws_arguments(start)
@@ -218,6 +223,7 @@ def _parser() -> argparse.ArgumentParser:
     casc.add_argument("--max-run", type=number, metavar="SECONDS",
                       help=f"longest run allowed (default: {cascade.MAX_RUN_S}); the workload "
                            f"sends traffic the whole time, so this bounds the cost")
+    traffic_arguments(casc)
     casc.add_argument("--dry-run", action="store_true",
                       help="print the manifest and concurrency the run would start with; "
                            "touches no AWS")

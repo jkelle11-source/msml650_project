@@ -278,3 +278,134 @@ def test_api_base_url_reads_ssm():
 def test_routes_are_the_api_routes():
     assert ROUTES == ("GET /products", "GET /products/{id}", "POST /cart", "GET /orders/{id}",
                       "POST /orders")
+
+
+# --- retries (M3-5's retry amplification) ------------------------------------------------------
+
+_REQUEST = ("GET /products", "GET", "/products", None)
+
+
+def test_retries_are_off_by_default():
+    load = Workload(rps=20, seed=1, log=_quiet)
+    with load._lock:
+        load._queue_retry(_REQUEST, None)
+    assert load._retry_queue == []
+    assert load.retry_stats() == {"requests_retried": 0, "retries_sent": 0,
+                                  "retries_dropped": 0, "retries_cancelled": 0}
+
+
+def test_a_whole_number_of_retries_is_queued_one_at_a_time():
+    load = Workload(rps=20, seed=1, retry_delay_s=1.0, log=_quiet)
+    load.set_retry_policy(2)
+    before = time.monotonic()
+    with load._lock:
+        load._queue_retry(_REQUEST, None)            # the arrival failed
+    (due, _, request, left), = load._retry_queue
+    assert request == _REQUEST and left == 1        # one more after this one
+    assert due >= before + 1.0
+    load._retry_queue.clear()
+    with load._lock:
+        load._queue_retry(_REQUEST, 1)              # the first retry failed too
+        load._queue_retry(_REQUEST, 0)              # the last one failed: nothing more
+    assert [entry[3] for entry in load._retry_queue] == [0]
+    assert load.retry_stats()["requests_retried"] == 1
+
+
+def test_a_fraction_is_an_extra_retry_that_often():
+    load = Workload(rps=20, seed=1, log=_quiet)
+    load.set_retry_policy(2.5)
+    budgets = Counter()
+    for _ in range(2000):
+        with load._lock:
+            load._queue_retry(_REQUEST, None)
+            (_, _, _, left), = load._retry_queue
+            load._retry_queue.clear()
+        budgets[left + 1] += 1
+    assert set(budgets) == {2, 3}
+    assert 0.45 < budgets[3] / 2000 < 0.55
+
+
+def test_retries_do_not_change_the_request_sequence():
+    plain = _sequence(7)
+    load = Workload(rps=20, seed=7, log=_quiet)
+    load.set_retry_policy(1.5)
+    drawn = []
+    for _ in range(200):
+        drawn.append(load._next_request())
+        with load._lock:
+            load._queue_retry(_REQUEST, None)
+    assert drawn == plain
+
+
+def test_turning_retries_off_cancels_the_waiting_ones():
+    load = Workload(rps=20, seed=1, log=_quiet)
+    load.set_retry_policy(3)
+    with load._lock:
+        load._queue_retry(_REQUEST, None)
+        load._queue_retry(_REQUEST, None)
+    load.set_retry_policy(0)
+    assert load._retry_queue == []
+    assert load.retry_stats()["retries_cancelled"] == 2
+    with load._lock:
+        load._queue_retry(_REQUEST, None)           # off: a new failure is not retried
+    assert load._retry_queue == []
+
+
+@pytest.mark.parametrize("bad", [-1, True, "2", float("nan"), float("inf"), None])
+def test_bad_retry_policy_is_refused(bad):
+    with pytest.raises(ValueError, match="retries_per_failure"):
+        Workload(rps=20, log=_quiet).set_retry_policy(bad)
+
+
+class _FailingCart(_FakeApi):
+    # POST /cart always answers 503, and GET /products/{id} 404; everything else succeeds.
+    def do_GET(self):
+        self._record(None)
+        self._reply(404 if "/products/" in self.path else 200, {})
+
+    def do_POST(self):
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        self._record(body)
+        self._reply(503 if self.path.endswith("/cart") else 201, {"order_id": "o"})
+
+
+def _run_against_failing_cart(mix, seconds=1.5):
+    handler = type("Api", (_FailingCart,), {"received": []})
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        load = Workload(rps=40, seed=3, retry_delay_s=0.05, log=_quiet, mix=mix,
+                        base_url=f"http://127.0.0.1:{server.server_address[1]}")
+        load.set_retry_policy(2)
+        load.start()
+        time.sleep(seconds)
+        load.set_retry_policy(0)
+        time.sleep(0.3)
+        load.stop()
+    finally:
+        server.shutdown()
+        server.server_close()
+    return load, handler.received
+
+
+def test_failed_requests_are_resent_until_their_retries_run_out():
+    # Every POST /cart answers 503, so each new one is sent once and retried twice.
+    load, received = _run_against_failing_cart({"POST /cart": 1})
+    stats = load.retry_stats()
+    assert stats["requests_retried"] > 20
+    # Never more than two each. Turning retries off cuts the last few short: those
+    # waiting are cancelled, and those in flight then are not followed up.
+    assert stats["retries_sent"] <= 2 * stats["requests_retried"]
+    assert stats["retries_sent"] >= 2 * stats["requests_retried"] - 10
+    assert stats["retries_dropped"] == 0
+    # Retries are real requests: the API got them, and the client counts them as sent.
+    assert load.outcomes()["sent"] == len(received)
+    assert len(received) >= stats["requests_retried"] + stats["retries_sent"]
+
+
+def test_client_errors_and_successes_are_not_resent():
+    # GET /products/{id} answers 404 and GET /products 200: nothing to retry.
+    load, received = _run_against_failing_cart({"GET /products/{id}": 1, "GET /products": 1})
+    assert len(received) > 20
+    assert load.retry_stats() == {"requests_retried": 0, "retries_sent": 0,
+                                  "retries_dropped": 0, "retries_cancelled": 0}

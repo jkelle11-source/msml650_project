@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from simulator import cascade, cli, injectors
+from simulator import cascade, cli, injectors, workload
 from simulator import manifest as mf
 from simulator import runner
 from simulator.cascade import Stage
@@ -14,6 +14,8 @@ from simulator.runner import Plan
 BAND = {"parameter": "added_latency_ms", "low": 200, "high": 500}
 RETRY_BAND = {"parameter": "retries_per_failure", "low": 0.5, "high": 2.5}
 NOW_MS = 1_790_000_000_000      # a fixed start, so previews are comparable
+# retry-amplification needs a workload; preview() never starts it.
+LOAD = workload.Workload(rps=20, seed=7, log=lambda *a: None)
 
 
 # --- helpers ---------------------------------------------------------------
@@ -92,9 +94,9 @@ def test_jitter_never_reorders_the_stages(fakes):
 
 def test_jitter_does_not_change_what_a_fault_resolves(fakes):
     # The injector params come from the runner's own per-activation RNG.
-    plain = runner.preview(_plan(seed=7), now_ms=NOW_MS)
+    plain = runner.preview(_plan(seed=7), now_ms=NOW_MS, workload=LOAD)
     jittered = runner.preview(_plan([Stage(**{**s.__dict__, "onset_jitter_s": 20})
-                                     for s in _stages()], seed=7), now_ms=NOW_MS)
+                                     for s in _stages()], seed=7), now_ms=NOW_MS, workload=LOAD)
     assert [a["params"] for a in plain["activations"]] == [a["params"] for a in jittered["activations"]]
 
 
@@ -145,7 +147,7 @@ def test_an_unknown_injector_says_what_is_registered(fakes):
 
 
 def test_the_preview_is_a_valid_manifest_with_overlapping_windows(fakes):
-    preview = runner.preview(_plan(), now_ms=NOW_MS)
+    preview = runner.preview(_plan(), now_ms=NOW_MS, workload=LOAD)
     mf.validate_or_raise(preview)
     assert preview["incident_type"] == "CASCADING_FAILURE"
     assert [a["injector"] for a in preview["activations"]] == [
@@ -233,14 +235,14 @@ def test_excluded_injectors_are_not_counted():
 
 
 def test_the_planned_cascade_has_a_single_fault_stretch_first(fakes):
-    preview = runner.preview(_plan(), now_ms=NOW_MS)
+    preview = runner.preview(_plan(), now_ms=NOW_MS, workload=LOAD)
     timeline = cascade.concurrency_timeline(preview)
     assert [s["count"] for s in timeline] == [1, 2, 3, 4]
     assert [_secs(a) for a, _ in cascade.multi_fault_windows(preview)] == [360]
 
 
 def test_the_timeline_reads_as_text(fakes):
-    text = cascade.describe_timeline(runner.preview(_plan(), now_ms=NOW_MS))
+    text = cascade.describe_timeline(runner.preview(_plan(), now_ms=NOW_MS, workload=LOAD))
     assert "1 active: test-spike\n" in text + "\n"
     assert "<- multi-fault" in text
     assert cascade.describe_timeline({"activations": []}) == "no faults were active"
@@ -415,3 +417,85 @@ def test_a_dry_run_with_the_same_seed_gives_the_same_params(fakes, no_aws, tmp_p
 def test_a_bad_cascade_is_refused_before_aws(fakes, no_aws, tmp_path, capsys, make, message):
     assert cli.main(["start-cascade", *make(tmp_path), "--dry-run"]) == 1
     assert message in capsys.readouterr().err
+
+
+# --- the command line gives the cascade traffic (M3-2's workload) -----------
+
+def _spike_spec(tmp_path):
+    # The real traffic-spike and retry-amplification injectors, which both act
+    # through the workload, so a run without one is refused.
+    return _spec_file(tmp_path, stages=[
+        {"injector": "traffic-spike", "intensity": 0.5,
+         "band": {"parameter": "multiplier", "low": 2, "high": 4}},
+        {"injector": "test-lambda", "intensity": 0.5, "onset_delay_s": 60, "band": BAND},
+        {"injector": "retry-amplification", "intensity": 0.5, "onset_delay_s": 60,
+         "band": RETRY_BAND}])
+
+
+def test_a_dry_run_of_a_cascade_with_a_spike_records_its_traffic(fakes, no_aws, tmp_path, capsys):
+    assert cli.main(["start-cascade", "--spec", _spike_spec(tmp_path), "--seed", "7",
+                     "--rps", "30", "--dry-run"]) == 0
+    manifest = json.loads(capsys.readouterr().out.split("\nplanned concurrency")[0])
+    assert manifest["workload"]["request_rate_rps"] == 30
+    assert [a["injector"] for a in manifest["activations"]] == [
+        "traffic-spike", "test-lambda", "retry-amplification"]
+
+
+@pytest.fixture
+def captured_run(monkeypatch):
+    # Stands in for AWS: a stack with a session, the API URL, and runner.run.
+    calls = []
+    stack = type("Stack", (), {"session": object()})()
+    monkeypatch.setattr(cli, "_connect", lambda args: stack)
+    monkeypatch.setattr(cli.workload, "api_base_url", lambda session: "https://api.example/dev")
+
+    def run(plan, stack_, **kwargs):
+        calls.append((plan, stack_, kwargs))
+        return runner.preview(plan, now_ms=NOW_MS, workload=kwargs.get("workload"))
+
+    monkeypatch.setattr(cli.runner, "run", run)
+    return calls
+
+
+def test_a_cascade_run_is_given_a_workload(fakes, captured_run, tmp_path):
+    assert cli.main(["start-cascade", "--spec", _spike_spec(tmp_path), "--seed", "7"]) == 0
+    (plan, _, kwargs), = captured_run
+    load = kwargs["workload"]
+    assert isinstance(load, workload.Workload)
+    assert load.base_url == "https://api.example/dev"
+    assert load.rps == workload.DEFAULT_RPS
+    assert load.seed == plan.seed == 7     # the request sequence repeats with the run
+
+
+def test_a_cascade_that_fell_behind_is_explained_not_traced(fakes, captured_run, monkeypatch,
+                                                           tmp_path, capsys):
+    def slept(plan, stack, **kwargs):
+        raise runner.FellBehind("the end of the recovery came 1500 s late ...")
+
+    monkeypatch.setattr(cli.runner, "run", slept)
+    assert cli.main(["start-cascade", "--spec", _spike_spec(tmp_path), "--seed", "7"]) == 1
+    assert capsys.readouterr().err.startswith("error: the end of the recovery came 1500 s late")
+
+
+def test_retry_amplification_alone_is_not_a_cascade(no_aws, capsys):
+    assert cli.main(["start-incident", "--type", "retry-amplification", "--intensity", "0.5",
+                     "--band", "0.5", "2.5", "--duration", "300", "--dry-run"]) == 1
+    assert "needs two or more faults active at the same time" in capsys.readouterr().err
+
+
+def test_the_timeline_and_the_telemetry_reports_phases_agree(fakes):
+    # M4 labels from concurrency_timeline(); people check runs with
+    # telemetry_report, which cuts phases at the same fault boundaries.
+    from simulator import telemetry_report
+    preview = runner.preview(_plan(stages=[*_stages()[:2], Stage(
+        "test-lambda", intensity=0.5, band=BAND, onset_delay_s=60, duration_s=120)]),
+        now_ms=NOW_MS, workload=LOAD)
+    last_ms = max(mf.to_epoch_ms(a["active_until"]) for a in preview["activations"])
+    final = mf.finalize(preview, "COMPLETED", last_ms + 300_000)
+
+    timeline = [(s["from"], s["until"], s["injectors"]) for s in cascade.concurrency_timeline(final)]
+    phases = [(mf.to_iso(int(a.timestamp() * 1000)), mf.to_iso(int(b.timestamp() * 1000)),
+               name.removeprefix("fault: ").split(" + "))
+              for name, a, b in telemetry_report.phases(final) if name.startswith("fault: ")]
+    assert phases == timeline
+    assert [len(injectors_) for _, _, injectors_ in timeline] == [1, 2, 3, 2]

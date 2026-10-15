@@ -8,7 +8,8 @@ meant to produce.
 
 The runner calls describe(), start() and stop(). Injectors reach the rest
 through ctx.workload; the traffic spike uses set_rate_multiplier() and
-outcomes().
+outcomes(), and retry amplification (M3-5) uses set_retry_policy() and
+retry_stats().
 
 Default endpoint mix, from project plan section 7:
 
@@ -18,7 +19,9 @@ Default endpoint mix, from project plan section 7:
 (The plan writes "GET /orders"; the API's route is GET /orders/{id}, so the
 generator reads back orders it created.)
 """
+import heapq
 import http.client
+import itertools
 import json
 import random
 import threading
@@ -38,6 +41,12 @@ DEFAULT_USERS = 50
 PRODUCT_IDS = tuple(f"prod-{i:03d}" for i in range(1, 26))
 
 _API_URL_PARAM = "/anomalypulse/api/base-url"
+
+# How long a user waits before resending a failed request, when retries are on.
+DEFAULT_RETRY_DELAY_S = 1.0
+# The scheduler sleeps at most this long at a time, so a retry queued while it
+# waits for the next arrival goes out at most this late.
+_MAX_WAIT_S = 0.05
 
 
 def api_base_url(session) -> str:
@@ -59,7 +68,7 @@ class Workload:
 
     def __init__(self, *, rps: float, users: int = DEFAULT_USERS, mix: dict | None = None, seed: int = 0,
                  base_url: str | None = None, timeout_s: float = 10, max_in_flight: int = 256,
-                 log=print):
+                 retry_delay_s: float = DEFAULT_RETRY_DELAY_S, log=print):
         mix = dict(DEFAULT_MIX if mix is None else mix)
         if not _is_number(rps) or rps <= 0:
             raise ValueError(f"workload: rps must be a positive number, got {rps!r}")
@@ -72,6 +81,8 @@ class Workload:
             raise ValueError("workload: mix weights must be numbers, 0 or more, not all 0")
         if not isinstance(max_in_flight, int) or max_in_flight < 1:
             raise ValueError("workload: max_in_flight must be a whole number, 1 or more")
+        if not _is_number(retry_delay_s) or retry_delay_s < 0:
+            raise ValueError(f"workload: retry_delay_s must be a number, 0 or more, got {retry_delay_s!r}")
 
         total = sum(mix.values())
         self.rps = rps
@@ -81,6 +92,7 @@ class Workload:
         self.base_url = base_url.rstrip("/") if base_url else None
         self.timeout_s = timeout_s
         self.max_in_flight = max_in_flight
+        self.retry_delay_s = retry_delay_s
         self._log = log
 
         # The request sequence comes from its own seeded RNG, so the same seed
@@ -97,6 +109,14 @@ class Workload:
         self._results = Counter()            # (route, status class) -> count
         self._order_ids = deque(maxlen=1000)  # ids POST /orders created, for GET /orders/{id}
 
+        # Retries (off until set_retry_policy). They draw from their own RNG, so
+        # turning them on never changes the baseline sequence above.
+        self._retries_per_failure = 0.0
+        self._retry_rng = random.Random(f"{seed}:retries")
+        self._retry_queue = []                # heap of (due, n, request, retries left after it)
+        self._retry_order = itertools.count()
+        self._retry_counts = Counter()
+
         self._stop = threading.Event()
         self._thread = None
         self._pool = None
@@ -112,6 +132,7 @@ class Workload:
             "users": self.users,
             "mix": dict(self.mix),
             "max_in_flight": self.max_in_flight,
+            "retry_delay_s": self.retry_delay_s,
         }
 
     def start(self) -> None:
@@ -147,6 +168,38 @@ class Workload:
             raise ValueError(f"workload: rate multiplier must be a positive number, got {multiplier!r}")
         with self._lock:
             self._multiplier = float(multiplier)
+
+    def set_retry_policy(self, retries_per_failure: float) -> None:
+        """Resend failed requests, `retries_per_failure` times on average; 0 turns retries off.
+
+        A failure is a 5xx or no response at all (a timeout, a reset), never a
+        4xx. Each failed request gets a whole number of retries: 2.5 means two,
+        and a third half of the time. Each retry goes out `retry_delay_s` after
+        the attempt before it failed, and a success ends them, as a user stops
+        retrying once the page loads. Retries are extra arrivals on top of the
+        open-loop rate, so the slower the services get, the more traffic there is.
+        Turning retries off cancels the ones still waiting. Safe to call any time.
+        """
+        if not _is_number(retries_per_failure) or not 0 <= retries_per_failure < float("inf"):
+            raise ValueError(f"workload: retries_per_failure must be a number, 0 or more, "
+                             f"got {retries_per_failure!r}")
+        with self._lock:
+            self._retries_per_failure = float(retries_per_failure)
+            if not retries_per_failure:
+                self._retry_counts["retries_cancelled"] += len(self._retry_queue)
+                self._retry_queue.clear()
+
+    def retry_stats(self) -> dict:
+        """What retries have done so far. Plain JSON.
+
+        `requests_retried`: failed requests given at least one retry.
+        `retries_sent`: retries that went out (also counted in outcomes()["sent"]).
+        `retries_dropped`: retries not sent because max_in_flight was reached.
+        `retries_cancelled`: retries still waiting when retries were turned off.
+        """
+        with self._lock:
+            return {key: self._retry_counts[key] for key in
+                    ("requests_retried", "retries_sent", "retries_dropped", "retries_cancelled")}
 
     @property
     def current_rps(self) -> float:
@@ -219,22 +272,56 @@ class Workload:
         return route, "GET", f"/orders/{order_id or unknown_id}", None
 
     def _schedule(self) -> None:
-        next_at = time.monotonic()
+        # The gap and the request are drawn in the same order as without
+        # retries (gap, request, gap, ...), so retries never shift the sequence.
+        next_at = time.monotonic() + self._gap_s()
         while not self._stop.is_set():
-            next_at += self._gap_s()
-            delay = next_at - time.monotonic()
-            if delay > 0 and self._stop.wait(delay):
-                break
-            request = self._next_request()
+            now = time.monotonic()
             with self._lock:
-                if self._in_flight >= self.max_in_flight:
-                    # The client can't keep up. Dropping keeps the arrival rate
-                    # honest instead of letting a backlog build and burst later.
-                    self._dropped += 1
-                    continue
-                self._in_flight += 1
-                self._sent += 1
-            self._pool.submit(self._send, *request)
+                retry_due = self._retry_queue[0][0] if self._retry_queue else float("inf")
+                retry = heapq.heappop(self._retry_queue) if retry_due <= now else None
+            if retry is not None:
+                _, _, request, retries_left = retry
+                self._dispatch(request, retries_left)
+                continue
+            due = min(next_at, retry_due)
+            if due > now:
+                if self._stop.wait(min(due - now, _MAX_WAIT_S)):
+                    break
+                continue
+            self._dispatch(self._next_request())
+            next_at += self._gap_s()
+
+    def _dispatch(self, request, retries_left=None) -> None:
+        """Send one request from a worker thread. `retries_left` is None for a new arrival."""
+        with self._lock:
+            if self._in_flight >= self.max_in_flight:
+                # The client can't keep up. Dropping keeps the arrival rate
+                # honest instead of letting a backlog build and burst later.
+                self._dropped += 1
+                if retries_left is not None:
+                    self._retry_counts["retries_dropped"] += 1
+                return
+            self._in_flight += 1
+            self._sent += 1
+            if retries_left is not None:
+                self._retry_counts["retries_sent"] += 1
+        self._pool.submit(self._send, *request, retries_left)
+
+    def _queue_retry(self, request, retries_left) -> None:
+        """After a failure: queue the next retry, if this request has one left. Holds the lock."""
+        if not self._retries_per_failure:
+            return
+        if retries_left is None:
+            # A new arrival's first failure decides how many retries it gets.
+            whole, part = divmod(self._retries_per_failure, 1)
+            retries_left = int(whole) + (self._retry_rng.random() < part)
+            if not retries_left:
+                return
+            self._retry_counts["requests_retried"] += 1
+        if retries_left > 0:
+            heapq.heappush(self._retry_queue, (time.monotonic() + self.retry_delay_s,
+                                               next(self._retry_order), request, retries_left - 1))
 
     def _connection(self):
         conn = getattr(self._local, "conn", None)
@@ -246,7 +333,7 @@ class Workload:
             self._local.prefix = url.path
         return conn
 
-    def _send(self, route, method, path, body) -> None:
+    def _send(self, route, method, path, body, retries_left=None) -> None:
         status_class = "error"
         try:
             # One keep-alive connection per worker thread, so a request doesn't
@@ -274,3 +361,5 @@ class Workload:
             with self._lock:
                 self._in_flight -= 1
                 self._results[(route, status_class)] += 1
+                if status_class in ("5xx", "error"):
+                    self._queue_retry((route, method, path, body), retries_left)

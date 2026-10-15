@@ -5,31 +5,22 @@ This is the last link of the cascade in the project plan:
     ... requests time out -> users retry -> traffic increases further -> (loop)
 
 The injector does not send any traffic itself. It switches on a retry behaviour
-in the workload: from `start()` until `stop()`, a workload request that times
-out or fails is sent again, `retries_per_failure` times on average (2.5 means
-two retries, and a third half of the time). The feedback loop is real because
+in the workload: from `start()` until `stop()`, a workload request that fails
+(a 5xx or no response) is sent again, `retries_per_failure` times on average
+(2.5 means two retries, and a third half of the time), each a second after the
+attempt before it failed, until one succeeds. The feedback loop is real because
 the retries answer to what the application actually does. The slower the
-downstream services get, the more requests time out, and the more retries the
+downstream services get, the more requests fail, and the more retries the
 workload sends.
 
-What it needs from the workload (agree this with M3-2). `ctx.workload` must have:
-
-    set_retry_policy(retries_per_failure: float)
-        Retry failed or timed-out requests that many times on average. 0
-        switches retries off. Must be safe to call at any time, and repeatedly.
-
-and may have:
-
-    retry_stats() -> dict
-        What the retries did, e.g. {"retries_sent": 1830, "requests_retried": 940}.
-        Plain JSON. Recorded as `observed`.
-
-The names are this injector's request, not an existing API: if the workload
-calls them something else, change them in `start()`, `stop()` and `observe()`.
+It uses `Workload.set_retry_policy()` and `Workload.retry_stats()`
+(simulator/workload.py), which define exactly what counts as a failure and how
+retries are counted. `retry_stats()` is recorded as `observed`.
 
 Use it inside a cascade plan (simulator/cascade.py), after the stages that make
-requests time out. Its label is CASCADING_FAILURE because that is the only
-experiment it makes sense in.
+requests fail. Its label is CASCADING_FAILURE because that is the only
+experiment it makes sense in, and a CASCADING_FAILURE manifest needs two or more
+faults active at once, so a run of this injector alone is refused.
 """
 from simulator.injectors import Injector, register
 
@@ -40,6 +31,8 @@ class RetryAmplification(Injector):
     incident_type = "CASCADING_FAILURE"
     parameter = "retries_per_failure"
     # targets stays (): the retries come from the users, not from one service.
+    # The runner refuses a plan with this injector and no workload.
+    needs_workload = True
 
     @classmethod
     def configure(cls, intensity, band, rng):

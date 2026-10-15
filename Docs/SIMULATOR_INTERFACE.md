@@ -280,6 +280,7 @@ sequence (routes, users, items) comes from an RNG seeded with the plan's seed. I
 | `set_rate_multiplier(m)` | Injectors: scale the arrival rate; `1` is baseline. The traffic spike uses it. |
 | `outcomes()` | Injectors: what the client has seen so far, `{"sent", "dropped", "responses": {"2xx": …, "5xx": …, "error": …}}`. A response counts when it comes back; `error` is no HTTP response at all. The traffic spike records the difference across its window. |
 | `requests_sent()`, `current_rps` | Injectors: how much has been sent, and the rate right now |
+| `set_retry_policy(r)`, `retry_stats()` | Injectors: resend failed requests (5xx or no response) `r` times on average, a second apart, until one succeeds; `0` turns retries off. Retry amplification (M3-5) uses them; `Docs/CASCADE.md` has the details. |
 
 `GET /orders/{id}` reads back orders the run created. Until the first one exists (about a second
 into a run) it gets a 404, as a stale link would. Which order a read picks is the one thing in
@@ -348,7 +349,8 @@ The schema is closed (`additionalProperties: false`) everywhere except `workload
 schema, `manifest.validate()` checks: the run ends after it starts; each window has a positive
 length and does not open before the run; a `COMPLETED` run's windows end inside it; each
 `fault_id` belongs to this experiment and is unique; `band.low <= band.high`; `severity`
-matches the intensities; every timestamp is a real date; and the whole thing is JSON-serializable
+matches the intensities; a `CASCADING_FAILURE` run has two or more faults active at the same
+time; every timestamp is a real date; and the whole thing is JSON-serializable
 (a `Decimal` straight from DynamoDB, or NaN, is a validation error rather than a crash mid-write).
 
 ### Reading a manifest (M4)
