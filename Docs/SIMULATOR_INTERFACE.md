@@ -384,9 +384,10 @@ matches the intensities; every timestamp is a real date; and the whole thing is 
   cold functions: at 20 rps the first minute had 9 Product cold starts and peaked at 18
   concurrent executions, against 5–9 later. Back-to-back runs start warm. Dropping each run's
   first minute (M4-4) costs one of its five baseline windows and keeps every run's baseline alike.
-- **A `db-throttling` fault starts at `observed.first_throttle_at`**, not at `active_from`. Until
-  then DynamoDB's burst capacity absorbs the load; label from the first throttle and exclude the
-  stretch before it, as recovery is excluded. `Docs/DB_THROTTLING_INJECTOR.md` explains why.
+- **A `db-throttling` fault starts at `observed.label_from`**, not at `active_from`: 5 s after the
+  first throttle. Until then DynamoDB's burst capacity absorbs the load and the injector's surge
+  settles; exclude the stretch before it, as recovery is excluded.
+  `Docs/DB_THROTTLING_INJECTOR.md` explains why.
 - **`severity` is relative to the band**, not to the native value: 0.9 in a 2×–4× band is `HIGH`,
   0.1 in a 6×–8× band is `LOW`. To compare magnitudes across bands, read `params`.
 - **A `NORMAL` run has no activations**, including a run of the `noop` injector.

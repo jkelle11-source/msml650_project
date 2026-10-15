@@ -23,7 +23,7 @@ full bank in about half a minute, until the first read is throttled; from then
 on it holds the band's ratio. The surge ends on DynamoDB's own answer, not on a
 prediction, so it works however full the bank is (burst is best-effort). Its
 length and the first throttle's time are recorded, and M4 labels the window
-DATABASE_THROTTLING from that first throttle.
+DATABASE_THROTTLING from observed["label_from"], 5 s after that first throttle.
 
 A batch DynamoDB could partly serve returns the keys it couldn't read in
 UnprocessedKeys; a batch it couldn't serve at all raises
@@ -58,6 +58,11 @@ _MAX_WAIT_S = 0.05
 _MAX_BEHIND_S = 1.0
 # Minutes before the window that measure the application's own reads.
 _APP_BASELINE_MIN = 3
+# M4 labels the window from this long after the first throttle. When the
+# burst bank runs out, the app briefly meets the surge's throttling before the
+# load drops to the band's ratio, and its retries take up to 3.15 s; M3-3's
+# validation saw 3 failed requests in that instant at 1.75x, none after it.
+_LABEL_SETTLE_S = 5
 _THROTTLE_CODES = {"ProvisionedThroughputExceededException", "ThrottlingException"}
 _JOIN_TIMEOUT_S = 5
 
@@ -220,6 +225,10 @@ class DbThrottle(Injector):
             # M4 labels the window DATABASE_THROTTLING from here.
             "first_throttle_at": (None if self._first_throttle_ms is None
                                   else manifest.to_iso(self._first_throttle_ms)),
+            # Where M4 starts labeling DATABASE_THROTTLING: the surge's
+            # aftermath has settled. Null when nothing was throttled.
+            "label_from": (None if self._first_throttle_ms is None
+                           else manifest.to_iso(self._first_throttle_ms + _LABEL_SETTLE_S * 1000)),
             "surge_end": self._surge_end,
             "surge_s": None,
             "steady_reads_per_s": None,

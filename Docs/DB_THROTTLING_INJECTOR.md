@@ -44,6 +44,7 @@ baseline, so about +0.04 on the ratio at 200 RCU. `observed.offered_ratio` recor
   "surge_end": "throttled",
   "surge_s": 31.4,
   "first_throttle_at": "2026-10-16T14:21:05.218Z",
+  "label_from": "2026-10-16T14:21:10.218Z",
   "steady_reads_per_s": 598.7,
   "achieved_fraction": 0.998,
   "steady_throttle_rate": 0.6612,
@@ -64,7 +65,7 @@ baseline, so about +0.04 on the ratio at 200 RCU. `observed.offered_ratio` recor
 (Illustrative numbers.)
 
 - `first_throttle_at`: when DynamoDB first refused one of the injector's reads, which is when the burst bank ran out.
-  **M4 labels the window `DATABASE_THROTTLING` from here** (below).
+- `label_from`: `first_throttle_at` plus 5 s. **M4 labels the window `DATABASE_THROTTLING` from here** (below).
 - `surge_end`, `surge_s`: how the surge ended (`throttled`, or `time_limit` after 120 s) and how long it lasted.
 - `target_reads_per_s`, `steady_reads_per_s`, `achieved_fraction`: what the ratio asked for and what the client
   really sent after the surge. **M4's batch runner reruns a run whose `achieved_fraction` is below 0.97.**
@@ -128,10 +129,13 @@ So the window opens with the **surge**: 10× capacity spends a full bank in abou
 answer, the first throttled read, so it works whether the bank is full, partly spent, or used by AWS for
 maintenance. From then on the throttle rate reflects the band's ratio.
 
-**Labeling (M4-4): a `DATABASE_THROTTLING` window starts at `observed.first_throttle_at`, not at `active_from`.** The
-stretch from `active_from` to the first throttle, which holds the surge, is excluded from the training set, as
-recovery is. The surge's consumed-capacity spike therefore never reaches the features. A run whose surge ended on its
-time limit (`surge_end: "time_limit"`, `first_throttle_at: null`) never throttled, and M4 reruns it.
+**Labeling (M4-4): a `DATABASE_THROTTLING` window starts at `observed.label_from`, not at `active_from`.** That is
+5 s after the first throttle. When the bank runs out, the application briefly meets the surge's throttling before
+the load drops to the band's ratio, and its retries take up to 3.15 s: at 1.75× in validation, 3 requests failed in
+that instant and none after it. The stretch from `active_from` to `label_from`, which holds the surge and that
+moment, is excluded from the training set, as recovery is, so neither the surge's consumed-capacity spike nor those
+failures reach the features. A run whose surge ended on its time limit (`surge_end: "time_limit"`, `label_from:
+null`) never throttled, and M4 reruns it.
 
 ## How the application sees it
 

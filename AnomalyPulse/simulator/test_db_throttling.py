@@ -163,7 +163,7 @@ def test_a_surge_that_never_throttles_ends_at_its_time_limit(aws, monkeypatch):
     observed = injector.observe()
     assert observed["surge_end"] == "time_limit"
     assert 0.25 <= observed["surge_s"] <= 0.45
-    assert observed["first_throttle_at"] is None
+    assert observed["first_throttle_at"] is None and observed["label_from"] is None
 
 
 def test_calls_beyond_the_pool_are_dropped_and_counted(aws, no_surge, monkeypatch):
@@ -262,6 +262,8 @@ def test_observe_reports_the_steady_phase_against_its_target(aws):
     assert observed["steady_throttle_rate"] == 0.5
     assert observed["reads_attempted"] == 490 and observed["read_errors"] == 5
     assert observed["first_throttle_at"] == manifest.to_iso(injector._first_throttle_ms)
+    # Labeling starts 5 s later, once the surge's aftermath has settled.
+    assert observed["label_from"] == manifest.to_iso(injector._first_throttle_ms + 5_000)
     assert "cw_throttled_requests" not in observed     # no table, no CloudWatch
 
 
