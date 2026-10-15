@@ -1,3 +1,4 @@
+import json
 import random
 import time
 from datetime import datetime, timedelta, timezone
@@ -7,16 +8,17 @@ from botocore.exceptions import ClientError, EndpointConnectionError
 
 from simulator import manifest
 from simulator.injectors import Context
+from simulator.injectors import db_throttling
 from simulator.injectors.db_throttling import DbThrottle
 
-PRODUCTS_TABLE = "anomalypulse-products"
+PRODUCTS_TABLE = "anomalypulse-products-v2"
 SSM_TABLE_PARAM = "/anomalypulse/tables/products/name"
 BAND = {"parameter": "load_ratio", "low": 1.5, "high": 2.5}
 EXPERIMENT_ID = "exp-20261012T041500Z-3f9a"
 
 
-def _injector(session, window_ms=60_000):
-    now_ms = int(time.time() * 1000)
+def _injector(session, window_ms=60_000, active_from_ms=None):
+    now_ms = int(time.time() * 1000) if active_from_ms is None else active_from_ms
     activation = DbThrottle.plan(
         EXPERIMENT_ID, 0,
         active_from_ms=now_ms, active_until_ms=now_ms + window_ms,
@@ -42,6 +44,13 @@ def _make_products_table(session, *, rcu=10, provisioned=True, items=5):
     session.client("ssm").put_parameter(Name=SSM_TABLE_PARAM, Value=PRODUCTS_TABLE, Type="String")
 
 
+@pytest.fixture
+def no_surge(monkeypatch):
+    # moto never throttles, so a surge would only end on its time limit. Most
+    # tests want the steady phase from the start.
+    monkeypatch.setattr(db_throttling, "_SURGE_MAX_S", 0)
+
+
 class _FakeClient:
     """Answers batch_get_item with whatever `answer` says: a response dict or an exception."""
 
@@ -65,6 +74,11 @@ def _client_error(code):
     return ClientError({"Error": {"Code": code, "Message": code}}, "BatchGetItem")
 
 
+def _counts(injector, phase="steady"):
+    c = injector._counts[phase]
+    return c["attempted"], c["throttled"], c["errors"]
+
+
 # --- configure ---------------------------------------------------------------
 
 def test_configure_puts_the_ratio_inside_the_band():
@@ -75,7 +89,7 @@ def test_configure_puts_the_ratio_inside_the_band():
 
 # --- start / stop --------------------------------------------------------------
 
-def test_start_reads_the_tables_capacity(aws):
+def test_start_reads_the_tables_capacity(aws, no_surge):
     _make_products_table(aws, rcu=10)
     injector = _injector(aws)
     injector.start()
@@ -98,44 +112,82 @@ def test_start_refuses_an_empty_table(aws):
         injector.start()
 
 
-def test_load_runs_at_ratio_times_capacity_and_stops(aws):
+def test_the_steady_load_runs_at_ratio_times_capacity_and_stops(aws, no_surge):
     # 10 RCU x ratio 2.0 = 20 reads/s: four 5-key batches a second.
     _make_products_table(aws, rcu=10, items=5)
     injector = _injector(aws)
-
     injector.start()
-    assert len(injector._threads) == 1
     time.sleep(1.5)
     assert injector.stop() is None
 
-    assert injector._threads == []
-    reads = injector._attempted
+    reads, throttled, _ = _counts(injector)
     assert reads % 5 == 0                 # whole batches
-    assert 15 <= reads <= 45
-    assert injector._throttled == 0       # moto never throttles
+    assert 20 <= reads <= 40
+    assert throttled == 0                 # moto never throttles
+    observed = injector.observe()
+    assert observed["surge_end"] == "time_limit" and observed["surge_s"] < 0.2
+    assert 0.8 <= observed["achieved_fraction"] <= 1.2
 
     time.sleep(0.3)
-    assert injector._attempted == reads   # the load really stopped
+    assert _counts(injector)[0] == reads  # the load really stopped
 
 
-def test_many_reads_a_second_need_few_calls(aws):
-    # 1,000 RCU x 2.0 = 2,000 reads/s: 80 calls of 25 keys, so 8 workers, not 50.
-    _make_products_table(aws, rcu=1000, items=25)
+def test_the_window_opens_with_a_surge_until_the_first_throttle(aws, monkeypatch):
+    # The surge reads at 10x capacity until DynamoDB refuses a read; then the
+    # band's ratio (here 2.0x) takes over.
+    monkeypatch.setattr(db_throttling, "_SURGE_RATIO", 10)
+    _make_products_table(aws, rcu=10, items=5)
     injector = _injector(aws)
     injector.start()
-    workers = len(injector._threads)
+    time.sleep(0.5)
+    injector._first_throttle_ms = int(time.time() * 1000)   # as if a read was refused
+    time.sleep(1.0)
     injector.stop()
-    assert workers == 8
+
+    surge_reads, steady_reads = _counts(injector, "surge")[0], _counts(injector, "steady")[0]
+    observed = injector.observe()
+    assert observed["surge_end"] == "throttled"
+    assert 0.4 <= observed["surge_s"] <= 0.7
+    assert 30 <= surge_reads <= 70            # ~100 reads/s for ~0.5 s
+    assert 10 <= steady_reads <= 30           # ~20 reads/s for ~1 s
+    assert observed["first_throttle_at"] == manifest.to_iso(injector._first_throttle_ms)
+
+
+def test_a_surge_that_never_throttles_ends_at_its_time_limit(aws, monkeypatch):
+    monkeypatch.setattr(db_throttling, "_SURGE_MAX_S", 0.3)
+    _make_products_table(aws, rcu=10, items=5)
+    injector = _injector(aws)
+    injector.start()
+    time.sleep(0.8)
+    injector.stop()
+    observed = injector.observe()
+    assert observed["surge_end"] == "time_limit"
+    assert 0.25 <= observed["surge_s"] <= 0.45
+    assert observed["first_throttle_at"] is None
+
+
+def test_calls_beyond_the_pool_are_dropped_and_counted(aws, no_surge, monkeypatch):
+    # One call in flight at a time, and each takes 0.3 s: most scheduled calls
+    # find the pool full. They are counted, not queued to go out late.
+    monkeypatch.setattr(db_throttling, "_MAX_IN_FLIGHT", 1)
+    monkeypatch.setattr(DbThrottle, "_read", lambda self, client, request, phase="steady": time.sleep(0.3))
+    _make_products_table(aws, rcu=10, items=5)
+    injector = _injector(aws)
+    injector.start()
+    time.sleep(1.0)
+    injector.stop()
+    assert injector._calls_dropped >= 2
 
 
 def test_stop_before_start_is_safe(aws):
     injector = _injector(aws)
     assert injector.stop() is None
     assert injector.stop() is None
-    assert "achieved_reads_per_s" not in injector.observe()
+    observed = injector.observe()
+    assert observed["steady_reads_per_s"] is None and observed["surge_s"] is None
 
 
-def test_stop_twice_after_start_is_safe(aws):
+def test_stop_twice_after_start_is_safe(aws, no_surge):
     _make_products_table(aws, rcu=10)
     injector = _injector(aws)
     injector.start()
@@ -149,7 +201,7 @@ def test_a_full_batch_counts_every_key_read(aws):
     injector = _injector(aws)
     injector._table = PRODUCTS_TABLE
     injector._read(_FakeClient({"Responses": {}, "UnprocessedKeys": {}}), _request(5))
-    assert (injector._attempted, injector._throttled, injector._errors) == (5, 0, 0)
+    assert _counts(injector) == (5, 0, 0)
     assert injector._first_throttle_ms is None
 
 
@@ -159,8 +211,8 @@ def test_unprocessed_keys_are_throttled_reads(aws):
     partial = {"Responses": {}, "UnprocessedKeys": {
         PRODUCTS_TABLE: {"Keys": [{"id": "prod-001"}, {"id": "prod-002"}], "ConsistentRead": True}}}
     before = int(time.time() * 1000)
-    injector._read(_FakeClient(partial), _request(5))
-    assert (injector._attempted, injector._throttled, injector._errors) == (5, 2, 0)
+    injector._read(_FakeClient(partial), _request(5), "surge")
+    assert _counts(injector, "surge") == (5, 2, 0)
     assert injector._first_throttle_ms >= before
 
 
@@ -168,7 +220,7 @@ def test_a_refused_batch_throttles_every_key(aws):
     injector = _injector(aws)
     injector._table = PRODUCTS_TABLE
     injector._read(_FakeClient(_client_error("ProvisionedThroughputExceededException")), _request(5))
-    assert (injector._attempted, injector._throttled, injector._errors) == (5, 5, 0)
+    assert _counts(injector) == (5, 5, 0)
 
 
 def test_other_failures_are_errors_not_throttles(aws):
@@ -176,7 +228,7 @@ def test_other_failures_are_errors_not_throttles(aws):
     injector._table = PRODUCTS_TABLE
     injector._read(_FakeClient(_client_error("ValidationException")), _request(5))
     injector._read(_FakeClient(EndpointConnectionError(endpoint_url="https://x")), _request(5))
-    assert (injector._attempted, injector._throttled, injector._errors) == (10, 0, 10)
+    assert _counts(injector) == (10, 0, 10)
     assert injector._first_throttle_ms is None
 
 
@@ -193,35 +245,46 @@ def test_the_first_throttle_time_is_kept(aws):
 
 # --- observe --------------------------------------------------------------------
 
-def test_observe_reports_the_clients_view(aws):
+def test_observe_reports_the_steady_phase_against_its_target(aws):
     injector = _injector(aws)
     injector._table, injector._provisioned_rcu, injector._target_reads_per_s = None, 10, 20.0
-    injector._attempted, injector._throttled, injector._errors = 100, 25, 5
-    injector._first_throttle_ms = injector.activation.active_from_ms + 90_000
-    injector._started_s, injector._stopped_s = 1000.0, 1010.0
+    injector._counts["surge"].update(attempted=300, throttled=50, errors=0)
+    injector._counts["steady"].update(attempted=190, throttled=95, errors=5)
+    injector._first_throttle_ms = injector.activation.active_from_ms + 30_000
+    injector._started_s, injector._surge_ended_s, injector._stopped_s = 1000.0, 1030.0, 1040.0
+    injector._surge_end = "throttled"
 
     observed = injector.observe()
 
-    assert observed["target_reads_per_s"] == 20.0
-    assert observed["achieved_reads_per_s"] == 10.0
-    assert observed["client_throttle_rate"] == 0.25
-    assert observed["read_errors"] == 5
+    assert observed["surge_s"] == 30.0
+    assert observed["steady_reads_per_s"] == 19.0
+    assert observed["achieved_fraction"] == 0.95
+    assert observed["steady_throttle_rate"] == 0.5
+    assert observed["reads_attempted"] == 490 and observed["read_errors"] == 5
     assert observed["first_throttle_at"] == manifest.to_iso(injector._first_throttle_ms)
     assert "cw_throttled_requests" not in observed     # no table, no CloudWatch
 
 
-def test_observe_sums_cloudwatch_throttles_over_every_operation(aws):
+def test_observe_sums_cloudwatch_throttles_and_the_apps_own_reads(aws):
     _make_products_table(aws, rcu=10)
-    injector = _injector(aws, window_ms=180_000)               # a 3-minute window
-    injector._table, injector._provisioned_rcu = PRODUCTS_TABLE, 10
+    # A window starting on a minute boundary, so the minutes before it are whole.
+    start_ms = (int(time.time()) // 60 - 5) * 60_000
+    injector = _injector(aws, window_ms=180_000, active_from_ms=start_ms)
+    injector._table, injector._provisioned_rcu, injector._target_reads_per_s = PRODUCTS_TABLE, 10, 20.0
+    injector._started_s, injector._surge_ended_s, injector._stopped_s = 0.0, 10.0, 110.0
+    injector._counts["steady"]["attempted"] = 2000          # 20 reads/s for 100 s
 
-    start = datetime.fromtimestamp(injector.activation.active_from_ms / 1000, timezone.utc)
+    start = datetime.fromtimestamp(start_ms / 1000, timezone.utc)
     cloudwatch = aws.client("cloudwatch")
     table = {"Name": "TableName", "Value": PRODUCTS_TABLE}
 
     def operation(name):
         return [table, {"Name": "Operation", "Value": name}]
 
+    for minute in range(1, 4):      # the app's own reads before the window: 3 RCU/s
+        cloudwatch.put_metric_data(Namespace="AWS/DynamoDB", MetricData=[
+            {"MetricName": "ConsumedReadCapacityUnits", "Timestamp": start - timedelta(minutes=minute),
+             "Value": 180, "Dimensions": [table]}])
     for minute, (get_item, scan, events, consumed) in enumerate([(7, 2, 9, 600), (11, 4, 13, 590)]):
         stamp = start + timedelta(minutes=minute, seconds=30)
         cloudwatch.put_metric_data(Namespace="AWS/DynamoDB", MetricData=[
@@ -241,10 +304,11 @@ def test_observe_sums_cloudwatch_throttles_over_every_operation(aws):
     assert observed["cw_throttled_requests"] == 24
     assert observed["cw_read_throttle_events"] == 22
     assert observed["cw_consumed_read_capacity"] == 1190
+    assert observed["app_reads_per_s"] == 3.0
+    assert observed["offered_ratio"] == 2.3     # (20 + 3) / 10
 
 
-def test_observe_is_plain_json_for_the_manifest(aws):
-    import json
+def test_observe_is_plain_json_for_the_manifest(aws, no_surge):
     _make_products_table(aws, rcu=10)
     injector = _injector(aws)
     injector.start()
