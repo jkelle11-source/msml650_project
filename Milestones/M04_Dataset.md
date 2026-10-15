@@ -22,7 +22,7 @@
 - Claim scope is fixed here: these controls license "generalization across held-out regions of the **simulator's** parameter space," **not** generalization to real-world production incidents.
 - **Generation settings, fixed by M3-2's validation** (details in [`Docs/SIMULATOR_INTERFACE.md`](../Docs/SIMULATOR_INTERFACE.md), "Running an experiment" and "Reading a manifest"):
   - **20 rps baseline for all 1,000 experiments**, test set included. It is the CLI default. A rate change partway through would put a shift in `request_rate` that tracks generation date, which is the temporal-split variable.
-  - **Every batch runs under `caffeinate -is`**, or on a machine that doesn't sleep. A sleeping laptop stops the run; the runner records it `FAILED`, and it has to be redone.
+  - **Batches run on an EC2 instance in us-east-2, not on a laptop** (set up in `M4-1`). Generation takes days of continuous running. A laptop that sleeps fails the run in progress (the runner records it `FAILED`), and one that drops its Wi-Fi can record a `COMPLETED` run with a gap in its traffic. The instance does neither, and being in-region lets the DB-throttling injector reach its higher read rates. Every experiment runs from that instance, test set included: a change of client partway through would track the split, as a rate change would. `caffeinate -is` stays the rule for one-off runs from a laptop.
   - **The stack keeps PR #67's configuration** (1,769 MB functions; Product builds its table at load) for the whole dataset. Deploy only from `main` or an up-to-date branch, never mid-generation.
   - **The registry holds only runs M4 launched.** The six manifests written before M4 are test and validation runs, and none ran on these settings.
   - **Labeling and features:** use `COMPLETED` runs only, deduplicate raw records by `(service, request_id)`, and consider dropping each run's first minute (startup 404s, cold starts after an idle gap).
@@ -45,9 +45,15 @@
 - S3 dataset layout separating **Tier-1 features** from **Tier-2 ground truth**, keyed by `experiment_id` and window.
 - Experiment **registry** (which experiments exist, their bands, phase = train/val/test, generation date).
 - Idempotent re-run / resume support so a failed batch doesn't corrupt the set.
+- **Checks that keep the dataset on one configuration** (from M3-3's validation; `Docs/DB_THROTTLING_INJECTOR.md`):
+  - *Before each batch:* refuse to start unless the stack matches the frozen configuration: function memory 1,769 MB, Products provisioned at 200 RCU, and one `Scan` of Products costing 0.5 RCU (a partition change would raise it). Record the configuration with the batch.
+  - *After each run that has no `db-throttling` fault:* read the Products table's `ThrottledRequests` and `ReadThrottleEvents` for the run's window. Any throttling marks the run contaminated, and it is rerun.
+  - *After each `db-throttling` run:* rerun it if `observed.achieved_fraction` is below 0.97 or `observed.label_from` is null (it never throttled).
+- **Runner host:** one small EC2 instance in us-east-2 that runs every batch (training and test). Non-burstable, such as `c7g.large` (about $0.07 an hour; check current pricing), because a burstable T instance runs short of CPU credits over days of load. It runs as `anomalypulse-simulator`, as `--profile sim` does on a laptop: an instance role allowed to assume it (added to `SimulatorRole`'s trust policy in `template.yaml`; Jake deploys) and a `sim` profile on the instance with `credential_source = Ec2InstanceMetadata`. Reach it through Session Manager (no SSH keys or open ports) and run each batch in `tmux`, so a dropped session doesn't stop it. Stop it between batches and terminate it after `M9-1`.
 
 **Definition of Done**
-- [ ] A batch of ≥10 experiments runs unattended and registers cleanly.
+- [ ] The runner host repeats M3-2's 20 rps capacity check before generation starts: one full-length NORMAL run and one 10× spike, checked with `telemetry_report` and the spike's `observed.achieved_rps`. Neither goes in the dataset.
+- [ ] A batch of ≥10 experiments runs unattended on the runner host and registers cleanly.
 - [ ] Tier-1 and Tier-2 data are physically separated in S3, not interleaved.
 - [ ] Registry records generation date + phase per experiment (needed for the temporal split).
 
@@ -59,7 +65,7 @@
 - **Blocked by:** `M4-1`, `M4-3` *(training bands must be defined)*
 - **Blocks:** `M5-2`, `M5-3`
 
-**Context.** Execute the Phase 1 generation using the **training bands** (interleaved with the held-out test bands per §6b). Josh owns this because he owns the workload/traffic tooling. Class mix per §17 Phase 1.
+**Context.** Execute the Phase 1 generation using the **training bands** (interleaved with the held-out test bands per §6b). Josh owns this because he owns the workload/traffic tooling. Class mix per §17 Phase 1. It runs on `M4-1`'s EC2 runner host.
 
 **Deliverables**
 - 700 experiments generated per the §17 mix: 140 normal, 140 traffic spike (2×–4×, 6×–8×), 140 DB throttling (offered-load 1.5×–2.5×, 3.5×–4.5×), 105 Lambda degradation (200–500ms, 800–1100ms), 105 dependency failure (500–1500ms, 2500–3500ms), 70 cascading.
@@ -109,6 +115,7 @@
 - **Activity threshold:** a window is labeled with an incident class only if the incident is active ≥50% of the window; else `NORMAL`.
 - **Cascade rule:** `CASCADING_FAILURE` only when ≥2 injected faults are concurrently active; early single-fault windows labeled by the observable single fault.
 - **Recovery exclusion:** recovery-phase windows excluded from the MVP training set (no fuzzy sixth class).
+- **DB-throttling onset:** a `db-throttling` activation counts as active from `observed.label_from` (5 s after the first throttle), not `active_from`. Until then DynamoDB's burst capacity is absorbing the load (the injector surges to spend it) and then the surge's aftermath settles, so the stretch before it is excluded like recovery (`Docs/DB_THROTTLING_INJECTOR.md`).
 
 **Definition of Done**
 - [ ] Every window carries exactly one label under the policy; boundary windows resolved deterministically.

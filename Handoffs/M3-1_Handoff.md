@@ -206,7 +206,7 @@ Two things for Melisa and Rachel from the Order/Payment path:
 - **`severity` is relative to the band.** 0.9 in a 2×–4× band is `HIGH`; 0.1 in a 6×–8× band is `LOW`. To compare magnitudes, read `params`.
 - **How M4 runs experiments** (settled by M3-2's validation, 2026-10-14/15; details in the interface doc):
   - **20 rps baseline for every run, test set included**, which is the CLI default. Don't change it partway through the dataset.
-  - **Every batch runs under `caffeinate -is`**, or on a machine that doesn't sleep.
+  - **Every batch runs on an EC2 instance in us-east-2** (M4-1), not on a laptop, test set included. `caffeinate -is` stays the rule for one-off runs from a laptop.
   - **The stack keeps PR #67's configuration** (1,769 MB functions, Product building its table at load). Nothing is redeployed in a way that changes it while the dataset is generated.
   - **Only runs M4's registry launched go in the dataset.** The six manifests written before M4 are test and validation runs; the interface doc lists them.
   - **Deduplicate raw records by `(service, request_id)`.** The shipper delivers at least once.

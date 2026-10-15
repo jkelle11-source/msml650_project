@@ -1,0 +1,210 @@
+# DynamoDB Throttling Injector (M3-3)
+
+**Owner:** Linu · **File:** `AnomalyPulse/simulator/injectors/db_throttling.py` · **Tests:** `AnomalyPulse/simulator/test_db_throttling.py`
+**Registry name:** `db-throttling` · **Label:** `DATABASE_THROTTLING` · **Band parameter:** `load_ratio` · **Target:** `product-service`
+
+## What it does
+
+It produces **real** DynamoDB throttling on the Products table. The table sits at a **fixed, low provisioned
+read capacity**. For the length of the fault window the injector reads the table directly, at
+
+```
+reads per second  =  load_ratio  x  provisioned RCU
+```
+
+on top of whatever the normal workload is sending. The single knob is the **offered-load-to-capacity ratio**
+(`load_ratio`), taken from a band so that M4 can keep training and test bands apart (training 1.5-2.5 and 3.5-4.5,
+test 2.5-3.5 and 4.5-5.5). The throttle rate is **not** an input: it is whatever DynamoDB does, and it is measured afterwards.
+
+The ratio counts the injector's own reads. The application's reads come on top: about 7.5 RCU/s at the 20 rps
+baseline, so about +0.04 on the ratio at 200 RCU. `observed.offered_ratio` records the total.
+
+## How it works
+
+| Step | What happens |
+|---|---|
+| `configure()` | Pure. Resolves `intensity` inside the band into `{"load_ratio": x}`. No AWS calls, no clock, same seed gives the same value. |
+| `start()` | Looks up the Products table name in SSM (`/anomalypulse/tables/products/name`), reads its provisioned read capacity (RCU) with `describe_table`, and **refuses to run if the table is on-demand** (it cannot be throttled at a low ceiling). Reads the item keys with one `Scan`, then starts the load. |
+| the load | Strongly consistent `BatchGetItem` calls of up to 25 keys (every product). Each item is under 4 KB, so each key costs exactly 1 RCU, and reads per second equals RCU per second. 1,100 reads/s is 44 calls a second. The calls are **open-loop**, like the workload's requests: a scheduler thread hands each one to a pool of up to 64 workers at its planned time, whether or not earlier calls have come back. If all 64 are busy, the call is dropped and counted (`calls_dropped`), never sent late. |
+| the surge | The window opens at **10× capacity until DynamoDB first throttles a read**, then holds the band's ratio for the rest of the window. See "Burst capacity" below. If nothing has throttled after 120 s, the surge stops anyway. |
+| throttles | A batch DynamoDB could partly serve returns the unread keys in `UnprocessedKeys`; one it could not serve at all raises `ProvisionedThroughputExceededException`. Both count as throttled reads. **Neither is retried**, and the client has retries off (`total_max_attempts=1`): a retry would hide the throttle and change the offered load. |
+| `stop()` | Stops the scheduler and waits for calls in flight (each times out after 5 s). Safe before `start()`, after a failed `start()`, and when called twice. Returns `None`. |
+| `observe()` | Runs once after the recovery period. Returns the client's counts and the table's CloudWatch counts (see below). |
+
+## What is recorded
+
+`params` (what was asked for) and `observed` (what was measured) are separate in the manifest.
+
+```json
+"params":   { "load_ratio": 3.0 },
+"observed": {
+  "table": "anomalypulse-products-v2",
+  "provisioned_rcu": 200,
+  "target_reads_per_s": 600.0,
+  "surge_end": "throttled",
+  "surge_s": 31.4,
+  "first_throttle_at": "2026-10-16T14:21:05.218Z",
+  "label_from": "2026-10-16T14:21:10.218Z",
+  "steady_reads_per_s": 598.7,
+  "achieved_fraction": 0.998,
+  "steady_throttle_rate": 0.6612,
+  "app_reads_per_s": 7.6,
+  "offered_ratio": 3.031,
+  "reads_attempted": 228500,
+  "reads_throttled": 151000,
+  "read_errors": 0,
+  "calls_dropped": 0,
+  "client_throttle_rate": 0.6608,
+  "cw_throttled_requests": 2210.0,
+  "cw_throttled_requests_by_operation": { "BatchGetItem": 1105.0, "GetItem": 96.0, "Scan": 1009.0 },
+  "cw_read_throttle_events": 151400.0,
+  "cw_consumed_read_capacity": 78000.0
+}
+```
+
+(Illustrative numbers.)
+
+- `first_throttle_at`: when DynamoDB first refused one of the injector's reads, which is when the burst bank ran out.
+- `label_from`: `first_throttle_at` plus 5 s. **M4 labels the window `DATABASE_THROTTLING` from here** (below).
+- `surge_end`, `surge_s`: how the surge ended (`throttled`, or `time_limit` after 120 s) and how long it lasted.
+- `target_reads_per_s`, `steady_reads_per_s`, `achieved_fraction`: what the ratio asked for and what the client
+  really sent after the surge. **M4's batch runner reruns a run whose `achieved_fraction` is below 0.97.**
+- `app_reads_per_s`: the table's consumed RCU per second in the 3 minutes before the window (the application's own
+  reads, including a traffic spike's in a cascade). `offered_ratio` = (`steady_reads_per_s` + `app_reads_per_s`) /
+  capacity: the ratio DynamoDB actually saw.
+- `steady_throttle_rate`: the share of the injector's reads throttled after the surge. `client_throttle_rate` is over
+  the whole window.
+- `cw_throttled_requests`: CloudWatch `ThrottledRequests`, summed over **every operation** on the table for the window's
+  minutes; `_by_operation` keeps the split. The application's `GetItem` (`GET /products/{id}`) and `Scan`
+  (`GET /products`) appear here. A `BatchGetItem` counts only when *all* of its keys were throttled.
+- `cw_read_throttle_events`: CloudWatch `ReadThrottleEvents`, which counts each throttled key, table-wide.
+- `cw_consumed_read_capacity`: CloudWatch `ConsumedReadCapacityUnits` for the same minutes.
+
+**Feature/Label Boundary.** All of this lives in the manifest only (Tier-2). The injector never writes a `db_throttled`
+flag, never logs the fault, and puts nothing in telemetry. The observable signals are CloudWatch **counts**, which the
+M2 metrics extractor collects on its own each minute. Its `throttled_requests` is summed over operations the same way
+(it used to ask for `TableName` alone, which CloudWatch answers with nothing).
+
+## The Products table and its capacity
+
+**Decided (2026-10-15): a new table, `anomalypulse-products-v2`, created `PROVISIONED` at 200 RCU / 5 WCU.**
+
+**Why a new table.** `GET /products` (60% of traffic) is a full-table `Scan`, and a Scan costs a minimum per
+partition, so its cost depends on the table's history, not its data. Measured on 2026-10-15 with throwaway copies of
+the same 25 products (1,490 bytes):
+
+| Table | Scan, eventually consistent | Scan, strongly consistent |
+|---|---|---|
+| Created provisioned (500/5) | **0.5 RCU** | 1.0 |
+| Created on-demand | 2.0 | 4.0 |
+| Created on-demand, then switched to provisioned | 4.0 | 8.0 |
+
+The old `anomalypulse-products` had been switched, so every `GET /products` cost 4.0 RCU: 49 RCU/s at the 20 rps
+baseline and ~499 RCU/s in a 10× spike, all of the 500 RCU then provisioned. In the new table it costs 0.5.
+**Don't switch the table's billing mode, and don't raise its capacity, during M4**: either can add partitions and
+change every `GET /products` read cost mid-dataset. M4's batch runner checks before each batch that one `Scan` still
+costs 0.5 RCU.
+
+**Two constraints set the capacity**, and they pull in opposite directions.
+
+1. **A traffic spike must not throttle by itself**, or `TRAFFIC_SPIKE` runs carry throttling symptoms. The read load
+   is ~7.5 RCU/s at 20 rps (`GET /products` and `GET /products/{id}` cost 0.5 each), so a 10× spike reads ~75 RCU/s,
+   38% of 200. Even every request a `GET /products` at 10× (100 RCU/s), or a 20× stress spike (150 RCU/s), stays
+   below capacity.
+2. **The top load ratio must be drivable.** 5.5× at 200 RCU is 1,100 reads/s, 44 calls a second.
+
+Prices: $0.00013 per RCU-hour and $0.00065 per WCU-hour (us-east-2, standard table class; re-check the pricing
+page). The standing capacity costs about **$0.70 a day**; reads up to it cost nothing extra, and throttled reads are
+not billed, so a throttling run itself is free. Delete the table after M9.
+
+## Burst capacity, and when the incident starts
+
+DynamoDB banks up to **300 seconds** of unused capacity as burst, on a best-effort basis. A load above capacity
+only throttles once that bank is spent, which at ratio `r` takes `300 / (r - 1)` seconds, **whatever the capacity**.
+M3-3's validation (2026-10-15, 500 RCU, 5-minute windows, no surge) matched it: no throttling at all at 1.75×, the
+first throttle 174 s in at 3.0× and 80 s in at 5.5×. Without a fix, the lower training band (1.5–2.5×) would barely
+throttle.
+
+So the window opens with the **surge**: 10× capacity spends a full bank in about 33 s. It ends on DynamoDB's own
+answer, the first throttled read, so it works whether the bank is full, partly spent, or used by AWS for
+maintenance. From then on the throttle rate reflects the band's ratio.
+
+**Labeling (M4-4): a `DATABASE_THROTTLING` window starts at `observed.label_from`, not at `active_from`.** That is
+5 s after the first throttle. When the bank runs out, the application briefly meets the surge's throttling before
+the load drops to the band's ratio, and its retries take up to 3.15 s: at 1.75× in validation, 3 requests failed in
+that instant and none after it. The stretch from `active_from` to `label_from`, which holds the surge and that
+moment, is excluded from the training set, as recovery is, so neither the surge's consumed-capacity spike nor those
+failures reach the features. A run whose surge ended on its time limit (`surge_end: "time_limit"`, `label_from:
+null`) never throttled, and M4 reruns it.
+
+## How the application sees it
+
+Throttling shows as **latency, not errors**. At 500 RCU in M3-3's validation, Product's p95 rose from ~15 ms to
+807 ms at 3.0× and 3,202 ms at 5.5×, while its p50 stayed near 12 ms and no request failed: boto3 retried each
+throttled read. Those retries wait 0.05 s, then 0.1, 0.2, ... (legacy mode), so a p95 of 3.2 s is six retries.
+
+Product, Cart and Order now **state their DynamoDB retries** instead of using the runtime's default: legacy mode,
+7 attempts. That keeps exactly the behaviour measured above (up to six retries, 3.15 s of waiting) and turns a
+longer streak into a 500 with telemetry. The default would have tried 10 times, waiting up to 25.5 s in all, past
+Product's 10 s timeout, and a request that times out leaves no telemetry. The template also pins the Lambda runtime
+(`UpdateRuntimeOn: FunctionUpdate`), so the bundled boto3 changes only when the stack is deployed.
+
+## Teardown
+
+- **Per run:** `stop()` ends the load. The injector changes **nothing persistent** (no capacity change, no
+  fault-config row, no items written), so there is nothing to restore after a run. If the simulator crashes, the
+  threads die with the process and the load simply stops. The framework also calls `stop()` on any failure or Ctrl-C.
+- **After the project (idle cost):** the only thing that lingers is the provisioned table. Delete it (and the
+  `simulator-db-throttling` policy on `SimulatorRole`) when the injector is retired.
+
+## Permissions
+
+`SimulatorRole` in `template.yaml` gets the policy `simulator-db-throttling`: `dynamodb:DescribeTable`, `Scan` and
+`BatchGetItem` on the Products table, and `cloudwatch:GetMetricStatistics` and `ListMetrics` (on `*`, because
+CloudWatch metric reads cannot be scoped to a resource). SSM reads are already covered by `simulator-discovery`.
+The metrics extractor's role also gets `cloudwatch:ListMetrics`, to find the operations `ThrottledRequests` is
+published under.
+
+## Running it
+
+```bash
+cd AnomalyPulse
+# No AWS: prints the manifest a run would start with.
+python -m simulator start-incident --type db-throttling --intensity 0.8 --band 1.5 2.5 --duration 300 --seed 7 --dry-run
+
+# Real run (needs the Products table provisioned and the sim profile):
+caffeinate -is python -m simulator start-incident --type db-throttling --intensity 0.8 --band 1.5 2.5 --duration 300
+
+# Tests (no AWS):
+cd simulator && python -m pytest test_db_throttling.py -q
+```
+
+Do not curl the API or run smoke tests while an experiment is running: telemetry is tied to an experiment by time alone.
+
+## Definition of Done (issue #13)
+
+- [x] `ThrottledRequests > 0` at target ratios. Validated 2026-10-15 at 3.0× and 5.5× (500 RCU, before the new
+  table): the application's `GetItem` and `Scan` were throttled, and the metrics extractor recorded them.
+- [x] The controllable parameter is the ratio; the throttle rate is recorded as an outcome in `observed`.
+- [x] No `db_throttled` flag is written anywhere; only CloudWatch counts are used.
+- [x] Capacity is never changed by the injector, so nothing needs restoring; idle cost and teardown are documented above.
+
+Validated on the new table, 2026-10-15 (200 RCU, from a laptop, 20 rps):
+
+- [x] One `GET /products` scan costs 0.5 RCU.
+- [x] A 10× traffic spike does not throttle: 73.6–75.1 RCU/s (38% of capacity), no `ThrottledRequests` or
+  `ReadThrottleEvents` on any operation (`exp-20261015T165252Z-cd32`).
+- [x] The surge ends `throttled` after 33.6–33.7 s at every ratio (a full bank, as predicted), `achieved_fraction`
+  is 1.00, no calls are dropped, and the steady throttle rate is within a point of 1 − 1/`offered_ratio`.
+- [x] Product's p95 rises with the ratio, and every 5xx the client saw has a telemetry record.
+
+| Ratio (run) | Steady throttle rate | Product p50 / p95, steady | Product 5xx, steady |
+|---|---|---|---|
+| 1.75× (`exp-20261015T170156Z-0031`) | 44.9% | 5 ms / ~0.78 s | 0 |
+| 3.0× (`exp-20261015T171702Z-c4c8`) | 67.9% | 5–6 ms / ~1.59 s | 0 |
+| 5.5× (`exp-20261015T173208Z-a378`) | 82.4% | 9–15 ms / ~3.2 s | ~1% |
+| 8.0×, stress (`exp-20261015T174713Z-7f32`) | 87.6% | 380–780 ms / ~3.2 s | ~8–11% (344, all with telemetry) |
+
+In the minute the bank runs out, a few requests fail as the app meets the surge's throttling (3 at 1.75×); that is
+why labeling starts at `label_from`, 5 s after the first throttle. These runs predate `label_from`, and none of them
+belongs in the dataset.

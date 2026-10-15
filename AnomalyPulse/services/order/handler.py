@@ -19,7 +19,9 @@ TABLE_NAME = os.environ["TABLE_NAME"]
 PAYMENT_FUNCTION_NAME = os.environ.get("PAYMENT_FUNCTION_NAME", "anomalypulse-payment")
 USE_PAYMENT_STUB = os.environ.get("USE_PAYMENT_STUB", "true").lower() == "true"
 
-dynamodb = boto3.resource("dynamodb")
+# DynamoDB retries stated, not left to the runtime's default: 7 attempts in
+# legacy mode, as services/product explains (a 10th would come after 25 s).
+dynamodb = boto3.resource("dynamodb", config=Config(retries={"mode": "legacy", "total_max_attempts": 7}))
 # The payment invoke is synchronous and runs inside order's own 10s Lambda timeout, so
 # bound botocore's read timeout (default 60s) BELOW that: a hung payment (a
 # payment-failure fault whose timeout_ms exceeds 6s) then surfaces as a ReadTimeoutError

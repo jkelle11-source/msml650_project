@@ -45,13 +45,15 @@ Four things M3-2's validation runs taught us:
   only time awake. One validation run slept through its recovery and finished 25 minutes late.
   Its traffic had stopped, but the manifest still said `COMPLETED`. The runner now fails a run
   whose steps come more than 10 s late (`FellBehind`), but a run that fails that way is lost.
-  Closing the lid still sleeps the Mac, `caffeinate` or not.
+  Closing the lid still sleeps the Mac, `caffeinate` or not. M4's batches avoid all of this:
+  they run on an EC2 instance in us-east-2 (`M4-1` in `Milestones/M04_Dataset.md`), which
+  doesn't sleep and is milliseconds from the stack.
 - **Baseline traffic is 20 rps** (`--rps` defaults to it). M4 uses 20 rps for every run, test set
   included. Don't change the rate partway through a dataset: request rate is a feature, and a
   shift would track the generation date.
 - **The stack must have PR #67's configuration** (1,769 MB functions, Product building its table at
-  load). It is deployed. Until PR #67 is merged, deploying any other branch would roll it back
-  and change every latency feature.
+  load). It is merged and deployed. Deploy only from `main` or a branch that is up to date with
+  it: an older branch would roll the configuration back and change every latency feature.
 - **After a run, wait about two minutes** for the shipper, then check it with
   `python -m simulator.telemetry_report <experiment_id> --profile <your-profile>` (below).
 
@@ -384,6 +386,10 @@ time; every timestamp is a real date; and the whole thing is JSON-serializable
   cold functions: at 20 rps the first minute had 9 Product cold starts and peaked at 18
   concurrent executions, against 5–9 later. Back-to-back runs start warm. Dropping each run's
   first minute (M4-4) costs one of its five baseline windows and keeps every run's baseline alike.
+- **A `db-throttling` fault starts at `observed.label_from`**, not at `active_from`: 5 s after the
+  first throttle. Until then DynamoDB's burst capacity absorbs the load and the injector's surge
+  settles; exclude the stretch before it, as recovery is excluded.
+  `Docs/DB_THROTTLING_INJECTOR.md` explains why.
 - **`severity` is relative to the band**, not to the native value: 0.9 in a 2×–4× band is `HIGH`,
   0.1 in a 6×–8× band is `LOW`. To compare magnitudes across bands, read `params`.
 - **A `NORMAL` run has no activations**, including a run of the `noop` injector.

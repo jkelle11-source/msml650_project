@@ -5,12 +5,16 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from boto3.dynamodb.conditions import Key
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from schema_validator import validate
 from fault_config import active_faults
 
-table = boto3.resource('dynamodb').Table(os.environ['TABLE_NAME'])
+# DynamoDB retries stated, not left to the runtime's default: 7 attempts in
+# legacy mode, as services/product explains (a 10th would come after 25 s).
+table = boto3.resource('dynamodb', config=Config(retries={"mode": "legacy", "total_max_attempts": 7})
+                       ).Table(os.environ['TABLE_NAME'])
 
 _CORS_HEADERS = {
     "Content-Type": "application/json",
