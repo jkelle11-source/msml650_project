@@ -76,7 +76,7 @@ class Context:
     experiment_id: str
     session: boto3.Session        # under the simulator role; for any AWS call the injector makes
     control_plane: ControlPlane
-    workload: object = None       # the workload driver (M3-2); None when the run has none
+    workload: object = None       # the workload driver (M3-2); runner.NoWorkload when the run has none
 
 
 class Injector(ABC):
@@ -108,6 +108,10 @@ class Injector(ABC):
     # start() is called at least this long before the window opens. 0 means
     # start() is called as the window opens.
     lead_ms: int = 0
+    # True when the fault is applied through ctx.workload (a traffic spike
+    # changes its rate). A plan with such an injector and no workload is
+    # refused before anything is touched.
+    needs_workload: bool = False
 
     def __init__(self, ctx: Context, activation: Activation):
         self.ctx = ctx

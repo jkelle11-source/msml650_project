@@ -20,6 +20,13 @@
 - **The ML dataset unit is the one-minute aggregated window, not the individual request** (README §3). Every feature/label decision operates on windows.
 - **Interleaved bands, not extrapolation** (§6b): test bands sit *inside* the trained range, filling held-out gaps, so evaluation is genuine interpolation. A separate extreme-extrapolation slice is generated and reported **separately** — it does not support the core generalization claim.
 - Claim scope is fixed here: these controls license "generalization across held-out regions of the **simulator's** parameter space," **not** generalization to real-world production incidents.
+- **Generation settings, fixed by M3-2's validation** (details in [`Docs/SIMULATOR_INTERFACE.md`](../Docs/SIMULATOR_INTERFACE.md), "Running an experiment" and "Reading a manifest"):
+  - **20 rps baseline for all 1,000 experiments**, test set included. It is the CLI default. A rate change partway through would put a shift in `request_rate` that tracks generation date, which is the temporal-split variable.
+  - **Every batch runs under `caffeinate -is`**, or on a machine that doesn't sleep. A sleeping laptop stops the run; the runner records it `FAILED`, and it has to be redone.
+  - **The stack keeps PR #67's configuration** (1,769 MB functions; Product builds its table at load) for the whole dataset. Deploy only from `main` or an up-to-date branch, never mid-generation.
+  - **The registry holds only runs M4 launched.** The six manifests written before M4 are test and validation runs, and none ran on these settings.
+  - **Labeling and features:** use `COMPLETED` runs only, deduplicate raw records by `(service, request_id)`, and consider dropping each run's first minute (startup 404s, cold starts after an idle gap).
+  - **Throughput:** runs are serial, and a default run lasts 15 minutes, so 700 runs take ~175 hours back to back. Run length is the lever; decide it before generation starts.
 
 ---
 

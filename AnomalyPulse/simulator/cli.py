@@ -1,15 +1,22 @@
 """Incident simulator CLI (M3-1).
 
 Run from AnomalyPulse/, with the `sim` AWS profile set up as described in
-Handoffs/M3-1_Handoff.md:
+Handoffs/M3-1_Handoff.md. Start every real run under `caffeinate -is` (macOS):
+a sleeping machine stops the run, and the runner then records it as FAILED.
 
-    python -m simulator start-incident --type noop --duration 60
-    python -m simulator start-incident --type <injector> --intensity 0.8 \\
+    caffeinate -is python -m simulator start-incident --type noop --duration 60
+    caffeinate -is python -m simulator start-incident --type <injector> --intensity 0.8 \\
         --duration 300 --band <low> <high>
     python -m simulator cleanup
 
 Add --dry-run to start-incident to see the manifest a run would start with,
-without touching AWS.
+without touching AWS. Every run sends baseline traffic for its whole length
+(M3-2): 20 requests per second in the plan's endpoint mix, unless --rps,
+--users or --mix say otherwise. M4 keeps the 20 rps default for every run.
+
+    caffeinate -is python -m simulator start-incident --type noop --duration 600
+    caffeinate -is python -m simulator start-incident --type traffic-spike --intensity 0.5 \\
+        --band 2 4 --duration 300
 """
 import argparse
 import getpass
@@ -21,7 +28,7 @@ import time
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
-from simulator import injectors, runner
+from simulator import injectors, runner, workload
 from simulator.lock import LockHeld
 from simulator.stack import Stack
 
@@ -66,13 +73,21 @@ def _plan(args) -> runner.Plan:
     )
 
 
+def _workload(args, plan) -> workload.Workload:
+    """The run's baseline traffic, from --rps, --users and --mix."""
+    mix = None if args.mix is None else dict(zip(workload.ROUTES, args.mix))
+    # The plan's seed, so the run's request sequence repeats with its params.
+    return workload.Workload(rps=args.rps, users=args.users, mix=mix, seed=plan.seed)
+
+
 def _start_incident(args) -> int:
     # Everything that can be wrong with the request is found here, before AWS
     # is involved. An error raised later, during the run, is a real failure and
     # is left to show its traceback.
     try:
         plan = _plan(args)
-        preview = runner.preview(plan)
+        load = _workload(args, plan)
+        preview = runner.preview(plan, workload=load)
     except (ValueError, LookupError) as e:
         return _fail(e)
     if args.dry_run:
@@ -81,11 +96,14 @@ def _start_incident(args) -> int:
 
     try:
         stack = _connect(args)
+        load.base_url = workload.api_base_url(stack.session)
     except (BotoCoreError, ClientError, RuntimeError) as e:
         return _fail(f"could not reach the stack with AWS profile {args.profile!r}: {e}")
     try:
-        runner.run(plan, stack)
-    except LockHeld as e:
+        runner.run(plan, stack, workload=load)
+    except (LockHeld, runner.FellBehind) as e:
+        # Not bugs: another run holds the lock, or the machine slept mid-run.
+        # Either way the reason is the message, not a traceback.
         return _fail(e)
     return 0
 
@@ -145,6 +163,15 @@ def _parser() -> argparse.ArgumentParser:
                        help="RNG seed (default: a random one, recorded in the manifest)")
     start.add_argument("--created-by", metavar="NAME",
                        help="recorded in the manifest (default: your username)")
+    start.add_argument("--rps", type=number, default=workload.DEFAULT_RPS, metavar="RPS",
+                       help="baseline traffic sent for the whole run, in requests per second "
+                            f"(default: {workload.DEFAULT_RPS}, the plan's normal rate)")
+    start.add_argument("--users", type=int, default=workload.DEFAULT_USERS, metavar="N",
+                       help="simulated users the traffic is spread over "
+                            f"(default: {workload.DEFAULT_USERS})")
+    start.add_argument("--mix", type=number, nargs=len(workload.ROUTES), metavar="W",
+                       help="endpoint weights in the order " + ", ".join(workload.ROUTES)
+                            + " (default: 60 15 10 10 5)")
     start.add_argument("--dry-run", action="store_true",
                        help="print the manifest the run would start with; touches no AWS")
     aws_arguments(start)
