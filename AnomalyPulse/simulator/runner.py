@@ -25,6 +25,17 @@ START_SLACK_MS = 5_000
 # keeps blocking everyone else after it should have ended.
 LOCK_MARGIN_S = 300
 
+# A step that runs this much later than planned means the simulator stopped
+# for a while. A sleeping laptop does this: its timers count only time awake,
+# so the run carries on long after its plan (M3-2 saw one end 25 minutes late)
+# and its manifest's windows are no longer what happened. Normal lateness is
+# milliseconds.
+MAX_LATE_MS = 10_000
+
+
+class FellBehind(RuntimeError):
+    """A step ran more than MAX_LATE_MS late, so the run is recorded as FAILED."""
+
 
 @dataclass(frozen=True)
 class Fault:
@@ -180,10 +191,15 @@ def _timeline(planned) -> list[tuple]:
     return sorted(steps)
 
 
-def _sleep_until(at_ms: int, clock, sleep) -> None:
+def _sleep_until(at_ms: int, clock, sleep, what: str) -> None:
     # A loop, because a sleep may return early.
     while (remaining_ms := at_ms - clock()) > 0:
         sleep(remaining_ms / 1000)
+    late_ms = clock() - at_ms
+    if late_ms > MAX_LATE_MS:
+        raise FellBehind(f"{what} came {late_ms / 1000:.0f} s late, so this run is not what its "
+                         f"manifest says. The machine probably slept: run the simulator under "
+                         f"`caffeinate -is`. The run is recorded as FAILED, which M4 skips.")
 
 
 def _reported_time(value, step: str):
@@ -199,7 +215,8 @@ def run(plan: Plan, stack: Stack, *, workload=None, clock=_now_ms, sleep=time.sl
     Raises before touching anything if the plan is invalid, and LockHeld if
     another experiment is running. Once the lock is taken, a failure or Ctrl-C
     still winds the run down and records it as FAILED or ABORTED before the
-    exception carries on up.
+    exception carries on up. FellBehind is such a failure: a step that ran
+    far later than planned, as after the machine slept.
     """
     workload = NoWorkload() if workload is None else workload
     draft = _draft(plan, clock(), stack.bucket, workload)
@@ -223,14 +240,14 @@ def run(plan: Plan, stack: Stack, *, workload=None, clock=_now_ms, sleep=time.sl
         workload.start()
 
         for at_ms, index, step in _timeline(draft.planned):
-            _sleep_until(at_ms, clock, sleep)
+            _sleep_until(at_ms, clock, sleep, f"{step} {instances[index].name}")
             log(f"  {step} {instances[index].name}")
             if step == "start":
                 actual_from[index] = _reported_time(instances[index].start(), step)
             else:
                 actual_until[index] = _reported_time(instances[index].stop(), step)
                 stopped.add(index)
-        _sleep_until(draft.ends_at_ms, clock, sleep)
+        _sleep_until(draft.ends_at_ms, clock, sleep, "the end of the recovery")
 
         for index, instance in enumerate(instances):
             observed[index] = instance.observe()

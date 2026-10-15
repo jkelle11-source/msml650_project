@@ -310,6 +310,16 @@ def test_ctrl_c_exits_with_130(mocked, monkeypatch, capsys):
     assert "interrupted" in capsys.readouterr().err
 
 
+def test_a_run_that_fell_behind_is_explained_not_traced(mocked, monkeypatch, capsys):
+    # The machine slept; that is not a bug, so the reason is the whole message.
+    def slept(plan, stack, **kwargs):
+        raise cli.runner.FellBehind("the end of the recovery came 1500 s late ...")
+
+    monkeypatch.setattr(cli.runner, "run", slept)
+    assert cli.main(QUICK_NOOP) == 1
+    assert capsys.readouterr().err.startswith("error: the end of the recovery came 1500 s late")
+
+
 def test_failure_during_a_run_is_not_swallowed(mocked, monkeypatch):
     # A bug in an injector must show its traceback, not a one-line "error:".
     def broken(plan, stack, **kwargs):

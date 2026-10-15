@@ -1,20 +1,21 @@
 """Incident simulator CLI (M3-1).
 
 Run from AnomalyPulse/, with the `sim` AWS profile set up as described in
-Handoffs/M3-1_Handoff.md:
+Handoffs/M3-1_Handoff.md. Start every real run under `caffeinate -is` (macOS):
+a sleeping machine stops the run, and the runner then records it as FAILED.
 
-    python -m simulator start-incident --type noop --duration 60
-    python -m simulator start-incident --type <injector> --intensity 0.8 \\
+    caffeinate -is python -m simulator start-incident --type noop --duration 60
+    caffeinate -is python -m simulator start-incident --type <injector> --intensity 0.8 \\
         --duration 300 --band <low> <high>
     python -m simulator cleanup
 
 Add --dry-run to start-incident to see the manifest a run would start with,
 without touching AWS. Every run sends baseline traffic for its whole length
 (M3-2): 20 requests per second in the plan's endpoint mix, unless --rps,
---users or --mix say otherwise.
+--users or --mix say otherwise. M4 keeps the 20 rps default for every run.
 
-    python -m simulator start-incident --type noop --duration 600
-    python -m simulator start-incident --type traffic-spike --intensity 0.5 \\
+    caffeinate -is python -m simulator start-incident --type noop --duration 600
+    caffeinate -is python -m simulator start-incident --type traffic-spike --intensity 0.5 \\
         --band 2 4 --duration 300
 """
 import argparse
@@ -100,7 +101,9 @@ def _start_incident(args) -> int:
         return _fail(f"could not reach the stack with AWS profile {args.profile!r}: {e}")
     try:
         runner.run(plan, stack, workload=load)
-    except LockHeld as e:
+    except (LockHeld, runner.FellBehind) as e:
+        # Not bugs: another run holds the lock, or the machine slept mid-run.
+        # Either way the reason is the message, not a traceback.
         return _fail(e)
     return 0
 
