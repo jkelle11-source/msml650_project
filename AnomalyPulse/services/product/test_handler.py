@@ -102,7 +102,8 @@ class TableAtLoadTest(unittest.TestCase):
         boto3 = self._boto3()
         module = _load_handler({"AWS_LAMBDA_FUNCTION_NAME": "anomalypulse-product",
                                 "TABLE_NAME": "anomalypulse-products"}, boto3)
-        boto3.resource.assert_called_once_with("dynamodb")
+        boto3.session.Config.assert_called_once_with(retries={"mode": "legacy", "total_max_attempts": 7})
+        boto3.resource.assert_called_once_with("dynamodb", config=boto3.session.Config.return_value)
         boto3.resource.return_value.Table.assert_called_once_with("anomalypulse-products")
         self.assertIs(module._table(), boto3.resource.return_value.Table.return_value)
         boto3.resource.assert_called_once()   # reused, not rebuilt

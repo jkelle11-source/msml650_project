@@ -27,7 +27,7 @@ dataset with real ground truth. See
 |---|---|---|
 | **M3-1** Simulator framework + CLI, experiment manifest, fault control plane, experiment lock | Jake | 🚧 Merged and run on the deployed stack; confirmed buildable by M3-2, awaiting the other injector owners |
 | **M3-2** Workload generator + traffic-spike injector *(MVP incident)* | Josh | ✅ Done: steady baseline, a 3× spike, and a 10× spike at 20 rps validated in landed telemetry (PR #66) |
-| **M3-3** DynamoDB throttling injector | Linu | ⬜ Pending |
+| **M3-3** DynamoDB throttling injector | Linu | ✅ Done: real throttling at 1.75×–8× on a new provisioned Products table, validated in landed telemetry |
 | **M3-4** Payment-failure + Lambda-degradation injectors | Rachel | 🚧 In review (PR #65) |
 | **M3-5** Cascading-failure orchestration | Melisa | 🚧 In review (PR #64); blocked on M3-3 and M3-4 |
 
@@ -192,9 +192,19 @@ execution environment's first request take ~5.6 s.
 The account allows **1,000 concurrent executions** (raised from 10 on 2026-10-14),
 shared by every function, the shipper included.
 
-**Don't change memory or these handlers' timing while M4 generates its dataset.**
-They move every latency and duration feature, so runs before and after a change
-are not comparable.
+Product, Cart and Order state their DynamoDB retries (legacy mode, 7 attempts)
+rather than taking the runtime's default, which could wait 25 s, past their 10 s
+timeout. The runtime itself is pinned (`UpdateRuntimeOn: FunctionUpdate`), so its
+Python and boto3 change only when the stack is deployed.
+
+The Products table is `anomalypulse-products-v2`, created provisioned at 200 RCU /
+5 WCU for the DB-throttling injector. `GET /products` scans it, and a scan's cost
+depends on the table's partitions, so the table must never switch billing mode or
+change capacity during M4 ([Docs/DB_THROTTLING_INJECTOR.md](Docs/DB_THROTTLING_INJECTOR.md)).
+
+**Don't change memory, capacity, retries or these handlers' timing while M4
+generates its dataset.** They move every latency, duration and read-cost feature,
+so runs before and after a change are not comparable.
 
 ### Telemetry landing zone (S3)
 

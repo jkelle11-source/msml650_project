@@ -14,6 +14,12 @@ Globals:
     # than its telemetry showed. Changing this changes every latency and
     # duration feature, so it must not change during dataset generation (M4).
     MemorySize: 1769
+    # Lambda updates a managed runtime (Python patch release, bundled boto3) on
+    # its own unless told otherwise. boto3's retry behaviour is part of what a
+    # throttled request looks like, so the runtime only changes when we deploy,
+    # and nobody deploys while M4 generates its dataset.
+    RuntimeManagementConfig:
+      UpdateRuntimeOn: FunctionUpdate
     Layers:
       - !Ref TelemetryLayer
 
@@ -278,15 +284,28 @@ Resources:
             Method: ANY
   
   # ---- DynamoDB Tables ---------------------------------------
-  # NOTE (M3): the DynamoDB-throttling incident needs a table in
-  # PROVISIONED mode with low RCU/WCU to produce *real* throttling. Revisit
-  # the Products table then; PAY_PER_REQUEST is correct for M1.
 
   ProductsTable:
     Type: AWS::DynamoDB::Table
-    Properties: 
-      TableName: anomalypulse-products
-      BillingMode: PAY_PER_REQUEST
+    Properties:
+      # Created PROVISIONED, never switched. A Scan (GET /products) costs a
+      # minimum per partition, and a table's partitions depend on its history:
+      # the same 1.5 KB of products cost 0.5 RCU per scan in a table created
+      # provisioned, 2.0 in one created on-demand, and 4.0 once that was
+      # switched to provisioned (M3-3, 2026-10-15). The old anomalypulse-products
+      # had that history, so this is a new table. Don't switch its billing mode
+      # or raise its capacity during M4: either can add partitions and change
+      # every GET /products' read cost mid-dataset.
+      TableName: anomalypulse-products-v2
+      # Fixed capacity, so the DB-throttling injector (M3-3) can drive real
+      # throttling at a controlled offered-load-to-capacity ratio. At 0.5 RCU
+      # per request, a 10x traffic spike reads ~75 RCU/s, about a third of 200,
+      # so spikes don't throttle on their own. Docs/DB_THROTTLING_INJECTOR.md
+      # has the sizing and cost (~$0.70/day). Delete the table after M9.
+      BillingMode: PROVISIONED
+      ProvisionedThroughput:
+        ReadCapacityUnits: 200
+        WriteCapacityUnits: 5
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
@@ -525,7 +544,11 @@ Resources:
             Version: '2012-10-17'
             Statement: 
               - Effect: Allow
-                Action: cloudwatch:GetMetricStatistics
+                # ListMetrics finds the operations ThrottledRequests is
+                # published under; CloudWatch has no table-wide total for it.
+                Action:
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListMetrics
                 Resource: '*'
         - PolicyName: metrics-extractor-s3-write
           PolicyDocument:
@@ -596,6 +619,24 @@ Resources:
                   - s3:GetObject
                   - s3:PutObject
                 Resource: !Sub '${TelemetryBucket.Arn}/experiments/*'
+        - PolicyName: simulator-db-throttling
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                # DescribeTable for the capacity, Scan for the item keys,
+                # BatchGetItem for the load.
+                Action:
+                  - dynamodb:DescribeTable
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                Resource: !GetAtt ProductsTable.Arn
+              - Effect: Allow
+                # CloudWatch metric reads can't be scoped to a resource.
+                Action:
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListMetrics
+                Resource: '*'
 
 
   # ---- Invoke Permissions ---------------------------------------

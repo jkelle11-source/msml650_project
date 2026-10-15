@@ -49,12 +49,13 @@ def get_dynamodb_metrics(table_name, window_end=None, minutes=1):
     """
     end = window_end or datetime.now(timezone.utc)
     start = end - timedelta(minutes=minutes)
+    table = {"Name": "TableName", "Value": table_name}
 
-    def _sum(metric_name):
+    def _sum(metric_name, dimensions=(table,)):
         response = cloudwatch.get_metric_statistics(
             Namespace="AWS/DynamoDB",
             MetricName=metric_name,
-            Dimensions=[{"Name": "TableName", "Value": table_name}],
+            Dimensions=list(dimensions),
             StartTime=start,
             EndTime=end,
             Period=60,
@@ -63,18 +64,34 @@ def get_dynamodb_metrics(table_name, window_end=None, minutes=1):
         # sum([]) == 0, so an idle table naturally reports 0 with no special case.
         return sum(dp["Sum"] for dp in response.get("Datapoints", []))
 
+    def _sum_over_operations(metric_name):
+        # CloudWatch publishes ThrottledRequests per (TableName, Operation) only,
+        # and a query must name a metric's exact dimensions: asked for TableName
+        # alone it returns nothing, whatever was throttled. So find the
+        # operations that have the metric and add them up. RecentlyActive keeps
+        # the list to metrics with data in the last 3 hours.
+        total, token = 0, None
+        while True:
+            kwargs = {"NextToken": token} if token else {}
+            page = cloudwatch.list_metrics(Namespace="AWS/DynamoDB", MetricName=metric_name,
+                                           Dimensions=[table], RecentlyActive="PT3H", **kwargs)
+            for metric in page.get("Metrics", []):
+                if {d["Name"] for d in metric["Dimensions"]} == {"TableName", "Operation"}:
+                    total += _sum(metric_name, metric["Dimensions"])
+            token = page.get("NextToken")
+            if not token:
+                return total
+
     return {
         "table_name": table_name,
         "consumed_read_capacity": _sum("ConsumedReadCapacityUnits"),
         "consumed_write_capacity": _sum("ConsumedWriteCapacityUnits"),
-        # ThrottledRequests is the plan-named signal (README S3), but CloudWatch
-        # publishes it with an Operation dimension, so a TableName-only query can
-        # come back empty. ReadThrottleEvents / WriteThrottleEvents are documented
-        # table-level counters, so they are the reliable throttle signal for the
-        # DB-throttling classifier regardless of how ThrottledRequests aggregates.
-        # We keep all three and reconcile them against a real provisioned-capacity
-        # table in M3, where throttling actually occurs.
-        "throttled_requests": _sum("ThrottledRequests"),
+        # ThrottledRequests is the plan-named signal (README S3): throttled
+        # requests over every operation on the table. A BatchGetItem counts only
+        # when all of its keys were throttled (the DB-throttling injector's
+        # reads, M3-3); ReadThrottleEvents / WriteThrottleEvents count each
+        # throttled key or item, table-wide.
+        "throttled_requests": _sum_over_operations("ThrottledRequests"),
         "read_throttle_events": _sum("ReadThrottleEvents"),
         "write_throttle_events": _sum("WriteThrottleEvents"),
     }
