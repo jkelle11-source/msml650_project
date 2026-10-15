@@ -98,6 +98,8 @@
 - Lambda-degradation injector: band-driven added latency/compute (`~100ms → ~1000ms`) on a target Lambda.
 - Both wired to the simulator interface and recording their injected parameters into the manifest.
 
+**Decided (2026-10-15): every payment in the window fails, not an intermittent share.** The injector's one parameter is `timeout_ms`, the only dependency-failure axis the §6b bands define: each payment call waits that long, then answers 503, and Order records a slow 502 with `dependency_error`. Above Order's 6 s client timeout (the extreme slice) it becomes a real timeout. A failure rate would be a second parameter with no train/test bands; add one, with bands from `M4-3`, only if the classifier finds dependency failures too easy.
+
 **Definition of Done**
 - [ ] Payment-failure injector produces observable dependency errors/timeouts on Order's telemetry.
 - [ ] Lambda-degradation injector produces the intended `lambda_duration_ms` shift.
