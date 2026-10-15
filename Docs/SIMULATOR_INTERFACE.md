@@ -45,7 +45,9 @@ Four things M3-2's validation runs taught us:
   only time awake. One validation run slept through its recovery and finished 25 minutes late.
   Its traffic had stopped, but the manifest still said `COMPLETED`. The runner now fails a run
   whose steps come more than 10 s late (`FellBehind`), but a run that fails that way is lost.
-  Closing the lid still sleeps the Mac, `caffeinate` or not.
+  Closing the lid still sleeps the Mac, `caffeinate` or not. M4's batches avoid all of this:
+  they run on an EC2 instance in us-east-2 (`M4-1` in `Milestones/M04_Dataset.md`), which
+  doesn't sleep and is milliseconds from the stack.
 - **Baseline traffic is 20 rps** (`--rps` defaults to it). M4 uses 20 rps for every run, test set
   included. Don't change the rate partway through a dataset: request rate is a feature, and a
   shift would track the generation date.
