@@ -453,6 +453,51 @@ def test_ctrl_c_is_recorded_as_aborted(go, aws, stack, fake, recorder):
     assert stack.lock.holder() is None
 
 
+def _doze_once(fake, after_ms, for_ms):
+    # The machine sleeps once: a sleeping laptop's timers stop, so the run's
+    # clock jumps ahead while it waits for its next step.
+    state = {"dozed": False}
+
+    def doze():
+        if fake.elapsed_ms >= after_ms and not state["dozed"]:
+            state["dozed"] = True
+            fake.now_ms += for_ms
+
+    return doze
+
+
+def test_a_run_that_slept_through_its_recovery_fails_instead_of_completing(go, aws, stack, fake,
+                                                                          recorder):
+    # What M3-2 saw: the laptop slept after the fault, and the run ended 25
+    # minutes late but called itself COMPLETED.
+    fake.before_sleep = _doze_once(fake, after_ms=10 * MINUTE, for_ms=25 * MINUTE)
+    with pytest.raises(runner.FellBehind, match="the end of the recovery came 1500 s late"):
+        go(_single())
+
+    final = _final_manifest(aws)
+    assert final["status"] == "FAILED"
+    assert [step for step, _, _ in recorder.events] == ["start", "stop"]
+    assert stack.lock.holder() is None
+    assert any(line.endswith("FAILED") for line in go.log)
+
+
+def test_a_run_that_slept_during_its_fault_fails_and_still_stops_the_fault(go, aws, stack, fake,
+                                                                           recorder):
+    fake.before_sleep = _doze_once(fake, after_ms=5 * MINUTE, for_ms=3 * MINUTE)
+    with pytest.raises(runner.FellBehind, match="stop test-recorder came 180 s late"):
+        go(_single())
+
+    assert _final_manifest(aws)["status"] == "FAILED"
+    # The late stop is not made on schedule, but the wind-down still makes it.
+    assert [step for step, _, _ in recorder.events] == ["start", "stop"]
+    assert stack.lock.holder() is None
+
+
+def test_a_step_a_few_seconds_late_is_fine(go, aws, fake):
+    fake.before_sleep = _doze_once(fake, after_ms=0, for_ms=runner.MAX_LATE_MS)
+    assert go(_single("noop"))["status"] == "COMPLETED"
+
+
 def test_aborted_control_plane_fault_is_deleted(go, aws, fake, control_plane_fault):
     # Aborting must not leave the fault to run out its window on the live stack.
     def interrupt_during_the_fault():

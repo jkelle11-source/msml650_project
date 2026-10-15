@@ -25,11 +25,11 @@ dataset with real ground truth. See
 
 | Piece | Owner | Status |
 |---|---|---|
-| **M3-1** Simulator framework + CLI, experiment manifest, fault control plane, experiment lock | Jake | 🚧 Built and run on the deployed stack; awaiting the injector owners' sign-off |
-| **M3-2** Workload generator + traffic-spike injector *(MVP incident)* | Josh | ⬜ Pending (blocked on M3-1) |
-| **M3-3** DynamoDB throttling injector | Linu | ⬜ Pending (blocked on M3-1) |
-| **M3-4** Payment-failure + Lambda-degradation injectors | Rachel | ⬜ Pending (blocked on M3-1) |
-| **M3-5** Cascading-failure orchestration | Melisa | ⬜ Pending (blocked on M3-2…M3-4) |
+| **M3-1** Simulator framework + CLI, experiment manifest, fault control plane, experiment lock | Jake | 🚧 Merged and run on the deployed stack; confirmed buildable by M3-2, awaiting the other injector owners |
+| **M3-2** Workload generator + traffic-spike injector *(MVP incident)* | Josh | ✅ Done: steady baseline, a 3× spike, and a 10× spike at 20 rps validated in landed telemetry (PR #66) |
+| **M3-3** DynamoDB throttling injector | Linu | ⬜ Pending |
+| **M3-4** Payment-failure + Lambda-degradation injectors | Rachel | 🚧 In review (PR #65) |
+| **M3-5** Cascading-failure orchestration | Melisa | 🚧 In review (PR #64); blocked on M3-3 and M3-4 |
 
 M3-1 is the harness the injectors plug into: a local Python CLI
 (`python -m simulator start-incident …`) that takes a lock, records an experiment
@@ -39,6 +39,22 @@ interface. Faults that a Lambda applies to itself are delivered through a Dynamo
 control plane rather than environment variables. The interface, the manifest and
 the teardown story are in **[Docs/SIMULATOR_INTERFACE.md](Docs/SIMULATOR_INTERFACE.md)**;
 injector owners start from **[Handoffs/M3-1_Handoff.md](Handoffs/M3-1_Handoff.md)**.
+
+M3-2 added the baseline workload and the MVP incident. Every run sends open-loop
+Poisson traffic, 20 requests per second in the plan's 60/15/10/10/5 endpoint mix
+by default, and the `traffic-spike` injector multiplies that rate by a band-driven
+factor for its window. `python -m simulator.telemetry_report <experiment_id>` shows
+a run's effect in landed telemetry, phase by phase.
+
+**Running an experiment** (details in the interface doc's "Running an experiment"):
+
+- **Run from `AnomalyPulse/` under `caffeinate -is`:**
+  `caffeinate -is python -m simulator start-incident …`. A sleeping laptop stops the
+  run, and the runner then records it as `FAILED`.
+- **Keep the 20 rps default.** M4 uses it for every run, test set included.
+- **Run one experiment at a time.** Don't send other traffic to the API during a run.
+- **Leave the stack's configuration alone.** It runs PR #67's (1,769 MB functions);
+  deploy only from `main` or a branch that's up to date with it.
 
 **Milestone 2 — Observability** (complete, merged to `main`). Every request emits
 structured telemetry against an enforced schema, and that telemetry lands centrally
@@ -92,7 +108,7 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [AnomalyPulse/infra/shared/](AnomalyPulse/infra/shared/) | The SAM stack — `template.yaml` defines the four Lambdas, their API routes, DynamoDB tables, per-service IAM roles, the telemetry layer, the S3 landing bucket, the log groups + subscription filters, and the SSM parameters. Also holds `field_catalog.json` (the full field registry incl. Tier-2) and `shipper/` (the CloudWatch Logs → S3 shipper Lambda). |
 | [AnomalyPulse/layers/telemetry/](AnomalyPulse/layers/telemetry/) | The `anomalypulse-telemetry` Lambda layer — the frozen `telemetry_schema.json` + `schema_validator.py`, plus `fault_config.py` (the reader each handler uses to pick up injected faults, M3), attached to every function and imported by service handlers and tests. |
 | [AnomalyPulse/services/](AnomalyPulse/services/) | The service code: one folder per service (`product/`, `cart/`, `order/`, `payment/`), each with `handler.py` and `test_handler.py`. |
-| [AnomalyPulse/simulator/](AnomalyPulse/simulator/) | The incident simulator (M3) — a local Python package, not deployed to Lambda. The runner and CLI, the experiment manifest schema, the experiment lock, the fault control-plane writer, and `injectors/` (the interface, the registry, and one file per injector). |
+| [AnomalyPulse/simulator/](AnomalyPulse/simulator/) | The incident simulator (M3) — a local Python package, not deployed to Lambda. The runner and CLI, the experiment manifest schema, the experiment lock, the fault control-plane writer, the baseline workload (`workload.py`), the per-run telemetry report (`telemetry_report.py`), and `injectors/` (the interface, the registry, and one file per injector). |
 
 ---
 

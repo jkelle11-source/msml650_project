@@ -96,6 +96,9 @@ aggregated/                                                 ← reserved for M4 
 - `service=…/dt=…` are **Hive-style key segments** — a naming convention that lets Athena/Glue
   discover partitions later. S3 itself is a flat key store; `dt` is **date** granularity.
 - `raw/` objects **expire after 90 days** (lifecycle rule `expire-raw-telemetry`).
+- **A record can land more than once.** CloudWatch Logs delivers to the shipper at least once, and
+  a redelivered batch is written again. One M3-2 validation run landed 43 records twice, byte for
+  byte. Readers deduplicate by `(service, request_id)`.
 
 ---
 
