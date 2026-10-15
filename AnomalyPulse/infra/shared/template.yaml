@@ -286,7 +286,16 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties: 
       TableName: anomalypulse-products
-      BillingMode: PAY_PER_REQUEST
+      # Fixed provisioned capacity, so the DB-throttling injector (M3-3) can
+      # drive real throttling at a controlled offered-load-to-capacity ratio.
+      # 500 RCU keeps a 10x traffic spike (~254 RCU/s at 20 rps) at about half
+      # the capacity, so spikes don't throttle on their own. It must not change
+      # while M4 generates its dataset; Docs/DB_THROTTLING_INJECTOR.md has the
+      # sizing and the cost (~$1.64/day). Return to PAY_PER_REQUEST after M9.
+      BillingMode: PROVISIONED
+      ProvisionedThroughput:
+        ReadCapacityUnits: 500
+        WriteCapacityUnits: 5
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S

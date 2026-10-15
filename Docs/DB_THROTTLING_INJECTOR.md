@@ -74,11 +74,11 @@ flag, never logs the fault, and puts nothing in telemetry. The observable signal
 M2 metrics extractor collects on its own each minute. Its `throttled_requests` is summed over operations the same way
 (it used to ask for `TableName` alone, which CloudWatch answers with nothing).
 
-## Capacity (decision for Jake and Linu)
+## Capacity
 
 The Products table must sit at a **fixed** provisioned capacity. DynamoDB allows only 4 switches to on-demand and
 about 27 capacity decreases per day, and M4 needs 140+ throttling runs, so the capacity can't change per experiment.
-It is a `template.yaml` change that Jake deploys. Two constraints set the number, and they pull in opposite directions.
+It is set in `template.yaml` and deployed by Jake. Two constraints set the number, and they pull in opposite directions.
 
 **What the application reads** (measured at 20 rps, run `exp-20261015T000130Z-85b4`, from telemetry's `db_consumed_capacity`):
 
@@ -95,7 +95,7 @@ It is a `template.yaml` change that Jake deploys. Two constraints set the number
 2. **The top load ratio must be drivable.** 5.5× (test band) at 400 RCU is 2,200 reads/s; the stress slice (above 6×)
    is more. With `BatchGetItem` that is under 100 calls a second, which is no longer a limit.
 
-**Recommendation: `BillingMode: PROVISIONED`, 500 RCU, 5 WCU.** 500 leaves the 10× spike at about half the capacity
+**Decided (2026-10-15): `BillingMode: PROVISIONED`, 500 RCU, 5 WCU.** 500 leaves the 10× spike at about half the capacity
 and room for the test set's shifted mix and longer spikes. The app writes nothing to Products, so WCU only matters
 for re-seeding.
 
