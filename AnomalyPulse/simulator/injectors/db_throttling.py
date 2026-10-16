@@ -19,11 +19,15 @@ capacity only throttles once that bank is spent: 300 / (r - 1) seconds at
 ratio r, whatever the capacity. (M3-3's validation saw no throttling in 5
 minutes at 1.75x, and the first throttle 174 s in at 3x and 80 s in at 5.5x.)
 So the window opens with a surge at _SURGE_RATIO x capacity, which spends a
-full bank in about half a minute, until the first read is throttled; from then
-on it holds the band's ratio. The surge ends on DynamoDB's own answer, not on a
-prediction, so it works however full the bank is (burst is best-effort). Its
-length and the first throttle's time are recorded, and M4 labels the window
-DATABASE_THROTTLING from observed["label_from"], 5 s after that first throttle.
+full bank in about half a minute, until DynamoDB throttles most of its reads;
+from then on it holds the band's ratio. The surge ends on DynamoDB's own
+answer, not on a prediction, so it works however full the bank is (burst is
+best-effort). One refused read is not that answer: from the M4 runner host an
+isolated throttle came about 3 s into a full bank (M4-1's validation), and a
+surge that ended there left the window running on burst. So it ends when at
+least half of the last second's reads were throttled: a spent bank at 10x
+capacity throttles about 90%. That moment is recorded, and M4 labels the
+window DATABASE_THROTTLING from observed["label_from"], 5 s after it.
 
 A batch DynamoDB could partly serve returns the keys it couldn't read in
 UnprocessedKeys; a batch it couldn't serve at all raises
@@ -32,6 +36,7 @@ neither is retried, so the offered load stays what the schedule says.
 """
 import threading
 import time
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
@@ -50,6 +55,11 @@ _MAX_IN_FLIGHT = 64
 # The surge's rate, as a multiple of capacity, and the longest it may last.
 _SURGE_RATIO = 10
 _SURGE_MAX_S = 120
+# The surge ends when at least this share of the reads that came back in the
+# last _SUSTAIN_S was throttled, over at least _SUSTAIN_MIN_CALLS calls.
+_SUSTAINED_SHARE = 0.5
+_SUSTAIN_S = 1.0
+_SUSTAIN_MIN_CALLS = 10
 # The scheduler sleeps at most this long at a time, so a phase change takes
 # effect at most this late.
 _MAX_WAIT_S = 0.05
@@ -58,7 +68,7 @@ _MAX_WAIT_S = 0.05
 _MAX_BEHIND_S = 1.0
 # Minutes before the window that measure the application's own reads.
 _APP_BASELINE_MIN = 3
-# M4 labels the window from this long after the first throttle. When the
+# M4 labels the window from this long after the bank is spent. When the
 # burst bank runs out, the app briefly meets the surge's throttling before the
 # load drops to the band's ratio, and its retries take up to 3.15 s; M3-3's
 # validation saw 3 failed requests in that instant at 1.75x, none after it.
@@ -92,6 +102,8 @@ class DbThrottle(Injector):
                         for phase in ("surge", "steady")}
         self._calls_dropped = 0
         self._first_throttle_ms = None
+        self._surge_calls = deque()  # (monotonic s, keys, throttled) of the last _SUSTAIN_S
+        self._sustained_ms = None    # epoch ms, when most surge reads were throttled
         self._started_s = None       # monotonic, when the load began
         self._surge_ended_s = None   # monotonic, when the steady ratio took over
         self._surge_end = None       # "throttled" or "time_limit"
@@ -142,7 +154,7 @@ class DbThrottle(Injector):
         while not self._stop_event.is_set():
             now = time.monotonic()
             if self._surge_ended_s is None:
-                if self._first_throttle_ms is not None:
+                if self._sustained_ms is not None:
                     self._end_surge(now, "throttled")
                 elif now - self._started_s >= _SURGE_MAX_S:
                     self._end_surge(now, "time_limit")
@@ -195,6 +207,20 @@ class DbThrottle(Injector):
             counts["errors"] += errors
             if throttled and self._first_throttle_ms is None:
                 self._first_throttle_ms = int(time.time() * 1000)
+            if phase == "surge" and self._sustained_ms is None:
+                self._note_surge_call(keys, throttled)
+
+    def _note_surge_call(self, keys, throttled):
+        """Note a surge call that came back; mark the bank spent once most reads are throttled. Holds the lock."""
+        now = time.monotonic()
+        calls = self._surge_calls
+        calls.append((now, keys, throttled))
+        while calls[0][0] < now - _SUSTAIN_S:
+            calls.popleft()
+        reads = sum(k for _, k, _ in calls)
+        refused = sum(t for _, _, t in calls)
+        if len(calls) >= _SUSTAIN_MIN_CALLS and refused >= _SUSTAINED_SHARE * reads:
+            self._sustained_ms = int(time.time() * 1000)
 
     def stop(self) -> int | None:
         # Safe before start(), after a failed start(), and twice.
@@ -221,14 +247,18 @@ class DbThrottle(Injector):
             "reads_throttled": throttled,
             "read_errors": surge["errors"] + steady["errors"],
             "calls_dropped": self._calls_dropped,
-            # When DynamoDB first refused a read: the burst bank was spent.
-            # M4 labels the window DATABASE_THROTTLING from here.
+            # When DynamoDB first refused a read. Not necessarily a spent bank:
+            # an isolated throttle can come with the bank still full.
             "first_throttle_at": (None if self._first_throttle_ms is None
                                   else manifest.to_iso(self._first_throttle_ms)),
-            # Where M4 starts labeling DATABASE_THROTTLING: the surge's
-            # aftermath has settled. Null when nothing was throttled.
-            "label_from": (None if self._first_throttle_ms is None
-                           else manifest.to_iso(self._first_throttle_ms + _LABEL_SETTLE_S * 1000)),
+            # When most of the surge's reads were throttled: the bank was spent.
+            "sustained_throttle_at": (None if self._sustained_ms is None
+                                      else manifest.to_iso(self._sustained_ms)),
+            # Where M4 starts labeling DATABASE_THROTTLING: 5 s after the bank
+            # was spent, once the surge's aftermath has settled. Null when the
+            # throttling never became sustained; M4 reruns such a run.
+            "label_from": (None if self._sustained_ms is None
+                           else manifest.to_iso(self._sustained_ms + _LABEL_SETTLE_S * 1000)),
             "surge_end": self._surge_end,
             "surge_s": None,
             "steady_reads_per_s": None,

@@ -13,7 +13,8 @@ to. Every run is then judged before it is accepted:
 
     the run      COMPLETED, at 20 rps
     the client   dropped nothing; no response for at most 0.1% of requests
-    db-throttling  achieved_fraction >= 0.97 and label_from set
+    db-throttling  achieved_fraction >= 0.97, label_from set, and a steady
+                 throttle rate within 0.1 of 1 - 1/ratio
     Products     no throttling outside a db-throttling window (CloudWatch),
                  checked once the run's metrics have settled, during the next run
 
@@ -41,6 +42,11 @@ MAX_ATTEMPTS = 3
 MAX_CONSECUTIVE_REJECTIONS = 3
 MAX_ERROR_SHARE = 0.001
 MIN_ACHIEVED_FRACTION = 0.97
+# Once the burst bank is spent, DynamoDB serves its capacity and throttles the
+# rest: 1 - 1/ratio of the reads (M3-3 measured within a point of it). A
+# steady throttle rate further than this from it means the window ran on burst
+# capacity, as M4-1's validation found at 2.0x, or something else is wrong.
+MAX_THROTTLE_RATE_GAP = 0.10
 # CloudWatch's DynamoDB metrics for a run's last minute are in by then.
 SETTLE_S = 300
 # The db-throttling injector's reads in flight when its window closes can take
@@ -188,6 +194,13 @@ def run_problems(final: dict, client: dict) -> list[str]:
         if fraction is None or fraction < MIN_ACHIEVED_FRACTION:
             problems.append(f"db-throttling sent {fraction} of its target read rate, "
                             f"below {MIN_ACHIEVED_FRACTION}")
+        # offered_ratio counts the app's reads too; without CloudWatch, the asked-for ratio.
+        ratio = observed.get("offered_ratio") or activation["params"]["load_ratio"]
+        rate = observed.get("steady_throttle_rate")
+        expected = 1 - 1 / ratio
+        if rate is None or abs(rate - expected) > MAX_THROTTLE_RATE_GAP:
+            problems.append(f"db-throttling throttled {rate} of its steady reads; {ratio:g}x should "
+                            f"throttle about {expected:.2f} (did the window run on burst capacity?)")
     return problems
 
 

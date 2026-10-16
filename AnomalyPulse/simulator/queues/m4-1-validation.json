@@ -46,6 +46,14 @@
                     "band": {"parameter": "timeout_ms", "low": 500, "high": 1500}},
                    {"injector": "retry-amplification", "intensity": 0.5, "onset_delay_s": 60, "onset_jitter_s": 10,
                     "band": {"parameter": "retries_per_failure", "low": 0.5, "high": 2.5}}
-                 ]}}
+                 ]}},
+    {"slot": 12, "phase": "train", "seed": 4112,
+     "incident": {"injector": "db-throttling", "intensity": 0.5,
+                  "band": {"parameter": "load_ratio", "low": 1.5, "high": 2.5},
+                  "baseline_s": 180, "duration_s": 300, "recovery_s": 120}},
+    {"slot": 13, "phase": "train", "seed": 4113,
+     "incident": {"injector": "db-throttling", "intensity": 0.5,
+                  "band": {"parameter": "load_ratio", "low": 3.5, "high": 4.5},
+                  "baseline_s": 180, "duration_s": 300, "recovery_s": 120}}
   ]
 }

@@ -70,9 +70,12 @@ class FakeRun:
         final = manifest.finalize(running, outcome.get("status", "COMPLETED"), self.clock.now_ms)
         for activation in final["activations"]:
             if activation["injector"] == "db-throttling":
+                # THROTTLE asks for 2.0x, which throttles half the steady reads.
                 activation["observed"] = {
                     "achieved_fraction": outcome.get("achieved_fraction", 1.0),
-                    "label_from": None if outcome.get("label_from") is False else activation["active_from"]}
+                    "label_from": None if outcome.get("label_from") is False else activation["active_from"],
+                    "offered_ratio": 2.04,
+                    "steady_throttle_rate": outcome.get("steady_throttle_rate", 0.51)}
         manifest.write_manifest(stack.s3, stack.bucket, final)
         # What the client saw; the workload never really started.
         workload._sent = 10_000
@@ -167,8 +170,10 @@ def _client(sent=10_000, dropped=0, errors=0):
     return {"sent": sent, "dropped": dropped, "responses": {"2xx": sent - errors, "error": errors}}
 
 
-def _throttling(fraction=1.0, label_from="2026-10-16T12:01:05.000Z"):
-    return {"injector": "db-throttling", "observed": {"achieved_fraction": fraction, "label_from": label_from}}
+def _throttling(fraction=1.0, label_from="2026-10-16T12:01:05.000Z", rate=0.75, offered=4.0):
+    return {"injector": "db-throttling", "params": {"load_ratio": 4.0},
+            "observed": {"achieved_fraction": fraction, "label_from": label_from,
+                         "steady_throttle_rate": rate, "offered_ratio": offered}}
 
 
 @pytest.mark.parametrize("final, client, problem", [
@@ -180,6 +185,12 @@ def _throttling(fraction=1.0, label_from="2026-10-16T12:01:05.000Z"):
     (_final(activations=[_throttling(fraction=0.96)]), _client(), "below 0.97"),
     (_final(activations=[_throttling(fraction=None)]), _client(), "below 0.97"),
     (_final(activations=[_throttling(label_from=None)]), _client(), "never throttled"),
+    # M4-1's validation at 4.0x: 53% throttled where 75% is expected.
+    (_final(activations=[_throttling(rate=0.5261)]), _client(), "burst capacity"),
+    (_final(activations=[_throttling(rate=0.9)]), _client(), "should throttle about 0.75"),
+    (_final(activations=[_throttling(rate=None)]), _client(), "throttled None"),
+    # Without CloudWatch's offered_ratio, the asked-for ratio: 4.0x, so 0.4 is far off.
+    (_final(activations=[_throttling(rate=0.4, offered=None)]), _client(), "4x should throttle"),
 ])
 def test_run_problems(final, client, problem):
     assert any(problem in p for p in batch.run_problems(final, client))
@@ -289,6 +300,15 @@ def test_a_db_throttling_run_that_fell_short_is_rerun(tmp_path, go, fake_run, st
     fake_run.outcomes[1] = [{"achieved_fraction": 0.9}, {"label_from": False}]
     go(_queue(tmp_path, [_entry(1, spec=THROTTLE)]))
     assert [a["verdict"] for a in _registry(stack).slot(1)["attempts"]] == ["rejected", "rejected", "accepted"]
+
+
+def test_a_db_throttling_window_that_ran_on_burst_is_rerun(tmp_path, go, fake_run, stack):
+    # M4-1's validation at 2.0x: 5% of the steady reads throttled, not ~50%.
+    fake_run.outcomes[1] = [{"steady_throttle_rate": 0.0512}]
+    go(_queue(tmp_path, [_entry(1, spec=THROTTLE)]))
+    attempts = _registry(stack).slot(1)["attempts"]
+    assert [a["verdict"] for a in attempts] == ["rejected", "accepted"]
+    assert "run on burst capacity" in attempts[0]["reasons"][0]
 
 
 def test_a_slot_is_given_up_after_max_attempts(tmp_path, go, fake_run, stack):

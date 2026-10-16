@@ -132,15 +132,15 @@ def test_the_steady_load_runs_at_ratio_times_capacity_and_stops(aws, no_surge):
     assert _counts(injector)[0] == reads  # the load really stopped
 
 
-def test_the_window_opens_with_a_surge_until_the_first_throttle(aws, monkeypatch):
-    # The surge reads at 10x capacity until DynamoDB refuses a read; then the
-    # band's ratio (here 2.0x) takes over.
+def test_the_window_opens_with_a_surge_until_throttling_is_sustained(aws, monkeypatch):
+    # The surge reads at 10x capacity until DynamoDB throttles most reads; then
+    # the band's ratio (here 2.0x) takes over.
     monkeypatch.setattr(db_throttling, "_SURGE_RATIO", 10)
     _make_products_table(aws, rcu=10, items=5)
     injector = _injector(aws)
     injector.start()
     time.sleep(0.5)
-    injector._first_throttle_ms = int(time.time() * 1000)   # as if a read was refused
+    injector._sustained_ms = int(time.time() * 1000)   # as if most reads were refused
     time.sleep(1.0)
     injector.stop()
 
@@ -150,7 +150,61 @@ def test_the_window_opens_with_a_surge_until_the_first_throttle(aws, monkeypatch
     assert 0.4 <= observed["surge_s"] <= 0.7
     assert 30 <= surge_reads <= 70            # ~100 reads/s for ~0.5 s
     assert 10 <= steady_reads <= 30           # ~20 reads/s for ~1 s
-    assert observed["first_throttle_at"] == manifest.to_iso(injector._first_throttle_ms)
+    assert observed["sustained_throttle_at"] == manifest.to_iso(injector._sustained_ms)
+
+
+def _surge_calls(injector, answers):
+    """Feed surge calls of 5 keys: 'ok' read them all, 'refused' had all 5 throttled."""
+    ok = _FakeClient({"Responses": {}, "UnprocessedKeys": {}})
+    refused = _FakeClient(_client_error("ProvisionedThroughputExceededException"))
+    for answer in answers:
+        injector._read(refused if answer == "refused" else ok, _request(5), "surge")
+
+
+def test_an_isolated_throttle_does_not_end_the_surge(aws):
+    # From the runner host one refused read came ~3 s into a full burst bank
+    # (M4-1's validation); ending the surge there left the window on burst.
+    injector = _injector(aws)
+    injector._table = PRODUCTS_TABLE
+    _surge_calls(injector, ["ok"] * 5 + ["refused"] + ["ok"] * 20)
+    assert injector._first_throttle_ms is not None
+    assert injector._sustained_ms is None
+
+
+def test_mostly_throttled_surge_reads_mean_the_bank_is_spent(aws):
+    injector = _injector(aws)
+    injector._table = PRODUCTS_TABLE
+    _surge_calls(injector, ["ok"] * 10 + ["refused"] * 9)
+    assert injector._sustained_ms is None             # 9 of 19 calls: not yet half
+    before = int(time.time() * 1000)
+    _surge_calls(injector, ["refused"])
+    assert injector._sustained_ms >= before           # 10 of 20: half
+
+
+def test_a_few_refused_calls_are_not_enough_to_judge(aws):
+    injector = _injector(aws)
+    injector._table = PRODUCTS_TABLE
+    _surge_calls(injector, ["refused"] * (db_throttling._SUSTAIN_MIN_CALLS - 1))
+    assert injector._sustained_ms is None
+
+
+def test_only_the_last_second_of_surge_reads_counts(aws, monkeypatch):
+    monkeypatch.setattr(db_throttling, "_SUSTAIN_S", 0.2)
+    injector = _injector(aws)
+    injector._table = PRODUCTS_TABLE
+    _surge_calls(injector, ["refused"] * 9)
+    time.sleep(0.3)                                    # those have aged out
+    _surge_calls(injector, ["ok"] * 10 + ["refused"])
+    assert injector._sustained_ms is None
+
+
+def test_steady_reads_never_mark_the_bank_spent(aws):
+    injector = _injector(aws)
+    injector._table = PRODUCTS_TABLE
+    refused = _FakeClient(_client_error("ProvisionedThroughputExceededException"))
+    for _ in range(20):
+        injector._read(refused, _request(5), "steady")
+    assert injector._sustained_ms is None
 
 
 def test_a_surge_that_never_throttles_ends_at_its_time_limit(aws, monkeypatch):
@@ -164,6 +218,7 @@ def test_a_surge_that_never_throttles_ends_at_its_time_limit(aws, monkeypatch):
     assert observed["surge_end"] == "time_limit"
     assert 0.25 <= observed["surge_s"] <= 0.45
     assert observed["first_throttle_at"] is None and observed["label_from"] is None
+    assert observed["sustained_throttle_at"] is None
 
 
 def test_calls_beyond_the_pool_are_dropped_and_counted(aws, no_surge, monkeypatch):
@@ -250,7 +305,8 @@ def test_observe_reports_the_steady_phase_against_its_target(aws):
     injector._table, injector._provisioned_rcu, injector._target_reads_per_s = None, 10, 20.0
     injector._counts["surge"].update(attempted=300, throttled=50, errors=0)
     injector._counts["steady"].update(attempted=190, throttled=95, errors=5)
-    injector._first_throttle_ms = injector.activation.active_from_ms + 30_000
+    injector._first_throttle_ms = injector.activation.active_from_ms + 3_000
+    injector._sustained_ms = injector.activation.active_from_ms + 30_000
     injector._started_s, injector._surge_ended_s, injector._stopped_s = 1000.0, 1030.0, 1040.0
     injector._surge_end = "throttled"
 
@@ -262,8 +318,9 @@ def test_observe_reports_the_steady_phase_against_its_target(aws):
     assert observed["steady_throttle_rate"] == 0.5
     assert observed["reads_attempted"] == 490 and observed["read_errors"] == 5
     assert observed["first_throttle_at"] == manifest.to_iso(injector._first_throttle_ms)
-    # Labeling starts 5 s later, once the surge's aftermath has settled.
-    assert observed["label_from"] == manifest.to_iso(injector._first_throttle_ms + 5_000)
+    assert observed["sustained_throttle_at"] == manifest.to_iso(injector._sustained_ms)
+    # Labeling starts 5 s after the bank was spent, not after the first throttle.
+    assert observed["label_from"] == manifest.to_iso(injector._sustained_ms + 5_000)
     assert "cw_throttled_requests" not in observed     # no table, no CloudWatch
 
 
