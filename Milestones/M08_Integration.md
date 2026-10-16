@@ -66,7 +66,7 @@
 ### `M8-3` — Classify → Bedrock seam + persist diagnosis
 - **Assignee:** @rachel
 - **Labels:** `integration`, `ml`, `genai`, `dynamodb`
-- **Blocked by:** `M8-2`, `M6-1`
+- **Blocked by:** `M8-2`, `M5-3`, `M6-1`
 - **Blocks:** `M8-4`
 
 **Context.** Turn the classifier output into the structured-evidence input Bedrock expects (the contract agreed in M6), invoke Bedrock, and persist the resulting diagnosis to the Incidents store. This is the classify-to-explain hand-off Rachel and Josh specified in M5/M6.
@@ -86,7 +86,7 @@
 ### `M8-4` — Bedrock output → incident feed
 - **Assignee:** @josh
 - **Labels:** `integration`, `genai`, `api`
-- **Blocked by:** `M8-3`
+- **Blocked by:** `M8-3`, `M6-1`
 - **Blocks:** `M8-5`
 
 **Context.** Make the stored diagnosis consumable by the dashboard feed in the exact shape the console expects, preserving the observed-sequence wording and the evidence bullets end-to-end.
