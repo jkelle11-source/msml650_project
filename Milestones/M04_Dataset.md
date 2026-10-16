@@ -42,7 +42,7 @@
 
 **Context.** The batch layer on top of the simulator: run N experiments unattended, register each with its manifest, and lay the data out in S3 so features/labels and the temporal split are trivial to compute.
 
-**Status:** built — `python -m simulator run-batch`, the registry and the `datasets/` layout, the export, the frozen-configuration check, and the runner host stack (`AnomalyPulse/infra/runner/`). How to use it: [`Docs/DATASET.md`](../Docs/DATASET.md). Live validation on the runner host: pending.
+**Status:** built — `python -m simulator run-batch`, the registry and the `datasets/` layout, the export, the frozen-configuration check, and the runner host stack (`AnomalyPulse/infra/runner/`). How to use it: [`Docs/DATASET.md`](../Docs/DATASET.md). Validated on the runner host 2026-10-16 (Definition of Done below); one open problem with DB throttling from the runner, below the Definition of Done.
 
 **Deliverables**
 - Batch runner that executes a queue of experiments (params from bands) and records completion status.
@@ -57,10 +57,12 @@
 - **Runner host:** one small EC2 instance in us-east-2 that runs every batch (training and test). Non-burstable, such as `c7g.large` (about $0.07 an hour; check current pricing), because a burstable T instance runs short of CPU credits over days of load. It runs as `anomalypulse-simulator`, as `--profile sim` does on a laptop: an instance role allowed to assume it (added to `SimulatorRole`'s trust policy in `template.yaml`; Jake deploys) and a `sim` profile on the instance with `credential_source = Ec2InstanceMetadata`. Reach it through Session Manager (no SSH keys or open ports) and run each batch in `tmux`, so a dropped session doesn't stop it. Stop it between batches and terminate it after `M9-1`.
 
 **Definition of Done**
-- [ ] The runner host repeats M3-2's 20 rps capacity check before generation starts: one full-length NORMAL run and one 10× spike, checked with `telemetry_report` and the spike's `observed.achieved_rps`. Neither goes in the dataset.
-- [ ] A batch of ≥10 experiments runs unattended on the runner host and registers cleanly.
-- [ ] Tier-1 and Tier-2 data are physically separated in S3, not interleaved.
-- [ ] Registry records generation date + phase per experiment (needed for the temporal split).
+- [x] The runner host repeats M3-2's 20 rps capacity check before generation starts: one full-length NORMAL run and one 10× spike, checked with `telemetry_report` and the spike's `observed.achieved_rps`. Neither goes in the dataset. (`exp-20261016T025315Z-0096`: 10 min, 19.81 rps landed, per-minute CV 0.018, no errors; `exp-20261016T030316Z-60d9`: `achieved_rps` 200.5, 200.49 rps landed, nothing dropped, no 5xx)
+- [x] A batch of ≥10 experiments runs unattended on the runner host and registers cleanly. (`batch-20261016T031953Z-120b`: 11 experiments, every injector, all accepted at the first attempt and exported, 03:19–05:25 UTC; `Docs/DATASET.md`, "Validation")
+- [x] Tier-1 and Tier-2 data are physically separated in S3, not interleaved. (`datasets/m4-1-validation/tier1/` holds each run's requests and metrics, only catalog Tier-1 and correlation fields; manifests, registry and index are under `tier2/`)
+- [x] Registry records generation date + phase per experiment (needed for the temporal split). (`generation_date` and `phase` in every slot record, and in `tier2/experiments.jsonl`)
+
+**Open from M4-1's validation, before M4-2 generates `db-throttling` runs:** from the runner host, the DB-throttling surge ends on an early, isolated throttle about 3 s into the window, with DynamoDB's burst bank still full, so the window runs on burst capacity. At 2.0× the table served ~405 RCU/s with almost no throttling for the whole window and Product's p95 didn't move (`exp-20261016T033954Z-d548`); at 4.0× throttling began about 2 minutes in (`exp-20261016T042956Z-f85a`). Both passed the checks above, since `label_from` was set. From a laptop the surge always ended on a spent bank (~33.7 s). `Docs/DATASET.md` has the numbers and the proposed fix.
 
 ---
 

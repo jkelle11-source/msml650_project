@@ -224,7 +224,60 @@ each batch records it.
 and about $1.30 a month for its 16 GB volume. 117 hours of training generation is about $9.
 The runs themselves cost what `SIMULATOR_INTERFACE.md` says ("Teardown and cost").
 
-## Validation (M4-1)
+## Validation (M4-1, 2026-10-16)
 
-*Pending: the runner host's capacity check (a full-length NORMAL run and a 10× spike) and a batch of
-11 experiments (`simulator/queues/m4-1-validation.json`, dataset `m4-1-validation`, never part of `v1`).*
+On the runner host (`c7g.large`), on the stack as deployed at 03:17 UTC (layer 18, runtime pinned).
+
+**Capacity check** (`--created-by m4-capacity-check`, in no dataset), with `telemetry_report`:
+
+| Run | Result |
+|---|---|
+| NORMAL, 10 min (`exp-20261016T025315Z-0096`) | 19.81 client rps landed, per-minute records steady (CV 0.018); nothing dropped, no errors, no 5xx; Product p50/p95 5/7 ms |
+| 10× spike (`exp-20261016T030316Z-60d9`) | `achieved_rps` 200.5 (a laptop managed 200.04 in M3-2); 200.49 rps landed in the window; nothing dropped, no errors, no 5xx; Product p95 6–7 ms |
+
+**Batch** `batch-20261016T031953Z-120b`: `simulator/queues/m4-1-validation.json` into dataset
+`m4-1-validation` (never part of `v1`), commit `927ab57`. Unattended from 03:19 to 05:25 UTC, export
+included. **All 11 runs were accepted at the first attempt**: no client errors, nothing dropped, no
+Products throttling outside a `db-throttling` window.
+
+| Slot | Experiment | What the landed telemetry shows |
+|---|---|---|
+| 1, 6 | NORMAL | steady 20 rps, no 5xx |
+| 2, 7 | traffic spike 3×, 7× | `achieved_rps` 60.3, 139.7; no 5xx |
+| 3, 8 | DB throttling 2.0×, 4.0× | **see below** |
+| 4 | Lambda degradation, Order +350 ms | Order `lambda_duration_ms` p50 2 → 352 → 2 ms (baseline, fault, recovery) |
+| 9 | Lambda degradation, Product +950 ms | Product `lambda_duration_ms` p50 3 → 953 → 3 ms |
+| 5, 10 | payment failure 1,000 ms, 3,000 ms | Order p95 24 → 1,021 / 3,023 ms; 287 / 298 Order 5xx in the window |
+| 11 | cascade: spike 3×, payment failure, retries 1.5 | 1,496 Order 5xx; 778 retries sent |
+
+The export wrote `requests.jsonl` and `metrics.jsonl` for each run under `tier1/` (12,500–50,300 records;
+44 snapshots, 4 services × 11 minutes), the manifests, registry and `experiments.jsonl` under `tier2/`.
+Every record is inside its run, every field is in the catalog as correlation or Tier-1, and 94 duplicate
+records the shipper delivered twice were dropped.
+
+### Open: DB throttling starts late from the runner host
+
+Both `db-throttling` runs passed the checks, and neither was the incident its label says:
+
+| Minute of the window | 2.0× (`…033954Z-d548`): consumed RCU/s, throttled reads | 4.0× (`…042956Z-f85a`) |
+|---|---|---|
+| 1 | 103, 72 | 108, 30 |
+| 2 | 405, 14 | 778, 142 |
+| 3 | 408, 0 | 540, 1,663 |
+| 4 | 408, 0 | 205, 3,806 |
+| 5 | 408, 0 | 204, 3,893 |
+| 6 (window ends) | 289, 467 | 187, 3,854 |
+
+The surge ended on the first throttled read, about **3 s** into the window (`surge_s` 2.9 and 3.0). From
+a laptop it always ended at ~33.7 s, when the burst bank ran out. From the runner an isolated early
+throttle ended it with the bank still full. So at 2.0× the table served twice its capacity from burst
+for the whole window, with almost no throttling, and Product's p95 didn't move (7 ms baseline, 6 ms in
+the window). At 4.0× the bank lasted about 2 minutes; then Product's p95 reached 1.59 s. `label_from` is
+5 s after that early throttle, so it marks the wrong moment.
+
+**Proposed fix** (not made yet): end the surge on *sustained* throttling, for example at least half of the
+last second's reads throttled (a spent bank at 10× capacity throttles about 90%), and take
+`first_throttle_at` and `label_from` from that moment. Add a batch check that the steady throttle rate is
+near what the ratio implies (1 − 1/`offered_ratio`; M3-3 measured within a point of it), so a window
+absorbed by burst is rerun. Then validate 2.0× and 4.0× on the runner again before M4-2 generates
+`db-throttling` runs.
