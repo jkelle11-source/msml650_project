@@ -25,7 +25,7 @@ instance. The simulator itself (injectors, manifests, one run) is in
 700 runs take about 117 hours back to back (15-minute runs would take 175).
 
 - The fault keeps five one-minute windows. A `db-throttling` fault is labeled from `observed.label_from`,
-  about 40 s in, which leaves four.
+  about 47 s in (M4-1's validation), which leaves four.
 - Dropping each run's first minute (M4-4) leaves two NORMAL windows of baseline per run.
 - Recovery windows are excluded from training anyway (plan §3). Two minutes lets the system settle, and the
   next run's dropped first minute adds a third.
@@ -117,7 +117,7 @@ CloudWatch check is finished first; the rest run in queue order.
 |---|---|
 | The run | It didn't end `COMPLETED` (a `FAILED` run includes `FellBehind`), or wasn't at 20 rps. |
 | The client (`Workload.outcomes()`) | Any request was dropped, or more than 0.1% got no response (`error`). A manifest records the workload's settings, not what it sent, so a network drop would otherwise leave a `COMPLETED` run with a gap. |
-| `db-throttling` | `observed.achieved_fraction` below 0.97; `observed.label_from` null (it never throttled); or a steady throttle rate more than 0.1 from `1 − 1/offered_ratio` (the window ran on burst capacity, below). |
+| `db-throttling` | `observed.achieved_fraction` below 0.97; `observed.label_from` null (the bank was never seen spent); a steady throttle rate more than 0.1 from `1 − 1/offered_ratio` (the window ran on burst capacity, below); or `observed.steady_peak_served_per_s` above 1.25× capacity (DynamoDB served more than a spent bank over a minute after `label_from`: burst came back). |
 | Products throttling (CloudWatch) | Any `ThrottledRequests` (summed over operations) or `ReadThrottleEvents` on Products in the run's minutes, except minutes that overlap a `db-throttling` window. |
 
 The CloudWatch check waits 5 minutes after a run ends, for the metrics to settle. It doesn't hold the
@@ -255,9 +255,10 @@ The export wrote `requests.jsonl` and `metrics.jsonl` for each run under `tier1/
 Every record is inside its run, every field is in the catalog as correlation or Tier-1, and 94 duplicate
 records the shipper delivered twice were dropped.
 
-### Open: DB throttling starts late from the runner host
+### DB throttling from the runner host: found and fixed
 
-Both `db-throttling` runs passed the checks, and neither was the incident its label says:
+Both `db-throttling` runs passed the checks, and neither was the incident its label says. Slots 3 and 8
+stay in this dataset as that record; neither is DB-throttling data.
 
 | Minute of the window | 2.0× (`…033954Z-d548`): consumed RCU/s, throttled reads | 4.0× (`…042956Z-f85a`) |
 |---|---|---|
@@ -275,23 +276,39 @@ for the whole window, with almost no throttling, and Product's p95 didn't move (
 the window). At 4.0× the bank lasted about 2 minutes; then Product's p95 reached 1.59 s. `label_from` is
 5 s after that early throttle, so it marks the wrong moment.
 
-**The batch now rejects such a run** (kept): a `db-throttling` run whose steady throttle rate is more than
-0.1 from `1 − 1/offered_ratio` (M3-3 measured within a point of it) is rerun. It rejected all six of the
-runs below, so no window that ran on burst can be accepted.
+**The batch now rejects such a run:** a `db-throttling` run whose steady throttle rate is more than 0.1
+from `1 − 1/offered_ratio` (M3-3 measured within a point of it) is rerun. Two changes to when the surge
+ends were tried and reverted (half of the last second's reads throttled; DynamoDB serving no more than
+1.25× capacity for a second): both fired 3–9 s in, on a full bank, and that check rejected all six runs.
 
-**Two surge changes were tried and reverted** (2026-10-16, slots 12 and 13 of this dataset, six runs):
+**Cause: the client's connections.** From the runner the injector's one boto3 client sent every call over
+one to three connections (DynamoDB answers in ~6 ms), and over those DynamoDB spent burst at only
+~950 RCU/s, in a seesaw: a second or two served in full, then a second or two refused. So a read was
+refused within seconds of a full bank, and any rule judged over one second saw a spent bank. A laptop's
+slower round trips spread the same calls over dozens of connections. Probes at 10× from a full bank
+(120 s, no app traffic, 20:27–20:46 UTC): one client from the runner took ~80 s to spend the bank; the
+laptop, and 16 clients from the runner, were served 2,000 RCU/s until it ran out at 33 s. The table, its
+one partition and every throttle's reason (`TableReadProvisionedThroughputExceeded`) were the same
+throughout. `Docs/DB_THROTTLING_INJECTOR.md` ("Connections") has the table.
 
-| Surge ended when | Fired after | Steady throttle at 2.0× / 4.0× (expected ~0.51 / ~0.75) |
-|---|---|---|
-| half of the last second's reads were throttled | 3.3–4.9 s | 0.05, 0.08 / 0.53 |
-| DynamoDB served the surge no more than 1.25× capacity for a second | 3.8–8.6 s | 0.11, 0.06 / 0.53 |
+**Fix** (`1f013f1`): the reads take turns over 16 clients; the surge ends when the reads DynamoDB served
+it over the last 10 s average no more than 1.5× capacity, with `label_from` 5 s after that; and the batch
+also rejects a run where DynamoDB served the injector more than 1.25× capacity over any minute after
+`label_from` (burst came back, as it once did in a probe). The steady-throttle-rate check stays.
 
-Both fired within seconds, on a bank that then served 2.0× (~407 RCU/s) and 4.0× (650–807 RCU/s) for
-minutes. From the runner, DynamoDB throttles a 10× offer down to about its capacity while serving 2× and
-4× from burst, so neither throttling nor a low served rate during the surge means the bank is spent.
-From a laptop on 2026-10-15 the same 10× surge was served in full for ~33.7 s. The injector is back to
-M3-3's surge (end on the first throttled read) until the cause is measured.
+**Validated** in batch `batch-20261016T223858Z-ea22` (commit `3666cdb`, on the runner):
 
-**Before M4-2 generates `db-throttling` runs:** measure what DynamoDB serves from burst, from the runner
-and from a laptop (probes below), then rebuild the surge at a rate it serves. A slower surge may take
-~100 s to spend the bank, so `db-throttling` runs may need a longer fault window (M4-2, M4-3).
+| Slot | Experiment | Ratio | First throttle → bank seen spent | `label_from` | Steady throttle (expected) | Most served in a labeled minute | Product p95, baseline → labeled | Verdict |
+|---|---|---|---|---|---|---|---|---|
+| 12 | `…223859Z-0550` | 2.0× | +33.7 s → +43.1 s | +48.1 s | 0.514 (0.506) | 199.6 RCU/s | 6 ms → 3,191 ms | accepted |
+| 13 | `…224859Z-48f4` | 4.0× | +32.9 s → +42.1 s | +47.1 s | 0.757 (0.752) | 200.6 RCU/s | 6 ms → 1,594 ms | passed run checks |
+
+In both, CloudWatch shows the surge's minute at ~1,170–1,190 RCU/s and every labeled minute at
+197–204 (capacity): the bank stayed spent. Product's p50 stayed at 5–7 ms, and 0–5 requests a minute
+failed in the labeled stretch (25–30 in the surge's minute, which is excluded). Slots 14 and 15 (1.5× and
+4.5×, the training bands' edges) ran in the same batch; the registry has their verdicts.
+
+**Open for M4-3:** in every labeled minute Product's p95 sat on a step of the app's retry ladder, and
+higher at 2.0× (3.19 s, six retries) than at 4.0× (1.59 s, five). From a laptop M3-3 measured 0.78 s at
+1.75×, 1.59 s at 3.0× and 3.2 s at 5.5×. The labels are right either way; how the symptom scales with
+the ratio, which an analysis by band would rely on, is not settled.

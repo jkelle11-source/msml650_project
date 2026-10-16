@@ -22,7 +22,7 @@ is the front door: what the repo contains, its current status, and how to plug i
 
 | Piece | Owner | Status |
 |---|---|---|
-| **M4-1** Batch runner, experiment registry, S3 dataset layout, runner host | Jake | Built: `python -m simulator run-batch`, the `datasets/<name>/` layout (`tier1/` apart from `tier2/`), the `anomalypulse-runner` stack ([Docs/DATASET.md](Docs/DATASET.md)). Validated on the runner host: capacity check and an 11-run batch. Open: DB throttling from the runner starts late (fix before M4-2's `db-throttling` runs) |
+| **M4-1** Batch runner, experiment registry, S3 dataset layout, runner host | Jake | Built: `python -m simulator run-batch`, the `datasets/<name>/` layout (`tier1/` apart from `tier2/`), the `anomalypulse-runner` stack ([Docs/DATASET.md](Docs/DATASET.md)). Validated on the runner host: capacity check, an 11-run batch, and DB throttling from the runner (fixed: 16 clients, the surge ends on 10 s of served reads) |
 | **M4-2** Generate training + validation set (1–700) | Josh | Waiting on M4-1, M4-3 |
 | **M4-3** Bands, temporal split, diversity protocol | Linu | Open |
 | **M4-4** Window labeling | Melisa | Open |
