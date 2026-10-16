@@ -209,7 +209,7 @@ def _reported_time(value, step: str):
 
 
 def run(plan: Plan, stack: Stack, *, workload=None, clock=_now_ms, sleep=time.sleep,
-        log=print) -> dict:
+        log=print, on_start=None) -> dict:
     """Run one experiment and return its final manifest.
 
     Raises before touching anything if the plan is invalid, and LockHeld if
@@ -217,6 +217,10 @@ def run(plan: Plan, stack: Stack, *, workload=None, clock=_now_ms, sleep=time.sl
     still winds the run down and records it as FAILED or ABORTED before the
     exception carries on up. FellBehind is such a failure: a step that ran
     far later than planned, as after the machine slept.
+
+    `on_start`, if given, is called with the experiment id once the lock is
+    held, so a caller (M4's batch runner) knows which manifest a run that
+    then fails has written.
     """
     workload = NoWorkload() if workload is None else workload
     draft = _draft(plan, clock(), stack.bucket, workload)
@@ -233,6 +237,8 @@ def run(plan: Plan, stack: Stack, *, workload=None, clock=_now_ms, sleep=time.sl
     actual_from, actual_until, observed = {}, {}, {}
     status = "FAILED"
     try:
+        if on_start is not None:
+            on_start(experiment_id)
         manifest.write_manifest(stack.s3, stack.bucket, draft.running)
         ctx = Context(experiment_id=experiment_id, session=stack.session,
                       control_plane=stack.control_plane, workload=workload)
