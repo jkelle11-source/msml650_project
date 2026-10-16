@@ -1,1 +1,8 @@
-jsonschema
+# The layer's one dependency, pinned with everything it pulls in, so every build
+# of the layer is the same (see the Makefile). These are the versions in layer
+# version 17, which M4's dataset starts on: change them only between datasets.
+jsonschema==4.26.0
+attrs==26.1.0
+jsonschema-specifications==2025.9.1
+referencing==0.37.0
+rpds-py==2026.9.1

@@ -149,7 +149,8 @@ Product, Cart and Order now **state their DynamoDB retries** instead of using th
 7 attempts. That keeps exactly the behaviour measured above (up to six retries, 3.15 s of waiting) and turns a
 longer streak into a 500 with telemetry. The default would have tried 10 times, waiting up to 25.5 s in all, past
 Product's 10 s timeout, and a request that times out leaves no telemetry. The template also pins the Lambda runtime
-(`UpdateRuntimeOn: FunctionUpdate`), so the bundled boto3 changes only when the stack is deployed.
+to one version (`UpdateRuntimeOn: Manual` with its `RuntimeVersionArn`, since M4-1), so the bundled boto3 changes only
+if someone changes that ARN.
 
 ## Teardown
 

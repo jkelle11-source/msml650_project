@@ -210,8 +210,11 @@ shared by every function, the shipper included.
 
 Product, Cart and Order state their DynamoDB retries (legacy mode, 7 attempts)
 rather than taking the runtime's default, which could wait 25 s, past their 10 s
-timeout. The runtime itself is pinned (`UpdateRuntimeOn: FunctionUpdate`), so its
-Python and boto3 change only when the stack is deployed.
+timeout. The runtime itself is pinned to one version (`UpdateRuntimeOn: Manual` and a
+`RuntimeVersionArn`), so its Python and boto3 change only when someone changes that ARN.
+The telemetry layer builds the same bytes every time (pinned requirements, no
+bytecode), so a deploy that doesn't change it doesn't republish it and update every
+function.
 
 The Products table is `anomalypulse-products-v2`, created provisioned at 200 RCU /
 5 WCU for the DB-throttling injector. `GET /products` scans it, and a scan's cost

@@ -15,11 +15,15 @@ Globals:
     # duration feature, so it must not change during dataset generation (M4).
     MemorySize: 1769
     # Lambda updates a managed runtime (Python patch release, bundled boto3) on
-    # its own unless told otherwise. boto3's retry behaviour is part of what a
-    # throttled request looks like, so the runtime only changes when we deploy,
-    # and nobody deploys while M4 generates its dataset.
+    # its own unless told otherwise, and FunctionUpdate would still move it
+    # whenever a deploy touches a function. boto3's retry behaviour is part of
+    # what a throttled request looks like, so the runtime is pinned to one
+    # version: the one every function ran when M4 began (2026-10-16, read in
+    # us-east-2). Only changing this ARN changes it; nobody does while M4 and M9
+    # generate the dataset.
     RuntimeManagementConfig:
-      UpdateRuntimeOn: FunctionUpdate
+      UpdateRuntimeOn: Manual
+      RuntimeVersionArn: arn:aws:lambda:us-east-2::runtime:0aacb188d2c5b3aad9e30760eeca867126ff27643ac0b027e44a1f156beaf2d8
     Layers:
       - !Ref TelemetryLayer
 
