@@ -366,7 +366,9 @@ time; every timestamp is a real date; and the whole thing is JSON-serializable
   `CASCADING_FAILURE`" only when `incident_type` is `CASCADING_FAILURE`.
 - **Use only `COMPLETED` runs.** A `FAILED` or `ABORTED` manifest keeps the windows it had
   *planned*, which may run past `ended_at`.
-- **Use only runs M4's registry launched.** Every manifest written before M4 is a test or
+- **Use only runs M4's registry launched**: the experiments in `datasets/<name>/tier2/experiments.jsonl`
+  ([`DATASET.md`](DATASET.md)), which also has each run's records already sliced and deduplicated.
+  Every manifest written before M4 is a test or
   validation run. None of them ran on M4's settings (20 rps, PR #67's configuration, the
   machine kept awake), so none belong in the dataset:
 
@@ -388,8 +390,8 @@ time; every timestamp is a real date; and the whole thing is JSON-serializable
   concurrent executions, against 5–9 later. Back-to-back runs start warm. Dropping each run's
   first minute (M4-4) costs one of its five baseline windows and keeps every run's baseline alike.
 - **A `db-throttling` fault starts at `observed.label_from`**, not at `active_from`: 5 s after the
-  first throttle. Until then DynamoDB's burst capacity absorbs the load and the injector's surge
-  settles; exclude the stretch before it, as recovery is excluded.
+  injector saw DynamoDB's burst bank spent. Until then burst capacity absorbs the load and the
+  injector's surge settles; exclude the stretch before it, as recovery is excluded.
   `Docs/DB_THROTTLING_INJECTOR.md` explains why.
 - **`severity` is relative to the band**, not to the native value: 0.9 in a 2×–4× band is `HIGH`,
   0.1 in a 6×–8× band is `LOW`. To compare magnitudes across bands, read `params`.

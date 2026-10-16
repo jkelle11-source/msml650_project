@@ -40,10 +40,10 @@
 - Stub `services/<service>/handler.py` for each service so the stack builds and deploys.
 
 **Definition of Done**
-- [ ] Every defined route returns a stub `200` (envelope) from a live API Gateway URL; an undefined path returns `501`.
-- [ ] API base URL and table names are published to SSM and reachable.
-- [ ] `telemetry_schema.json` committed with the frozen Tier-1 field list (per M1 coordination protocol).
-- [ ] A teammate can edit their `services/<service>/handler.py` and, after Jake redeploys, see their route return real data — without touching the template.
+- [x] Every defined route returns a stub `200` (envelope) from a live API Gateway URL; an undefined path returns `501`.
+- [x] API base URL and table names are published to SSM and reachable.
+- [x] `telemetry_schema.json` committed with the frozen Tier-1 field list (per M1 coordination protocol).
+- [x] A teammate can edit their `services/<service>/handler.py` and, after Jake redeploys, see their route return real data — without touching the template.
 
 ---
 
@@ -63,10 +63,10 @@
 - Test script (local unit tests, plus `curl` against the deployed API after merge) validating both endpoints.
 
 **Definition of Done**
-- [ ] Both endpoints return `2xx` with correct data against the deployed API Gateway URL (after Jake redeploys the merged PR).
-- [ ] Structured log line emitted per request in the agreed schema shape.
-- [ ] Seed script is idempotent and re-runnable.
-- [ ] Tests pass locally and the endpoints are confirmed against the deployed stack.
+- [x] Both endpoints return `2xx` with correct data against the deployed API Gateway URL (after Jake redeploys the merged PR).
+- [x] Structured log line emitted per request in the agreed schema shape.
+- [x] Seed script is idempotent and re-runnable.
+- [x] Tests pass locally and the endpoints are confirmed against the deployed stack.
 
 ---
 
@@ -86,10 +86,10 @@
 - Test script (local unit tests + `curl` post-merge) covering all three endpoints **including edge cases** (empty cart, item not found).
 
 **Definition of Done**
-- [ ] All three endpoints return correct `2xx`/`4xx` behavior against the deployed API.
-- [ ] Edge cases (empty cart, missing item) return structured error envelopes, not stack traces.
-- [ ] Structured log line emitted per request in the agreed schema.
-- [ ] Tests pass locally and against the deployed stack.
+- [x] All three endpoints return correct `2xx`/`4xx` behavior against the deployed API.
+- [x] Edge cases (empty cart, missing item) return structured error envelopes, not stack traces.
+- [x] Structured log line emitted per request in the agreed schema.
+- [x] Tests pass locally and against the deployed stack.
 
 ---
 
@@ -109,10 +109,10 @@
 - Test script covering happy-path **and** payment-failure scenarios.
 
 **Definition of Done**
-- [ ] `POST /orders` succeeds end-to-end against Rachel's Payment stub.
-- [ ] Payment failure produces a structured error body and a log line with `dependency_error` set.
-- [ ] `dependency_latency_ms` reflects the real measured call time to Payment.
-- [ ] Tests pass both happy-path and failure paths against the deployed stack.
+- [x] `POST /orders` succeeds end-to-end against Rachel's Payment stub.
+- [x] Payment failure produces a structured error body and a log line with `dependency_error` set.
+- [x] `dependency_latency_ms` reflects the real measured call time to Payment.
+- [x] Tests pass both happy-path and failure paths against the deployed stack.
 
 ---
 
@@ -134,7 +134,7 @@
 - Test script covering success, injected failure, and injected latency.
 
 **Definition of Done**
-- [ ] Hardcoded-success handler merged early and Melisa confirmed unblocked (link the confirmation).
-- [ ] All three injection knobs demonstrably change response behavior in tests.
-- [ ] Payment's log line stays Tier-1 (no injected-parameter fields); `latency_ms` reflects injected delay organically.
-- [ ] Tests pass success / injected-failure / injected-latency scenarios against the deployed stack.
+- [x] Hardcoded-success handler merged early and Melisa confirmed unblocked (link the confirmation).
+- [x] All three injection knobs demonstrably change response behavior in tests.
+- [x] Payment's log line stays Tier-1 (no injected-parameter fields); `latency_ms` reflects injected delay organically.
+- [x] Tests pass success / injected-failure / injected-latency scenarios against the deployed stack.

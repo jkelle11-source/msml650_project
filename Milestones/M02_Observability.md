@@ -38,10 +38,10 @@
 - A one-page "telemetry contract" doc: field list, tiers, timestamp/`request_id` discipline, S3 layout.
 
 **Definition of Done**
-- [ ] Schema validates a known-good record and rejects a record missing `timestamp`/`request_id`.
-- [ ] Every Tier-2 field is explicitly marked and documented as *never a feature*.
-- [ ] Records from at least one deployed service are visible in the S3 landing zone under the documented partitions.
-- [ ] All four service owners have imported the shared validation helper.
+- [x] Schema validates a known-good record and rejects a record missing `timestamp`/`request_id`.
+- [x] Every Tier-2 field is explicitly marked and documented as *never a feature*.
+- [x] Records from at least one deployed service are visible in the S3 landing zone under the documented partitions.
+- [x] All four service owners have imported the shared validation helper.
 
 ---
 
@@ -59,9 +59,9 @@
 - Records passing Jake's validator and landing in S3.
 
 **Definition of Done**
-- [ ] Sample of Product records validates clean against the schema.
-- [ ] No Tier-2 field present in the emitted record.
-- [ ] Records observable in S3 under the Product partition.
+- [x] Sample of Product records validates clean against the schema.
+- [x] No Tier-2 field present in the emitted record.
+- [x] Records observable in S3 under the Product partition.
 
 ---
 
@@ -79,9 +79,9 @@
 - Records passing the validator and landing in S3.
 
 **Definition of Done**
-- [ ] Sample of Cart records validates clean against the schema.
-- [ ] No Tier-2 field present in the emitted record.
-- [ ] Records observable in S3 under the Cart partition.
+- [x] Sample of Cart records validates clean against the schema.
+- [x] No Tier-2 field present in the emitted record.
+- [x] Records observable in S3 under the Cart partition.
 
 ---
 
@@ -99,9 +99,9 @@
 - Records passing the validator and landing in S3.
 
 **Definition of Done**
-- [ ] A single order request can be traced across Order → Payment records by shared `request_id`.
-- [ ] Dependency fields populated with real measured values.
-- [ ] No Tier-2 field present; records validate clean and land in S3.
+- [x] A single order request can be traced across Order → Payment records by shared `request_id`.
+- [x] Dependency fields populated with real measured values.
+- [x] No Tier-2 field present; records validate clean and land in S3.
 
 ---
 
@@ -119,7 +119,7 @@
 - Extracted metrics aligned to the same timestamp discipline and landed in S3 alongside the log records.
 
 **Definition of Done**
-- [ ] Payment records validate clean; injected delay is separately identifiable.
-- [ ] Metrics extractor returns real DynamoDB throttle **counts** (not a synthesized boolean) and Lambda health metrics.
-- [ ] Extracted metrics land in S3 and are joinable to log records by timestamp/service.
-- [ ] Milestone exit check: a reviewer confirms the combined telemetry is *sufficient to train ML on* (traffic, latency percentiles, errors, Lambda, DynamoDB, dependency signals all present).
+- [x] Payment records validate clean; injected delay is separately identifiable.
+- [x] Metrics extractor returns real DynamoDB throttle **counts** (not a synthesized boolean) and Lambda health metrics.
+- [x] Extracted metrics land in S3 and are joinable to log records by timestamp/service.
+- [x] Milestone exit check: a reviewer confirms the combined telemetry is *sufficient to train ML on* (traffic, latency percentiles, errors, Lambda, DynamoDB, dependency signals all present).

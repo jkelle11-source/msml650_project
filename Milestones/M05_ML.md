@@ -48,7 +48,7 @@
 ### `M5-2` — Anomaly detection: Isolation Forest + supervised binary detector
 - **Assignee:** @melisa
 - **Labels:** `ml`, `anomaly-detection`, `mvp`
-- **Blocked by:** `M5-1`, `M4-2`, `M4-4`
+- **Blocked by:** `M5-1`, `M4-2`, `M4-4`, `M4-5`
 - **Blocks:** `M8-2`
 
 **Context.** Two detectors answering NORMAL vs ANOMALY. Isolation Forest is included **deliberately** to model the realistic no-labels-in-production case and give a detection signal independent of the taxonomy; the supervised binary detector quantifies the cost of going unsupervised, since we *do* have labels here.

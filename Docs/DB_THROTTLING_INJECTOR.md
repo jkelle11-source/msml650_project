@@ -25,8 +25,8 @@ baseline, so about +0.04 on the ratio at 200 RCU. `observed.offered_ratio` recor
 |---|---|
 | `configure()` | Pure. Resolves `intensity` inside the band into `{"load_ratio": x}`. No AWS calls, no clock, same seed gives the same value. |
 | `start()` | Looks up the Products table name in SSM (`/anomalypulse/tables/products/name`), reads its provisioned read capacity (RCU) with `describe_table`, and **refuses to run if the table is on-demand** (it cannot be throttled at a low ceiling). Reads the item keys with one `Scan`, then starts the load. |
-| the load | Strongly consistent `BatchGetItem` calls of up to 25 keys (every product). Each item is under 4 KB, so each key costs exactly 1 RCU, and reads per second equals RCU per second. 1,100 reads/s is 44 calls a second. The calls are **open-loop**, like the workload's requests: a scheduler thread hands each one to a pool of up to 64 workers at its planned time, whether or not earlier calls have come back. If all 64 are busy, the call is dropped and counted (`calls_dropped`), never sent late. |
-| the surge | The window opens at **10× capacity until DynamoDB first throttles a read**, then holds the band's ratio for the rest of the window. See "Burst capacity" below. If nothing has throttled after 120 s, the surge stops anyway. |
+| the load | Strongly consistent `BatchGetItem` calls of up to 25 keys (every product). Each item is under 4 KB, so each key costs exactly 1 RCU, and reads per second equals RCU per second. 1,100 reads/s is 44 calls a second. The calls are **open-loop**, like the workload's requests: a scheduler thread hands each one to a pool of up to 64 workers at its planned time, whether or not earlier calls have come back. If all 64 are busy, the call is dropped and counted (`calls_dropped`), never sent late. The calls take turns over **16 clients**, each with its own connections ("Connections", below). |
+| the surge | The window opens at **10× capacity until DynamoDB serves it only its capacity**: the reads it served over the last 10 s average no more than 1.5× capacity. Then the band's ratio holds for the rest of the window. See "Burst capacity" below. If the bank isn't spent after 150 s, the surge stops anyway. |
 | throttles | A batch DynamoDB could partly serve returns the unread keys in `UnprocessedKeys`; one it could not serve at all raises `ProvisionedThroughputExceededException`. Both count as throttled reads. **Neither is retried**, and the client has retries off (`total_max_attempts=1`): a retry would hide the throttle and change the offered load. |
 | `stop()` | Stops the scheduler and waits for calls in flight (each times out after 5 s). Safe before `start()`, after a failed `start()`, and when called twice. Returns `None`. |
 | `observe()` | Runs once after the recovery period. Returns the client's counts and the table's CloudWatch counts (see below). |
@@ -41,13 +41,17 @@ baseline, so about +0.04 on the ratio at 200 RCU. `observed.offered_ratio` recor
   "table": "anomalypulse-products-v2",
   "provisioned_rcu": 200,
   "target_reads_per_s": 600.0,
-  "surge_end": "throttled",
-  "surge_s": 31.4,
-  "first_throttle_at": "2026-10-16T14:21:05.218Z",
-  "label_from": "2026-10-16T14:21:10.218Z",
+  "surge_end": "bank_spent",
+  "surge_s": 43.0,
+  "first_throttle_at": "2026-10-16T14:21:06.818Z",
+  "bank_spent_at": "2026-10-16T14:21:16.818Z",
+  "label_from": "2026-10-16T14:21:21.818Z",
   "steady_reads_per_s": 598.7,
   "achieved_fraction": 0.998,
   "steady_throttle_rate": 0.6612,
+  "served_per_s_by_10s": [2000.0, 2000.0, 2000.0, 733.5, 196.2, 189.8, 192.5],
+  "steady_peak_served_per_s": 197.4,
+  "clients": 16,
   "app_reads_per_s": 7.6,
   "offered_ratio": 3.031,
   "reads_attempted": 228500,
@@ -62,11 +66,21 @@ baseline, so about +0.04 on the ratio at 200 RCU. `observed.offered_ratio` recor
 }
 ```
 
-(Illustrative numbers.)
+(Illustrative numbers; `served_per_s_by_10s` has 30 entries for a 5-minute window.)
 
-- `first_throttle_at`: when DynamoDB first refused one of the injector's reads, which is when the burst bank ran out.
-- `label_from`: `first_throttle_at` plus 5 s. **M4 labels the window `DATABASE_THROTTLING` from here** (below).
-- `surge_end`, `surge_s`: how the surge ended (`throttled`, or `time_limit` after 120 s) and how long it lasted.
+- `first_throttle_at`: when DynamoDB first refused one of the injector's reads. With a full bank that is
+  usually when the bank ran out, but not always (from the runner host over one client, ~3 s into a full
+  one), so nothing is labeled from it.
+- `bank_spent_at`: when the surge saw the bank spent: the injector's reads DynamoDB served over the last
+  10 s averaged no more than 1.5× capacity.
+- `label_from`: `bank_spent_at` plus 5 s. **M4 labels the window `DATABASE_THROTTLING` from here** (below).
+- `surge_end`, `surge_s`: how the surge ended (`bank_spent`, or `time_limit` after 150 s) and how long it lasted.
+- `served_per_s_by_10s`: the injector's reads DynamoDB served, per second, in each 10 s of the load.
+- `steady_peak_served_per_s`: the most it served the injector per second over any minute after
+  `label_from`. With the bank spent that is capacity less the app's reads (about 192 at 200 RCU).
+  **M4's batch runner reruns a run where it is above 1.25× capacity**: burst capacity came back inside
+  the labeled stretch, so the app wasn't throttled for part of it.
+- `clients`: how many clients the reads went out over.
 - `target_reads_per_s`, `steady_reads_per_s`, `achieved_fraction`: what the ratio asked for and what the client
   really sent after the surge. **M4's batch runner reruns a run whose `achieved_fraction` is below 0.97.**
 - `app_reads_per_s`: the table's consumed RCU per second in the 3 minutes before the window (the application's own
@@ -128,16 +142,46 @@ first throttle 174 s in at 3.0× and 80 s in at 5.5×. Without a fix, the lower 
 throttle.
 
 So the window opens with the **surge**: 10× capacity spends a full bank in about 33 s. It ends on DynamoDB's own
-answer, the first throttled read, so it works whether the bank is full, partly spent, or used by AWS for
-maintenance. From then on the throttle rate reflects the band's ratio.
+answer, not on a prediction, so it works whether the bank is full, partly spent, or used by AWS for maintenance:
+when the injector's reads DynamoDB served over the last 10 s average no more than 1.5× capacity, which is all a
+spent bank serves. From then on the throttle rate reflects the band's ratio.
+
+**A throttled read is not that answer.** Until M4-1 the surge ended on the first throttled read. From a laptop
+that came as the bank ran out, but from the runner host it came ~3 s into a full bank, and the window then ran on
+burst capacity: at 2.0× the table served the whole load for the whole window, and Product's p95 didn't move
+(`Docs/DATASET.md`, "Validation"). A rule over 1 s fails the same way (below); over 10 s it doesn't.
+
+### Connections (M4-1's investigation, 2026-10-16)
+
+From the runner host, one client sends every call over one to three connections (DynamoDB answers in ~6 ms), and
+over those DynamoDB spent burst at about half the surge's rate. Probes at 10× (2,000 reads/s) for 120 s from a
+full bank, without app traffic, a few minutes apart:
+
+| Client | Connections | While the bank lasted | Bank spent after |
+|---|---|---|---|
+| Runner host, 1 client | 1–3 | ~950 RCU/s: a second or two at 2,000, then a second or two at none | ~80 s |
+| Laptop, 1 client (p50 latency 153 ms) | up to 64 | 2,000 RCU/s | 33 s |
+| Runner host, 16 clients | at least 16 | 2,000 RCU/s | 33 s |
+
+The bank was full each time (about 60,000 RCU: 300 s × 200). Every throttle was
+`TableReadProvisionedThroughputExceeded` (the exception's `ThrottlingReasons`; CloudWatch's
+`ReadProvisionedThroughputThrottleEvents` equals `ReadThrottleEvents` for every run on this table), never a
+partition limit. AWS doesn't document why fewer connections spend burst more slowly, so the injector relies only on
+what was measured: it uses 16 clients, and its end-of-surge rule holds either way. Over 10 s the one-client
+seesaw never fell below 780 RCU/s, and a spent bank served about 200, at most 232 over any 10 s.
+
+**Burst can come back.** In one 10× probe through the simulator (`exp-20261016T200807Z-3b54`, one client), a
+second full bank (~60,000 RCU) was served about 3 minutes into the window, a minute after the first ran out, on
+a table that still had one partition. The cause is unknown. `steady_peak_served_per_s` shows it, and the batch
+reruns such a run.
 
 **Labeling (M4-4): a `DATABASE_THROTTLING` window starts at `observed.label_from`, not at `active_from`.** That is
-5 s after the first throttle. When the bank runs out, the application briefly meets the surge's throttling before
-the load drops to the band's ratio, and its retries take up to 3.15 s: at 1.75× in validation, 3 requests failed in
-that instant and none after it. The stretch from `active_from` to `label_from`, which holds the surge and that
-moment, is excluded from the training set, as recovery is, so neither the surge's consumed-capacity spike nor those
-failures reach the features. A run whose surge ended on its time limit (`surge_end: "time_limit"`, `label_from:
-null`) never throttled, and M4 reruns it.
+5 s after the surge saw the bank spent. When the bank runs out, the application meets the surge's throttling for
+the up to 10 s the surge takes to see it, before the load drops to the band's ratio, and its retries take up to
+3.15 s: at 1.75× in M3-3's validation, 3 requests failed as the bank ran out and none after. The stretch from
+`active_from` to `label_from`, which holds the surge and that moment, is excluded from the training set, as recovery
+is, so neither the surge's consumed-capacity spike nor those failures reach the features. A run whose surge ended
+on its time limit (`surge_end: "time_limit"`, `label_from: null`) never saw the bank spent, and M4 reruns it.
 
 ## How the application sees it
 
@@ -149,7 +193,8 @@ Product, Cart and Order now **state their DynamoDB retries** instead of using th
 7 attempts. That keeps exactly the behaviour measured above (up to six retries, 3.15 s of waiting) and turns a
 longer streak into a 500 with telemetry. The default would have tried 10 times, waiting up to 25.5 s in all, past
 Product's 10 s timeout, and a request that times out leaves no telemetry. The template also pins the Lambda runtime
-(`UpdateRuntimeOn: FunctionUpdate`), so the bundled boto3 changes only when the stack is deployed.
+to one version (`UpdateRuntimeOn: Manual` with its `RuntimeVersionArn`, since M4-1), so the bundled boto3 changes only
+if someone changes that ARN.
 
 ## Teardown
 
@@ -208,5 +253,5 @@ Validated on the new table, 2026-10-15 (200 RCU, from a laptop, 20 rps):
 | 8.0×, stress (`exp-20261015T174713Z-7f32`) | 87.6% | 380–780 ms / ~3.2 s | ~8–11% (344, all with telemetry) |
 
 In the minute the bank runs out, a few requests fail as the app meets the surge's throttling (3 at 1.75×); that is
-why labeling starts at `label_from`, 5 s after the first throttle. These runs predate `label_from`, and none of them
+why labeling starts at `label_from`, 5 s after the bank was spent. These runs predate `label_from`, and none of them
 belongs in the dataset.

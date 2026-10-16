@@ -113,7 +113,7 @@
 ### `M3-5` — Cascading-failure orchestration
 - **Assignee:** @melisa
 - **Labels:** `simulator`, `incident:cascading-failure`, `service:order`, `hard`
-- **Blocked by:** `M3-2`, `M3-3`, `M3-4`
+- **Blocked by:** `M3-1`, `M3-2`, `M3-3`, `M3-4`
 - **Blocks:** —
 
 **Context.** Compose the primitives into the feedback loop from §4 (traffic spike → DB throttling → Lambda latency → timeouts → retries → more traffic). Order sits at the center of that retry loop, so Melisa owns the composition. This is the hard, high-value demo case — the one where no single threshold fires cleanly.

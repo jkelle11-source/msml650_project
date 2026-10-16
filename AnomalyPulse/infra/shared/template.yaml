@@ -15,11 +15,15 @@ Globals:
     # duration feature, so it must not change during dataset generation (M4).
     MemorySize: 1769
     # Lambda updates a managed runtime (Python patch release, bundled boto3) on
-    # its own unless told otherwise. boto3's retry behaviour is part of what a
-    # throttled request looks like, so the runtime only changes when we deploy,
-    # and nobody deploys while M4 generates its dataset.
+    # its own unless told otherwise, and FunctionUpdate would still move it
+    # whenever a deploy touches a function. boto3's retry behaviour is part of
+    # what a throttled request looks like, so the runtime is pinned to one
+    # version: the one every function ran when M4 began (2026-10-16, read in
+    # us-east-2). Only changing this ARN changes it; nobody does while M4 and M9
+    # generate the dataset.
     RuntimeManagementConfig:
-      UpdateRuntimeOn: FunctionUpdate
+      UpdateRuntimeOn: Manual
+      RuntimeVersionArn: arn:aws:lambda:us-east-2::runtime:0aacb188d2c5b3aad9e30760eeca867126ff27643ac0b027e44a1f156beaf2d8
     Layers:
       - !Ref TelemetryLayer
 
@@ -564,22 +568,26 @@ Resources:
   # Trust: the account root is the principal and the ArnLike condition narrows
   # it to sessions of the AnomalyPulseDeveloper permission set. Matching on the
   # name pattern (not the exact role ARN) survives the permission set's role
-  # being re-created with a new random suffix.
+  # being re-created with a new random suffix. M4's runner host (M4-1,
+  # infra/runner/template.yaml) assumes it too, through its instance role; the
+  # condition names that role, so it can be trusted before it exists.
 
   SimulatorRole:
     Type: AWS::IAM::Role
-    Properties: 
+    Properties:
       RoleName: anomalypulse-simulator
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal: 
+            Principal:
               AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
             Action: sts:AssumeRole
             Condition:
               ArnLike:
-                aws:PrincipalArn: !Sub 'arn:aws:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/us-east-2/AWSReservedSSO_AnomalyPulseDeveloper_*'
+                aws:PrincipalArn:
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/us-east-2/AWSReservedSSO_AnomalyPulseDeveloper_*'
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/anomalypulse-runner'
       Policies:
         - PolicyName: simulator-discovery
           PolicyDocument:
@@ -637,6 +645,31 @@ Resources:
                   - cloudwatch:GetMetricStatistics
                   - cloudwatch:ListMetrics
                 Resource: '*'
+        # M4's batch runner (M4-1, simulator/batch.py, Docs/DATASET.md). It
+        # reads every function's configuration to check the stack is still
+        # M4's, reads raw/ and metrics/ to export each run into the dataset,
+        # and writes the dataset and its registry under datasets/. ListBucket
+        # makes a missing key read as 404 rather than 403.
+        - PolicyName: simulator-dataset-batch
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:GetFunctionConfiguration
+                Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:anomalypulse-*'
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt TelemetryBucket.Arn
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource:
+                  - !Sub '${TelemetryBucket.Arn}/raw/*'
+                  - !Sub '${TelemetryBucket.Arn}/metrics/*'
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub '${TelemetryBucket.Arn}/datasets/*'
 
 
   # ---- Invoke Permissions ---------------------------------------
