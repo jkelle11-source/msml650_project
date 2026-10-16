@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  AnomalyPulse M4 runner host (M4-1) - one EC2 instance that runs every dataset
+  batch, training and test. Tooling only, not part of the application. Stop the
+  instance between batches; delete this stack after M9-1. Docs/DATASET.md.
+
+# A stack of its own, apart from anomalypulse-shared: creating, stopping and
+# deleting it never touches the stack M4 keeps frozen. The shared stack's
+# SimulatorRole trusts this stack's role by name.
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: c7g.large
+    # Not a burstable T type: it would run short of CPU credits over days of
+    # load. Graviton (arm64), to match the AMI below.
+    Description: Non-burstable arm64 instance type for the runner.
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+    Description: Amazon Linux 2023, arm64. Resolved when the stack is created.
+
+Resources:
+
+  # The instance's own role can do two things: be managed through Session
+  # Manager, and assume anomalypulse-simulator, which is what every batch runs
+  # as (the `sim` profile that setup.sh writes).
+  RunnerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: anomalypulse-runner
+      Description: AnomalyPulse M4 runner host; assumes anomalypulse-simulator to run batches
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: assume-simulator-role
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: sts:AssumeRole
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/anomalypulse-simulator'
+
+  RunnerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: anomalypulse-runner
+      Roles:
+        - !Ref RunnerRole
+
+  # No inbound rule at all: no SSH, no open port. Session Manager connects out
+  # from the instance, as do the API calls, AWS calls, packages and git.
+  # Outbound is the default (all); limiting it would need the VPC's id here.
+  RunnerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: AnomalyPulse runner - no inbound; reached through Session Manager
+      Tags:
+        - Key: Name
+          Value: anomalypulse-runner
+
+  # In the default VPC, whose subnets give it a public IP for outbound traffic.
+  RunnerInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref ImageId
+      IamInstanceProfile: !Ref RunnerInstanceProfile
+      SecurityGroupIds:
+        - !GetAtt RunnerSecurityGroup.GroupId
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+        HttpPutResponseHopLimit: 1
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 16
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: anomalypulse-runner
+      # Packages only. The checkout, the virtualenv and the `sim` profile are
+      # ec2-user's, set up by infra/runner/setup.sh (Docs/DATASET.md).
+      UserData: !Base64 |
+        #!/bin/bash
+        set -euxo pipefail
+        dnf install -y git tmux python3.13 python3.13-pip \
+          || dnf install -y git tmux python3.12 python3.12-pip
+
+Outputs:
+  InstanceId:
+    Description: Connect with `aws ssm start-session --target <id>`
+    Value: !Ref RunnerInstance
+  RoleArn:
+    Description: Trusted by anomalypulse-simulator (infra/shared/template.yaml)
+    Value: !GetAtt RunnerRole.Arn
