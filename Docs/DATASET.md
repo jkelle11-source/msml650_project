@@ -296,19 +296,23 @@ it over the last 10 s average no more than 1.5× capacity, with `label_from` 5 s
 also rejects a run where DynamoDB served the injector more than 1.25× capacity over any minute after
 `label_from` (burst came back, as it once did in a probe). The steady-throttle-rate check stays.
 
-**Validated** in batch `batch-20261016T223858Z-ea22` (commit `3666cdb`, on the runner):
+**Validated** in batch `batch-20261016T223858Z-ea22` (commit `3666cdb`, on the runner, 22:38–23:25 UTC),
+at the training bands' edges and middles. All four runs were accepted at their first attempt in it.
 
-| Slot | Experiment | Ratio | First throttle → bank seen spent | `label_from` | Steady throttle (expected) | Most served in a labeled minute | Product p95, baseline → labeled | Verdict |
-|---|---|---|---|---|---|---|---|---|
-| 12 | `…223859Z-0550` | 2.0× | +33.7 s → +43.1 s | +48.1 s | 0.514 (0.506) | 199.6 RCU/s | 6 ms → 3,191 ms | accepted |
-| 13 | `…224859Z-48f4` | 4.0× | +32.9 s → +42.1 s | +47.1 s | 0.757 (0.752) | 200.6 RCU/s | 6 ms → 1,594 ms | passed run checks |
+| Slot | Experiment | Ratio | First throttle → bank seen spent | `label_from` | Steady throttle (expected) | Most served in a labeled minute | Product p95, baseline → labeled |
+|---|---|---|---|---|---|---|---|
+| 14 | `…225859Z-fbb1` | 1.5× | +32.9 s → +43.1 s | +48.1 s | 0.349 (0.350) | 196.7 RCU/s | 6 ms → 1,586 ms |
+| 12 | `…223859Z-0550` | 2.0× | +33.7 s → +43.1 s | +48.1 s | 0.514 (0.506) | 199.6 RCU/s | 6 ms → 3,191 ms |
+| 13 | `…224859Z-48f4` | 4.0× | +32.9 s → +42.1 s | +47.1 s | 0.757 (0.752) | 200.6 RCU/s | 6 ms → 1,594 ms |
+| 15 | `…230900Z-3be8` | 4.5× | +32.9 s → +42.1 s | +47.1 s | 0.783 (0.780) | 202.1 RCU/s | 7 ms → 3,191 ms |
 
-In both, CloudWatch shows the surge's minute at ~1,170–1,190 RCU/s and every labeled minute at
-197–204 (capacity): the bank stayed spent. Product's p50 stayed at 5–7 ms, and 0–5 requests a minute
-failed in the labeled stretch (25–30 in the surge's minute, which is excluded). Slots 14 and 15 (1.5× and
-4.5×, the training bands' edges) ran in the same batch; the registry has their verdicts.
+In every run CloudWatch shows the surge's minute at 1,172–1,188 RCU/s and every labeled minute at
+197–206 (capacity): the bank stayed spent. `ReadThrottleEvents` in a labeled minute rose with the ratio,
+about 1,400 at 1.5×, 2,100 at 2.0×, 4,500 at 4.0× and 5,000 at 4.5×. Product's p50 stayed at 5–7 ms,
+and 0–5 requests a minute failed in the labeled stretch (22–35 in the surge's minute, which is excluded).
 
-**Open for M4-3:** in every labeled minute Product's p95 sat on a step of the app's retry ladder, and
-higher at 2.0× (3.19 s, six retries) than at 4.0× (1.59 s, five). From a laptop M3-3 measured 0.78 s at
-1.75×, 1.59 s at 3.0× and 3.2 s at 5.5×. The labels are right either way; how the symptom scales with
-the ratio, which an analysis by band would rely on, is not settled.
+**Open for M4-3:** in every labeled minute Product's p95 sat on a step of the app's retry ladder, 1.59 s
+(five retries) or 3.19 s (six), in no order by ratio: 1.59 s at 1.5× and 4.0×, 3.19 s at 2.0× and 4.5×.
+From a laptop M3-3 measured 0.78 s at 1.75×, 1.59 s at 3.0× and 3.2 s at 5.5×. The labels are right
+either way, and the throttle counts scale with the ratio; an analysis of the app's latency by band would
+not see the ratio.
