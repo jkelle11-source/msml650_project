@@ -117,7 +117,7 @@ CloudWatch check is finished first; the rest run in queue order.
 |---|---|
 | The run | It didn't end `COMPLETED` (a `FAILED` run includes `FellBehind`), or wasn't at 20 rps. |
 | The client (`Workload.outcomes()`) | Any request was dropped, or more than 0.1% got no response (`error`). A manifest records the workload's settings, not what it sent, so a network drop would otherwise leave a `COMPLETED` run with a gap. |
-| `db-throttling` | `observed.achieved_fraction` below 0.97, or `observed.label_from` null (it never throttled). |
+| `db-throttling` | `observed.achieved_fraction` below 0.97; `observed.label_from` null (the burst bank was never spent); or a steady throttle rate more than 0.1 from `1 − 1/offered_ratio` (the window ran on burst capacity). |
 | Products throttling (CloudWatch) | Any `ThrottledRequests` (summed over operations) or `ReadThrottleEvents` on Products in the run's minutes, except minutes that overlap a `db-throttling` window. |
 
 The CloudWatch check waits 5 minutes after a run ends, for the metrics to settle. It doesn't hold the

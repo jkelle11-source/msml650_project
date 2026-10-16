@@ -52,7 +52,7 @@
 - **Checks that keep the dataset on one configuration** (from M3-3's validation; `Docs/DB_THROTTLING_INJECTOR.md`):
   - *Before each batch:* refuse to start unless the stack matches the frozen configuration: function memory 1,769 MB, Products provisioned at 200 RCU, and one `Scan` of Products costing 0.5 RCU (a partition change would raise it). Record the configuration with the batch.
   - *After each run that has no `db-throttling` fault:* read the Products table's `ThrottledRequests` and `ReadThrottleEvents` for the run's window. Any throttling marks the run contaminated, and it is rerun.
-  - *After each `db-throttling` run:* rerun it if `observed.achieved_fraction` is below 0.97 or `observed.label_from` is null (it never throttled).
+  - *After each `db-throttling` run:* rerun it if `observed.achieved_fraction` is below 0.97 or `observed.label_from` is null (it never throttled). Added by M4-1's validation: also if the steady throttle rate is more than 0.1 from `1 − 1/offered_ratio` (the window ran on burst capacity).
   - *After every run:* check the client kept sending. The batch runner holds the `Workload` and reads `outcomes()` after `run()`: rerun the run if any requests were dropped or more than 0.1% got no response (`error`). The manifest records the workload's settings, not what it sent, so a network drop mid-run can otherwise leave a `COMPLETED` run with a gap in its traffic.
 - **Runner host:** one small EC2 instance in us-east-2 that runs every batch (training and test). Non-burstable, such as `c7g.large` (about $0.07 an hour; check current pricing), because a burstable T instance runs short of CPU credits over days of load. It runs as `anomalypulse-simulator`, as `--profile sim` does on a laptop: an instance role allowed to assume it (added to `SimulatorRole`'s trust policy in `template.yaml`; Jake deploys) and a `sim` profile on the instance with `credential_source = Ec2InstanceMetadata`. Reach it through Session Manager (no SSH keys or open ports) and run each batch in `tmux`, so a dropped session doesn't stop it. Stop it between batches and terminate it after `M9-1`.
 
@@ -124,7 +124,7 @@
 - **Cascade rule:** `CASCADING_FAILURE` only when ≥2 injected faults are concurrently active; early single-fault windows labeled by the observable single fault.
 - **Recovery exclusion:** recovery-phase windows excluded from the MVP training set (no fuzzy sixth class).
 - **Does `retry-amplification` count as a fault** for "two or more faults concurrently active"? It adds load and fails nothing itself. Decide, and if not, pass `exclude_injectors=("retry-amplification",)` to `cascade.multi_fault_windows()`.
-- **DB-throttling onset:** a `db-throttling` activation counts as active from `observed.label_from` (5 s after the first throttle), not `active_from`. Until then DynamoDB's burst capacity is absorbing the load (the injector surges to spend it) and then the surge's aftermath settles, so the stretch before it is excluded like recovery (`Docs/DB_THROTTLING_INJECTOR.md`).
+- **DB-throttling onset:** a `db-throttling` activation counts as active from `observed.label_from` (5 s after the burst bank was spent, `observed.bank_spent_at`), not `active_from`. Until then DynamoDB's burst capacity is absorbing the load (the injector surges to spend it) and then the surge's aftermath settles, so the stretch before it is excluded like recovery (`Docs/DB_THROTTLING_INJECTOR.md`).
 
 **Definition of Done**
 - [ ] Every window carries exactly one label under the policy; boundary windows resolved deterministically.
