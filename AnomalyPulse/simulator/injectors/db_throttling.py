@@ -18,18 +18,12 @@ Burst capacity. DynamoDB banks up to 300 s of unused capacity, so a load above
 capacity only throttles once that bank is spent: 300 / (r - 1) seconds at
 ratio r, whatever the capacity. (M3-3's validation saw no throttling in 5
 minutes at 1.75x, and the first throttle 174 s in at 3x and 80 s in at 5.5x.)
-So the window opens with a surge at _SURGE_RATIO x capacity, to spend the
-bank quickly; from then on it holds the band's ratio. The surge ends on
-DynamoDB's own answer, not on a prediction, so it works however full the bank
-is (burst is best-effort): when DynamoDB serves no more than its provisioned
-capacity, that is, when the reads it served in the last second fall to
-_SPENT_FACTOR x capacity. Being throttled is not that answer. From a laptop
-the first throttle came as the bank ran out (~33.7 s), but from the M4 runner
-host (M4-1's validation, 2026-10-16) DynamoDB throttled the 10x surge within
-about 3 s while still serving 2x and 4x from a nearly full bank for minutes:
-it limits how fast burst can be spent. A surge that ended on throttling left
-the window running on burst. The moment the bank ran out is recorded, and M4
-labels the window DATABASE_THROTTLING from observed["label_from"], 5 s after it.
+So the window opens with a surge at _SURGE_RATIO x capacity, which spends a
+full bank in about half a minute, until the first read is throttled; from then
+on it holds the band's ratio. The surge ends on DynamoDB's own answer, not on a
+prediction, so it works however full the bank is (burst is best-effort). Its
+length and the first throttle's time are recorded, and M4 labels the window
+DATABASE_THROTTLING from observed["label_from"], 5 s after that first throttle.
 
 A batch DynamoDB could partly serve returns the keys it couldn't read in
 UnprocessedKeys; a batch it couldn't serve at all raises
@@ -38,7 +32,6 @@ neither is retried, so the offered load stays what the schedule says.
 """
 import threading
 import time
-from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
@@ -57,13 +50,6 @@ _MAX_IN_FLIGHT = 64
 # The surge's rate, as a multiple of capacity, and the longest it may last.
 _SURGE_RATIO = 10
 _SURGE_MAX_S = 120
-# The surge ends when the reads DynamoDB served in the last _SUSTAIN_S, over
-# at least _SUSTAIN_MIN_CALLS calls, come to no more than _SPENT_FACTOR x
-# provisioned capacity per second: it is serving only its capacity (less the
-# app's own reads), so the bank is spent. A capped bank still served 2x-4x.
-_SPENT_FACTOR = 1.25
-_SUSTAIN_S = 1.0
-_SUSTAIN_MIN_CALLS = 10
 # The scheduler sleeps at most this long at a time, so a phase change takes
 # effect at most this late.
 _MAX_WAIT_S = 0.05
@@ -72,7 +58,7 @@ _MAX_WAIT_S = 0.05
 _MAX_BEHIND_S = 1.0
 # Minutes before the window that measure the application's own reads.
 _APP_BASELINE_MIN = 3
-# M4 labels the window from this long after the bank is spent. When the
+# M4 labels the window from this long after the first throttle. When the
 # burst bank runs out, the app briefly meets the surge's throttling before the
 # load drops to the band's ratio, and its retries take up to 3.15 s; M3-3's
 # validation saw 3 failed requests in that instant at 1.75x, none after it.
@@ -106,8 +92,6 @@ class DbThrottle(Injector):
                         for phase in ("surge", "steady")}
         self._calls_dropped = 0
         self._first_throttle_ms = None
-        self._surge_calls = deque()  # (monotonic s, reads served) of the last _SUSTAIN_S
-        self._bank_spent_ms = None   # epoch ms, when DynamoDB served only its capacity
         self._started_s = None       # monotonic, when the load began
         self._surge_ended_s = None   # monotonic, when the steady ratio took over
         self._surge_end = None       # "throttled" or "time_limit"
@@ -158,8 +142,8 @@ class DbThrottle(Injector):
         while not self._stop_event.is_set():
             now = time.monotonic()
             if self._surge_ended_s is None:
-                if self._bank_spent_ms is not None:
-                    self._end_surge(now, "bank_spent")
+                if self._first_throttle_ms is not None:
+                    self._end_surge(now, "throttled")
                 elif now - self._started_s >= _SURGE_MAX_S:
                     self._end_surge(now, "time_limit")
             if now < next_at:
@@ -211,25 +195,6 @@ class DbThrottle(Injector):
             counts["errors"] += errors
             if throttled and self._first_throttle_ms is None:
                 self._first_throttle_ms = int(time.time() * 1000)
-            if phase == "surge" and self._bank_spent_ms is None:
-                self._note_surge_call(keys - throttled - errors)
-
-    def _note_surge_call(self, served):
-        """Note a surge call that came back; mark the bank spent once DynamoDB serves only its capacity.
-
-        Holds the lock. Judged only once the surge has run a whole _SUSTAIN_S,
-        so the last second's reads are a full second's.
-        """
-        now = time.monotonic()
-        calls = self._surge_calls
-        calls.append((now, served))
-        while calls[0][0] < now - _SUSTAIN_S:
-            calls.popleft()
-        if self._started_s is None or now - self._started_s < _SUSTAIN_S or len(calls) < _SUSTAIN_MIN_CALLS:
-            return
-        served_per_s = sum(n for _, n in calls) / _SUSTAIN_S
-        if served_per_s <= _SPENT_FACTOR * self._provisioned_rcu:
-            self._bank_spent_ms = int(time.time() * 1000)
 
     def stop(self) -> int | None:
         # Safe before start(), after a failed start(), and twice.
@@ -256,18 +221,14 @@ class DbThrottle(Injector):
             "reads_throttled": throttled,
             "read_errors": surge["errors"] + steady["errors"],
             "calls_dropped": self._calls_dropped,
-            # When DynamoDB first refused a read. Not necessarily a spent bank:
-            # an isolated throttle can come with the bank still full.
+            # When DynamoDB first refused a read: the burst bank was spent.
+            # M4 labels the window DATABASE_THROTTLING from here.
             "first_throttle_at": (None if self._first_throttle_ms is None
                                   else manifest.to_iso(self._first_throttle_ms)),
-            # When DynamoDB served no more than its capacity: the bank was spent.
-            "bank_spent_at": (None if self._bank_spent_ms is None
-                              else manifest.to_iso(self._bank_spent_ms)),
-            # Where M4 starts labeling DATABASE_THROTTLING: 5 s after the bank
-            # was spent, once the surge's aftermath has settled. Null when the
-            # surge hit its time limit first; M4 reruns such a run.
-            "label_from": (None if self._bank_spent_ms is None
-                           else manifest.to_iso(self._bank_spent_ms + _LABEL_SETTLE_S * 1000)),
+            # Where M4 starts labeling DATABASE_THROTTLING: the surge's
+            # aftermath has settled. Null when nothing was throttled.
+            "label_from": (None if self._first_throttle_ms is None
+                           else manifest.to_iso(self._first_throttle_ms + _LABEL_SETTLE_S * 1000)),
             "surge_end": self._surge_end,
             "surge_s": None,
             "steady_reads_per_s": None,

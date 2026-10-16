@@ -117,7 +117,7 @@ CloudWatch check is finished first; the rest run in queue order.
 |---|---|
 | The run | It didn't end `COMPLETED` (a `FAILED` run includes `FellBehind`), or wasn't at 20 rps. |
 | The client (`Workload.outcomes()`) | Any request was dropped, or more than 0.1% got no response (`error`). A manifest records the workload's settings, not what it sent, so a network drop would otherwise leave a `COMPLETED` run with a gap. |
-| `db-throttling` | `observed.achieved_fraction` below 0.97; `observed.label_from` null (the burst bank was never spent); or a steady throttle rate more than 0.1 from `1 − 1/offered_ratio` (the window ran on burst capacity). |
+| `db-throttling` | `observed.achieved_fraction` below 0.97; `observed.label_from` null (it never throttled); or a steady throttle rate more than 0.1 from `1 − 1/offered_ratio` (the window ran on burst capacity, below). |
 | Products throttling (CloudWatch) | Any `ThrottledRequests` (summed over operations) or `ReadThrottleEvents` on Products in the run's minutes, except minutes that overlap a `db-throttling` window. |
 
 The CloudWatch check waits 5 minutes after a run ends, for the metrics to settle. It doesn't hold the
@@ -275,9 +275,23 @@ for the whole window, with almost no throttling, and Product's p95 didn't move (
 the window). At 4.0× the bank lasted about 2 minutes; then Product's p95 reached 1.59 s. `label_from` is
 5 s after that early throttle, so it marks the wrong moment.
 
-**Proposed fix** (not made yet): end the surge on *sustained* throttling, for example at least half of the
-last second's reads throttled (a spent bank at 10× capacity throttles about 90%), and take
-`first_throttle_at` and `label_from` from that moment. Add a batch check that the steady throttle rate is
-near what the ratio implies (1 − 1/`offered_ratio`; M3-3 measured within a point of it), so a window
-absorbed by burst is rerun. Then validate 2.0× and 4.0× on the runner again before M4-2 generates
-`db-throttling` runs.
+**The batch now rejects such a run** (kept): a `db-throttling` run whose steady throttle rate is more than
+0.1 from `1 − 1/offered_ratio` (M3-3 measured within a point of it) is rerun. It rejected all six of the
+runs below, so no window that ran on burst can be accepted.
+
+**Two surge changes were tried and reverted** (2026-10-16, slots 12 and 13 of this dataset, six runs):
+
+| Surge ended when | Fired after | Steady throttle at 2.0× / 4.0× (expected ~0.51 / ~0.75) |
+|---|---|---|
+| half of the last second's reads were throttled | 3.3–4.9 s | 0.05, 0.08 / 0.53 |
+| DynamoDB served the surge no more than 1.25× capacity for a second | 3.8–8.6 s | 0.11, 0.06 / 0.53 |
+
+Both fired within seconds, on a bank that then served 2.0× (~407 RCU/s) and 4.0× (650–807 RCU/s) for
+minutes. From the runner, DynamoDB throttles a 10× offer down to about its capacity while serving 2× and
+4× from burst, so neither throttling nor a low served rate during the surge means the bank is spent.
+From a laptop on 2026-10-15 the same 10× surge was served in full for ~33.7 s. The injector is back to
+M3-3's surge (end on the first throttled read) until the cause is measured.
+
+**Before M4-2 generates `db-throttling` runs:** measure what DynamoDB serves from burst, from the runner
+and from a laptop (probes below), then rebuild the surge at a rate it serves. A slower surge may take
+~100 s to spend the bank, so `db-throttling` runs may need a longer fault window (M4-2, M4-3).
