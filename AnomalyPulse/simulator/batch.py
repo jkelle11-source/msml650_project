@@ -13,8 +13,9 @@ to. Every run is then judged before it is accepted:
 
     the run      COMPLETED, at 20 rps
     the client   dropped nothing; no response for at most 0.1% of requests
-    db-throttling  achieved_fraction >= 0.97, label_from set, and a steady
-                 throttle rate within 0.1 of 1 - 1/ratio
+    db-throttling  achieved_fraction >= 0.97, label_from set, a steady
+                 throttle rate within 0.1 of 1 - 1/ratio, and no minute after
+                 label_from served more than 1.25x capacity
     Products     no throttling outside a db-throttling window (CloudWatch),
                  checked once the run's metrics have settled, during the next run
 
@@ -47,6 +48,10 @@ MIN_ACHIEVED_FRACTION = 0.97
 # steady throttle rate further than this from it means the window ran on burst
 # capacity, as M4-1's validation found at 2.0x, or something else is wrong.
 MAX_THROTTLE_RATE_GAP = 0.10
+# A spent bank serves only capacity. More than this x provisioned RCU over any
+# minute after label_from means burst capacity came back inside the labeled
+# stretch (once in M4-1's investigation, a second full bank ~3 minutes in).
+MAX_STEADY_SERVED_FACTOR = 1.25
 # CloudWatch's DynamoDB metrics for a run's last minute are in by then.
 SETTLE_S = 300
 # The db-throttling injector's reads in flight when its window closes can take
@@ -201,6 +206,11 @@ def run_problems(final: dict, client: dict) -> list[str]:
         if rate is None or abs(rate - expected) > MAX_THROTTLE_RATE_GAP:
             problems.append(f"db-throttling throttled {rate} of its steady reads; {ratio:g}x should "
                             f"throttle about {expected:.2f} (did the window run on burst capacity?)")
+        peak, rcu = observed.get("steady_peak_served_per_s"), observed.get("provisioned_rcu")
+        if peak is None or rcu is None or peak > MAX_STEADY_SERVED_FACTOR * rcu:
+            problems.append(f"DynamoDB served db-throttling {peak} reads/s over a minute after label_from, "
+                            f"more than {MAX_STEADY_SERVED_FACTOR}x its {rcu} RCU "
+                            f"(did burst capacity come back?)")
     return problems
 
 

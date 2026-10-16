@@ -132,28 +132,29 @@ def test_the_steady_load_runs_at_ratio_times_capacity_and_stops(aws, no_surge):
     assert _counts(injector)[0] == reads  # the load really stopped
 
 
-def test_the_window_opens_with_a_surge_until_the_first_throttle(aws, monkeypatch):
-    # The surge reads at 10x capacity until DynamoDB refuses a read; then the
-    # band's ratio (here 2.0x) takes over.
+def test_the_window_opens_with_a_surge_until_the_bank_is_spent(aws, monkeypatch):
+    # The surge reads at 10x capacity until DynamoDB serves only its capacity;
+    # then the band's ratio (here 2.0x) takes over.
     monkeypatch.setattr(db_throttling, "_SURGE_RATIO", 10)
+    monkeypatch.setattr(DbThrottle, "_bank_spent", lambda self, now: now - self._started_s >= 0.5)
     _make_products_table(aws, rcu=10, items=5)
     injector = _injector(aws)
     injector.start()
-    time.sleep(0.5)
-    injector._first_throttle_ms = int(time.time() * 1000)   # as if a read was refused
-    time.sleep(1.0)
+    time.sleep(1.5)
     injector.stop()
 
     surge_reads, steady_reads = _counts(injector, "surge")[0], _counts(injector, "steady")[0]
     observed = injector.observe()
-    assert observed["surge_end"] == "throttled"
-    assert 0.4 <= observed["surge_s"] <= 0.7
+    assert observed["surge_end"] == "bank_spent"
+    assert 0.45 <= observed["surge_s"] <= 0.7
     assert 30 <= surge_reads <= 70            # ~100 reads/s for ~0.5 s
     assert 10 <= steady_reads <= 30           # ~20 reads/s for ~1 s
-    assert observed["first_throttle_at"] == manifest.to_iso(injector._first_throttle_ms)
+    assert observed["bank_spent_at"] == manifest.to_iso(injector._bank_spent_ms)
+    # Labeling starts 5 s later, once the surge's aftermath has settled.
+    assert observed["label_from"] == manifest.to_iso(injector._bank_spent_ms + 5_000)
 
 
-def test_a_surge_that_never_throttles_ends_at_its_time_limit(aws, monkeypatch):
+def test_a_surge_whose_bank_is_never_spent_ends_at_its_time_limit(aws, monkeypatch):
     monkeypatch.setattr(db_throttling, "_SURGE_MAX_S", 0.3)
     _make_products_table(aws, rcu=10, items=5)
     injector = _injector(aws)
@@ -163,7 +164,72 @@ def test_a_surge_that_never_throttles_ends_at_its_time_limit(aws, monkeypatch):
     observed = injector.observe()
     assert observed["surge_end"] == "time_limit"
     assert 0.25 <= observed["surge_s"] <= 0.45
-    assert observed["first_throttle_at"] is None and observed["label_from"] is None
+    assert observed["bank_spent_at"] is None and observed["label_from"] is None
+    assert observed["steady_peak_served_per_s"] is None
+
+
+@pytest.fixture
+def surging(aws):
+    """An injector in its surge at 200 RCU, the real table's: a spent bank serves <= 300 reads/s over 10 s."""
+    injector = _injector(aws)
+    injector._provisioned_rcu = 200
+    injector._started_s = 1000.0
+    return injector
+
+
+def _serve(injector, per_second):
+    """Record reads served in each whole second from the load's start."""
+    for second, reads in enumerate(per_second):
+        injector._served[second] = reads
+
+
+def test_the_bank_is_spent_once_the_last_10_s_served_only_capacity(surging):
+    # A laptop's surge (M3-3, and M4-1's investigation): 2,000 a second until
+    # the bank ran out at ~33 s, then capacity.
+    _serve(surging, [2000] * 33 + [200] * 20)
+    assert not surging._bank_spent(1042.9)    # seconds 32-41 still hold one of 2,000
+    assert surging._bank_spent(1043.0)        # seconds 33-42: 200 a second
+
+
+def test_a_seesaw_of_full_and_refused_seconds_is_not_a_spent_bank(surging):
+    # The runner host's first 13 s at 10x, with a full bank (M4-1's
+    # investigation): served in full for a second or two, then not at all.
+    _serve(surging, [2000, 2000, 1850, 0, 0, 700, 2000, 1375, 0, 0, 1425, 2000, 650])
+    assert not surging._bank_spent(1013.0)
+
+
+def test_nothing_is_judged_before_the_surge_has_run_10_s(surging):
+    _serve(surging, [0] * 10)
+    assert not surging._bank_spent(1009.9)
+    assert surging._bank_spent(1010.0)
+
+
+def test_served_reads_are_counted_by_the_second_they_came_back(aws):
+    injector = _injector(aws)
+    injector._table = PRODUCTS_TABLE
+    injector._started_s = time.monotonic() - 2.5
+    partial = {"Responses": {}, "UnprocessedKeys": {
+        PRODUCTS_TABLE: {"Keys": [{"id": "prod-001"}, {"id": "prod-002"}], "ConsistentRead": True}}}
+    for answer in ({"Responses": {}, "UnprocessedKeys": {}}, partial,
+                   _client_error("ProvisionedThroughputExceededException"), _client_error("ValidationException")):
+        injector._read(_FakeClient(answer), _request(5), "surge")
+    assert dict(injector._served) == {2: 5 + 3}
+
+
+def test_the_calls_take_turns_over_several_clients(aws, no_surge, monkeypatch):
+    # Over one client's few connections DynamoDB spent burst at about half the
+    # surge's rate; over 16 clients it served the surge in full (M4-1).
+    monkeypatch.setattr(db_throttling, "_CLIENTS", 3)
+    used = []
+    monkeypatch.setattr(DbThrottle, "_read", lambda self, client, request, phase="steady": used.append(id(client)))
+    _make_products_table(aws, rcu=10, items=5)
+    injector = _injector(aws)
+    injector.start()
+    time.sleep(1.6)                        # four calls a second
+    injector.stop()
+    counts = sorted(used.count(c) for c in set(used))
+    assert len(counts) == 3 and counts[-1] - counts[0] <= 1
+    assert injector.observe()["clients"] == 3
 
 
 def test_calls_beyond_the_pool_are_dropped_and_counted(aws, no_surge, monkeypatch):
@@ -185,6 +251,7 @@ def test_stop_before_start_is_safe(aws):
     assert injector.stop() is None
     observed = injector.observe()
     assert observed["steady_reads_per_s"] is None and observed["surge_s"] is None
+    assert observed["served_per_s_by_10s"] == [] and observed["steady_peak_served_per_s"] is None
 
 
 def test_stop_twice_after_start_is_safe(aws, no_surge):
@@ -250,9 +317,10 @@ def test_observe_reports_the_steady_phase_against_its_target(aws):
     injector._table, injector._provisioned_rcu, injector._target_reads_per_s = None, 10, 20.0
     injector._counts["surge"].update(attempted=300, throttled=50, errors=0)
     injector._counts["steady"].update(attempted=190, throttled=95, errors=5)
-    injector._first_throttle_ms = injector.activation.active_from_ms + 30_000
+    injector._first_throttle_ms = injector.activation.active_from_ms + 3_000
+    injector._bank_spent_ms = injector.activation.active_from_ms + 30_000
     injector._started_s, injector._surge_ended_s, injector._stopped_s = 1000.0, 1030.0, 1040.0
-    injector._surge_end = "throttled"
+    injector._surge_end = "bank_spent"
 
     observed = injector.observe()
 
@@ -262,9 +330,41 @@ def test_observe_reports_the_steady_phase_against_its_target(aws):
     assert observed["steady_throttle_rate"] == 0.5
     assert observed["reads_attempted"] == 490 and observed["read_errors"] == 5
     assert observed["first_throttle_at"] == manifest.to_iso(injector._first_throttle_ms)
-    # Labeling starts 5 s later, once the surge's aftermath has settled.
-    assert observed["label_from"] == manifest.to_iso(injector._first_throttle_ms + 5_000)
+    assert observed["bank_spent_at"] == manifest.to_iso(injector._bank_spent_ms)
+    # Labeling starts 5 s after the bank was spent, not after the first throttle.
+    assert observed["label_from"] == manifest.to_iso(injector._bank_spent_ms + 5_000)
     assert "cw_throttled_requests" not in observed     # no table, no CloudWatch
+
+
+def _spent_at(injector, surge_s, stopped_s):
+    """An injector whose surge saw the bank spent surge_s into a load that ran stopped_s."""
+    injector._provisioned_rcu, injector._target_reads_per_s = 200, 400.0
+    injector._started_s, injector._surge_ended_s = 1000.0, 1000.0 + surge_s
+    injector._stopped_s = 1000.0 + stopped_s
+    injector._bank_spent_ms = injector.activation.active_from_ms + int(surge_s * 1000)
+    injector._surge_end = "bank_spent"
+    return injector
+
+
+def test_observe_reports_served_reads_by_10_s_and_the_steady_peak(aws):
+    injector = _spent_at(_injector(aws), surge_s=42.6, stopped_s=100.3)
+    _serve(injector, [2000] * 33 + [190] * 67)
+    observed = injector.observe()
+    assert observed["served_per_s_by_10s"] == [2000.0, 2000.0, 2000.0, 733.0] + [190.0] * 6
+    assert observed["steady_peak_served_per_s"] == 190.0   # seconds 48-99, after label_from
+
+
+def test_burst_coming_back_after_label_from_shows_in_the_steady_peak(aws):
+    # M4-1's 10x probe: ~3 minutes in, DynamoDB served a second full bank.
+    injector = _spent_at(_injector(aws), surge_s=40.0, stopped_s=300.0)
+    _serve(injector, [2000] * 33 + [190] * 147 + [1000] * 10 + [190] * 110)
+    assert injector.observe()["steady_peak_served_per_s"] == 325.0   # (10 x 1,000 + 50 x 190) / 60
+
+
+def test_a_steady_stretch_shorter_than_a_minute_is_averaged_whole(aws):
+    injector = _spent_at(_injector(aws), surge_s=40.0, stopped_s=60.5)
+    _serve(injector, [2000] * 33 + [190] * 12 + [250] * 15)
+    assert injector.observe()["steady_peak_served_per_s"] == 250.0   # seconds 45-59 only
 
 
 def test_observe_sums_cloudwatch_throttles_and_the_apps_own_reads(aws):

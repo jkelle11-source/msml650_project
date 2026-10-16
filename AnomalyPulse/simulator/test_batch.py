@@ -75,7 +75,8 @@ class FakeRun:
                     "achieved_fraction": outcome.get("achieved_fraction", 1.0),
                     "label_from": None if outcome.get("label_from") is False else activation["active_from"],
                     "offered_ratio": 2.04,
-                    "steady_throttle_rate": outcome.get("steady_throttle_rate", 0.51)}
+                    "steady_throttle_rate": outcome.get("steady_throttle_rate", 0.51),
+                    "provisioned_rcu": 200, "steady_peak_served_per_s": 192.5}
         manifest.write_manifest(stack.s3, stack.bucket, final)
         # What the client saw; the workload never really started.
         workload._sent = 10_000
@@ -170,10 +171,11 @@ def _client(sent=10_000, dropped=0, errors=0):
     return {"sent": sent, "dropped": dropped, "responses": {"2xx": sent - errors, "error": errors}}
 
 
-def _throttling(fraction=1.0, label_from="2026-10-16T12:01:05.000Z", rate=0.75, offered=4.0):
+def _throttling(fraction=1.0, label_from="2026-10-16T12:01:05.000Z", rate=0.75, offered=4.0, peak=192.5):
     return {"injector": "db-throttling", "params": {"load_ratio": 4.0},
             "observed": {"achieved_fraction": fraction, "label_from": label_from,
-                         "steady_throttle_rate": rate, "offered_ratio": offered}}
+                         "steady_throttle_rate": rate, "offered_ratio": offered,
+                         "provisioned_rcu": 200, "steady_peak_served_per_s": peak}}
 
 
 @pytest.mark.parametrize("final, client, problem", [
@@ -191,14 +193,18 @@ def _throttling(fraction=1.0, label_from="2026-10-16T12:01:05.000Z", rate=0.75, 
     (_final(activations=[_throttling(rate=None)]), _client(), "throttled None"),
     # Without CloudWatch's offered_ratio, the asked-for ratio: 4.0x, so 0.4 is far off.
     (_final(activations=[_throttling(rate=0.4, offered=None)]), _client(), "4x should throttle"),
+    # M4-1's 10x probe: a second full bank ~3 minutes in, served at ~1,000 RCU/s.
+    (_final(activations=[_throttling(peak=325.0)]), _client(), "did burst capacity come back"),
+    (_final(activations=[_throttling(peak=None)]), _client(), "served db-throttling None reads/s"),
 ])
 def test_run_problems(final, client, problem):
     assert any(problem in p for p in batch.run_problems(final, client))
 
 
 def test_a_good_run_has_no_problems():
-    # 10 errors in 10,000 is exactly 0.1%: allowed.
-    assert batch.run_problems(_final(activations=[_throttling(fraction=0.97)]), _client(errors=10)) == []
+    # 10 errors in 10,000 is exactly 0.1%, and 250 reads/s is exactly 1.25x 200 RCU: both allowed.
+    assert batch.run_problems(_final(activations=[_throttling(fraction=0.97, peak=250.0)]),
+                              _client(errors=10)) == []
 
 
 class FakeCloudWatch:
