@@ -54,6 +54,14 @@
     {"slot": 13, "phase": "train", "seed": 4113,
      "incident": {"injector": "db-throttling", "intensity": 0.5,
                   "band": {"parameter": "load_ratio", "low": 3.5, "high": 4.5},
+                  "baseline_s": 180, "duration_s": 300, "recovery_s": 120}},
+    {"slot": 14, "phase": "train", "seed": 4114,
+     "incident": {"injector": "db-throttling", "intensity": 0.0,
+                  "band": {"parameter": "load_ratio", "low": 1.5, "high": 2.5},
+                  "baseline_s": 180, "duration_s": 300, "recovery_s": 120}},
+    {"slot": 15, "phase": "train", "seed": 4115,
+     "incident": {"injector": "db-throttling", "intensity": 1.0,
+                  "band": {"parameter": "load_ratio", "low": 3.5, "high": 4.5},
                   "baseline_s": 180, "duration_s": 300, "recovery_s": 120}}
   ]
 }
