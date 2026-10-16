@@ -90,7 +90,7 @@ Bucket name is published to SSM at `/anomalypulse/telemetry/bucket/name`
 ```text
 raw/service=<svc>/dt=<YYYY-MM-DD>/part-<request_id>.json   ← NDJSON, one object per shipper batch
 errors/service=<svc>/dt=<YYYY-MM-DD>/part-<request_id>.json ← lines that failed to parse (quarantine)
-aggregated/                                                 ← reserved for M4 (one-minute windows)
+datasets/<name>/tier1/…, datasets/<name>/tier2/…           ← M4's dataset: each run's records, windows, labels (Docs/DATASET.md)
 ```
 
 - `service=…/dt=…` are **Hive-style key segments** — a naming convention that lets Athena/Glue

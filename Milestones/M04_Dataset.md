@@ -25,8 +25,9 @@
   - **Batches run on an EC2 instance in us-east-2, not on a laptop** (set up in `M4-1`). Generation takes days of continuous running. A laptop that sleeps fails the run in progress (the runner records it `FAILED`), and one that drops its Wi-Fi can record a `COMPLETED` run with a gap in its traffic. The instance does neither, and being in-region lets the DB-throttling injector reach its higher read rates. Every experiment runs from that instance, test set included: a change of client partway through would track the split, as a rate change would. `caffeinate -is` stays the rule for one-off runs from a laptop.
   - **The stack keeps its configuration as of PR #70** for the whole dataset: 1,769 MB functions (PR #67); Product builds its table at load; the Products table `anomalypulse-products-v2`, created provisioned at 200 RCU / 5 WCU and never switched (a `GET /products` scan costs 0.5 RCU); DynamoDB retries stated in Product, Cart and Order (legacy mode, 7 attempts); the Lambda runtime pinned (`UpdateRuntimeOn: FunctionUpdate`). Deploy only from `main` or an up-to-date branch, never mid-generation.
   - **The registry holds only runs M4 launched.** The six manifests written before M4 are test and validation runs, and none ran on these settings.
-  - **Labeling and features:** use `COMPLETED` runs only, deduplicate raw records by `(service, request_id)`, and consider dropping each run's first minute (startup 404s, cold starts after an idle gap).
-  - **Throughput:** runs are serial, and a default run lasts 15 minutes, so 700 runs take ~175 hours back to back. Run length is the lever; decide it before generation starts.
+  - **Labeling and features:** use `COMPLETED` runs only, deduplicate raw records by `(service, request_id)`, and consider dropping each run's first minute (startup 404s, cold starts after an idle gap). The export does the first two (`Docs/DATASET.md`).
+  - **Run shape (decided 2026-10-15): every run is 10 minutes — 3 minutes of baseline, a 5-minute fault, 2 minutes of recovery** — so 700 serial runs take ~117 hours instead of the CLI default's 175. The fault keeps five one-minute windows; dropping the first minute leaves two NORMAL baseline windows per run; recovery is excluded from training anyway. A cascade is `baseline_s` 180, `cascade_s` 300, `recovery_s` 120. Queue entries state the shape explicitly; the CLI's defaults are unchanged.
+  - **Batches, the registry and the S3 layout** are in [`Docs/DATASET.md`](../Docs/DATASET.md) (M4-1). The main dataset is `datasets/v1/`.
 
 ---
 
@@ -39,6 +40,8 @@
 - **Blocks:** `M4-2`, `M4-3`, `M4-4`, `M4-5`
 
 **Context.** The batch layer on top of the simulator: run N experiments unattended, register each with its manifest, and lay the data out in S3 so features/labels and the temporal split are trivial to compute.
+
+**Status:** built — `python -m simulator run-batch`, the registry and the `datasets/` layout, the export, the frozen-configuration check, and the runner host stack (`AnomalyPulse/infra/runner/`). How to use it: [`Docs/DATASET.md`](../Docs/DATASET.md). Live validation on the runner host: pending.
 
 **Deliverables**
 - Batch runner that executes a queue of experiments (params from bands) and records completion status.

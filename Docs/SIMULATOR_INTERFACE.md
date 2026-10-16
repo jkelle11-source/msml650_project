@@ -366,7 +366,9 @@ time; every timestamp is a real date; and the whole thing is JSON-serializable
   `CASCADING_FAILURE`" only when `incident_type` is `CASCADING_FAILURE`.
 - **Use only `COMPLETED` runs.** A `FAILED` or `ABORTED` manifest keeps the windows it had
   *planned*, which may run past `ended_at`.
-- **Use only runs M4's registry launched.** Every manifest written before M4 is a test or
+- **Use only runs M4's registry launched**: the experiments in `datasets/<name>/tier2/experiments.jsonl`
+  ([`DATASET.md`](DATASET.md)), which also has each run's records already sliced and deduplicated.
+  Every manifest written before M4 is a test or
   validation run. None of them ran on M4's settings (20 rps, PR #67's configuration, the
   machine kept awake), so none belong in the dataset:
 
