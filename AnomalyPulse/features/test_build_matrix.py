@@ -38,3 +38,11 @@ def test_injected_tier2_column_fails_the_build(monkeypatch):
 
 def test_clean_build_does_not_raise():
     bm.build_matrix([REC], [SNAP])
+
+def test_matrix_includes_temporal_columns():
+    later = dict(REC, timestamp="2026-10-16T03:20:10.000Z")
+    rows = bm.build_matrix([REC, later], [SNAP])
+    first, second = list(rows.values())[:2]
+    assert second["product_p95_latency_ms_change"] == 0
+    assert first["product_p95_latency_ms_change"] is None
+    assert "product_p95_latency_ms_roll_mean_3" in second

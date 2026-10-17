@@ -9,7 +9,7 @@ import guard
 from metrics_features import metrics_features
 from request_features import request_features
 from service_features import service_features
-
+from temporal_features import temporal_features
 
 def load_jsonl(path):
     with open(path) as f:
@@ -25,6 +25,8 @@ def build_matrix(records, snapshots):
         for part in parts:
             row.update(part.get(w, {}))
         rows[w] = row
+    for w, feats in temporal_features(rows).items():
+        rows[w].update(feats)
     columns = set()
     for row in rows.values():
         columns |= set(row)
