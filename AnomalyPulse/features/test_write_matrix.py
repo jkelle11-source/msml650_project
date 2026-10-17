@@ -48,3 +48,24 @@ def test_leaky_builder_never_reaches_put(monkeypatch):
     with pytest.raises(guard.BoundaryViolation):
         wm.write_features("v1", "exp-1", [REC], [SNAP], lambda k, b: calls.append(k))
     assert calls == []  # nothing was written
+
+def test_s3_put_refuses_keys_outside_tier1_features(monkeypatch):
+    import sys
+    from unittest import mock
+    fake = mock.MagicMock()
+    monkeypatch.setitem(sys.modules, "boto3", mock.MagicMock(Session=lambda **k: mock.MagicMock(client=lambda n: fake)))
+    put = wm.s3_put("bucket")
+    with pytest.raises(ValueError):
+        put("datasets/v1/tier2/labels/x.json", b"{}")
+    fake.put_object.assert_not_called()
+
+
+def test_s3_put_never_overwrites(monkeypatch):
+    import sys
+    from unittest import mock
+    fake = mock.MagicMock()  # head_object succeeds, meaning the key exists
+    monkeypatch.setitem(sys.modules, "boto3", mock.MagicMock(Session=lambda **k: mock.MagicMock(client=lambda n: fake)))
+    put = wm.s3_put("bucket")
+    with pytest.raises(FileExistsError):
+        put(wm.feature_key("v1", "exp-1"), b"{}")
+    fake.put_object.assert_not_called()

@@ -4,8 +4,8 @@ Layout (Docs/DATASET.md): datasets/<name>/tier1/features/experiment_id=<id>/feat
 One line per window: {"window_start": ..., <feature columns>}. window_start is the
 join key; experiment_id lives in the path only, never as a column.
 
-Usage:  python3 write_matrix.py <dataset> <experiment_id> <requests.jsonl> <metrics.jsonl> [--out DIR]
-Without --out it only prints what it would write.
+Usage:  python3 write_matrix.py <dataset> <experiment_id> <requests.jsonl> <metrics.jsonl> [--out DIR | --bucket NAME]
+With neither flag it only prints what it would write.
 """
 import json
 import sys
@@ -47,14 +47,38 @@ def local_put(root):
     return put
 
 
+def s3_put(bucket, profile="sim", region="us-east-2"):
+    """Put to S3 as the simulator role. Refuses any key outside tier1/features/ and never overwrites."""
+    import boto3
+    from botocore.exceptions import ClientError
+
+    s3 = boto3.Session(profile_name=profile, region_name=region).client("s3")
+
+    def put(key, body):
+        if "/tier1/features/" not in key:
+            raise ValueError(f"refusing to write outside tier1/features/: {key}")
+        try:
+            s3.head_object(Bucket=bucket, Key=key)
+        except ClientError as err:
+            if err.response["Error"]["Code"] not in ("404", "NoSuchKey", "NotFound"):
+                raise
+        else:
+            raise FileExistsError(f"already exists, not overwriting: {key}")
+        s3.put_object(Bucket=bucket, Key=key, Body=body)
+    return put
+
+
 if __name__ == "__main__":
-    args = [a for a in sys.argv[1:] if a != "--out"]
-    out = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else None
-    if out:
-        args.remove(out)
+    flags = ("--out", "--bucket")
+    opts = {f: sys.argv[sys.argv.index(f) + 1] for f in flags if f in sys.argv}
+    args = [a for a in sys.argv[1:] if a not in flags and a not in opts.values()]
+    out = opts.get("--out")
+    bucket = opts.get("--bucket")
     dataset, experiment_id, req_path, met_path = args
     records, snapshots = load_jsonl(req_path), load_jsonl(met_path)
-    if out:
+    if bucket:
+        print("uploaded", write_features(dataset, experiment_id, records, snapshots, s3_put(bucket)))
+    elif out:
         print("wrote", write_features(dataset, experiment_id, records, snapshots, local_put(out)))
     else:
         matrix = build_matrix(records, snapshots)
