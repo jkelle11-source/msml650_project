@@ -118,6 +118,9 @@ def render():
         "- **Empty means unknown, not zero.** A service with no requests in a window has an empty "
         "latency or error rate. Counts and request rates are `0`.",
         "- **Temporal columns use only the current and earlier windows** of the same run.",
+	"- Rolling columns look back over up to two earlier windows, so the first labeled window after an "
+        "excluded one (for example the first labeled DB-throttling window) can include values from it. "
+        "This is left as is and noted here.",
         "- A run's first and last windows can be partial. Which windows to drop is decided with M4-4.",
         "",
         f"{len(cols)} columns.",
