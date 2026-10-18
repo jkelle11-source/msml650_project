@@ -157,8 +157,20 @@ def test_a_confounder_plan_keeps_its_single_fault_label(tmp_path):
     assert queue.incident_types == {701: "TRAFFIC_SPIKE"}
 
 
+@pytest.mark.parametrize("path", sorted((Path(batch.__file__).parent / "queues").glob("*.json")),
+                         ids=lambda p: p.name)
+def test_every_queue_in_the_repo_loads(path):
+    # A queue file is the record of what a batch asked for: it must stay loadable.
+    assert batch.load_queue(path).entries
+
+
 def test_every_run_is_sent_at_20_rps():
     assert batch.workload_for(_entry(1, mix=[1, 1, 1, 1, 1])).describe()["request_rate_rps"] == 20
+
+
+def test_the_client_keeps_512_requests_open():
+    # 256 dropped requests at a 7.9x spike into 4.45x throttling (M4-3's validation).
+    assert batch.workload_for(_entry(1)).describe()["max_in_flight"] == 512
 
 
 # --- judging a run -------------------------------------------------------------

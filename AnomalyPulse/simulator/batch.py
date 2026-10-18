@@ -64,6 +64,13 @@ SETTLE_S = 300
 _DB_WINDOW_TAIL_MS = 10_000
 # Every M4 run, test set included (Milestones/M04_Dataset.md).
 RPS = workload.DEFAULT_RPS
+# Requests the client keeps open at once; past it, it drops new ones, and the run
+# is rejected. The workload's default, 256, was not enough: a 7.9x spike into
+# 4.45x throttling averaged ~130 open and peaked past 256 (M4-3's validation).
+# Not higher: an open POST /orders keeps an Order and a Payment Lambda running,
+# and the account runs 1,000 at once, shared by every function; past that,
+# Lambda would refuse requests, a failure no injector caused.
+MAX_IN_FLIGHT = 512
 
 _KINDS = ("incident", "cascade", "plan")
 _ENTRY_KEYS = {"slot", "phase", "seed", "mix", *_KINDS}
@@ -129,7 +136,7 @@ def workload_for(entry: dict, base_url: str | None = None) -> workload.Workload:
         raise ValueError(f"slot {entry['slot']}: mix is {len(workload.ROUTES)} weights, in the order "
                          + ", ".join(workload.ROUTES))
     return workload.Workload(rps=RPS, mix=None if mix is None else dict(zip(workload.ROUTES, mix)),
-                             seed=entry["seed"], base_url=base_url)
+                             seed=entry["seed"], base_url=base_url, max_in_flight=MAX_IN_FLIGHT)
 
 
 def run_seconds(plan: runner.Plan) -> float:

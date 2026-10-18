@@ -1,0 +1,20 @@
+{
+  "dataset": "m4-3-validation",
+  "experiments": [
+    {"slot": 8, "phase": "train", "seed": 4308,
+     "cascade": {"baseline_s": 180, "cascade_s": 300, "recovery_s": 120, "stages": [
+       {"injector": "db-throttling", "intensity": 0.95, "band": {"parameter": "load_ratio", "low": 3.5, "high": 4.5}},
+       {"injector": "traffic-spike", "onset_delay_s": 75, "onset_jitter_s": 10, "intensity": 0.95, "band": {"parameter": "multiplier", "low": 6, "high": 8}},
+       {"injector": "lambda-degradation", "target": "order-service", "onset_delay_s": 60, "onset_jitter_s": 10, "intensity": 0.5, "band": {"parameter": "added_latency_ms", "low": 800, "high": 1100}}]}},
+    {"slot": 9, "phase": "train", "seed": 4309, "mix": [40, 25, 15, 10, 10],
+     "cascade": {"baseline_s": 180, "cascade_s": 300, "recovery_s": 120, "stages": [
+       {"injector": "db-throttling", "intensity": 0.95, "band": {"parameter": "load_ratio", "low": 4.5, "high": 5.5}},
+       {"injector": "traffic-spike", "onset_delay_s": 75, "onset_jitter_s": 10, "intensity": 0.95, "band": {"parameter": "multiplier", "low": 8, "high": 10}},
+       {"injector": "lambda-degradation", "target": "order-service", "onset_delay_s": 60, "onset_jitter_s": 10, "intensity": 0.95, "band": {"parameter": "added_latency_ms", "low": 1100, "high": 1400}}]}},
+    {"slot": 10, "phase": "train", "seed": 4310, "mix": [40, 25, 15, 10, 10],
+     "cascade": {"baseline_s": 180, "cascade_s": 300, "recovery_s": 120, "stages": [
+       {"injector": "traffic-spike", "intensity": 0.95, "band": {"parameter": "multiplier", "low": 8, "high": 10}},
+       {"injector": "payment-failure", "onset_delay_s": 60, "onset_jitter_s": 10, "intensity": 0.95, "band": {"parameter": "timeout_ms", "low": 3500, "high": 4500}},
+       {"injector": "retry-amplification", "onset_delay_s": 30, "onset_jitter_s": 10, "intensity": 0.95, "band": {"parameter": "retries_per_failure", "low": 2.0, "high": 2.5}}]}}
+  ]
+}
