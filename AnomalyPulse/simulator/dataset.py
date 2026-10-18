@@ -19,7 +19,8 @@ separate trees, so feature code can be given one and never the other:
         registry/pins.json                           the stack and runner the dataset is pinned to
 
 A window is keyed by (experiment_id, window start). An experiment's number
-(its "slot", 1-1000) and phase are in the registry, not in any Tier-1 key.
+(its "slot": 1-700 train/val, 701-1050 test, 1051 on the stress slice;
+integrity.split_of) and phase are in the registry, not in any Tier-1 key.
 """
 import json
 import re

@@ -61,8 +61,8 @@ A queue is a JSON file naming the dataset and listing experiments in the order t
 
 | Key | Meaning |
 |---|---|
-| `slot` | The experiment's number, 1–1000 (plan §17). One number is one experiment: its spec can't change once it is registered. |
-| `phase` | `train` for 1–560, `val` for 561–700, `test` or `stress` (the extreme-extrapolation slice) from 701. Anything else is refused. |
+| `slot` | The experiment's number: 1–700 training and validation, 701–1050 the test set, 1051 on the stress slice (plan §17). One number is one experiment: its spec can't change once it is registered. |
+| `phase` | `train` for 1–560, `val` for 561–700, `test` or `stress` (the extreme-extrapolation slice) from 701; in `v1`, `test` for 701–1050 and `stress` from 1051. Anything else is refused. |
 | `seed` | The run's seed. A rerun uses it again, so a rerun is the same experiment. |
 | `incident` | One fault, as `start-incident` takes it: `injector`, `intensity`, `band`, `target`, `baseline_s`, `duration_s`, `recovery_s`. |
 | `cascade` | A cascade spec, as `start-cascade` takes it (`Docs/CASCADE.md`). |
@@ -72,6 +72,12 @@ A queue is a JSON file naming the dataset and listing experiments in the order t
 There is no `rps`: every run is sent at 20 rps. Generating a queue from M4-3's bands is M4-2's job; the
 queue file is the record of what was asked for. `run-batch --dry-run` checks a queue without AWS: each
 entry is resolved exactly as its run would be.
+
+**A `v1` queue must also pass M4-3's guard** (`integrity.check_entry`, `Docs/EVALUATION_INTEGRITY.md`):
+the phase its slot says; every band one of that phase's bands, every intensity from 0.05 to 0.95; the run
+shape above; the default mix, except `[40, 25, 15, 10, 10]` throughout the test set; 2- and 12-minute
+faults and confounders in the test set only; cascades from the templates, never in the stress slice. A
+validation dataset is not guarded, so it can probe band edges on purpose.
 
 ## Running a batch
 
@@ -311,8 +317,9 @@ In every run CloudWatch shows the surge's minute at 1,172–1,188 RCU/s and ever
 about 1,400 at 1.5×, 2,100 at 2.0×, 4,500 at 4.0× and 5,000 at 4.5×. Product's p50 stayed at 5–7 ms,
 and 0–5 requests a minute failed in the labeled stretch (22–35 in the surge's minute, which is excluded).
 
-**Open for M4-3:** in every labeled minute Product's p95 sat on a step of the app's retry ladder, 1.59 s
-(five retries) or 3.19 s (six), in no order by ratio: 1.59 s at 1.5× and 4.0×, 3.19 s at 2.0× and 4.5×.
-From a laptop M3-3 measured 0.78 s at 1.75×, 1.59 s at 3.0× and 3.2 s at 5.5×. The labels are right
-either way, and the throttle counts scale with the ratio; an analysis of the app's latency by band would
-not see the ratio.
+**p95 by ratio (closed in M4-3):** in every labeled minute Product's p95 sat on a step of the app's retry
+ladder, 1.59 s (five retries) or 3.19 s (six), in no order by ratio: 1.59 s at 1.5× and 4.0×, 3.19 s at
+2.0× and 4.5×. From a laptop M3-3 measured 0.78 s at 1.75×, 1.59 s at 3.0× and 3.2 s at 5.5×. The labels
+are right either way, and the throttle counts scale with the ratio; an analysis of the app's latency by
+band would not see the ratio. M4-3 closed this without further runs: the bands vary the ratio, and the
+throttle counts track it (`Docs/EVALUATION_INTEGRITY.md`, "Throttling bands and latency").
