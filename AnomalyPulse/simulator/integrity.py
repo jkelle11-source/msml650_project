@@ -307,10 +307,18 @@ def incident_spec(injector: str, phase: str, rng: random.Random, *, duration_s: 
 # retry-amplification overlaps it with payment-failure, which fails requests at
 # every band; DB throttling's training bands (up to 4.5x) barely fail any
 # (CASCADE.md, "It needs failures to amplify").
+#
+# DB throttling never starts during a spike: when its surge spends the burst
+# bank, nearly every Product read climbs the SDK's retry ladder to ~3.2 s for a
+# few seconds, and at a 7.9x spike that is more requests in flight than the
+# client's 256, so it drops some and the run is rejected (M4-3's validation,
+# three times out of three). So throttling comes first and the spike arrives
+# 75 +/- 10 s in, after label_from (~48 s): under steady throttling a 7.9x
+# spike held ~50-85 requests in flight.
 CASCADES = {
-    "spike-throttle-slowdown": [
-        {"injector": "traffic-spike"},
-        {"injector": "db-throttling", "onset_delay_s": 60, "onset_jitter_s": 10},
+    "throttle-spike-slowdown": [
+        {"injector": "db-throttling"},
+        {"injector": "traffic-spike", "onset_delay_s": 75, "onset_jitter_s": 10},
         {"injector": "lambda-degradation", "target": "order-service",
          "onset_delay_s": 60, "onset_jitter_s": 10},
     ],

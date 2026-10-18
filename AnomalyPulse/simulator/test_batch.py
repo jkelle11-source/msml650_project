@@ -189,7 +189,7 @@ def _throttling(fraction=1.0, label_from="2026-10-16T12:01:05.000Z", rate=0.75, 
     (_final(activations=[_throttling(label_from=None)]), _client(), "never throttled"),
     # M4-1's validation at 4.0x: 53% throttled where 75% is expected.
     (_final(activations=[_throttling(rate=0.5261)]), _client(), "burst capacity"),
-    (_final(activations=[_throttling(rate=0.9)]), _client(), "should throttle about 0.75"),
+    (_final(activations=[_throttling(rate=0.64)]), _client(), "should throttle about 0.75"),
     (_final(activations=[_throttling(rate=None)]), _client(), "throttled None"),
     # Without CloudWatch's offered_ratio, the asked-for ratio: 4.0x, so 0.4 is far off.
     (_final(activations=[_throttling(rate=0.4, offered=None)]), _client(), "4x should throttle"),
@@ -205,6 +205,15 @@ def test_a_good_run_has_no_problems():
     # 10 errors in 10,000 is exactly 0.1%, and 250 reads/s is exactly 1.25x 200 RCU: both allowed.
     assert batch.run_problems(_final(activations=[_throttling(fraction=0.97, peak=250.0)]),
                               _client(errors=10)) == []
+
+
+def test_more_throttling_than_the_ratio_gives_is_no_problem():
+    # M4-3's validation: a 7.9x spike in the same cascade raised the app's reads after
+    # offered_ratio (1.631) was measured, so 0.4825 was throttled where 0.387 is expected.
+    # Burst capacity only ever lowers the rate.
+    run = _throttling(rate=0.4825, offered=1.631, peak=164.6)
+    assert batch.run_problems(_final(activations=[run]), _client()) == []
+    assert batch.run_problems(_final(activations=[_throttling(rate=0.99)]), _client()) == []
 
 
 class FakeCloudWatch:

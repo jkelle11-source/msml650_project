@@ -396,11 +396,27 @@ def test_load_queue_guards_the_main_dataset(tmp_path):
     batch.load_queue(_write(tmp_path, integrity.GUARDED_DATASET, _entries()))
 
 
-def test_the_m4_3_validation_queue_is_the_templates_in_training_bands():
-    queue = batch.load_queue(Path(batch.__file__).parent / "queues" / "m4-3-validation.json")
-    assert queue.dataset == "m4-3-validation"
-    for entry in queue.entries:
-        integrity.check_entry(entry)          # it would pass in v1 too
-    templates = {template for entry in queue.entries for template, stages in integrity.CASCADES.items()
-                 if [s["injector"] for s in entry["cascade"]["stages"]] == [s["injector"] for s in stages]}
+def test_the_m4_3_validation_queues_cover_every_template():
+    # Slots 1-2 ran the spike before the throttling, the order that validation retired
+    # (the client dropped requests); m4-3-validation-2.json runs it throttling first.
+    retired = ["traffic-spike", "db-throttling", "lambda-degradation"]
+    templates = set()
+    for name in ("m4-3-validation.json", "m4-3-validation-2.json"):
+        queue = batch.load_queue(Path(batch.__file__).parent / "queues" / name)
+        assert queue.dataset == "m4-3-validation"
+        for entry in queue.entries:
+            stages = [s["injector"] for s in entry["cascade"]["stages"]]
+            if stages == retired:
+                assert entry["slot"] in (1, 2)
+                continue
+            integrity.check_entry(entry)      # it would pass in v1 too
+            templates |= {t for t, spec in integrity.CASCADES.items() if [s["injector"] for s in spec] == stages}
     assert templates == set(integrity.CASCADES)
+
+
+def test_db_throttling_never_starts_during_a_spike():
+    # Its surge's end would put more requests in flight than the client holds.
+    for name, stages in integrity.CASCADES.items():
+        injectors_in = [s["injector"] for s in stages]
+        if "db-throttling" in injectors_in and "traffic-spike" in injectors_in:
+            assert injectors_in.index("db-throttling") < injectors_in.index("traffic-spike"), name
