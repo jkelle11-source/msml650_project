@@ -21,6 +21,9 @@ to. Every run is then judged before it is accepted:
 
 A rejected run is rerun with the same seed, so it is the same experiment again,
 up to max_attempts times.
+
+A queue for the main dataset (v1) must also pass M4-3's evaluation-integrity
+guard, integrity.check_entry: the phase's bands, run shape and endpoint mix.
 """
 import hashlib
 import json
@@ -34,7 +37,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from simulator import cascade, dataset, manifest, runner, stack_config, workload
+from simulator import cascade, dataset, integrity, manifest, runner, stack_config, workload
 from simulator.lock import LockHeld
 
 MAX_ATTEMPTS = 3
@@ -163,6 +166,8 @@ def load_queue(path) -> Queue:
         try:
             plan = plan_for(entry, created_by="queue-check")
             runner.preview(plan, workload=workload_for(entry))
+            if name == integrity.GUARDED_DATASET:
+                integrity.check_entry(entry)
         except (ValueError, LookupError, TypeError) as e:
             raise ValueError(f"slot {entry['slot']}: {e}") from None
         incident_types[entry["slot"]] = plan.incident_type

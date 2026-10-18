@@ -47,6 +47,12 @@ def test_stress_starts_at_the_plans_thresholds():
     assert BANDS["payment-failure"]["stress"][0][0] == 5000
 
 
+def test_payment_stress_stays_below_orders_read_timeout():
+    # Order stops waiting for Payment at 6 s (services/order/handler.py). Past
+    # that, requests fail as Order's timeouts, not Payment's 503.
+    assert max(high for _, high in BANDS["payment-failure"]["stress"]) <= 5500
+
+
 def _broken(**change):
     bands = copy.deepcopy(BANDS)
     bands["traffic-spike"].update(change)
@@ -183,6 +189,11 @@ def test_lambda_degradation_gets_a_target():
     assert spec["target"] in injectors.get("lambda-degradation").targets
 
 
+def test_the_stress_slice_has_no_cascades():
+    with pytest.raises(ValueError, match="no cascades"):
+        integrity.cascade_spec("spike-payment-retry", "stress", random.Random(1))
+
+
 def test_every_retry_stage_overlaps_payment_failure():
     for name, stages in integrity.CASCADES.items():
         injectors_in = [s["injector"] for s in stages]
@@ -244,9 +255,117 @@ def test_every_spec_passes_the_batch_runners_queue_check(tmp_path):
                       "DEPENDENCY_FAILURE", "CASCADING_FAILURE"}
 
 
-def test_confounders_are_never_labeled_cascading(tmp_path):
+def test_confounders_are_never_labeled_cascading():
     rng = random.Random(9)
     for first, second in integrity.CONFOUNDER_PAIRS:
         plan = integrity.confounder_plan(first, second, rng)
         assert plan["incident_type"] == injectors.get(first).incident_type != "CASCADING_FAILURE"
         assert {f["offset_s"] for f in plan["faults"]} == {integrity.BASELINE_S}
+
+
+# --- the queue guard -----------------------------------------------------------
+
+def test_every_builder_entry_passes_the_guard():
+    for entry in _entries():
+        integrity.check_entry(entry)
+
+
+def _incident(slot, phase, injector="traffic-spike", mix=None, seed=3, **change):
+    spec = {**integrity.incident_spec(injector, phase, random.Random(seed)), **change}
+    entry = {"slot": slot, "phase": phase, "seed": 4000 + slot, "incident": spec}
+    if mix is not None:
+        entry["mix"] = mix
+    return entry
+
+
+def _cascade(slot, phase, mix=None, stage_change=None, **change):
+    spec = {**integrity.cascade_spec("spike-payment-retry", phase, random.Random(4)), **change}
+    if stage_change:
+        spec["stages"][1] = {**spec["stages"][1], **stage_change}
+    entry = {"slot": slot, "phase": phase, "seed": 4000 + slot, "cascade": spec}
+    if mix is not None:
+        entry["mix"] = mix
+    return entry
+
+
+def _confounder(slot, phase="test", pair=("traffic-spike", "lambda-degradation"), mix=integrity.TEST_MIX,
+                fault_change=None, **change):
+    plan = {**integrity.confounder_plan(*pair, random.Random(5)), **change}
+    if fault_change:
+        plan["faults"][1] = {**plan["faults"][1], **fault_change}
+    return {"slot": slot, "phase": phase, "seed": 4000 + slot, "mix": mix, "plan": plan}
+
+
+TEST = integrity.TEST_MIX
+
+
+@pytest.mark.parametrize("entry, problem", [
+    # Control 1: the phase's bands, away from shared edges
+    (_incident(5, "train", band={"parameter": "multiplier", "low": 4, "high": 6}), "not one of its train bands"),
+    (_incident(600, "val", band={"parameter": "multiplier", "low": 10, "high": 12}), "not one of its train bands"),
+    (_incident(750, "test", mix=TEST, band={"parameter": "multiplier", "low": 2, "high": 4}),
+     "not one of its test bands"),
+    (_incident(5, "train", intensity=1.0), "intensity"),
+    (_incident(750, "test", mix=TEST, intensity=0.0), "intensity"),
+    (_cascade(5, "train", stage_change={"band": {"parameter": "timeout_ms", "low": 1500, "high": 2500}}),
+     "payment-failure: band"),
+    # Control 2: the phase the slot says
+    (_incident(1060, "test", mix=TEST), "slot 1060 is stress"),
+    (_incident(705, "stress"), "slot 705 is test"),
+    # Control 3: the diversity protocol in the test set only
+    (_incident(750, "test"), "shifted mix"),
+    (_incident(5, "train", mix=TEST), "default mix"),
+    (_incident(1060, "stress", mix=TEST), "default mix"),
+    (_incident(5, "train", duration_s=120), "lasts 300 s"),
+    (_incident(750, "test", injector="noop", mix=TEST, duration_s=720), "lasts 300 s"),
+    (_confounder(5, "train", mix=None), "only plans are the test set's confounders"),
+    (_confounder(750, pair=("lambda-degradation", "traffic-spike")), "not a confounder pair"),
+    (_confounder(750, incident_type="CASCADING_FAILURE"), "labeled as its first fault"),
+    (_confounder(750, fault_change={"offset_s": 240, "duration_s": 240}), "both faults"),
+    # the run shape and the cascade templates
+    (_incident(5, "train", baseline_s=300), "run shape"),
+    (_cascade(5, "train", cascade_s=420), "run shape"),
+    (_cascade(5, "train", stage_change={"onset_delay_s": 90}), "not one of the templates"),
+])
+def test_the_guard_refuses(entry, problem):
+    with pytest.raises(ValueError, match=problem):
+        integrity.check_entry(entry)
+
+
+def test_a_stress_cascade_is_refused():
+    entry = _cascade(1060, "test")
+    entry["phase"] = "stress"
+    with pytest.raises(ValueError, match="no cascades"):
+        integrity.check_entry(entry)
+
+
+def test_the_varied_durations_pass_in_the_test_set_only():
+    for duration_s in integrity.VARIED_DURATIONS_S:
+        integrity.check_entry(_incident(750, "test", mix=TEST, duration_s=duration_s))
+        with pytest.raises(ValueError, match="lasts 300 s"):
+            integrity.check_entry(_incident(1060, "stress", duration_s=duration_s))
+
+
+def _write(tmp_path, name, entries):
+    path = tmp_path / f"{name}.json"
+    path.write_text(json.dumps({"dataset": name, "experiments": entries}))
+    return path
+
+
+def test_load_queue_guards_the_main_dataset(tmp_path):
+    bad = [_incident(5, "train", band={"parameter": "multiplier", "low": 4, "high": 6})]
+    with pytest.raises(ValueError, match="slot 5: traffic-spike: band"):
+        batch.load_queue(_write(tmp_path, integrity.GUARDED_DATASET, bad))
+    # A validation dataset may probe edges and test bands on purpose.
+    batch.load_queue(_write(tmp_path, "some-validation", bad))
+    batch.load_queue(_write(tmp_path, integrity.GUARDED_DATASET, _entries()))
+
+
+def test_the_m4_3_validation_queue_is_the_templates_in_training_bands():
+    queue = batch.load_queue(Path(batch.__file__).parent / "queues" / "m4-3-validation.json")
+    assert queue.dataset == "m4-3-validation"
+    for entry in queue.entries:
+        integrity.check_entry(entry)          # it would pass in v1 too
+    templates = {template for entry in queue.entries for template, stages in integrity.CASCADES.items()
+                 if [s["injector"] for s in entry["cascade"]["stages"]] == [s["injector"] for s in stages]}
+    assert templates == set(integrity.CASCADES)

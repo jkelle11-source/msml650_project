@@ -1,8 +1,25 @@
+"""Evaluation-integrity controls (M4-3; project plan section 6b).
+
+The single source of truth for what each experiment may be, by phase:
+
+    Control 1  BANDS: interleaved train and test bands per injector, a stress
+               band above both; check_bands() proves the interleaving.
+    Control 2  split_of() and temporal_split(): 1-560 train, 561-700 val,
+               701-1050 test, 1051 on stress; the test set on a later day.
+    Control 3  the diversity protocol, test set only: TEST_MIX, varied
+               durations, confounders.
+
+Generators build queue entries with incident_spec(), cascade_spec() and
+confounder_plan(), each drawing only from the rng it is given. check_entry()
+refuses an entry that breaks a control; batch.load_queue() runs it on every
+entry of the main dataset's queues. Docs/EVALUATION_INTEGRITY.md has where
+each number comes from.
+"""
 import random
 
 from simulator import dataset, injectors
 
-PHASES = ("train", "val", "test", "stress")
+PHASES = dataset.PHASES
 
 
 BASELINE_S = 180
@@ -34,7 +51,10 @@ BANDS = {
         "parameter": "timeout_ms",
         "train": [(500, 1500), (2500, 3500)],
         "test": [(1500, 2500), (3500, 4500)],
-        "stress": [(5000, 6000)],
+        # Not up to 6000: Order stops waiting for Payment at 6 s (its read
+        # timeout), so a fault near it would fail some requests as Order's
+        # timeouts instead of Payment's 503, two failure modes in one band.
+        "stress": [(5000, 5500)],
     },
     "retry-amplification": {
         "parameter": "retries_per_failure",
@@ -69,6 +89,8 @@ def _overlaps(a, b) -> bool:
 
 
 def check_bands(bands: dict = BANDS) -> None:
+    """Raise ValueError unless, for every injector, train and test bands alternate
+    without overlapping and every stress band lies above them both."""
     problems = []
     for name, spec in bands.items():
         try:
@@ -292,6 +314,8 @@ CASCADES = {
 
 def cascade_spec(template: str, phase: str, rng: random.Random) -> dict:
     """One cascade experiment's `cascade` spec from a template, with bands and intensities for `phase`."""
+    if phase == "stress":
+        raise ValueError("the stress slice has no cascades: it extends each injector's own axis")
     stages = []
     for stage in CASCADES[template]:
         injector = stage["injector"]
@@ -313,3 +337,97 @@ def confounder_plan(first: str, second: str, rng: random.Random) -> dict:
         faults.append(fault)
     return {"incident_type": injectors.get(first).incident_type, "recovery_s": RECOVERY_S,
             "faults": faults}
+
+
+# --- the queue guard -------------------------------------------------------------
+
+# The dataset the controls are claimed for: batch.load_queue() runs check_entry()
+# on every entry of its queues. A validation dataset is exempt, so it can probe a
+# band's edge on purpose (M4-1's ran 1.5x and 4.5x exactly).
+GUARDED_DATASET = dataset.DEFAULT_DATASET
+
+
+def _check_magnitude(injector: str, intensity, band_: dict | None, phase: str) -> None:
+    if injector not in BANDS:
+        raise ValueError(f"{injector}: has no bands")
+    spec, bands_for = BANDS[injector], band_phase(phase)
+    allowed = [{"parameter": spec["parameter"], "low": low, "high": high} for low, high in spec[bands_for]]
+    if band_ not in allowed:
+        names = ", ".join(f"{low:g}-{high:g}" for low, high in spec[bands_for]) or "none"
+        raise ValueError(f"{injector}: band {band_} is not one of its {bands_for} bands ({names})")
+    low, high = INTENSITY_RANGE
+    if not isinstance(intensity, (int, float)) or isinstance(intensity, bool) or not low <= intensity <= high:
+        raise ValueError(f"{injector}: intensity must be from {low} to {high}, so the magnitude never "
+                         f"reaches an edge a train band shares with a test band; got {intensity!r}")
+
+
+def _check_incident(spec: dict, phase: str) -> None:
+    injector, duration_s = spec["injector"], spec["duration_s"]
+    if (spec["baseline_s"], spec["recovery_s"]) != (BASELINE_S, RECOVERY_S):
+        raise ValueError(f"every run has a {BASELINE_S} s baseline and {RECOVERY_S} s of recovery "
+                         f"(the M4 run shape); got {spec['baseline_s']} and {spec['recovery_s']}")
+    varied = phase == "test" and injector != "noop" and duration_s in VARIED_DURATIONS_S
+    if duration_s != FAULT_S and not varied:
+        also = (f", or {' or '.join(map(str, VARIED_DURATIONS_S))} s for a test-set fault"
+                if injector != "noop" else "")
+        raise ValueError(f"{injector}: the window lasts {FAULT_S} s{also}; got {duration_s} in {phase}")
+    if injector != "noop":
+        _check_magnitude(injector, spec.get("intensity"), spec.get("band"), phase)
+
+
+def _check_cascade(spec: dict, phase: str) -> None:
+    if phase == "stress":
+        raise ValueError("the stress slice has no cascades")
+    if (spec["baseline_s"], spec["cascade_s"], spec["recovery_s"]) != (BASELINE_S, FAULT_S, RECOVERY_S):
+        raise ValueError(f"a cascade runs {BASELINE_S} s baseline, {FAULT_S} s cascade, {RECOVERY_S} s "
+                         f"recovery (the M4 run shape)")
+    shape = [{k: v for k, v in stage.items() if k not in ("intensity", "band")} for stage in spec["stages"]]
+    if shape not in CASCADES.values():
+        raise ValueError(f"its stages (injectors, targets, onsets) are not one of the templates: "
+                         f"{', '.join(CASCADES)}")
+    for stage in spec["stages"]:
+        _check_magnitude(stage["injector"], stage.get("intensity"), stage.get("band"), phase)
+
+
+def _check_confounder(plan: dict, phase: str) -> None:
+    if phase != "test":
+        raise ValueError(f"a {phase} experiment can't be a plan: the only plans are the test set's "
+                         f"confounders")
+    pair = tuple(f["injector"] for f in plan["faults"])
+    if pair not in CONFOUNDER_PAIRS:
+        raise ValueError(f"faults {' + '.join(pair)} are not a confounder pair: "
+                         + "; ".join(" + ".join(p) for p in CONFOUNDER_PAIRS))
+    first_type = injectors.get(pair[0]).incident_type
+    if plan["incident_type"] != first_type:
+        raise ValueError(f"a confounder is labeled as its first fault, {first_type}, "
+                         f"not {plan['incident_type']}")
+    if plan["recovery_s"] != RECOVERY_S or any(
+            (f["offset_s"], f["duration_s"]) != (BASELINE_S, FAULT_S) for f in plan["faults"]):
+        raise ValueError(f"both faults of a confounder start after the {BASELINE_S} s baseline and last "
+                         f"{FAULT_S} s, then {RECOVERY_S} s of recovery")
+    for fault in plan["faults"]:
+        _check_magnitude(fault["injector"], fault.get("intensity"), fault.get("band"), phase)
+
+
+def check_entry(entry: dict) -> None:
+    """Raise ValueError if a queue entry breaks a control.
+
+    `entry` is already a valid queue entry (batch.load_queue resolves it first).
+    It must also be what this module's builders make for its phase: the phase
+    agrees with the slot (split_of); every band is one of the phase's bands and
+    every intensity is inside INTENSITY_RANGE; the M4 run shape; the default
+    endpoint mix, except TEST_MIX in the test set; varied durations and
+    confounders in the test set only; cascades from CASCADES, never in stress.
+    """
+    phase = split_of(entry["slot"], entry["phase"])
+    mix = entry.get("mix")
+    if phase == "test" and mix != TEST_MIX:
+        raise ValueError(f"the test set runs in the shifted mix {TEST_MIX}, got {mix}")
+    if phase != "test" and mix is not None:
+        raise ValueError(f"a {phase} experiment runs in the default mix; only the test set shifts it")
+    if "incident" in entry:
+        _check_incident(entry["incident"], phase)
+    elif "cascade" in entry:
+        _check_cascade(entry["cascade"], phase)
+    else:
+        _check_confounder(entry["plan"], phase)
