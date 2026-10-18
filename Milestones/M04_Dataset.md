@@ -78,6 +78,7 @@
 - 700 experiments generated per the §17 mix: 140 normal, 140 traffic spike (2×–4×, 6×–8×), 140 DB throttling (offered-load 1.5×–2.5×, 3.5×–4.5×), 105 Lambda degradation (200–500ms, 800–1100ms), 105 dependency failure (500–1500ms, 2500–3500ms), 70 cascading.
 - All experiments registered with manifests and Tier-1/Tier-2 separation intact.
 - A documented train/val cut (1–560 train, 561–700 validation) for M5 hyperparameter tuning.
+- A committed, seeded queue generator that follows `Docs/EVALUATION_INTEGRITY.md`, "Building a queue" (agreed 2026-10-17): blocks of 20 with `integrity.TRAIN_BLOCK`'s mix, bands half and half within each split, Lambda targets and cascade templates in turn, slots numbered in run order, training (four daily queues of 140) before validation. About 5 days nonstop on the runner, 5.5–6 with daily batches.
 
 **Definition of Done**
 - [ ] 700 experiments present in the registry with correct class balance and training-band parameters.

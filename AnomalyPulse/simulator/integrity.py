@@ -10,7 +10,9 @@ The single source of truth for what each experiment may be, by phase:
                durations, confounders.
 
 Generators build queue entries with incident_spec(), cascade_spec() and
-confounder_plan(), each drawing only from the rng it is given. check_entry()
+confounder_plan(), each drawing only from the rng it is given (a band can be
+chosen instead, to balance them), and order them in blocks of TRAIN_BLOCK or
+TEST_BLOCK. check_entry()
 refuses an entry that breaks a control; batch.load_queue() runs it on every
 entry of the main dataset's queues. Docs/EVALUATION_INTEGRITY.md has where
 each number comes from.
@@ -155,6 +157,14 @@ COUNTS_TEST = {
 }
 COUNTS_STRESS = {"traffic-spike": 5, "lambda-degradation": 5, "db-throttling": 5, "payment-failure": 5}
 
+# Run order. A queue runs in blocks of consecutive slots, each holding exactly
+# this mix in a seeded shuffle, so no stretch of generation (a time of day, a
+# day's AWS state, a batch cut short) leans toward one class. Training is 28
+# blocks of 20 (slots 1-560) and validation 7 (561-700), so both keep
+# COUNTS_TRAIN's proportions; the test set is 5 blocks of 70.
+TRAIN_BLOCK = {label: count // 35 for label, count in COUNTS_TRAIN.items()}     # 4/4/4/3/3/2
+TEST_BLOCK = {kind: count // 5 for kind, count in COUNTS_TEST.items()}          # 12/12/12/9/9/6/6/4
+
 INJECTOR_FOR = {
     "NORMAL": "noop",
     "TRAFFIC_SPIKE": "traffic-spike",
@@ -256,21 +266,33 @@ def _target(injector: str, rng: random.Random, target: str | None) -> str | None
     return rng.choice(targets)
 
 
+def _band_for(injector: str, phase: str, rng: random.Random, band_index: int | None) -> dict:
+    """The band at `band_index` among the phase's bands, or one drawn at random when it is None."""
+    choices = BANDS[injector][band_phase(phase)]
+    if not choices:
+        raise ValueError(f"{injector}: no {band_phase(phase)} bands")
+    if band_index is None:
+        band_index = rng.randrange(len(choices))
+    elif not isinstance(band_index, int) or isinstance(band_index, bool) or not 0 <= band_index < len(choices):
+        raise ValueError(f"{injector}: band_index must be 0 to {len(choices) - 1} for its "
+                         f"{band_phase(phase)} bands, got {band_index!r}")
+    return band(injector, phase, band_index)
+
+
 def incident_spec(injector: str, phase: str, rng: random.Random, *, duration_s: int = FAULT_S,
-                  target: str | None = None) -> dict:
+                  target: str | None = None, band_index: int | None = None) -> dict:
     """One single-fault experiment's `incident`, with a band and intensity drawn for `phase`.
 
     `noop` (NORMAL) takes no band. A multi-target injector (lambda-degradation)
-    gets a target drawn from its targets unless one is given.
+    gets a target drawn from its targets unless one is given. `band_index`
+    picks one of the phase's bands (0 is the lowest), so a generator can
+    balance them; by default it is drawn.
     """
     spec = {"injector": injector, "baseline_s": BASELINE_S, "duration_s": duration_s,
             "recovery_s": RECOVERY_S}
     if injector == "noop":
         return spec
-    choices = BANDS[injector][band_phase(phase)]
-    if not choices:
-        raise ValueError(f"{injector}: no {band_phase(phase)} bands")
-    spec["band"] = band(injector, phase, rng.randrange(len(choices)))
+    spec["band"] = _band_for(injector, phase, rng, band_index)
     spec["intensity"] = _intensity(rng)
     target = _target(injector, rng, target)
     if target is not None:
@@ -312,24 +334,40 @@ CASCADES = {
 }
 
 
-def cascade_spec(template: str, phase: str, rng: random.Random) -> dict:
-    """One cascade experiment's `cascade` spec from a template, with bands and intensities for `phase`."""
+def _indices(band_indices, count: int, what: str) -> list:
+    if band_indices is None:
+        return [None] * count
+    if len(band_indices) != count:
+        raise ValueError(f"{what}: band_indices needs {count} entries (an index or None each), "
+                         f"got {len(band_indices)}")
+    return list(band_indices)
+
+
+def cascade_spec(template: str, phase: str, rng: random.Random, *, band_indices=None) -> dict:
+    """One cascade experiment's `cascade` spec from a template, with bands and intensities for `phase`.
+
+    `band_indices` gives each stage's band, in stage order (None draws that one).
+    """
     if phase == "stress":
         raise ValueError("the stress slice has no cascades: it extends each injector's own axis")
     stages = []
-    for stage in CASCADES[template]:
-        injector = stage["injector"]
-        choices = BANDS[injector][band_phase(phase)]
-        stages.append({**stage, "intensity": _intensity(rng),
-                       "band": band(injector, phase, rng.randrange(len(choices)))})
+    indices = _indices(band_indices, len(CASCADES[template]), template)
+    for stage, band_index in zip(CASCADES[template], indices):
+        intensity = _intensity(rng)
+        stages.append({**stage, "intensity": intensity,
+                       "band": _band_for(stage["injector"], phase, rng, band_index)})
     return {"baseline_s": BASELINE_S, "cascade_s": FAULT_S, "recovery_s": RECOVERY_S, "stages": stages}
 
 
-def confounder_plan(first: str, second: str, rng: random.Random) -> dict:
-    """A test-set confounder's `plan`: two faults over the same window, labeled as the first."""
+def confounder_plan(first: str, second: str, rng: random.Random, *, band_indices=None) -> dict:
+    """A test-set confounder's `plan`: two faults over the same window, labeled as the first.
+
+    `band_indices` gives each fault's band, first then second (None draws that one).
+    """
     faults = []
-    for injector in (first, second):
-        spec = incident_spec(injector, "test", rng)
+    indices = _indices(band_indices, 2, f"{first} + {second}")
+    for injector, band_index in zip((first, second), indices):
+        spec = incident_spec(injector, "test", rng, band_index=band_index)
         fault = {"injector": injector, "offset_s": BASELINE_S, "duration_s": FAULT_S,
                  "intensity": spec["intensity"], "band": spec["band"]}
         if "target" in spec:

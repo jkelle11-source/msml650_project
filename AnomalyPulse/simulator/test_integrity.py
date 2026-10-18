@@ -97,6 +97,17 @@ def test_counts_match_the_plan():
     assert (integrity.TEST_FIRST, integrity.TEST_LAST, integrity.STRESS_FIRST) == (701, 1050, 1051)
 
 
+def test_the_blocks_keep_the_plans_proportions():
+    block = integrity.TRAIN_BLOCK
+    assert sum(block.values()) == 20
+    assert {label: 35 * n for label, n in block.items()} == integrity.COUNTS_TRAIN
+    # 28 blocks are training (1-560), 7 validation (561-700).
+    assert 28 * 20 == dataset.TRAIN_LAST and 7 * 20 == dataset.VAL_LAST - dataset.TRAIN_LAST
+    assert [7 * n for n in block.values()] == [28, 28, 28, 21, 21, 14]
+    assert sum(integrity.TEST_BLOCK.values()) == 70
+    assert {kind: 5 * n for kind, n in integrity.TEST_BLOCK.items()} == integrity.COUNTS_TEST
+
+
 # --- Control 2: the temporal split -------------------------------------------
 
 @pytest.mark.parametrize("slot, expected", [
@@ -177,6 +188,30 @@ def test_incident_spec_draws_from_the_phases_bands():
             assert bounds in BANDS["db-throttling"][integrity.band_phase(phase)]
             low, high = integrity.INTENSITY_RANGE
             assert low <= spec["intensity"] <= high
+
+
+def test_band_index_picks_the_band():
+    for index, (low, high) in enumerate(BANDS["lambda-degradation"]["train"]):
+        spec = integrity.incident_spec("lambda-degradation", "val", random.Random(1), band_index=index)
+        assert (spec["band"]["low"], spec["band"]["high"]) == (low, high)
+
+
+@pytest.mark.parametrize("band_index", [2, -1, 1.0, True])
+def test_a_bad_band_index_is_refused(band_index):
+    with pytest.raises(ValueError, match="band_index"):
+        integrity.incident_spec("traffic-spike", "train", random.Random(1), band_index=band_index)
+
+
+def test_cascades_and_confounders_take_band_indices():
+    spec = integrity.cascade_spec("spike-payment-retry", "train", random.Random(1), band_indices=[1, 0, None])
+    assert [s["band"] for s in spec["stages"][:2]] == [band("traffic-spike", "train", 1),
+                                                      band("payment-failure", "train", 0)]
+    with pytest.raises(ValueError, match="needs 3 entries"):
+        integrity.cascade_spec("spike-payment-retry", "train", random.Random(1), band_indices=[1, 0])
+    plan = integrity.confounder_plan("traffic-spike", "lambda-degradation", random.Random(1),
+                                     band_indices=[1, 0])
+    assert [f["band"] for f in plan["faults"]] == [band("traffic-spike", "test", 1),
+                                                   band("lambda-degradation", "test", 0)]
 
 
 def test_a_normal_run_has_no_band():

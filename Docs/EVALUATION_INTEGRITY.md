@@ -181,8 +181,42 @@ at once means a cascade), not a data error. The labels stay as they are.
 
 Stress slice: 5 each of traffic spike, Lambda degradation, DB throttling and payment failure (20, slots 1051–1070).
 
-These are `COUNTS_TRAIN`, `COUNTS_TEST` and `COUNTS_STRESS`. Spreading each class evenly over its bands
-and over train/val slots is the queue generator's job (M4-2, M9-1).
+These are `COUNTS_TRAIN`, `COUNTS_TEST` and `COUNTS_STRESS`.
+
+## Building a queue (M4-2, M9-1)
+
+Agreed 2026-10-17 (Josh's proposal for M4-2, refined). The generator is M4-2's and M9-1's; these are the
+rules it follows, so that nothing but the incident varies with the slot.
+
+1. **Blocks.** Every 20 consecutive training or validation slots hold exactly `TRAIN_BLOCK`: 4 NORMAL,
+   4 traffic spike, 4 DB throttling, 3 Lambda degradation, 3 payment failure, 2 cascades, in an order
+   shuffled with the generator's fixed seed. Training is 28 blocks (1–560) and validation 7 (561–700:
+   28/28/28/21/21/14), so both keep §17's proportions. A plain shuffle of a whole split can still bunch a
+   class into one day, and then time of day or that day's AWS state goes with the label; a block of
+   20 runs (~3.3 h) can't. The test set is 5 blocks of 70 (`TEST_BLOCK`), the stress slice one of 20.
+2. **Bands half and half within each split**, spread over the blocks with `band_index` (`band_indices` for
+   cascades and confounders) instead of drawn. A block's 4 spikes and 4 throttling runs are 2 and 2; its
+   3 Lambda and 3 payment runs alternate 2/1 and 1/2 by block. Training comes out 56/56 for spikes and
+   throttling and 42/42 for Lambda and payment; validation 14/14, and 11/10 for Lambda and payment, with
+   the extra run in opposite bands (Lambda 53/52 overall, payment 52/53).
+3. **Targets and templates in turn.** Lambda degradation's four targets round-robin (21 each in training);
+   cascades cycle the four templates (14 each in training, 4/4/3/3 in validation), and each stage's band
+   alternates across a template's runs. Intensities stay drawn by the builders.
+4. **Slots are numbered after shuffling:** slot *i* is the *i*-th run, so slot order is generation order.
+5. **Training and validation are separate queues, training first.** A rejected run is retried at the end
+   of its own queue, so training's reruns finish before validation begins.
+6. **Training in four daily queues of 140 slots** (7 blocks, ~23.5 h each), then validation's 140. Each
+   batch exports when it ends, so M4-4 and M4-5 get each day's runs and a problem shows within a day;
+   someone starts the next queue.
+7. **Commit the generator, its seed and the queue files**, and check each queue with `run-batch --dry-run`:
+   the guard runs on every `v1` entry.
+
+At 600 s a run and ~0.3 s between runs (M4-1's batch), 700 runs take 116.7 h, plus 10 minutes per rerun
+and about 15 minutes per batch for CloudWatch, the shipper and the export: about 5 days nonstop, 5.5–6
+with daily batches.
+
+The test set follows the same rules in blocks of 70, with the confounder pairs and the varied-duration
+faults in turn as well (M9-1).
 
 ## Cascade templates
 
