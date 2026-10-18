@@ -225,7 +225,7 @@ the cascade ends, so from the second onset on two or more faults are active. Ons
 
 | Template | Stages (onset after the previous stage) |
 |---|---|
-| `spike-throttle-slowdown` | traffic spike → DB throttling (+60 s) → Order slowdown (+60 s) |
+| `throttle-spike-slowdown` | DB throttling → traffic spike (+75 s) → Order slowdown (+60 s) |
 | `spike-payment-retry` | traffic spike → payment failure (+60 s) → retry amplification (+30 s) |
 | `throttle-slowdown-payment-retry` | DB throttling → Product slowdown (+60 s) → payment failure (+45 s) → retry amplification (+30 s) |
 | `slowdown-payment-retry` | Order slowdown → payment failure (+60 s) → retry amplification (+30 s) |
@@ -238,13 +238,84 @@ requests (`CASCADE.md`). A test checks this for every template.
 M4-4 (PR #73) doesn't count retry amplification as a fault for "two or more faults active"; these templates
 have two or more service faults overlapping either way.
 
-**The ratio DynamoDB sees in `spike-throttle-slowdown`.** The throttling injector reads at `load_ratio` ×
-capacity on top of the app's own reads, and the spike multiplies those: about 7.5 RCU/s at 20 rps, about
-60 at a 7.9× spike, 0.3 of the 200 RCU capacity. So a 4.4× training stage offers DynamoDB about 4.7×,
-inside the 4.5–5.5× test band, and the manifest's `offered_ratio` understates it (it averages the app's
-reads over the 3 minutes before the stage, partly before the spike; `CASCADE.md`). Those windows are
-labeled `CASCADING_FAILURE`, so DB throttling's per-band results are unaffected; the band names the
-injector's own ratio.
+**DB throttling never starts during a spike** (a test checks every template). The template was first
+written spike first, as the plan's example cascade runs, and the validation below rejected it three times
+out of three: when the throttling surge spends the burst bank, nearly every Product read climbs the SDK's
+retry ladder to ~3.2 s for a few seconds, and at a 7.9× spike that is more requests in flight than the
+client's 256, so it drops some. Throttling now comes first, its surge at 20 rps like every single-fault
+run, and the spike arrives 75 ± 10 s in, after `label_from` (~48 s), into steady throttling. The stages
+were never causal (see "Confounders"), so the order changes no claim.
+
+**The ratio DynamoDB sees in `throttle-spike-slowdown`.** The throttling injector reads at `load_ratio` ×
+capacity on top of the app's own reads: about 7.5 RCU/s at 20 rps (the validation's `app_reads_per_s`),
+so roughly 60 once a 7.9× spike arrives, 0.3 of the 200 RCU capacity. So a 4.4× training stage offers
+DynamoDB about 4.7× once the spike is on, inside the 4.5–5.5× test band, and the injector's steady throttle
+rate rises above `1 − 1/offered_ratio`, which is measured before the stage (0.48 where 0.39 was expected,
+below). The batch's steady-rate check is one-sided for that reason: burst capacity only ever lowers the
+rate. Those windows are labeled `CASCADING_FAILURE`, so DB throttling's per-band results are unaffected;
+the band names the injector's own ratio.
+
+## Validation on the runner (2026-10-18)
+
+Three batches into dataset `m4-3-validation` (never `v1`), on the runner host with the stack as M4-1 left
+it, from `simulator/queues/m4-3-validation.json`, `-2.json` and `-3.json`. Each put the cascades at their
+heaviest corners.
+
+**Batch 1** (`batch-20261018T021430Z-f2ca`, commit `48d555a`): the four templates in training bands, the
+first one still spike first.
+
+| Slot | Cascade | Result |
+|---|---|---|
+| 1 | spike 7.9× → throttling 1.55× → Order +350 ms | **Rejected 3 times out of 3:** the client dropped 55, 58 and 73 requests; `EXHAUSTED` |
+| 2 | spike 2.1× → throttling 4.45× → Order +950 ms | Accepted at the first attempt; steady throttle rate 0.788 (0.778 expected) |
+| 3 | throttling 2.0× → Product +350 ms → payment failure 1,000 ms → retries 1.75 | Accepted; steady 0.514 (0.509); 282 retries |
+| 4 | spike 7.9× → payment failure 3,450 ms → retries 1.975 | Accepted; 56,947 requests, none dropped; 3,329 retries |
+| 5 | Order +950 ms → payment failure 1,000 ms → retries 0.75 | Accepted; 137 retries |
+
+Every `label_from` came 47–48 s into its throttling stage. Slot 1's drops came as the surge spent the
+burst bank (slot 6 below, the same magnitudes reordered, dropped none): in the 10 s ending at
+`label_from` the services' mean latency was 983 ms and about 164 requests were open at once on average
+(latency × rate), against about 1 at 7.9× before the surge. Its steady throttle rate, 0.48 against an
+expected 0.39 in all three attempts, came within 0.003–0.005 of the old two-sided limit.
+
+**Batch 2** (`batch-20261018T033322Z-ff92`, commit `a6d9554`): the template reordered, throttling first.
+
+| Slot | Cascade | Result |
+|---|---|---|
+| 6 | throttling 1.55× → spike 7.9× (+77 s) → Order +350 ms (slot 1's magnitudes) | Accepted at the first attempt, none dropped; steady 0.467 where 0.369 was expected (+0.098: the one-sided check was needed) |
+| 7 | throttling 4.45× → spike 7.9× (+69 s) → Order +950 ms | First attempt dropped 7 of 44,003 requests and was rejected; the second dropped none and was accepted; steady 0.815 (0.777) |
+
+The surge's end now came at 20 rps, with about 20 requests open. Under steady 4.45× throttling the 7.9×
+spike kept 100–150 open on average over each 10 s, and short bursts, when DynamoDB refuses a second or two
+of reads together, went past the client's 256. So the batch's client now keeps 512 open
+(`batch.MAX_IN_FLIGHT`), and no higher: an open `POST /orders` keeps an Order and a Payment Lambda running,
+and the account runs 1,000 at once across every function, so a bigger client could make Lambda refuse
+requests, a failure no injector caused.
+
+**Batch 3** (`batch-20261018T042307Z-035a`, commit `086f7a9`): the client at 512, at the heaviest mixes.
+Slots 9 and 10 take the test set's top magnitudes and shifted mix; they are `train` entries only because
+this dataset already held training runs from that day, and the batch refuses test runs on a training day.
+
+| Slot | Cascade | Result |
+|---|---|---|
+| 8 | throttling 4.45× → spike 7.9× → Order +950 ms (slot 7's mix) | Accepted at the first attempt, none dropped; steady 0.816 (0.777) |
+| 9 | throttling 5.45× → spike 9.9× → Order +1,385 ms, test mix | Accepted at the first attempt, none dropped; steady 0.849 (0.818) |
+| 10 | spike 9.9× → payment failure 4,450 ms → retries 2.475, test mix | Accepted at the first attempt, none dropped; 74,432 requests, 9,628 of them retries |
+
+- **The client:** the batch process's thread count topped out at 251, 351 and 371 in the three runs. That
+  is one thread per open request at the run's peak, plus about 18 of the process's own and, in slots 8
+  and 9, up to 64 of the throttling injector's. So slot 10 kept about 350 requests open and slot 9 at
+  least 270: the old 256 would have dropped some in both.
+- **Lambda:** at most 244, 347 and 716 functions ran at once across the account (slot 10: Order 359 and
+  Payment 353, since each open `POST /orders` holds both), against the account's 1,000. Lambda throttled
+  nothing, in any function.
+- **The runner:** the batch process used at most 32% of one of its two cores while runs were going, and
+  held at most 381 open files, against a limit of 65,535.
+
+Every intensity in slots 9 and 10 is 0.95, the top of the drawn range, so these are the test set's heaviest
+cascades of the two templates with a spike. The other two templates have no spike, and the heaviest
+confounder (a 9.9× spike with a 4,450 ms payment failure and no retries) needs about 90 open requests by
+the same arithmetic.
 
 ## Evaluation Integrity Statement
 
@@ -268,6 +339,7 @@ injector's own ratio.
 ## Open points
 
 - **Stress upper ends and retry bands** are M4-3's choices (reasons above); revisit if M9 wants a wider slice.
-- **The test-set kinds haven't run on the runner:** 12-minute faults, confounders, throttling at 6–8× (the
-  runner has run up to 4.5× since the 16-client fix; M3-3 ran 8× from a laptop) and the 12× spike (200 rps
-  validated). M9-1 should validate them in a separate dataset before generating the test set.
+- **Most test-set kinds haven't run on the runner:** 12-minute faults, confounders, throttling at 6–8× on
+  its own (M3-3 ran 8× from a laptop) and the 12× spike (200 rps validated). The test set's heaviest
+  cascades have (batch 3 above). M9-1 should validate the rest in a separate dataset before generating the
+  test set.
