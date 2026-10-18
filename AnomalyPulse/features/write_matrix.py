@@ -30,11 +30,11 @@ def to_jsonl(matrix):
     return "".join(json.dumps({KEY: w, **row}) + "\n" for w, row in matrix.items())
 
 
-def write_features(dataset, experiment_id, records, snapshots, put):
+def write_features(dataset, experiment_id, records, snapshots, put, bounds=None):
     """Build, check, then call put(key, bytes). If the guard fails, put is never called."""
     key = feature_key(dataset, experiment_id)
     assert "/tier1/" in key and "/tier2/" not in key
-    body = to_jsonl(build_matrix(records, snapshots))
+    body = to_jsonl(build_matrix(records, snapshots, bounds))
     put(key, body.encode("utf-8"))
     return key
 
@@ -69,18 +69,23 @@ def s3_put(bucket, profile="sim", region="us-east-2"):
 
 
 if __name__ == "__main__":
-    flags = ("--out", "--bucket")
+    flags = ("--out", "--bucket", "--manifest")
     opts = {f: sys.argv[sys.argv.index(f) + 1] for f in flags if f in sys.argv}
     args = [a for a in sys.argv[1:] if a not in flags and a not in opts.values()]
-    out = opts.get("--out")
-    bucket = opts.get("--bucket")
+    out, bucket = opts.get("--out"), opts.get("--bucket")
     dataset, experiment_id, req_path, met_path = args
+    bounds = None
+    if "--manifest" in opts:  # only the run's start and end are read, never put in a column
+        m = json.loads(Path(opts["--manifest"]).read_text())
+        bounds = (m["started_at"], m["ended_at"])
+    if bucket and bounds is None:
+        sys.exit("--manifest is required for an upload, so partial windows are dropped")
     records, snapshots = load_jsonl(req_path), load_jsonl(met_path)
     if bucket:
-        print("uploaded", write_features(dataset, experiment_id, records, snapshots, s3_put(bucket)))
+        print("uploaded", write_features(dataset, experiment_id, records, snapshots, s3_put(bucket), bounds))
     elif out:
-        print("wrote", write_features(dataset, experiment_id, records, snapshots, local_put(out)))
+        print("wrote", write_features(dataset, experiment_id, records, snapshots, local_put(out), bounds))
     else:
-        matrix = build_matrix(records, snapshots)
+        matrix = build_matrix(records, snapshots, bounds)
         to_jsonl(matrix)  # runs the guard
         print("dry run, would write", feature_key(dataset, experiment_id), f"({len(matrix)} windows)")

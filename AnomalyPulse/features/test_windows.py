@@ -27,3 +27,17 @@ def test_a_request_and_its_minutes_metrics_share_a_window():
     request = windows.request_window("2026-10-16T03:19:55.418Z")
     metrics = windows.metrics_window("2026-10-16T03:20:00.000Z")
     assert request == metrics
+
+STARTED, ENDED = "2026-10-16T03:19:54.000Z", "2026-10-16T03:29:54.000Z"
+
+
+def test_a_window_inside_the_run_is_complete():
+    assert windows.is_complete("2026-10-16T03:20:00.000Z", STARTED, ENDED)
+
+
+def test_the_first_window_of_a_run_is_partial():
+    assert not windows.is_complete("2026-10-16T03:19:00.000Z", STARTED, ENDED)
+
+
+def test_the_last_window_of_a_run_is_partial():
+    assert not windows.is_complete("2026-10-16T03:29:00.000Z", STARTED, ENDED)

@@ -29,3 +29,8 @@ def metrics_window(ts):
     minute boundary, as the extractor writes it.
     """
     return _format(_parse(ts) - timedelta(minutes=1))
+
+def is_complete(window_start, started_at, ended_at):
+    """True if the window lies wholly inside [started_at, ended_at)."""
+    start = _parse(window_start)
+    return _parse(started_at) <= start and start + timedelta(minutes=1) <= _parse(ended_at)

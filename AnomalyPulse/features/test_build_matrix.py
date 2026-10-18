@@ -46,3 +46,11 @@ def test_matrix_includes_temporal_columns():
     assert second["product_p95_latency_ms_change"] == 0
     assert first["product_p95_latency_ms_change"] is None
     assert "product_p95_latency_ms_roll_mean_3" in second
+
+def test_partial_windows_are_dropped_before_temporal_features():
+    recs = [dict(REC, timestamp=t) for t in
+            ("2026-10-16T03:19:50.000Z", "2026-10-16T03:20:10.000Z", "2026-10-16T03:21:10.000Z")]
+    rows = bm.build_matrix(recs, [SNAP], bounds=("2026-10-16T03:19:50.000Z", "2026-10-16T03:22:30.000Z"))
+    assert list(rows) == ["2026-10-16T03:20:00.000Z", "2026-10-16T03:21:00.000Z"]
+    # the part-minute first window is gone, so the first kept window has no history
+    assert rows["2026-10-16T03:20:00.000Z"]["product_p95_latency_ms_change"] is None
