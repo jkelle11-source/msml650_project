@@ -213,14 +213,20 @@ Its role can only assume `anomalypulse-simulator`, which trusts it by name (`inf
 On the instance the simulator runs as `--profile sim`, as on a laptop, but the credentials come from the
 instance and renew themselves: no SSO session to expire mid-batch.
 
+**Who can drive it:** anyone with the `AnomalyPulseDeveloper` permission set (`--profile dev`, the whole
+team). Its `PowerUserAccess` covers starting and stopping the instance, Session Manager sessions and
+`ssm send-command` (checked 2026-10-17: EC2 dry runs and IAM's policy simulator). Only creating or deleting
+the stack needs `admin`, because the stack makes an IAM role. One person drives a batch at a time; the
+experiment lock refuses a second.
+
 | Step | Command |
 |---|---|
 | Create (once; the shared stack must already trust `anomalypulse-runner`) | `aws cloudformation deploy --stack-name anomalypulse-runner --template-file AnomalyPulse/infra/runner/template.yaml --capabilities CAPABILITY_NAMED_IAM --profile admin` |
-| Instance id | `aws cloudformation describe-stacks --stack-name anomalypulse-runner --query "Stacks[0].Outputs" --profile admin` |
-| Connect | `aws ssm start-session --target <instance-id> --profile admin` (needs the Session Manager plugin: `brew install --cask session-manager-plugin`), or EC2 console → Connect → Session Manager. Then `sudo -iu ec2-user`. |
+| Instance id | `aws cloudformation describe-stacks --stack-name anomalypulse-runner --query "Stacks[0].Outputs" --profile dev` |
+| Connect | `aws ssm start-session --target <instance-id> --profile dev` (needs the Session Manager plugin: `brew install --cask session-manager-plugin`), or EC2 console → Connect → Session Manager. Then `sudo -iu ec2-user`. |
 | Set up, or move to another commit | `bash ~/msml650_project/AnomalyPulse/infra/runner/setup.sh <commit or branch>`. The first time: `git clone https://github.com/jkelle11-source/msml650_project.git ~/msml650_project` first. |
 | Run | `bash ~/msml650_project/AnomalyPulse/infra/runner/in-tmux.sh <session> <simulator arguments>`; logs in `~/logs/`. |
-| Stop between batches | `aws ec2 stop-instances --instance-ids <id> --profile admin` (`start-instances` to resume; the instance id stays, so the dataset's pin holds) |
+| Stop between batches | `aws ec2 stop-instances --instance-ids <id> --profile dev` (`start-instances` to resume; the instance id stays, so the dataset's pin holds) |
 | After M9-1 | `aws cloudformation delete-stack --stack-name anomalypulse-runner --profile admin` |
 
 Run every batch from a commit, not from files you are editing: setup.sh checks out a commit detached, and
