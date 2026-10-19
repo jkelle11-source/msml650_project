@@ -43,6 +43,12 @@ RULES = [
      "`lambda_duration_ms`"),
     (rf"^(?P<s>{S})_cold_start_count$",
      "Number of {s}-service requests that paid a cold start", "`cold_start`"),
+    (rf"^(?P<s>{S})_db_latency_ms_mean$",
+     "Mean time {s}-service requests spent in their DynamoDB call, SDK retries included; empty when there "
+     "were no requests", "`db_latency_ms`"),
+    (rf"^(?P<s>{S})_db_latency_ms_p95$",
+     "95th percentile time {s}-service requests spent in their DynamoDB call, SDK retries included; empty "
+     "when there were no requests", "`db_latency_ms`"),
     (r"^order_dependency_latency_ms_mean$",
      "Mean time Order spent calling Payment; empty when Order made no calls", "`dependency_latency_ms`"),
     (r"^order_dependency_latency_ms_p95$",

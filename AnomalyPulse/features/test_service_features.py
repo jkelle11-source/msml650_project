@@ -48,5 +48,18 @@ def test_no_dependency_calls_gives_zero_errors_and_empty_latency():
     assert row["order_dependency_latency_ms_mean"] is None
 
 
+def test_db_latency_mean_and_p95_for_a_service_with_a_table():
+    records = [dict(rec(service="product-service"), db_latency_ms=x) for x in (10, 20, 30, 40, 50)]
+    row = sf.service_features(records)[W]
+    assert row["product_db_latency_ms_mean"] == 30
+    assert row["product_db_latency_ms_p95"] == pytest.approx(48)
+    assert row["cart_db_latency_ms_mean"] is None      # no Cart requests in the window
+
+
+def test_payment_has_no_db_latency_columns():
+    row = sf.service_features([rec(service="payment-service")])[W]
+    assert not [c for c in row if c.startswith("payment_db_")]
+
+
 def test_columns_pass_the_boundary_guard():
     guard.check_columns(sf.service_features([rec()])[W].keys())

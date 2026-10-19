@@ -8,7 +8,7 @@ import sys
 from features import guard
 from features import windows
 from features.metrics_features import metrics_features
-from features.request_features import SERVICES, request_features
+from features.request_features import DB_SERVICES, SERVICES, request_features
 from features.service_features import service_features
 from features.temporal_features import temporal_features
 
@@ -46,6 +46,7 @@ def _sample_run():
         records.append({
             "timestamp": "2026-01-01T00:00:10.000Z", "service": svc, "status_code": 200,
             "latency_ms": 1.0, "lambda_duration_ms": 1.0, "cold_start": False,
+            "db_latency_ms": 1.0 if svc in DB_SERVICES else None,
             "dependency": "payment-service" if is_order else None,
             "dependency_latency_ms": 1.0 if is_order else None,
             "dependency_error": False if is_order else None})

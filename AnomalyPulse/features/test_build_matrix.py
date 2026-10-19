@@ -45,7 +45,7 @@ def test_every_row_has_every_column():
     rows = bm.build_matrix([REC, later], [SNAP])
     for row in rows.values():
         assert list(row) == bm.columns()
-    assert len(bm.columns()) == 100
+    assert len(bm.columns()) == 106
 
 
 def test_a_minute_with_no_snapshot_keeps_its_cloudwatch_columns_empty():

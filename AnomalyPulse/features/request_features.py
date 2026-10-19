@@ -8,6 +8,7 @@ from collections import defaultdict
 from features import windows
 
 SERVICES = ("product-service", "cart-service", "order-service", "payment-service")
+DB_SERVICES = ("product-service", "cart-service", "order-service")   # Payment has no table
 
 
 def _prefix(service):

@@ -5,9 +5,7 @@ Throttle counts are Tier-1 observable counts (CloudWatch), unlike the Tier-2
 db_throttled flag. Payment has no table, so it gets no DynamoDB columns.
 """
 from features import windows
-from features.request_features import _prefix
-
-DB_SERVICES = ("product-service", "cart-service", "order-service")
+from features.request_features import DB_SERVICES, _prefix
 
 _DB_COLUMNS = {
     "db_consumed_read_capacity": "consumed_read_capacity",
