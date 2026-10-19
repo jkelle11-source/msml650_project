@@ -27,13 +27,51 @@ aws s3 sync s3://<bucket>/datasets/m4-1-validation/tier2/ ~/mirror/datasets/m4-1
 |---|---|
 | Window key | The UTC minute the window starts, `YYYY-MM-DDTHH:MM:00.000Z`: the same `window_start` as M4-5's `windows.request_window()`. Joined on (`experiment_id`, `window_start`). |
 | Activity threshold | A fault labels a window when it is active **≥ 30 s** of it (exactly 30 s counts). |
-| `CASCADING_FAILURE` | Two or more counted faults active together ≥ 30 s of the window, from `cascade.multi_fault_windows()`. Before that, the window is labeled by the single fault. Every run is checked against M3's concurrency timeline: a `CASCADING_FAILURE` window with under 30 s of overlap there fails the run. |
+| `CASCADING_FAILURE` | Two or more counted faults active together ≥ 30 s of the window, from `cascade.multi_fault_windows()`. Before that, the window is labeled by the single fault. Every run is held to M3's concurrency timeline (`policy._verify`), a guard on the rule; the check on timing is `test_run_kinds.py` (Validation, below). |
 | `retry-amplification` | **Not counted as a fault** (`exclude_injectors=("retry-amplification",)`). It fails nothing; it re-sends what another fault failed, so payment failure + retries looks like more payment failure. A window in which only retries are active for ≥ 30 s is excluded (`uncounted_fault`). |
 | DB-throttling onset | Active from `observed.label_from`. A window that overlaps `[active_from, label_from)` **at all** is excluded (`db_throttling_onset`), so the surge never sits inside a labeled window. A run with `label_from` null is not labeled (M4-1 reruns it). |
 | Recovery | A window with under 30 s of fault that overlaps recovery is excluded (`recovery`). A last fault window with ≥ 30 s of fault keeps the fault's label. A NORMAL run has no recovery: its whole length is baseline. |
-| Partial and startup windows | Excluded: a window not wholly inside `[started_at, ended_at)` (`partial_window`, the first and last), and any window overlapping the run's first 60 s (`startup`). On M4's 10-minute runs, which start at about :59, that leaves 2 NORMAL baseline windows and 5 fault windows (4 for DB throttling). |
+| Partial and startup windows | Excluded: a window not wholly inside `[started_at, ended_at)` (`partial_window`, the first and last), and any window overlapping the run's first 60 s (`startup`). What is left depends on the second the run starts at ("Windows per run", below). |
 | Confounders (test set) | Two faults in a run whose manifest is not `CASCADING_FAILURE`: their overlap takes the manifest's `incident_type`, never `CASCADING_FAILURE`. |
 | Ties | Two single faults of different types each ≥ 30 s with < 30 s of overlap: the type with more active time, then the one listed first in the manifest. |
+
+## Windows per run
+
+A 10-minute run has 11 windows: 2 partial and 1 startup, all excluded, and 8 that split by the second of the
+minute the run starts at, because the fault's edges fall at that second too. DB throttling's onset exclusion
+takes the window its surge starts in and the one holding `label_from` (~48 s later), or one window when both
+fall in it:
+
+| Run starts at | Single fault: NORMAL · fault · recovery | DB throttling: NORMAL · onset · labeled · recovery |
+|---|---|---|
+| :00–:11 | 1 · 5 · 2 | 1 · 1 · 4 · 2 |
+| :12–:29 | 1 · 5 · 2 | 1 · 2 · 3 · 2 |
+| :31–:59 (M4-1's runs, at about :59) | 2 · 5 · 1 | 1 · 2 · 4 · 1 |
+
+A start at exactly :30.000 gives a single fault 1 · 6 · 1: both edge windows hold 30 s of fault, and 30 s
+counts. A cascade's windows split the same way, by its first stage. The DB rows assume `label_from` 48 s in,
+as on the runner (47–48 s), so the :12 boundary can move by a second.
+
+The test set's 2-minute DB-throttling fault labels 72 s (from `label_from` to its end), so it keeps one
+labeled window, or **none** when `label_from` falls in a minute's first 18 s: about 3 runs in 10. The window
+holding `label_from` is onset, and under half a window is left after it.
+
+## Validation (2026-10-18)
+
+- **Every kind of run M4 generates**, built by the simulator's own code (`test_run_kinds.py`): single faults
+  in train and test bands, the stress slice, 2- and 12-minute faults, every cascade template in train and
+  test bands, and the confounder pairs, each at 20 seeds and start seconds. Every window is checked against
+  what the activations say was active in it, worked out in the test, not through
+  `cascade.multi_fault_windows()`: a `CASCADING_FAILURE` window has two faults for half of it, and a window
+  that does is never labeled anything else. A labeler that started DB throttling at `active_from` fails it
+  in all six kinds with throttling. M3's timeline guard can't see that, because that timeline starts
+  throttling at `active_from` too.
+- **Real runs:** all 20 accepted runs in `m4-1-validation` (11: NORMAL, every single fault, one cascade) and
+  `m4-3-validation` (9 cascades: all four templates, throttling before and after the spike), labeled from a
+  local copy. Every run was labeled, its windows split as the table above says for its start second, and every
+  window passes the same check. Totals: `m4-1-validation` 32 NORMAL, 11 TRAFFIC_SPIKE, 8 DATABASE_THROTTLING,
+  10 LAMBDA_DEGRADATION, 10 DEPENDENCY_FAILURE, 4 CASCADING_FAILURE; `m4-3-validation` 12 NORMAL,
+  1 TRAFFIC_SPIKE, 35 CASCADING_FAILURE.
 
 ## Files (Tier-2)
 
