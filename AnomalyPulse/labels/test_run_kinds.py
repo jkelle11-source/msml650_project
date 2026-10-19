@@ -70,6 +70,12 @@ def completed(entry: dict, seed: int, start_ms: int | None = None) -> dict:
     return m
 
 
+def _rerun_for_no_window(m: dict) -> bool:
+    """Whether run-batch reruns `m` because its throttling leaves no window to label."""
+    return any(batch.labeled_past_onset_ms(a) < batch.MIN_LABELED_PAST_ONSET_MS
+               for a in m["activations"] if a["injector"] == "db-throttling")
+
+
 def _active(m: dict) -> list[tuple[int, int, str]]:
     """(from, until, incident type) of each counted fault, from the activations directly."""
     spans = []
@@ -133,11 +139,11 @@ def test_every_run_kind_labels_by_what_was_active(name, build):
         elif m["incident_type"] == "CASCADING_FAILURE":
             assert "CASCADING_FAILURE" in labels, f"{name} seed {seed}: never two faults at once"
         else:
-            # A single fault or a confounder: its own type and NORMAL only. check_run has
-            # already held every window a fault fills half of to that type, so a run with
-            # none (a 2-minute throttling fault, below) has none to label.
+            # A single fault or a confounder: its own type and NORMAL only, and at least one
+            # window of its type in every run the batch accepts (it reruns a 2-minute
+            # throttling fault that leaves none, below).
             assert labels <= {"NORMAL", m["incident_type"]}, f"{name} seed {seed}: {labels}"
-            if not name.startswith("db-throttling 120"):
+            if not _rerun_for_no_window(m):
                 assert m["incident_type"] in labels, f"{name} seed {seed}: {labels}"
 
 
@@ -151,6 +157,21 @@ def test_a_two_minute_throttling_fault_can_leave_no_labeled_window():
     assert [w.label for w in at_23 if w.label] == ["NORMAL"]          # label_from at :11
     at_59 = policy.label_experiment(completed(entry, 1, start_ms=BASE_MS + 59_412))
     assert [w.label for w in at_59 if w.label] == ["NORMAL", "DATABASE_THROTTLING"]
+
+
+def test_the_batch_reruns_exactly_the_throttling_runs_that_leave_no_labeled_window():
+    # Decided in M4-4's review: M9-1 reruns them. batch.run_problems does the arithmetic,
+    # so it must agree with the labeler at every start second.
+    entry = {"incident": integrity.incident_spec("db-throttling", "test", random.Random(1),
+                                                  duration_s=120)}
+    starts = range(0, 60_000, 250)
+    reruns = 0
+    for offset_ms in starts:
+        m = completed(entry, 1, start_ms=BASE_MS + offset_ms)
+        labeled = "DATABASE_THROTTLING" in {w.label for w in policy.label_experiment(m)}
+        assert _rerun_for_no_window(m) == (not labeled), offset_ms
+        reruns += not labeled
+    assert 0.25 < reruns / len(starts) < 0.35      # about 3 runs in 10
 
 
 def test_check_run_catches_a_premature_cascade():

@@ -183,8 +183,10 @@ def _client(sent=10_000, dropped=0, errors=0):
     return {"sent": sent, "dropped": dropped, "responses": {"2xx": sent - errors, "error": errors}}
 
 
-def _throttling(fraction=1.0, label_from="2026-10-16T12:01:05.000Z", rate=0.75, offered=4.0, peak=192.5):
+def _throttling(fraction=1.0, label_from="2026-10-16T12:01:05.000Z", rate=0.75, offered=4.0, peak=192.5,
+                active_until="2026-10-16T12:05:17.000Z"):
     return {"injector": "db-throttling", "params": {"load_ratio": 4.0},
+            "active_from": "2026-10-16T12:00:17.000Z", "active_until": active_until,
             "observed": {"achieved_fraction": fraction, "label_from": label_from,
                          "steady_throttle_rate": rate, "offered_ratio": offered,
                          "provisioned_rcu": 200, "steady_peak_served_per_s": peak}}
@@ -208,6 +210,10 @@ def _throttling(fraction=1.0, label_from="2026-10-16T12:01:05.000Z", rate=0.75, 
     # M4-1's 10x probe: a second full bank ~3 minutes in, served at ~1,000 RCU/s.
     (_final(activations=[_throttling(peak=325.0)]), _client(), "did burst capacity come back"),
     (_final(activations=[_throttling(peak=None)]), _client(), "served db-throttling None reads/s"),
+    # A 2-minute fault with label_from at :11: its minute is onset, and 23 s are left after it.
+    (_final(activations=[_throttling(label_from="2026-10-16T12:01:11.000Z",
+                                     active_until="2026-10-16T12:02:23.000Z")]), _client(),
+     "ran 23 s past the minute holding label_from"),
 ])
 def test_run_problems(final, client, problem):
     assert any(problem in p for p in batch.run_problems(final, client))
@@ -217,6 +223,16 @@ def test_a_good_run_has_no_problems():
     # 10 errors in 10,000 is exactly 0.1%, and 250 reads/s is exactly 1.25x 200 RCU: both allowed.
     assert batch.run_problems(_final(activations=[_throttling(fraction=0.97, peak=250.0)]),
                               _client(errors=10)) == []
+
+
+def test_thirty_seconds_past_the_onset_minute_labels_a_window():
+    # Exactly 30 s counts, as in the labeler. label_from on a minute: that minute is not onset.
+    at_30 = _throttling(label_from="2026-10-16T12:01:41.000Z", active_until="2026-10-16T12:02:30.000Z")
+    on_the_minute = _throttling(label_from="2026-10-16T12:01:00.000Z", active_until="2026-10-16T12:01:30.000Z")
+    assert batch.run_problems(_final(activations=[at_30]), _client()) == []
+    assert batch.run_problems(_final(activations=[on_the_minute]), _client()) == []
+    short = _throttling(label_from="2026-10-16T12:01:41.000Z", active_until="2026-10-16T12:02:29.999Z")
+    assert any("29.999 s past" in p for p in batch.run_problems(_final(activations=[short]), _client()))
 
 
 def test_more_throttling_than_the_ratio_gives_is_no_problem():

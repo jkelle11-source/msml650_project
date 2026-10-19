@@ -14,8 +14,9 @@ to. Every run is then judged before it is accepted:
     the run      COMPLETED, at 20 rps
     the client   dropped nothing; no response for at most 0.1% of requests
     db-throttling  achieved_fraction >= 0.97, label_from set, a steady
-                 throttle rate no more than 0.1 below 1 - 1/ratio, and no
-                 minute after label_from served more than 1.25x capacity
+                 throttle rate no more than 0.1 below 1 - 1/ratio, no
+                 minute after label_from served more than 1.25x capacity,
+                 and 30 s of the fault left past the minute holding label_from
     Products     no throttling outside a db-throttling window (CloudWatch),
                  checked once the run's metrics have settled, during the next run
 
@@ -57,6 +58,12 @@ MAX_THROTTLE_RATE_GAP = 0.10
 # minute after label_from means burst capacity came back inside the labeled
 # stretch (once in M4-1's investigation, a second full bank ~3 minutes in).
 MAX_STEADY_SERVED_FACTOR = 1.25
+# The labeler counts db-throttling from label_from and excludes the minute that
+# holds it as onset (Docs/LABELING.md), so a window is labeled only if the fault
+# runs on this long past that minute. A 5-minute fault always does; the test
+# set's 2-minute fault doesn't when label_from falls in a minute's first 18 s,
+# about 3 runs in 10, and such a run is rerun (decided in M4-4's review, for M9-1).
+MIN_LABELED_PAST_ONSET_MS = 30_000
 # CloudWatch's DynamoDB metrics for a run's last minute are in by then.
 SETTLE_S = 300
 # The db-throttling injector's reads in flight when its window closes can take
@@ -186,6 +193,13 @@ def load_queue(path) -> Queue:
 
 # --- judging a run -------------------------------------------------------------
 
+def labeled_past_onset_ms(activation: dict) -> int:
+    """How long a db-throttling activation runs past the minute that holds its label_from."""
+    label_from = manifest.to_epoch_ms(activation["observed"]["label_from"])
+    first_window = -(-label_from // 60_000) * 60_000     # the first minute not overlapping the onset
+    return manifest.to_epoch_ms(activation["active_until"]) - first_window
+
+
 def run_problems(final: dict, client: dict) -> list[str]:
     """Why a finished run can't go in the dataset, from its manifest and what the client saw."""
     problems = []
@@ -209,6 +223,9 @@ def run_problems(final: dict, client: dict) -> list[str]:
         observed = activation["observed"]
         if observed.get("label_from") is None:
             problems.append("db-throttling never throttled (label_from is null)")
+        elif (left := labeled_past_onset_ms(activation)) < MIN_LABELED_PAST_ONSET_MS:
+            problems.append(f"db-throttling ran {max(left, 0) / 1000:g} s past the minute holding label_from, "
+                            f"under the {MIN_LABELED_PAST_ONSET_MS // 1000} s that labels a window")
         fraction = observed.get("achieved_fraction")
         if fraction is None or fraction < MIN_ACHIEVED_FRACTION:
             problems.append(f"db-throttling sent {fraction} of its target read rate, "

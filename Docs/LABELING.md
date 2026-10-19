@@ -54,7 +54,10 @@ as on the runner (47–48 s), so the :12 boundary can move by a second.
 
 The test set's 2-minute DB-throttling fault labels 72 s (from `label_from` to its end), so it keeps one
 labeled window, or **none** when `label_from` falls in a minute's first 18 s: about 3 runs in 10. The window
-holding `label_from` is onset, and under half a window is left after it.
+holding `label_from` is onset, and under half a window is left after it. **`run-batch` reruns such a run**
+(decided 2026-10-19, for M9-1): it rejects a `db-throttling` run with under 30 s of the fault past the minute
+holding `label_from` (`batch.labeled_past_onset_ms`), and `test_run_kinds.py` checks that it rejects exactly
+the runs this labeler can't label. A 5-minute fault always leaves at least 3 windows, so training is unaffected.
 
 ## Validation (2026-10-18)
 
