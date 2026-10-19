@@ -121,18 +121,20 @@
 
 **Context.** Aggregate telemetry into one-minute windows and assign labels under the explicit policy from §3 — the step that turns raw runs into clean ML observations and keeps boundary windows from injecting label noise. Owning this positions Melisa for the anomaly-detection modeling in M5.
 
+**Status:** built — `AnomalyPulse/labels/` (`python -m labels`) and [`Docs/LABELING.md`](../Docs/LABELING.md), PR #73. Decided: `retry-amplification` is not counted as a fault; a window that overlaps the DB-throttling surge at all is excluded; only `v1`'s labels are stored in S3 (a validation dataset is labeled from a local copy); the window aggregation is M4-5's (below). Reviewed 2026-10-18–19 and validated on every kind of run M4 generates and on the 20 accepted runs of `m4-1-validation` and `m4-3-validation`. The review also found that the test set's 2-minute DB-throttling fault can leave no labeled window; `run-batch` now reruns such a run (M9-1).
+
 **Deliverables**
-- One-minute window aggregation of Tier-1 telemetry (including temporal features: rolling mean/std, rate of change).
+- One-minute window aggregation of Tier-1 telemetry (including temporal features: rolling mean/std, rate of change). *Covered by M4-5's feature code, which keys windows by the same `window_start` the labels use, rather than a second copy here (agreed 2026-10-19).*
 - **Activity threshold:** a window is labeled with an incident class only if the incident is active ≥50% of the window; else `NORMAL`.
 - **Cascade rule:** `CASCADING_FAILURE` only when ≥2 injected faults are concurrently active; early single-fault windows labeled by the observable single fault.
 - **Recovery exclusion:** recovery-phase windows excluded from the MVP training set (no fuzzy sixth class).
-- **Does `retry-amplification` count as a fault** for "two or more faults concurrently active"? It adds load and fails nothing itself. Decide, and if not, pass `exclude_injectors=("retry-amplification",)` to `cascade.multi_fault_windows()`.
+- **Does `retry-amplification` count as a fault** for "two or more faults concurrently active"? It adds load and fails nothing itself. Decide, and if not, pass `exclude_injectors=("retry-amplification",)` to `cascade.multi_fault_windows()`. *Decided: not counted. It re-sends what another fault failed, so it looks like more of that fault.*
 - **DB-throttling onset:** a `db-throttling` activation counts as active from `observed.label_from` (5 s after the injector saw the burst bank spent), not `active_from`. Until then DynamoDB's burst capacity is absorbing the load (the injector surges to spend it) and then the surge's aftermath settles, so the stretch before it is excluded like recovery (`Docs/DB_THROTTLING_INJECTOR.md`).
 
 **Definition of Done**
-- [ ] Every window carries exactly one label under the policy; boundary windows resolved deterministically.
-- [ ] Cascade windows verified against the M3 concurrency timeline (no premature `CASCADING_FAILURE`).
-- [ ] Recovery windows are present in the raw data but excluded from the labeled training set, and that exclusion is logged.
+- [x] Every window carries exactly one label under the policy; boundary windows resolved deterministically. (`policy._verify` on every run; a run's windows split by its start second as `Docs/LABELING.md`, "Windows per run", tabulates)
+- [x] Cascade windows verified against the M3 concurrency timeline (no premature `CASCADING_FAILURE`). (`labels/test_run_kinds.py` checks every window against the activations' own times, on every cascade template in train and test bands and on the 20 real validation runs; `policy._verify` holds each to M3's timeline)
+- [x] Recovery windows are present in the raw data but excluded from the labeled training set, and that exclusion is logged. (`excluded_reason: recovery` in each run's `labels.jsonl` and in `labeling_log.jsonl`; the requests stay in `tier1/`)
 
 ---
 
