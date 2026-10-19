@@ -201,8 +201,13 @@ rules it follows, so that nothing but the incident varies with the slot.
    throttling and 42/42 for Lambda and payment; validation 14/14, and 11/10 for Lambda and payment, with
    the extra run in opposite bands (Lambda 53/52 overall, payment 52/53).
 3. **Targets and templates in turn.** Lambda degradation's four targets round-robin (21 each in training);
-   cascades cycle the four templates (14 each in training, 4/4/3/3 in validation), and each stage's band
-   alternates across a template's runs. Intensities stay drawn by the builders.
+   cascades cycle the four templates (14 each in training, 4/4/3/3 in validation), and a template's runs
+   go through every combination of its stages' bands, in complementary pairs (all low and all high, then
+   the rest), so each stage is 7/7 in training. A three-stage template has all 8 combinations in
+   training; the four-stage one has 14 of its 16 there and the other two in validation. (Decided in
+   M4-2's review: stages that alternate together, or in opposite bands, give a template only two of its
+   combinations, so a heavy stage would always come with the same band of the others.) Intensities stay
+   drawn by the builders.
 4. **Slots are numbered after shuffling:** slot *i* is the *i*-th run, so slot order is generation order.
 5. **Training and validation are separate queues, training first.** A rejected run is retried at the end
    of its own queue, so training's reruns finish before validation begins.

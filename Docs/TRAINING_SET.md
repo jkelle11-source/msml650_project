@@ -36,13 +36,14 @@ from the data, not recomputed.
 | DATABASE_THROTTLING | 112 | 28 | 1.5–2.5× / 3.5–4.5×: 56/56, 14/14 |
 | LAMBDA_DEGRADATION | 84 | 21 | 200–500 / 800–1100 ms: 42/42, 11/10 |
 | DEPENDENCY_FAILURE | 84 | 21 | 500–1500 / 2500–3500 ms: 42/42, 10/11 |
-| CASCADING_FAILURE | 56 | 14 | per stage, alternating |
+| CASCADING_FAILURE | 56 | 14 | per stage: 7/7 per template in training |
 
 - Every 20 consecutive slots hold exactly 4/4/4/3/3/2 of the classes above, shuffled.
 - Lambda degradation's targets take turns (product, cart, order, payment): 21 each in training.
-- Cascades cycle the four templates: 14 each in training, 4/4/3/3 in validation. Across a template's runs
-  each stage alternates its two bands, offset by stage position, so neighbouring stages sit in opposite
-  bands (no cascade is all-low or all-high).
+- Cascades cycle the four templates: 14 each in training, 4/4/3/3 in validation. A template's runs go
+  through every combination of its stages' bands, in complementary pairs (all low and all high first),
+  so each stage is 7/7 in training. The three-stage templates have all 8 combinations in training; the
+  four-stage one (`throttle-slowdown-payment-retry`) has 14 of its 16, and validation the other two.
 - Intensities are drawn by M4-3's builders from a per-slot RNG, within `INTENSITY_RANGE` (0.05–0.95).
 - Every run is 10 minutes (180 s baseline, 300 s fault, 120 s recovery) at 20 rps in the default mix.
 - No test or stress band appears; `run-batch --dry-run` runs M4-3's guard on every entry.

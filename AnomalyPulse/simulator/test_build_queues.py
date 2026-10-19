@@ -114,19 +114,28 @@ def test_cascades_cycle_the_templates():
     assert sorted(val.values()) == [3, 3, 4, 4]
 
 
-def test_each_cascade_stage_alternates_bands_and_stages_mix():
+def _stage_bands(entry):
+    """A cascade's band index (0 low, 1 high) per stage, in stage order."""
+    return tuple(integrity.BANDS[s["injector"]]["train"].index((s["band"]["low"], s["band"]["high"]))
+                 for s in entry["cascade"]["stages"])
+
+
+def test_each_template_goes_through_every_combination_of_stage_bands():
     for name, stages in integrity.CASCADES.items():
-        runs = [e["cascade"]["stages"] for e in _split("train")
-                if "cascade" in e and _template(e) == name]
-        for j, stage in enumerate(stages):
-            lows = [low for low, _ in integrity.BANDS[stage["injector"]]["train"]]
-            indices = [lows.index(r[j]["band"]["low"]) for r in runs]
-            assert Counter(indices) == {0: 7, 1: 7}, f"{name} stage {j}"
-        # Neighbouring stages sit in opposite bands, so no cascade is all-low or all-high.
-        first = runs[0]
-        lows0 = [low for low, _ in integrity.BANDS[stages[0]["injector"]]["train"]]
-        lows1 = [low for low, _ in integrity.BANDS[stages[1]["injector"]]["train"]]
-        assert lows0.index(first[0]["band"]["low"]) != lows1.index(first[1]["band"]["low"])
+        train = [_stage_bands(e) for e in _split("train") if "cascade" in e and _template(e) == name]
+        val = [_stage_bands(e) for e in _split("val") if "cascade" in e and _template(e) == name]
+        for j in range(len(stages)):
+            assert Counter(r[j] for r in train) == {0: 7, 1: 7}, f"{name} stage {j}"
+        # Three stages: all 8 combinations in training. Four: 14 of 16, and validation has the other two.
+        assert len(set(train)) == min(len(train), 2 ** len(stages)), name
+        assert len(set(train + val)) == 2 ** len(stages), name
+
+
+def test_validation_cascade_stages_lean_at_most_one_run_either_way():
+    for injector in integrity.BANDS:
+        counts = Counter(b for e in _split("val") if "cascade" in e
+                         for s, b in zip(e["cascade"]["stages"], _stage_bands(e)) if s["injector"] == injector)
+        assert abs(counts[0] - counts[1]) <= 1, injector
 
 
 # --- seeds, reproducibility, files -----------------------------------------------------------

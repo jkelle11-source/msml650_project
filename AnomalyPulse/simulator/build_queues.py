@@ -10,8 +10,8 @@ the rules in Docs/EVALUATION_INTEGRITY.md ("Building a queue"):
    3 Lambda and 3 payment runs alternate 2/1 and 1/2 by block, in opposite
    bands to each other.
 3. Lambda degradation's targets round-robin; cascades cycle the templates, and
-   across a template's runs each stage alternates bands (offset by the stage's
-   position, so a cascade mixes high and low stages).
+   a template's runs go through every combination of its stages' bands, in
+   complementary pairs, so each stage is half and half (_cascade_bands).
 4. Slots are numbered after shuffling: slot i is the i-th run.
 5./6. Four daily training queues of 140 slots, then one validation queue of 140.
 
@@ -55,6 +55,23 @@ def _band_indices(label: str, count: int, block: int) -> list:
     return indices
 
 
+def _cascade_bands(stages: int, run: int, flip: int) -> list:
+    """Each stage's band index for a template's `run`-th run (0 is its first).
+
+    The runs go through every combination of the stages' two bands, in
+    complementary pairs: all low and all high first, then the rest with the
+    first stage low and its complement. Every two runs hold each stage once in
+    each band, so 14 training runs are 7/7 per stage and hold all 8 combinations
+    of three stages, or 14 of four stages' 16 (the template's 15th and 16th
+    runs, in validation, are the other two). `flip` swaps the order within each
+    pair, so templates with an odd number of validation runs lean opposite ways.
+    """
+    pair = (run // 2) % 2 ** (stages - 1)
+    first = [0] + [(pair >> (stages - 1 - j)) & 1 for j in range(1, stages)]
+    second = (run + flip) % 2
+    return [b ^ second for b in first]
+
+
 def _block(block: int, rng: random.Random) -> list:
     """One block's 20 (label, band_index) pairs, in run order."""
     kinds = []
@@ -83,11 +100,10 @@ def entries(seed: int = SEED) -> list[dict]:
             # Unique per slot; a rerun of the slot reuses it (batch.py).
             entry = {"slot": slot, "phase": phase, "seed": (seed * 10_000 + slot) % 2**32}
             if label == "CASCADING_FAILURE":
-                template = templates[cascade_runs % len(templates)]
-                k = template_runs[template]
-                stages = len(integrity.CASCADES[template])
-                entry["cascade"] = integrity.cascade_spec(
-                    template, phase, spec_rng, band_indices=[(k + j) % 2 for j in range(stages)])
+                t = cascade_runs % len(templates)
+                template = templates[t]
+                bands = _cascade_bands(len(integrity.CASCADES[template]), template_runs[template], flip=t % 2)
+                entry["cascade"] = integrity.cascade_spec(template, phase, spec_rng, band_indices=bands)
                 cascade_runs += 1
                 template_runs[template] += 1
             elif label == "LAMBDA_DEGRADATION":
