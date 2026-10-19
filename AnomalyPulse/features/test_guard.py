@@ -32,8 +32,25 @@ def test_each_tier2_name_fails_the_build(name):
     assert name in str(err.value)
 
 
-@pytest.mark.parametrize("name", ["experiment_id", "slot", "phase", "label", "timeout_ms"])
+@pytest.mark.parametrize("name", ["experiment_id", "slot", "phase", "label", "timeout_ms",
+                                  "load_ratio", "retries_per_failure", "injector", "label_from"])
 def test_join_keys_labels_and_fault_params_fail(name):
+    with pytest.raises(guard.BoundaryViolation):
+        guard.check_columns(TIER1_COLUMNS + [name])
+
+
+def test_every_injector_parameter_is_forbidden():
+    # From the registry, so a new injector's parameter is covered without editing the guard.
+    from simulator import injectors
+    params = {injectors.get(n).parameter for n in injectors.names()} - {None}
+    assert {"multiplier", "load_ratio", "added_latency_ms", "timeout_ms", "retries_per_failure"} <= params
+    assert params <= guard.forbidden_names()
+
+
+@pytest.mark.parametrize("name", ["product_db_throttled", "order_error_type_count", "payment_timeout_ms_p95",
+                                  "product_load_ratio_change", "cart_severity", "order_incident_type_roll_mean_3"])
+def test_a_forbidden_name_inside_a_column_name_fails(name):
+    # Real columns are named <service>_<feature>[_<temporal>], so a leak would be too.
     with pytest.raises(guard.BoundaryViolation):
         guard.check_columns(TIER1_COLUMNS + [name])
 
@@ -45,10 +62,17 @@ def test_match_ignores_case():
 
 def test_throttled_requests_is_allowed_but_db_throttled_is_not():
     # The trap: the observable CloudWatch count is a legitimate feature,
-    # the Tier-2 boolean is not. Exact names, never a word search.
-    guard.check_columns(["throttled_requests"])
+    # the Tier-2 boolean is not. Whole words, never a substring search.
+    guard.check_columns(["throttled_requests", "product_throttled_requests", "product_read_throttle_events"])
     with pytest.raises(guard.BoundaryViolation):
         guard.check_columns(["db_throttled"])
+    with pytest.raises(guard.BoundaryViolation):
+        guard.check_columns(["product_db_throttled"])
+
+
+def test_part_of_a_word_is_not_a_match():
+    # "labeled" is not "label", "phases" is not "phase": only whole words between underscores count.
+    guard.check_columns(["product_labeled_share", "order_phases_count"])
 
 
 def test_all_bad_columns_are_reported():
