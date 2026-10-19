@@ -17,14 +17,14 @@ S = "|".join(_prefix(s) for s in SERVICES)
 # (regex on the column name, definition, source) - the first match wins.
 RULES = [
     (rf"^(?P<base>.+)_roll_mean_{WINDOW}$",
-     "Mean of `{base}` over this window and up to {prev} earlier labeled windows of the same run; "
-     "empty in a run's first labeled window",
+     "Mean of `{base}` over this window and up to {prev} earlier lookback windows of the same run "
+     "(its labeled windows and startup minute); empty in the startup minute",
      "`{base}`"),
     (rf"^(?P<base>.+)_roll_std_{WINDOW}$",
-     "Standard deviation of `{base}` over the same windows; empty in a run's first labeled window",
+     "Standard deviation of `{base}` over the same windows; empty in the startup minute",
      "`{base}`"),
     (r"^(?P<base>.+)_change$",
-     "`{base}` minus its value in the previous labeled window; empty in a run's first labeled window",
+     "`{base}` minus its value in the previous lookback window; empty in the startup minute",
      "`{base}`"),
     (rf"^(?P<s>{S})_request_rate$",
      "Requests per second to {s}-service in the window (count / 60)", "request records"),
@@ -119,20 +119,26 @@ def render():
         "- **Empty means unknown, not zero.** A service with no requests in a window has an empty "
         "latency or error rate. Counts and request rates are `0`.",
         "- **Temporal columns use only the current and earlier windows** of the same run.",
-        "- **Temporal columns look back over labeled windows only** (M4-4's `labels.jsonl`, `included: true`; "
-        "`write_matrix.py --labels`). An excluded window gets temporal columns from itself and the earlier "
-        "labeled windows, but never feeds a later one. So the DB-throttling surge, which M4-4 excludes as "
-        "onset, never reaches the first labeled throttling window: it is how the injector spends DynamoDB's "
-        "burst capacity, and real throttling has nothing like it. Nor do startup's cold starts reach the "
-        "baseline. Blanking the columns that drew on an excluded window instead would leave blanks in "
-        "training only where DB throttling starts, a fingerprint of its own (decided 2026-10-19). "
+        "- **Temporal columns look back over a run's labeled windows and its startup minute only** "
+        "(`build_matrix.lookback_windows()` of M4-4's `labels.jsonl`). Any other excluded window gets "
+        "temporal columns from itself and the earlier lookback windows, but never feeds a later one. So the "
+        "DB-throttling surge, which M4-4 excludes as onset, never reaches the first labeled throttling window: "
+        "it is how the injector spends DynamoDB's burst capacity, and real throttling has nothing like it. "
+        "Blanking the columns that drew on an excluded window instead would leave blanks in training only "
+        "where DB throttling starts, a fingerprint of its own (decided 2026-10-19). "
         "Checked on `m4-3-validation`'s six throttling cascades (2026-10-19): the minute holding "
         "`label_from` had 0.8–3.9% of Product requests failing, as the surge ran out the burst bank, against "
         "0–0.5% in the next minute (1.8% in one). Looking back over every window put that burst in the first "
-        "labeled minute's `product_error_rate_5xx_roll_mean_3` (0.3–1.4%); over labeled windows only it is "
-        "0–0.9%, that minute's own errors. That minute's `product_p95_latency_ms_change` is now the jump from "
-        "baseline (~3,190 ms), as every other incident's first fault minute is, where before it was about 0 "
-        "because the jump fell in the excluded minute. A traffic-spike run's fault minutes are unchanged.",
+        "labeled minute's `product_error_rate_5xx_roll_mean_3` (0.3–1.4%); with the surge left out it is "
+        "0–0.6%, that minute's own errors. That minute's `product_p95_latency_ms_change` is now the jump from "
+        "baseline (3,190–3,600 ms), as every other incident's first fault minute is, where before it was about "
+        "0 because the jump fell in the excluded minute. A traffic-spike run's fault minutes are unchanged.",
+        "- **The startup minute is history** (PR #76's review, 2026-10-19). Left out, every run's first labeled "
+        "window, always NORMAL, had all its temporal columns empty: a mark of NORMAL in every run, and blanks a "
+        "logistic regression can't take. The startup minute matches the baseline on every trended column "
+        "(median within 5% over the 20 validation runs; 5xx 0 in both), and with it no training row of those "
+        "runs has an empty temporal column. Temporal columns are empty only in the startup minute itself, "
+        "which is not a training row.",
         "- A run's first and last windows can be partial. Which windows to drop is decided with M4-4.",
         "",
         f"{len(cols)} columns.",

@@ -18,9 +18,18 @@ def load_jsonl(path):
         return [json.loads(line) for line in f if line.strip()]
 
 
-def labeled_windows(label_rows):
-    """The windows M4-4 labeled (labels.jsonl rows with included: true)."""
-    return {r["window_start"] for r in label_rows if r.get("included")}
+# Excluded windows that still feed later windows' temporal features. The run's startup
+# minute matches its baseline on every trended column (median within 5% over the 20
+# validation runs, 5xx 0 in both), and without it a run's first labeled window would
+# have no history: blank temporal columns would then mark NORMAL in every run.
+LOOKBACK_EXCLUSIONS = {"startup"}
+
+
+def lookback_windows(label_rows):
+    """The windows temporal features look back over: those M4-4 labeled (labels.jsonl
+    rows with included: true) and the startup minute."""
+    return {r["window_start"] for r in label_rows
+            if r.get("included") or r.get("excluded_reason") in LOOKBACK_EXCLUSIONS}
 
 
 def build_matrix(records, snapshots, bounds=None, lookback=None):
@@ -28,9 +37,9 @@ def build_matrix(records, snapshots, bounds=None, lookback=None):
 
     bounds=(started_at, ended_at) is the run's own start and end. Windows not wholly
     inside it are dropped BEFORE the temporal features, so no rate of change is
-    computed against a part-minute window. lookback is the run's labeled windows
-    (labeled_windows()), the only ones temporal features look back over. Both are
-    used only to pick windows, never as a column.
+    computed against a part-minute window. lookback is lookback_windows() of the
+    run's labels, the only windows temporal features look back over. Both are used
+    only to pick windows, never as a column.
     """
     parts = (request_features(records), service_features(records), metrics_features(snapshots))
     rows = {}

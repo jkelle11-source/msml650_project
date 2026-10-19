@@ -7,15 +7,15 @@ join key; experiment_id lives in the path only, never as a column.
 Usage:  python -m features.write_matrix <dataset> <experiment_id> <requests.jsonl> <metrics.jsonl>
             [--manifest manifest.json] [--labels labels.jsonl] [--out DIR | --bucket NAME]
 With neither --out nor --bucket it only prints what it would write. An upload needs
---manifest (partial windows are dropped) and --labels (temporal features look back
-over labeled windows only).
+--manifest (partial windows are dropped) and --labels (temporal features look back over
+labeled windows and the startup minute only).
 """
 import json
 import sys
 from pathlib import Path
 
 from features import guard
-from features.build_matrix import build_matrix, labeled_windows, load_jsonl
+from features.build_matrix import build_matrix, lookback_windows, load_jsonl
 
 KEY = "window_start"
 
@@ -81,11 +81,11 @@ if __name__ == "__main__":
     if "--manifest" in opts:  # only the run's start and end are read, never put in a column
         m = json.loads(Path(opts["--manifest"]).read_text())
         bounds = (m["started_at"], m["ended_at"])
-    if "--labels" in opts:    # only which windows are labeled is read, never put in a column
-        lookback = labeled_windows(load_jsonl(opts["--labels"]))
+    if "--labels" in opts:    # only which windows are labeled (or startup) is read, never put in a column
+        lookback = lookback_windows(load_jsonl(opts["--labels"]))
     if bucket and (bounds is None or lookback is None):
         sys.exit("--manifest and --labels are required for an upload, so partial windows are dropped "
-                 "and temporal features look back over labeled windows only")
+                 "and temporal features look back over labeled windows and the startup minute only")
     records, snapshots = load_jsonl(req_path), load_jsonl(met_path)
     if bucket:
         print("uploaded", write_features(dataset, experiment_id, records, snapshots, s3_put(bucket),

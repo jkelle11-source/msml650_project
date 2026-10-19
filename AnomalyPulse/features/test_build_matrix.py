@@ -56,14 +56,33 @@ def test_partial_windows_are_dropped_before_temporal_features():
     assert rows["2026-10-16T03:20:00.000Z"]["product_p95_latency_ms_change"] is None
 
 
-def test_temporal_features_look_back_over_labeled_windows_only():
+def test_an_excluded_window_never_feeds_a_later_one():
     # 03:20 is excluded (say, a DB-throttling surge): 03:21 compares with 03:19.
     recs = [dict(REC, timestamp="2026-10-16T03:19:10.000Z", latency_ms=10.0),
             dict(REC, timestamp="2026-10-16T03:20:10.000Z", latency_ms=900.0),
             dict(REC, timestamp="2026-10-16T03:21:10.000Z", latency_ms=50.0)]
     labels = [{"window_start": "2026-10-16T03:19:00.000Z", "included": True},
-              {"window_start": "2026-10-16T03:20:00.000Z", "included": False},
+              {"window_start": "2026-10-16T03:20:00.000Z", "included": False,
+               "excluded_reason": "db_throttling_onset"},
               {"window_start": "2026-10-16T03:21:00.000Z", "included": True}]
-    rows = bm.build_matrix(recs, [SNAP], lookback=bm.labeled_windows(labels))
+    rows = bm.build_matrix(recs, [SNAP], lookback=bm.lookback_windows(labels))
     assert rows["2026-10-16T03:21:00.000Z"]["product_p95_latency_ms_change"] == 40
     assert rows["2026-10-16T03:20:00.000Z"]["product_p95_latency_ms_change"] == 890   # still has a row
+
+
+def test_the_startup_minute_is_history_for_the_first_labeled_window():
+    # Without it, every run's first labeled window (always NORMAL) would have no temporal values.
+    recs = [dict(REC, timestamp="2026-10-16T03:19:10.000Z", latency_ms=10.0),
+            dict(REC, timestamp="2026-10-16T03:20:10.000Z", latency_ms=12.0)]
+    labels = [{"window_start": "2026-10-16T03:19:00.000Z", "included": False, "excluded_reason": "startup"},
+              {"window_start": "2026-10-16T03:20:00.000Z", "included": True}]
+    assert bm.lookback_windows(labels) == {"2026-10-16T03:19:00.000Z", "2026-10-16T03:20:00.000Z"}
+    rows = bm.build_matrix(recs, [SNAP], lookback=bm.lookback_windows(labels))
+    assert rows["2026-10-16T03:20:00.000Z"]["product_p95_latency_ms_change"] == 2
+    assert rows["2026-10-16T03:20:00.000Z"]["product_p95_latency_ms_roll_mean_3"] == 11
+
+
+@pytest.mark.parametrize("reason", ["db_throttling_onset", "recovery", "uncounted_fault", "partial_window"])
+def test_other_excluded_windows_are_not_history(reason):
+    labels = [{"window_start": "2026-10-16T03:19:00.000Z", "included": False, "excluded_reason": reason}]
+    assert bm.lookback_windows(labels) == set()
