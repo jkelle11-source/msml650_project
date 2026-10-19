@@ -1,8 +1,8 @@
 """Tests for per-window Lambda and dependency features (M4-5)."""
 import pytest
 
-import guard
-import service_features as sf
+from features import guard
+from features import service_features as sf
 
 W = "2026-10-16T03:19:00.000Z"
 

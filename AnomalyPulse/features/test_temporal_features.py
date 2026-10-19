@@ -1,8 +1,8 @@
 """Tests for temporal features (M4-5)."""
 import pytest
 
-import guard
-import temporal_features as tf
+from features import guard
+from features import temporal_features as tf
 
 COL = "x"
 

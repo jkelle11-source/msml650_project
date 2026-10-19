@@ -4,8 +4,8 @@ Same shape as the request features: {window_start: {column: value}}.
 Throttle counts are Tier-1 observable counts (CloudWatch), unlike the Tier-2
 db_throttled flag. Payment has no table, so it gets no DynamoDB columns.
 """
-import windows
-from request_features import _prefix
+from features import windows
+from features.request_features import _prefix
 
 DB_SERVICES = ("product-service", "cart-service", "order-service")
 

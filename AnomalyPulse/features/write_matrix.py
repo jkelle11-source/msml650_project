@@ -4,7 +4,7 @@ Layout (Docs/DATASET.md): datasets/<name>/tier1/features/experiment_id=<id>/feat
 One line per window: {"window_start": ..., <feature columns>}. window_start is the
 join key; experiment_id lives in the path only, never as a column.
 
-Usage:  python3 write_matrix.py <dataset> <experiment_id> <requests.jsonl> <metrics.jsonl>
+Usage:  python -m features.write_matrix <dataset> <experiment_id> <requests.jsonl> <metrics.jsonl>
             [--manifest manifest.json] [--labels labels.jsonl] [--out DIR | --bucket NAME]
 With neither --out nor --bucket it only prints what it would write. An upload needs
 --manifest (partial windows are dropped) and --labels (temporal features look back
@@ -14,8 +14,8 @@ import json
 import sys
 from pathlib import Path
 
-import guard
-from build_matrix import build_matrix, labeled_windows, load_jsonl
+from features import guard
+from features.build_matrix import build_matrix, labeled_windows, load_jsonl
 
 KEY = "window_start"
 

@@ -1,8 +1,8 @@
 """Tests for the feature-matrix documentation generator (M4-5)."""
 import pytest
 
-import document_columns as dc
-import guard
+from features import document_columns as dc
+from features import guard
 
 
 def test_every_column_has_a_definition():

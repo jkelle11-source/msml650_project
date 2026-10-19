@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-import guard
+from features import guard
 
 TIER2 = ["error_type", "db_throttled", "incident_type", "severity", "fault_injection_params"]
 

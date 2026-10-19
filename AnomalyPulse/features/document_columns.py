@@ -2,14 +2,14 @@
 
 The column list comes from what build_matrix really produces, so the doc cannot
 drift. A column with no definition here raises, so adding a feature forces a doc
-update.   Usage:  python3 document_columns.py   (writes Docs/FEATURE_MATRIX.md)
+update.   Usage:  python -m features.document_columns   (writes Docs/FEATURE_MATRIX.md)
 """
 import re
 from pathlib import Path
 
-import build_matrix
-from request_features import SERVICES, _prefix
-from temporal_features import WINDOW
+from features import build_matrix
+from features.request_features import SERVICES, _prefix
+from features.temporal_features import WINDOW
 
 OUT = Path(__file__).resolve().parents[2] / "Docs" / "FEATURE_MATRIX.md"
 S = "|".join(_prefix(s) for s in SERVICES)

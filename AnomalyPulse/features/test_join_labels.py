@@ -1,7 +1,7 @@
 """Tests for the feature/label join (M4-5)."""
 import pytest
 
-import join_labels as jl
+from features import join_labels as jl
 
 
 def f(w):

@@ -3,10 +3,10 @@ import json
 
 import pytest
 
-import build_matrix as bm
-import guard
-import write_matrix as wm
-from test_build_matrix import REC, SNAP
+from features import build_matrix as bm
+from features import guard
+from features import write_matrix as wm
+from features.test_build_matrix import REC, SNAP
 
 
 def test_key_is_under_tier1_features_and_keyed_by_experiment():

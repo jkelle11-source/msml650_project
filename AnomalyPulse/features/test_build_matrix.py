@@ -1,8 +1,8 @@
 """Tests for the matrix builder, including the guard wiring (M4-5)."""
 import pytest
 
-import build_matrix as bm
-import guard
+from features import build_matrix as bm
+from features import guard
 
 REC = {"timestamp": "2026-10-16T03:19:10.000Z", "service": "product-service",
        "status_code": 200, "latency_ms": 10.0, "lambda_duration_ms": 3.0,

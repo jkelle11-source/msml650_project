@@ -5,8 +5,8 @@ Only order-service has a dependency (payment), so only it gets dependency column
 """
 from collections import defaultdict
 
-import windows
-from request_features import SERVICES, _prefix, percentile
+from features import windows
+from features.request_features import SERVICES, _prefix, percentile
 
 
 def _mean(values):

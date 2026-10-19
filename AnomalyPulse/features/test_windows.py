@@ -1,5 +1,5 @@
 """Tests for window assignment (M4-5)."""
-import windows
+from features import windows
 
 
 def test_request_is_rounded_down_to_its_minute():

@@ -5,7 +5,7 @@ order_p95_latency_ms. Records must already be deduplicated (the export does it).
 """
 from collections import defaultdict
 
-import windows
+from features import windows
 
 SERVICES = ("product-service", "cart-service", "order-service", "payment-service")
 

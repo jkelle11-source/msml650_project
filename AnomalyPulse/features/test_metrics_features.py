@@ -1,6 +1,6 @@
 """Tests for per-window CloudWatch metric features (M4-5)."""
-import guard
-import metrics_features as mf
+from features import guard
+from features import metrics_features as mf
 
 
 def snap(service, ts="2026-10-16T03:20:00.000Z", dynamodb=None, throttle=0.0):

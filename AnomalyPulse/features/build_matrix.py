@@ -1,16 +1,16 @@
 """Combine the per-window feature sets into one matrix (M4-5).
 
-Usage:  python3 build_matrix.py <requests.jsonl> <metrics.jsonl>
+Usage:  python -m features.build_matrix <requests.jsonl> <metrics.jsonl>
 """
 import json
 import sys
 
-import guard
-import windows
-from metrics_features import metrics_features
-from request_features import request_features
-from service_features import service_features
-from temporal_features import temporal_features
+from features import guard
+from features import windows
+from features.metrics_features import metrics_features
+from features.request_features import request_features
+from features.service_features import service_features
+from features.temporal_features import temporal_features
 
 
 def load_jsonl(path):

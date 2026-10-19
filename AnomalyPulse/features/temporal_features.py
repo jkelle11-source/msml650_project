@@ -16,7 +16,7 @@ of its own (decided in M4-4's review, 2026-10-19).
 """
 import statistics
 
-from request_features import SERVICES, _prefix
+from features.request_features import SERVICES, _prefix
 
 WINDOW = 3
 

@@ -1,8 +1,8 @@
 """Tests for per-window request features (M4-5)."""
 import pytest
 
-import guard
-import request_features as rf
+from features import guard
+from features import request_features as rf
 
 
 def rec(ts, service="product-service", status=200, latency=10.0):

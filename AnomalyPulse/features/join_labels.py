@@ -2,7 +2,7 @@
 
 Features come from features.jsonl (Tier-1), labels from labels.jsonl (Tier-2, M4-4).
 The join happens here, after the matrix is written, so the label never enters the matrix.
-Usage:  python3 join_labels.py <features.jsonl> <labels.jsonl>
+Usage:  python -m features.join_labels <features.jsonl> <labels.jsonl>
 """
 import json
 import sys
