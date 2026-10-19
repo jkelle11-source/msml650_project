@@ -90,6 +90,9 @@ training rows. A training row is a feature row whose label row has `included: tr
 
 - Drop `partial_window` rows from the matrix before computing temporal features: a 0.6 s window's
   `request_rate` is `count / 60`, so its `_change` into the next window is a false jump.
-- Rolling features look back two windows, so a labeled window can carry values from an excluded one (the
-  first labeled DB-throttling window holds the surge's p95 and 5xx in its `_roll_mean_3`). Either null the
-  temporal features that draw on an excluded window, or accept it and say so in the report.
+- **Temporal features look back over labeled windows only** (decided 2026-10-19; `m4-5-rachel`,
+  `write_matrix.py --labels`). Looking back over every window, the first labeled DB-throttling window held
+  the surge's p95 and 5xx in its `_roll_mean_3`: the injector's way of spending DynamoDB's burst capacity,
+  which real throttling doesn't have. Blanking the features that drew on an excluded window was ruled out:
+  blanks would appear in training only where DB throttling starts, a fingerprint of their own. An excluded
+  window keeps a feature row (the join needs it) but never feeds a later window.
