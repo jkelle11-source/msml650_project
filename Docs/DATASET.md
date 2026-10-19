@@ -123,7 +123,7 @@ CloudWatch check is finished first; the rest run in queue order.
 |---|---|
 | The run | It didn't end `COMPLETED` (a `FAILED` run includes `FellBehind`), or wasn't at 20 rps. |
 | The client (`Workload.outcomes()`) | Any request was dropped, or more than 0.1% got no response (`error`). A manifest records the workload's settings, not what it sent, so a network drop would otherwise leave a `COMPLETED` run with a gap. The client keeps up to 512 requests open (`batch.MAX_IN_FLIGHT`; 256 until M4-3's validation found a spike into heavy throttling needs more) and drops new ones past that. |
-| `db-throttling` | `observed.achieved_fraction` below 0.97; `observed.label_from` null (the bank was never seen spent); a steady throttle rate more than 0.1 below `1 − 1/offered_ratio` (the window ran on burst capacity, below; above it is the app's own extra reads, such as a spike in the same cascade, so since M4-3 the check is one-sided); or `observed.steady_peak_served_per_s` above 1.25× capacity (DynamoDB served more than a spent bank over a minute after `label_from`: burst came back). |
+| `db-throttling` | `observed.achieved_fraction` below 0.97; `observed.label_from` null (the bank was never seen spent); a steady throttle rate more than 0.1 below `1 − 1/offered_ratio` (the window ran on burst capacity, below; above it is the app's own extra reads, such as a spike in the same cascade, so since M4-3 the check is one-sided); or `observed.steady_peak_served_per_s` above 1.25× capacity (DynamoDB served more than a spent bank over a minute after `label_from`: burst came back); or under 30 s of the fault left past the minute holding `label_from`, so the run has no window to label (`Docs/LABELING.md`; only the test set's 2-minute fault, about 3 runs in 10, added in M4-4's review). |
 | Products throttling (CloudWatch) | Any `ThrottledRequests` (summed over operations) or `ReadThrottleEvents` on Products in the run's minutes, except minutes that overlap a `db-throttling` window. |
 
 The CloudWatch check waits 5 minutes after a run ends, for the metrics to settle. It doesn't hold the
@@ -167,8 +167,8 @@ datasets/<name>/
   tier1/                                   observable: may feed features
     requests/experiment_id=<id>/requests.jsonl
     metrics/experiment_id=<id>/metrics.jsonl
-    windows/                               M4-4: one-minute windows
-    features/                              M4-5: the feature matrix
+    features/experiment_id=<id>/features.jsonl   M4-5: one row per complete one-minute window
+    features/feature_log.jsonl             M4-5: one line per experiment
   tier2/                                   ground truth: never a feature
     experiments.jsonl                      one line per accepted experiment
     manifests/experiment_id=<id>/manifest.json
@@ -202,7 +202,9 @@ with the workload for the CPU.
 
 Labeling and features (M4-4, M4-5) read `requests.jsonl` and `metrics.jsonl` for the time series, and the
 manifest for the labels. Use only experiments in `experiments.jsonl`: every one is `COMPLETED` and passed
-the checks above.
+the checks above. After a dataset's export, label it and then build its features, in that order:
+`python -m labels` (`Docs/LABELING.md`), then `python -m features` (`Docs/FEATURE_MATRIX.md`). Only `v1`'s
+labels and features are stored in S3.
 
 ## The runner host
 

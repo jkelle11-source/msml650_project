@@ -1,0 +1,195 @@
+"""Generate the feature-matrix documentation: column -> definition -> tier (M4-5).
+
+The column list is build_matrix.columns(), the columns every matrix row has, so the
+doc cannot drift. A column with no definition here raises, so adding a feature
+forces a doc update.   Usage:  python -m features.document_columns   (writes Docs/FEATURE_MATRIX.md)
+"""
+import re
+from pathlib import Path
+
+from features.build_matrix import columns
+from features.request_features import SERVICES, _prefix
+from features.temporal_features import WINDOW
+
+OUT = Path(__file__).resolve().parents[2] / "Docs" / "FEATURE_MATRIX.md"
+S = "|".join(_prefix(s) for s in SERVICES)
+
+# (regex on the column name, definition, source) - the first match wins.
+RULES = [
+    (rf"^(?P<base>.+)_roll_mean_{WINDOW}$",
+     "Mean of `{base}` over this window and up to {prev} earlier lookback windows of the same run "
+     "(its labeled windows and startup minute); empty in the startup minute",
+     "`{base}`"),
+    (rf"^(?P<base>.+)_roll_std_{WINDOW}$",
+     "Standard deviation of `{base}` over the same windows; empty in the startup minute",
+     "`{base}`"),
+    (r"^(?P<base>.+)_change$",
+     "`{base}` minus its value in the previous lookback window; empty in the startup minute",
+     "`{base}`"),
+    (rf"^(?P<s>{S})_request_rate$",
+     "Requests per second to {s}-service in the window (count / 60)", "request records"),
+    (rf"^(?P<s>{S})_p(?P<q>50|95|99)_latency_ms$",
+     "{q}th percentile of end-to-end latency for {s}-service requests; empty when there were none",
+     "`latency_ms`"),
+    (rf"^(?P<s>{S})_error_rate_5xx$",
+     "Share of {s}-service requests with status 500-599; empty when there were none", "`status_code`"),
+    (rf"^(?P<s>{S})_error_rate_4xx$",
+     "Share of {s}-service requests with status 400-499; empty when there were none", "`status_code`"),
+    (rf"^(?P<s>{S})_lambda_duration_ms_mean$",
+     "Mean CPU time of the {s}-service handler body; empty when there were no requests",
+     "`lambda_duration_ms`"),
+    (rf"^(?P<s>{S})_lambda_duration_ms_p95$",
+     "95th percentile CPU time of the {s}-service handler body; empty when there were no requests",
+     "`lambda_duration_ms`"),
+    (rf"^(?P<s>{S})_cold_start_count$",
+     "Number of {s}-service requests that paid a cold start", "`cold_start`"),
+    (rf"^(?P<s>{S})_db_latency_ms_mean$",
+     "Mean time {s}-service requests spent in their DynamoDB call, SDK retries included; empty when there "
+     "were no requests", "`db_latency_ms`"),
+    (rf"^(?P<s>{S})_db_latency_ms_p95$",
+     "95th percentile time {s}-service requests spent in their DynamoDB call, SDK retries included; empty "
+     "when there were no requests", "`db_latency_ms`"),
+    (r"^order_dependency_latency_ms_mean$",
+     "Mean time Order spent calling Payment; empty when Order made no calls", "`dependency_latency_ms`"),
+    (r"^order_dependency_latency_ms_p95$",
+     "95th percentile time Order spent calling Payment; empty when Order made no calls",
+     "`dependency_latency_ms`"),
+    (r"^order_dependency_error_count$",
+     "Order's calls to Payment that failed or timed out (telemetry cannot tell a timeout from another failure)",
+     "`dependency_error`"),
+    (rf"^(?P<s>{S})_db_consumed_read_capacity$",
+     "DynamoDB read capacity units consumed by {s}'s table in the minute (CloudWatch)",
+     "CloudWatch ConsumedReadCapacityUnits"),
+    (rf"^(?P<s>{S})_db_consumed_write_capacity$",
+     "DynamoDB write capacity units consumed by {s}'s table in the minute (CloudWatch)",
+     "CloudWatch ConsumedWriteCapacityUnits"),
+    (rf"^(?P<s>{S})_throttled_requests$",
+     "Count of throttled DynamoDB requests on {s}'s table in the minute (CloudWatch count; not the Tier-2 db_throttled flag)",
+     "CloudWatch ThrottledRequests"),
+    (rf"^(?P<s>{S})_read_throttle_events$",
+     "Count of throttled DynamoDB reads on {s}'s table in the minute (CloudWatch)",
+     "CloudWatch ReadThrottleEvents"),
+    (rf"^(?P<s>{S})_write_throttle_events$",
+     "Count of throttled DynamoDB writes on {s}'s table in the minute (CloudWatch)",
+     "CloudWatch WriteThrottleEvents"),
+    (rf"^(?P<s>{S})_lambda_throttle_count$",
+     "Count of {s}-service invocations Lambda throttled in the minute; a throttled request never reaches the handler (CloudWatch)",
+     "CloudWatch Lambda Throttles"),
+]
+
+
+def describe(column):
+    """(definition, source) for a column; raises ValueError if it has none."""
+    for pattern, definition, source in RULES:
+        m = re.match(pattern, column)
+        if m:
+            fields = dict(m.groupdict(), prev=WINDOW - 1)
+            return definition.format(**fields), source.format(**fields)
+    raise ValueError(f"no definition for column {column!r}: add a rule in document_columns.py")
+
+
+def render():
+    cols = columns()
+    lines = [
+        "# Feature matrix",
+        "",
+        "**Owner:** Rachel · **Code:** `AnomalyPulse/features/` · **Used by:** M5, M9",
+        "",
+        "Generated by `python -m features.document_columns` (`AnomalyPulse/features/document_columns.py`); "
+        "do not edit by hand. A test fails when this file and the code disagree.",
+        "",
+        "## Building it",
+        "",
+        "```bash",
+        "cd AnomalyPulse",
+        "python -m features --dataset v1 --bucket <bucket>                    # S3, as --profile sim",
+        "python -m features --dataset m4-1-validation --root ~/mirror         # a local copy of the layout",
+        "```",
+        "",
+        "Label the dataset first (`python -m labels`, `Docs/LABELING.md`). For each run in "
+        "`tier2/experiments.jsonl` it reads `tier1/requests` and `tier1/metrics`, and from `tier2/` only the "
+        "manifest's start and end and the labels' window list. It writes "
+        "`tier1/features/experiment_id=<id>/features.jsonl` (one line per complete window: `window_start` and "
+        "every column below) and `tier1/features/feature_log.jsonl` (one line per run: windows, windows missing a "
+        "CloudWatch snapshot, error). Before a run is written, the guard checks its columns and the join checks it "
+        "against its labels: every feature row has a label row and the reverse, partial windows aside. A run that "
+        "fails the join or is missing a file gets no features and an error in the log; a forbidden column stops "
+        "the whole build. Re-running rewrites the features, as labels are rewritten: they depend on which windows "
+        "the labels include.",
+        "",
+        "**Only `v1`'s features go to S3.** `--bucket` with any other dataset is refused, and so is any S3 write "
+        "outside `datasets/v1/tier1/features/`. A validation dataset is built from a local copy, labeled there "
+        "first, and its features stay local:",
+        "",
+        "```bash",
+        "aws s3 sync s3://<bucket>/datasets/m4-1-validation/ ~/mirror/datasets/m4-1-validation/ \\",
+        "  --exclude \"*\" --include \"tier1/requests/*\" --include \"tier1/metrics/*\" \\",
+        "  --include tier2/experiments.jsonl --include \"tier2/manifests/*\" --profile dev",
+        "```",
+        "",
+        "## The matrix",
+        "",
+        "- **One row per complete one-minute window** of one experiment, named by the window's start time. "
+        "The join key to labels is `(experiment_id, window start)`; neither is a column. A run's first and last "
+        "windows are partial and have no row: they are dropped before the temporal columns, as M4-4 excludes "
+        "them. Every other window has a row, labeled or excluded; a training row is one whose label row has "
+        "`included: true`.",
+        "- **Every column is Tier-1**: derived from observable telemetry or CloudWatch counts. "
+        "No Tier-2 name, join key, label or fault parameter is in a column name. `features/guard.py` fails the "
+        "build if one appears anywhere in a name as whole words (`product_db_throttled` fails, "
+        "`product_throttled_requests` passes). The names come from the field catalog's Tier-2 fields, the "
+        "manifest schema's activation fields, every injector's parameter, and the join keys and label.",
+        "- **Every row has every column, and empty means unknown, not zero.** A service with no requests "
+        "in a window has an empty latency or error rate; counts and request rates are `0`. A minute with no "
+        "CloudWatch snapshot for a service has that service's CloudWatch columns empty.",
+        "- **Temporal columns use only the current and earlier windows** of the same run.",
+        "- **Temporal columns look back over a run's labeled windows and its startup minute only** "
+        "(`build_matrix.lookback_windows()` of M4-4's `labels.jsonl`). Any other excluded window gets "
+        "temporal columns from itself and the earlier lookback windows, but never feeds a later one. So the "
+        "DB-throttling surge, which M4-4 excludes as onset, never reaches the first labeled throttling window: "
+        "it is how the injector spends DynamoDB's burst capacity, and real throttling has nothing like it. "
+        "Blanking the columns that drew on an excluded window instead would leave blanks in training only "
+        "where DB throttling starts, a fingerprint of its own (decided 2026-10-19). "
+        "Checked on `m4-3-validation`'s six throttling cascades (2026-10-19): the minute holding "
+        "`label_from` had 0.8–3.9% of Product requests failing, as the surge ran out the burst bank, against "
+        "0–0.5% in the next minute (1.8% in one). Looking back over every window put that burst in the first "
+        "labeled minute's `product_error_rate_5xx_roll_mean_3` (0.3–1.4%); with the surge left out it is "
+        "0–0.6%, that minute's own errors. That minute's `product_p95_latency_ms_change` is now the jump from "
+        "baseline (3,190–3,600 ms), as every other incident's first fault minute is, where before it was about "
+        "0 because the jump fell in the excluded minute. A traffic-spike run's fault minutes are unchanged.",
+        "- **The startup minute is history** (PR #76's review, 2026-10-19). Left out, every run's first labeled "
+        "window, always NORMAL, had all its temporal columns empty: a mark of NORMAL in every run, and blanks a "
+        "logistic regression can't take. The startup minute matches the baseline on every trended column "
+        "(median within 5% over the 20 validation runs; 5xx 0 in both), and with it no training row of those "
+        "runs has an empty temporal column. Temporal columns are empty only in the startup minute itself, "
+        "which is not a training row.",
+        "",
+        "## Validation (2026-10-19)",
+        "",
+        "All 20 accepted runs of `m4-1-validation` and `m4-3-validation`, labeled and built from a local copy. "
+        "Every run built and joined its labels with no orphans: 180 feature rows, 123 of them training rows "
+        "(44 NORMAL, 12 TRAFFIC_SPIKE, 8 DATABASE_THROTTLING, 10 LAMBDA_DEGRADATION, 10 DEPENDENCY_FAILURE, "
+        "39 CASCADING_FAILURE). No minute was missing a CloudWatch snapshot, and no training row has an empty "
+        "cell. `product_db_latency_ms_p95` separates DB throttling (median 395 ms) from Lambda degradation "
+        "(6 ms), where Product's end-to-end p95 rises in both (396 and 569 ms); M4-1's two DB-throttling runs "
+        "predate the injector fix, and the cascades' throttling minutes reach 3.2 s. For M5: 21 columns never "
+        "change across those 123 rows (Lambda throttles, 4xx rates, Cart's 5xx and its temporal columns, Cart's "
+        "and Order's table throttles, Cart's reads, Product's writes and write throttles). That is harmless for "
+        "trees; the test set's shifted endpoint mix may move some of them.",
+        "",
+        "## Columns",
+        "",
+        f"{len(cols)} columns.",
+        "",
+        "| Column | Definition | Source | Tier |",
+        "|---|---|---|---|",
+    ]
+    for col in cols:
+        definition, source = describe(col)
+        lines.append(f"| `{col}` | {definition} | {source} | Tier-1 |")
+    return "\n".join(lines) + "\n"
+
+
+if __name__ == "__main__":
+    OUT.write_text(render())
+    print(f"wrote {OUT} ({len(columns())} columns)")
