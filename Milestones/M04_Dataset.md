@@ -146,12 +146,14 @@
 
 **Context.** Build the Tier-1 feature matrix the models consume, and enforce the boundary that keeps near-labels out of it. Rachel owns this because she knows exactly which fields are fault-injection ground truth (Tier-2). Positions her for the classifier in M5.
 
+**Status:** built — `AnomalyPulse/features/` (`python -m features`) and [`Docs/FEATURE_MATRIX.md`](../Docs/FEATURE_MATRIX.md), PR #76: 106 columns per complete one-minute window. Decided: temporal features look back over a run's labeled windows and its startup minute only, so the DB-throttling surge never reaches a labeled window and no training row has empty temporal columns; DynamoDB latency per service is a feature (it separates DB throttling from a Lambda slowdown); the guard catches a forbidden name anywhere in a column name; only `v1`'s features are stored in S3, and a re-run rewrites them, as for labels. Reviewed 2026-10-19 and validated on the 20 accepted runs of `m4-1-validation` and `m4-3-validation`. `v1`'s matrix is written once M4-2 has generated it and M4-4's labeler has labeled it.
+
 **Deliverables**
-- Tier-1 feature matrix per window: `request_rate`, latency percentiles (p50/p95/p99), error rates, `lambda_duration_ms`, `cold_start`, DynamoDB `ConsumedCapacity`, **`ThrottledRequests` counts**, dependency latency/error/timeout counts, temporal features.
+- Tier-1 feature matrix per window: `request_rate`, latency percentiles (p50/p95/p99), error rates, `lambda_duration_ms`, `cold_start`, DynamoDB `ConsumedCapacity`, **`ThrottledRequests` counts**, dependency latency/error/timeout counts, temporal features. *Per service, plus DynamoDB latency. Telemetry can't tell a dependency timeout from another dependency failure, so the two are one count.*
 - An **automated guard that fails the build** if any Tier-2 field name (e.g. `error_type`, `db_throttled`, any fault-injection param, the label) appears in the feature matrix.
-- Feature matrix materialized to S3 in the M4-1 layout, joined to Melisa's labels by window key.
+- Feature matrix materialized to S3 in the M4-1 layout, joined to Melisa's labels by window key. *`python -m features --dataset v1 --bucket <bucket>`, after generation and labeling: `v1` doesn't exist yet.*
 
 **Definition of Done**
-- [ ] Feature matrix contains **only** Tier-1 fields; a deliberate Tier-2 injection makes the guard fail the build (test the guard).
-- [ ] Features and labels join cleanly on window key with no orphans.
-- [ ] Matrix documented (column → definition → tier) for the report.
+- [x] Feature matrix contains **only** Tier-1 fields; a deliberate Tier-2 injection makes the guard fail the build (test the guard). (`features/guard.py`: the field catalog's Tier-2 fields, the manifest schema's activation fields, every injector's parameter, the join keys and the label, matched as whole words anywhere in a column name. A planted column stops `build_matrix`, the writer and `python -m features` before anything is written: `test_guard.py`, `test_build_matrix.py`, `test_write_matrix.py`, `test_cli.py`)
+- [x] Features and labels join cleanly on window key with no orphans. (Checked on every run before it is written. All 20 validation runs: 180 feature rows, 123 training rows, 0 orphans)
+- [x] Matrix documented (column → definition → tier) for the report. (`Docs/FEATURE_MATRIX.md`, generated from the code; a test fails when the two disagree)

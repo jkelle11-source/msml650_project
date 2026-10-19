@@ -167,8 +167,8 @@ datasets/<name>/
   tier1/                                   observable: may feed features
     requests/experiment_id=<id>/requests.jsonl
     metrics/experiment_id=<id>/metrics.jsonl
-    windows/                               M4-4: one-minute windows
-    features/                              M4-5: the feature matrix
+    features/experiment_id=<id>/features.jsonl   M4-5: one row per complete one-minute window
+    features/feature_log.jsonl             M4-5: one line per experiment
   tier2/                                   ground truth: never a feature
     experiments.jsonl                      one line per accepted experiment
     manifests/experiment_id=<id>/manifest.json
@@ -202,7 +202,9 @@ with the workload for the CPU.
 
 Labeling and features (M4-4, M4-5) read `requests.jsonl` and `metrics.jsonl` for the time series, and the
 manifest for the labels. Use only experiments in `experiments.jsonl`: every one is `COMPLETED` and passed
-the checks above.
+the checks above. After a dataset's export, label it and then build its features, in that order:
+`python -m labels` (`Docs/LABELING.md`), then `python -m features` (`Docs/FEATURE_MATRIX.md`). Only `v1`'s
+labels and features are stored in S3.
 
 ## The runner host
 
