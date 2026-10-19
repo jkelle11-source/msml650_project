@@ -125,7 +125,14 @@ def render():
         "onset, never reaches the first labeled throttling window: it is how the injector spends DynamoDB's "
         "burst capacity, and real throttling has nothing like it. Nor do startup's cold starts reach the "
         "baseline. Blanking the columns that drew on an excluded window instead would leave blanks in "
-        "training only where DB throttling starts, a fingerprint of its own (decided 2026-10-19).",
+        "training only where DB throttling starts, a fingerprint of its own (decided 2026-10-19). "
+        "Checked on `m4-3-validation`'s six throttling cascades (2026-10-19): the minute holding "
+        "`label_from` had 0.8–3.9% of Product requests failing, as the surge ran out the burst bank, against "
+        "0–0.5% in the next minute (1.8% in one). Looking back over every window put that burst in the first "
+        "labeled minute's `product_error_rate_5xx_roll_mean_3` (0.3–1.4%); over labeled windows only it is "
+        "0–0.9%, that minute's own errors. That minute's `product_p95_latency_ms_change` is now the jump from "
+        "baseline (~3,190 ms), as every other incident's first fault minute is, where before it was about 0 "
+        "because the jump fell in the excluded minute. A traffic-spike run's fault minutes are unchanged.",
         "- A run's first and last windows can be partial. Which windows to drop is decided with M4-4.",
         "",
         f"{len(cols)} columns.",
