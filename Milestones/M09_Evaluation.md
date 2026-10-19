@@ -37,6 +37,7 @@
 - Generated from the same EC2 runner host as the training set (`M4-1`), at the same 20 rps baseline. A different client or rate would be a train/test difference that has nothing to do with the incidents.
 - Separate **extreme-extrapolation stress slice** (traffic >10×, latency >1500ms, offered-load >6×, timeout >5000ms) generated and tagged distinctly, as slots 1051 on.
 - The queue is built with `simulator/integrity.py`'s builders; `run-batch` refuses a `v1` entry that breaks a control (`Docs/EVALUATION_INTEGRITY.md`). The test-set kinds (12-minute faults, confounders, the stress bands) haven't run on the runner yet: validate them in a separate dataset first.
+- A 2-minute DB-throttling run that leaves no labeled window (when `label_from` falls in a minute's first 18 s, about 3 runs in 10) is rerun: `run-batch` rejects it (decided in M4-4's review, `Docs/LABELING.md`, "Windows per run"). Expect a few extra reruns among the varied-duration runs.
 - Test set registered, dated, and confirmed **not inspected** until all training/validation work was complete.
 
 **Definition of Done**
