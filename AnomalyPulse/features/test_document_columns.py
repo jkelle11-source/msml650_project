@@ -23,6 +23,11 @@ def test_documented_columns_pass_the_boundary_guard():
     guard.check_columns(dc.columns())
 
 
+def test_the_committed_doc_is_current():
+    # Docs/FEATURE_MATRIX.md is generated; regenerate it with python -m features.document_columns.
+    assert dc.OUT.read_text() == dc.render()
+
+
 def test_throttle_count_is_described_as_a_cloudwatch_count():
     definition, source = dc.describe("product_throttled_requests")
     assert "CloudWatch" in definition and "CloudWatch" in source
