@@ -178,8 +178,13 @@ def label_experiment(manifest_: dict) -> list[WindowLabel]:
 
 
 def _verify(manifest_: dict, windows: list[WindowLabel]) -> None:
-    """Definition of Done checks, on every experiment: one outcome per window, and no
-    premature CASCADING_FAILURE against M3's own concurrency timeline."""
+    """Checks on every experiment: one outcome per window, and a guard on the cascade rule.
+
+    The guard holds each CASCADING_FAILURE window to M3's own concurrency timeline.
+    That timeline starts db-throttling at active_from, no later than the labeler
+    does, so the guard catches a change to the rule above (a lower threshold, a
+    missed exclusion), not a timing error. test_run_kinds.py checks the timing
+    against the activations directly, on every kind of run M4 generates."""
     for w in windows:
         if (w.label is None) == (w.excluded is None):
             raise AssertionError(f"{w.window_start}: needs exactly one of a label or an exclusion")
