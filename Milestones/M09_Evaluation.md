@@ -5,7 +5,7 @@
 > **Timeframe:** Weeks 8–9
 > **Depends on:** `M8`
 > **Description:**
-> Run the full experiment suite and produce the report's quantitative spine: detection + classification metrics, detection/diagnosis/end-to-end latency, GenAI quality, cloud cost, and — the point of it all — evaluation-integrity results that show generalization **across held-out regions of the simulator's parameter space** (not to real-world incidents; §6b). The milestone **opens by generating and unsealing the test set** (experiments 701–1000), which has sat untouched since M4 by design. Everyone measures the surface they own.
+> Run the full experiment suite and produce the report's quantitative spine: detection + classification metrics, detection/diagnosis/end-to-end latency, GenAI quality, cloud cost, and — the point of it all — evaluation-integrity results that show generalization **across held-out regions of the simulator's parameter space** (not to real-world incidents; §6b). The milestone **opens by generating and unsealing the test set** (experiments 701–1050), which has sat untouched since M4 by design. Everyone measures the surface they own.
 
 ## Assignment summary
 - **Josh** — Generate + unseal the sealed test set (Phase 2) **+** GenAI quality evaluation
@@ -15,7 +15,7 @@
 - **Linu** — Latency measurement (detection / diagnosis / end-to-end) + results visualizations for the report
 
 ## Coordination notes
-- **Test set only.** Every headline metric is computed on the temporally held-out test set (701–1000), never on train/validation. Josh's `M9-1` is a hard predecessor for all metric issues.
+- **Test set only.** Every headline metric is computed on the temporally held-out test set (701–1050), never on train/validation. Josh's `M9-1` is a hard predecessor for all metric issues.
 - **Two things reported separately, always:** (1) the **extreme-extrapolation stress slice** is reported apart from core generalization metrics (more-extreme incidents are *easier*, so folding them in would flatter the result); (2) the **threshold baseline** is reported next to every ML metric so the margin is explicit.
 - **Claim discipline in the writeup:** results support "generalizes across held-out simulator parameter regions," not "generalizes to production." Rachel's integrity report states this boundary explicitly.
 
@@ -35,7 +35,9 @@
 - 350 test experiments per §17 Phase 2: 60 normal, 60 traffic (4×–6×, 8×–10×), 60 DB throttling (2.5×–3.5×, 4.5×–5.5×), 45 Lambda degradation (500–800ms, 1100–1400ms), 45 dependency (1500–2500ms, 3500–4500ms), 30 cascading, 30 confounders (not labeled cascading), 20 varied-duration (2-min/12-min).
 - Shifted endpoint distribution applied per the diversity protocol.
 - Generated from the same EC2 runner host as the training set (`M4-1`), at the same 20 rps baseline. A different client or rate would be a train/test difference that has nothing to do with the incidents.
-- Separate **extreme-extrapolation stress slice** (traffic >10×, latency >1500ms, offered-load >6×, timeout >5000ms) generated and tagged distinctly.
+- Separate **extreme-extrapolation stress slice** (traffic >10×, latency >1500ms, offered-load >6×, timeout >5000ms) generated and tagged distinctly, as slots 1051 on.
+- The queue is built with `simulator/integrity.py`'s builders; `run-batch` refuses a `v1` entry that breaks a control (`Docs/EVALUATION_INTEGRITY.md`). The test-set kinds (12-minute faults, confounders, the stress bands) haven't run on the runner yet: validate them in a separate dataset first.
+- A 2-minute DB-throttling run that leaves no labeled window (when `label_from` falls in a minute's first 18 s, about 3 runs in 10) is rerun: `run-batch` rejects it (decided in M4-4's review, `Docs/LABELING.md`, "Windows per run"). Expect a few extra reruns among the varied-duration runs.
 - Test set registered, dated, and confirmed **not inspected** until all training/validation work was complete.
 
 **Definition of Done**
@@ -59,10 +61,10 @@
 - Classification: accuracy, macro-F1, confusion matrix, per-class precision/recall.
 - **Per-parameter-band breakdown** for key incident types (confirming performance doesn't fall off on held-out interleaved bands).
 - **Extreme-extrapolation slice reported separately** from core metrics.
-- **Confounder accuracy:** how often co-occurring-but-not-cascading incidents are handled correctly.
+- **Confounder accuracy:** how often co-occurring-but-not-cascading incidents are handled correctly. Over the confounder windows with both faults active, report three shares: predicted as either fault's type, as the labeled (first) type, and as `CASCADING_FAILURE`. Confounders are a test-only probe: the model never sees one in training, so a high `CASCADING_FAILURE` share is a finding to report, not a data error (`Docs/EVALUATION_INTEGRITY.md`, "Confounders").
 
 **Definition of Done**
-- [ ] All metrics computed on test set (701–1000) only.
+- [ ] All metrics computed on test set (701–1050) only.
 - [ ] Per-band breakdown shows no sharp degradation on held-out bands (or the degradation is reported honestly).
 - [ ] Extreme slice is a separate line item, not folded into headline numbers.
 
