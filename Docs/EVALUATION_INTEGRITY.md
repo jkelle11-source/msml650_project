@@ -212,7 +212,9 @@ rules it follows, so that nothing but the incident varies with the slot.
    drawn by the builders.
 4. **Slots are numbered after shuffling:** slot *i* is the *i*-th run, so slot order is generation order.
 5. **Training and validation are separate queues, training first.** A rejected run is retried at the end
-   of its own queue, so training's reruns finish before validation begins.
+   of its own queue, so training's reruns finish before validation begins. `run-batch` enforces the order
+   (M4-2's review): a `v1` train/val queue waits until every slot before its first is accepted or
+   exhausted.
 6. **Training in four daily queues of 140 slots** (7 blocks, ~23.5 h each), then validation's 140. Each
    batch exports when it ends, so M4-4 and M4-5 get each day's runs and a problem shows within a day;
    someone starts the next queue.

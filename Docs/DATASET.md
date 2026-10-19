@@ -116,6 +116,10 @@ CloudWatch check is finished first; the rest run in queue order.
 - **Training comes before the test set, on different days.** A batch is either train/val or test/stress, never
   both. A train/val batch is refused once any test experiment is accepted. A test/stress batch is refused
   on any UTC day on or before the last training run's day (plan §6b, Control 2).
+- **`v1`'s training and validation run in slot order.** A `v1` train/val batch is refused until every slot
+  before its queue's first is `ACCEPTED` or `EXHAUSTED`, so the daily queues go one after another and
+  validation comes last (`Docs/TRAINING_SET.md`, added in M4-2's review). A validation dataset isn't held
+  to it.
 
 ### Every run is judged before it is accepted
 

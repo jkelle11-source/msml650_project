@@ -75,23 +75,40 @@ bash ~/msml650_project/AnomalyPulse/infra/runner/in-tmux.sh v1-train-1 \
 tmux attach -t v1-train-1            # Ctrl-b d to detach
 ```
 
-Then `v1-train-2` … `v1-train-4`, then `v1-val`. Running the same command again resumes a batch. After each
-batch exports, from a laptop:
+Then `v1-train-2` … `v1-train-4`, then `v1-val`. **The queues run in slot order:** `run-batch` refuses a `v1`
+training or validation queue until every slot before its first is accepted or exhausted. A batch that
+stopped short (three rejected runs in a row, a held lock, Ctrl-C) is resumed by running the same command
+again, before the next queue. Each batch exports when it ends, about 10 minutes after its last run.
+
+After each batch exports, from a laptop, in `AnomalyPulse/`, in this order:
 
 ```bash
 python -m simulator dataset-status --dataset v1
-python -m simulator.spot_check --dataset v1 --profile <your-profile>
+python -m simulator.spot_check --dataset v1 --profile dev    # every run in the newest batch's queue
+python -m labels --dataset v1 --bucket <bucket>              # as --profile sim; relabels all of v1
+python -m features --dataset v1 --bucket <bucket>            # then the feature matrix, from those labels
 ```
 
-`spot_check` samples two accepted experiments per class and reports any telemetry field that is null in
-every record of a service that should fill it (M2's contract), and any metrics block or field missing.
+`spot_check` exits 0 only when every accepted run in the queue has all its telemetry: every schema field on
+every record, the fields M2's contract fills not null in every record of a service, one Product, Cart or
+Order record per request the client sent (within 0.1%), and one metrics snapshot per service for every
+minute of the run, with every field the metrics extractor writes. `--batch <id>` checks an earlier batch's
+queue, `--batch all` the whole dataset. Labels and features rewrite all of `v1` each time
+(`Docs/LABELING.md`, `Docs/FEATURE_MATRIX.md`); check `tier1/features/feature_log.jsonl` for runs with an
+error or a window missing its snapshot. Running them each day means a problem shows within a day, not after
+the fifth.
+
+**An exhausted slot stays empty.** A rejected run is rerun up to 3 times in all, at the end of its queue;
+after that its slot is `EXHAUSTED`, and nothing runs it again: a registered slot can't change its spec, and
+`run-batch` skips it. Record it in the table below and raise it before the next queue: `v1` is then a run
+short of the counts above, in that run's class.
 
 ## Status
 
-| Queue | Batch | Started (UTC) | Accepted | Exhausted | Spot check |
-|---|---|---|---|---|---|
-| v1-train-1 | | | | | |
-| v1-train-2 | | | | | |
-| v1-train-3 | | | | | |
-| v1-train-4 | | | | | |
-| v1-val | | | | | |
+| Queue | Batch | Started (UTC) | Accepted | Exhausted | Spot check | Labels + features |
+|---|---|---|---|---|---|---|
+| v1-train-1 | | | | | | |
+| v1-train-2 | | | | | | |
+| v1-train-3 | | | | | | |
+| v1-train-4 | | | | | | |
+| v1-val | | | | | | |

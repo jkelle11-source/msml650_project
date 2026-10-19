@@ -74,6 +74,8 @@
 
 **Context.** Execute the Phase 1 generation using the **training bands** (interleaved with the held-out test bands per §6b). Josh owns this because he owns the workload/traffic tooling. Class mix per §17 Phase 1. It runs on `M4-1`'s EC2 runner host.
 
+**Status:** queues built, generation not started — `AnomalyPulse/simulator/build_queues.py` (seed `20261018`), the five queue files `simulator/queues/v1-*.json`, `python -m simulator.spot_check` and [`Docs/TRAINING_SET.md`](../Docs/TRAINING_SET.md), PR #75. Decided in its review (2026-10-19): a cascade template's runs go through every combination of its stages' bands, each stage still 7/7 in training (stages in opposite bands gave a template only two of its combinations); Lambda degradation's targets take turns within each band (in turn over all runs, cart-service went 5/0 by band in validation); the spot check requires every metric field the extractor writes, a snapshot per service for every minute, and a record per request the client sent, and checks every run in the newest batch's queue (it had missed all four kinds of missing telemetry it was tried on); `run-batch` runs `v1`'s train/val queues in slot order. After each batch: the spot check, then labels and features (`Docs/TRAINING_SET.md`, "Running it").
+
 **Deliverables**
 - 700 experiments generated per the §17 mix: 140 normal, 140 traffic spike (2×–4×, 6×–8×), 140 DB throttling (offered-load 1.5×–2.5×, 3.5×–4.5×), 105 Lambda degradation (200–500ms, 800–1100ms), 105 dependency failure (500–1500ms, 2500–3500ms), 70 cascading.
 - All experiments registered with manifests and Tier-1/Tier-2 separation intact.
@@ -82,9 +84,9 @@
 
 **Definition of Done**
 - [ ] 700 experiments present in the registry with correct class balance and training-band parameters.
-- [ ] Spot-check confirms telemetry richness matches M2 (no silently-empty fields).
-- [ ] Train/validation boundary documented and reproducible.
-- [ ] **No test-band parameters used** — test bands remain unseen. (Enforced since M4-3: `run-batch` refuses a `v1` queue entry outside its phase's bands, run shape or mix, `integrity.check_entry`.)
+- [ ] Spot-check confirms telemetry richness matches M2 (no silently-empty fields). (`python -m simulator.spot_check` after each batch; it passes all 20 accepted runs of `m4-1-validation` and `m4-3-validation`)
+- [x] Train/validation boundary documented and reproducible. (`Docs/TRAINING_SET.md`; `dataset.TRAIN_LAST` and `integrity.split_of`; `build_queues --check` and `test_build_queues.py` rebuild the queues from the seed)
+- [x] **No test-band parameters used** — test bands remain unseen. (Enforced since M4-3: `run-batch` refuses a `v1` queue entry outside its phase's bands, run shape or mix, `integrity.check_entry`. All five queues pass it, `run-batch --dry-run`.)
 
 ---
 
