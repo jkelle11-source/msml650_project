@@ -5,9 +5,11 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from labels.__main__ import LocalStore, label_dataset
+from labels.__main__ import LocalStore, _check_s3, label_dataset, main
 from labels.test_policy import activation, run, slot11
 
 
@@ -40,3 +42,14 @@ def test_writes_labels_and_a_log_under_tier2_only():
         assert {r["label"] for r in rows if r["included"]} == {"NORMAL", "TRAFFIC_SPIKE", "CASCADING_FAILURE"}
         log_lines = (base / "labels/labeling_log.jsonl").read_text().splitlines()
         assert json.loads(log_lines[-1])["not_labeled"][0]["error"].count("label_from")
+
+
+def test_only_v1_labels_go_to_s3():
+    _check_s3("datasets/v1/tier2/labels/experiment_id=x/labels.jsonl")
+    with pytest.raises(ValueError, match="never stored"):
+        _check_s3("datasets/m4-1-validation/tier2/labels/experiment_id=x/labels.jsonl")
+    with pytest.raises(ValueError, match="tier2/labels"):
+        _check_s3("datasets/v1/tier1/labels.jsonl")
+    # Refused before any S3 client is made.
+    with pytest.raises(SystemExit):
+        main(["--dataset", "m4-1-validation", "--bucket", "some-bucket"])

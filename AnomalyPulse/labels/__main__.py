@@ -12,7 +12,10 @@ under tier2/ only:
     tier2/labels/labeling_log.jsonl                one line per experiment: label counts and
                                                    every excluded window with its reason
 
-Re-running rewrites the labels (they are a pure function of the manifest and the policy).
+Only v1's labels go to S3. A validation dataset is labeled from a local copy of
+its manifests (Docs/LABELING.md has the sync command): its labels are never
+stored. Re-running rewrites the labels (they are a pure function of the
+manifest and the policy).
 """
 import argparse
 import json
@@ -20,6 +23,10 @@ import sys
 from pathlib import Path
 
 from labels import policy
+from simulator import dataset as ds
+
+# The one dataset whose labels are stored in S3, the one the integrity controls guard.
+S3_DATASET = ds.DEFAULT_DATASET
 
 
 def _labels_key(dataset, experiment_id):
@@ -29,6 +36,13 @@ def _labels_key(dataset, experiment_id):
 def _check_tier2(key):
     if "/tier2/labels/" not in key or "/tier1/" in key:
         raise ValueError(f"labels are Tier-2 and go only under tier2/labels/: {key}")
+
+
+def _check_s3(key):
+    _check_tier2(key)
+    if not key.startswith(f"datasets/{S3_DATASET}/"):
+        raise ValueError(f"only {S3_DATASET}'s labels go to S3; a validation dataset's are never "
+                         f"stored: {key}")
 
 
 class LocalStore:
@@ -55,7 +69,7 @@ class S3Store:
         return self.s3.get_object(Bucket=self.bucket, Key=key)["Body"].read().decode("utf-8")
 
     def write(self, key, body):
-        _check_tier2(key)
+        _check_s3(key)
         self.s3.put_object(Bucket=self.bucket, Key=key, Body=body.encode("utf-8"))
 
 
@@ -107,6 +121,9 @@ def main(argv=None):
         return 0
     if not args.dataset or not (args.root or args.bucket):
         p.error("--dataset with --root or --bucket, or --manifest")
+    if args.bucket and args.dataset != S3_DATASET:
+        p.error(f"only {S3_DATASET}'s labels go to S3; label {args.dataset} from a local copy "
+                f"with --root (Docs/LABELING.md)")
     store = LocalStore(args.root) if args.root else S3Store(args.bucket, profile=args.profile)
     _, failed = label_dataset(args.dataset, store)
     return 1 if failed else 0

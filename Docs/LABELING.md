@@ -8,8 +8,17 @@ docstring of `labels/policy.py`; this page records the decisions and the file fo
 ```bash
 cd AnomalyPulse
 python -m labels --manifest path/to/manifest.json                      # print one run's windows
-python -m labels --dataset m4-1-validation --bucket <bucket>           # S3, as --profile sim
-python -m labels --dataset v1 --root ~/mirror                          # a local copy of the layout
+python -m labels --dataset v1 --bucket <bucket>                        # S3, as --profile sim
+python -m labels --dataset m4-1-validation --root ~/mirror             # a local copy of the layout
+```
+
+**Only `v1`'s labels are stored in S3** (`dataset.DEFAULT_DATASET`, the dataset the integrity controls
+guard). `--bucket` with any other dataset is refused, and so is any S3 write outside `datasets/v1/tier2/labels/`.
+A validation dataset is labeled from a local copy of its manifests, and its labels stay local:
+
+```bash
+aws s3 sync s3://<bucket>/datasets/m4-1-validation/tier2/ ~/mirror/datasets/m4-1-validation/tier2/ \
+  --exclude "*" --include experiments.jsonl --include "manifests/*" --profile dev
 ```
 
 ## Decisions
