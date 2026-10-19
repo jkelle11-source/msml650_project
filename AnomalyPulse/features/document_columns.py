@@ -17,13 +17,14 @@ S = "|".join(_prefix(s) for s in SERVICES)
 # (regex on the column name, definition, source) - the first match wins.
 RULES = [
     (rf"^(?P<base>.+)_roll_mean_{WINDOW}$",
-     "Mean of `{base}` over this window and up to {prev} earlier windows of the same run; empty in a run's first window",
+     "Mean of `{base}` over this window and up to {prev} earlier labeled windows of the same run; "
+     "empty in a run's first labeled window",
      "`{base}`"),
     (rf"^(?P<base>.+)_roll_std_{WINDOW}$",
-     "Standard deviation of `{base}` over the same windows; empty in a run's first window",
+     "Standard deviation of `{base}` over the same windows; empty in a run's first labeled window",
      "`{base}`"),
     (r"^(?P<base>.+)_change$",
-     "`{base}` minus its value in the previous window; empty in a run's first window",
+     "`{base}` minus its value in the previous labeled window; empty in a run's first labeled window",
      "`{base}`"),
     (rf"^(?P<s>{S})_request_rate$",
      "Requests per second to {s}-service in the window (count / 60)", "request records"),
@@ -118,9 +119,13 @@ def render():
         "- **Empty means unknown, not zero.** A service with no requests in a window has an empty "
         "latency or error rate. Counts and request rates are `0`.",
         "- **Temporal columns use only the current and earlier windows** of the same run.",
-	"- Rolling columns look back over up to two earlier windows, so the first labeled window after an "
-        "excluded one (for example the first labeled DB-throttling window) can include values from it. "
-        "This is left as is and noted here.",
+        "- **Temporal columns look back over labeled windows only** (M4-4's `labels.jsonl`, `included: true`; "
+        "`write_matrix.py --labels`). An excluded window gets temporal columns from itself and the earlier "
+        "labeled windows, but never feeds a later one. So the DB-throttling surge, which M4-4 excludes as "
+        "onset, never reaches the first labeled throttling window: it is how the injector spends DynamoDB's "
+        "burst capacity, and real throttling has nothing like it. Nor do startup's cold starts reach the "
+        "baseline. Blanking the columns that drew on an excluded window instead would leave blanks in "
+        "training only where DB throttling starts, a fingerprint of its own (decided 2026-10-19).",
         "- A run's first and last windows can be partial. Which windows to drop is decided with M4-4.",
         "",
         f"{len(cols)} columns.",

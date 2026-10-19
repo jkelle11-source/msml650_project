@@ -58,6 +58,23 @@ def test_a_window_never_sees_the_future():
         assert before[w(i)] == after[w(i)]
 
 
+def test_an_excluded_window_never_feeds_a_later_one():
+    # Windows 1 and 2 are excluded (M4-4's db_throttling_onset: the surge). Window 3 looks
+    # back over window 0, as if they weren't there.
+    f = tf.temporal_features(rows([10, 500, 400, 30, 40]), columns=[COL], lookback={w(0), w(3), w(4)})
+    assert f[w(3)]["x_change"] == 20
+    assert f[w(3)]["x_roll_mean_3"] == 20
+    assert f[w(4)]["x_roll_mean_3"] == pytest.approx(80 / 3)     # 10, 30, 40
+    # The excluded windows still get features, from themselves and the labeled windows before.
+    assert f[w(1)]["x_change"] == 490
+    assert f[w(2)]["x_change"] == 390
+    assert f[w(2)]["x_roll_mean_3"] == 205                        # 10, 400
+
+
+def test_without_labels_every_window_is_looked_back_over():
+    assert tf.temporal_features(rows([10, 500, 30]), columns=[COL])[w(2)]["x_change"] == -470
+
+
 def test_missing_column_gives_empty_values():
     f = tf.temporal_features({w(0): {}, w(1): {}}, columns=[COL])
     assert f[w(1)]["x_roll_mean_3"] is None

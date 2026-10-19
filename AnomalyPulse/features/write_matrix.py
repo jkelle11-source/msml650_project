@@ -4,15 +4,18 @@ Layout (Docs/DATASET.md): datasets/<name>/tier1/features/experiment_id=<id>/feat
 One line per window: {"window_start": ..., <feature columns>}. window_start is the
 join key; experiment_id lives in the path only, never as a column.
 
-Usage:  python3 write_matrix.py <dataset> <experiment_id> <requests.jsonl> <metrics.jsonl> [--out DIR | --bucket NAME]
-With neither flag it only prints what it would write.
+Usage:  python3 write_matrix.py <dataset> <experiment_id> <requests.jsonl> <metrics.jsonl>
+            [--manifest manifest.json] [--labels labels.jsonl] [--out DIR | --bucket NAME]
+With neither --out nor --bucket it only prints what it would write. An upload needs
+--manifest (partial windows are dropped) and --labels (temporal features look back
+over labeled windows only).
 """
 import json
 import sys
 from pathlib import Path
 
 import guard
-from build_matrix import build_matrix, load_jsonl
+from build_matrix import build_matrix, labeled_windows, load_jsonl
 
 KEY = "window_start"
 
@@ -30,11 +33,11 @@ def to_jsonl(matrix):
     return "".join(json.dumps({KEY: w, **row}) + "\n" for w, row in matrix.items())
 
 
-def write_features(dataset, experiment_id, records, snapshots, put, bounds=None):
+def write_features(dataset, experiment_id, records, snapshots, put, bounds=None, lookback=None):
     """Build, check, then call put(key, bytes). If the guard fails, put is never called."""
     key = feature_key(dataset, experiment_id)
     assert "/tier1/" in key and "/tier2/" not in key
-    body = to_jsonl(build_matrix(records, snapshots, bounds))
+    body = to_jsonl(build_matrix(records, snapshots, bounds, lookback))
     put(key, body.encode("utf-8"))
     return key
 
@@ -69,23 +72,28 @@ def s3_put(bucket, profile="sim", region="us-east-2"):
 
 
 if __name__ == "__main__":
-    flags = ("--out", "--bucket", "--manifest")
+    flags = ("--out", "--bucket", "--manifest", "--labels")
     opts = {f: sys.argv[sys.argv.index(f) + 1] for f in flags if f in sys.argv}
     args = [a for a in sys.argv[1:] if a not in flags and a not in opts.values()]
     out, bucket = opts.get("--out"), opts.get("--bucket")
     dataset, experiment_id, req_path, met_path = args
-    bounds = None
+    bounds = lookback = None
     if "--manifest" in opts:  # only the run's start and end are read, never put in a column
         m = json.loads(Path(opts["--manifest"]).read_text())
         bounds = (m["started_at"], m["ended_at"])
-    if bucket and bounds is None:
-        sys.exit("--manifest is required for an upload, so partial windows are dropped")
+    if "--labels" in opts:    # only which windows are labeled is read, never put in a column
+        lookback = labeled_windows(load_jsonl(opts["--labels"]))
+    if bucket and (bounds is None or lookback is None):
+        sys.exit("--manifest and --labels are required for an upload, so partial windows are dropped "
+                 "and temporal features look back over labeled windows only")
     records, snapshots = load_jsonl(req_path), load_jsonl(met_path)
     if bucket:
-        print("uploaded", write_features(dataset, experiment_id, records, snapshots, s3_put(bucket), bounds))
+        print("uploaded", write_features(dataset, experiment_id, records, snapshots, s3_put(bucket),
+                                         bounds, lookback))
     elif out:
-        print("wrote", write_features(dataset, experiment_id, records, snapshots, local_put(out), bounds))
+        print("wrote", write_features(dataset, experiment_id, records, snapshots, local_put(out),
+                                      bounds, lookback))
     else:
-        matrix = build_matrix(records, snapshots, bounds)
+        matrix = build_matrix(records, snapshots, bounds, lookback)
         to_jsonl(matrix)  # runs the guard
         print("dry run, would write", feature_key(dataset, experiment_id), f"({len(matrix)} windows)")

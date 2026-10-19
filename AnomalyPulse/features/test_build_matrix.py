@@ -54,3 +54,16 @@ def test_partial_windows_are_dropped_before_temporal_features():
     assert list(rows) == ["2026-10-16T03:20:00.000Z", "2026-10-16T03:21:00.000Z"]
     # the part-minute first window is gone, so the first kept window has no history
     assert rows["2026-10-16T03:20:00.000Z"]["product_p95_latency_ms_change"] is None
+
+
+def test_temporal_features_look_back_over_labeled_windows_only():
+    # 03:20 is excluded (say, a DB-throttling surge): 03:21 compares with 03:19.
+    recs = [dict(REC, timestamp="2026-10-16T03:19:10.000Z", latency_ms=10.0),
+            dict(REC, timestamp="2026-10-16T03:20:10.000Z", latency_ms=900.0),
+            dict(REC, timestamp="2026-10-16T03:21:10.000Z", latency_ms=50.0)]
+    labels = [{"window_start": "2026-10-16T03:19:00.000Z", "included": True},
+              {"window_start": "2026-10-16T03:20:00.000Z", "included": False},
+              {"window_start": "2026-10-16T03:21:00.000Z", "included": True}]
+    rows = bm.build_matrix(recs, [SNAP], lookback=bm.labeled_windows(labels))
+    assert rows["2026-10-16T03:21:00.000Z"]["product_p95_latency_ms_change"] == 40
+    assert rows["2026-10-16T03:20:00.000Z"]["product_p95_latency_ms_change"] == 890   # still has a row

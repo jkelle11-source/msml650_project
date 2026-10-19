@@ -18,12 +18,19 @@ def load_jsonl(path):
         return [json.loads(line) for line in f if line.strip()]
 
 
-def build_matrix(records, snapshots, bounds=None):
+def labeled_windows(label_rows):
+    """The windows M4-4 labeled (labels.jsonl rows with included: true)."""
+    return {r["window_start"] for r in label_rows if r.get("included")}
+
+
+def build_matrix(records, snapshots, bounds=None, lookback=None):
     """{window_start: {column: value}}. Raises BoundaryViolation on a forbidden column.
 
     bounds=(started_at, ended_at) is the run's own start and end. Windows not wholly
     inside it are dropped BEFORE the temporal features, so no rate of change is
-    computed against a part-minute window. Used only to pick windows, never as a column.
+    computed against a part-minute window. lookback is the run's labeled windows
+    (labeled_windows()), the only ones temporal features look back over. Both are
+    used only to pick windows, never as a column.
     """
     parts = (request_features(records), service_features(records), metrics_features(snapshots))
     rows = {}
@@ -34,7 +41,7 @@ def build_matrix(records, snapshots, bounds=None):
         rows[w] = row
     if bounds:
         rows = {w: r for w, r in rows.items() if windows.is_complete(w, *bounds)}
-    for w, feats in temporal_features(rows).items():
+    for w, feats in temporal_features(rows, lookback=lookback).items():
         rows[w].update(feats)
     columns = set()
     for row in rows.values():
