@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from simulator import batch, dataset, manifest, runner
+from simulator import batch, build_queues, dataset, manifest, runner
 from simulator.batch import BatchRefused
 from simulator.lock import LockHeld
 
@@ -486,3 +486,53 @@ def test_the_test_set_is_generated_on_a_later_day_than_training(tmp_path, go, cl
     assert go(test_queue)["results"]["queue_slots"]["ACCEPTED"] == [701]
     with pytest.raises(BatchRefused, match="before the test set"):
         go(_queue(tmp_path, [_entry(2)]))
+
+
+V1 = {e["slot"]: e for e in build_queues.entries()}
+# The first NORMAL run of v1-train-2 and of v1-val, so a fake run of it needs no injector.
+TRAIN_2_NORMAL = min(s for s, e in V1.items() if s > 140 and e.get("incident", {}).get("injector") == "noop")
+VAL_NORMAL = min(s for s, e in V1.items() if s > 560 and e.get("incident", {}).get("injector") == "noop")
+
+
+def _v1_queue(tmp_path, *slots):
+    return _queue(tmp_path, [V1[s] for s in slots], name="v1")
+
+
+def _finish(stack, slots, status="ACCEPTED"):
+    registry = _registry(stack, "v1")
+    for slot in slots:
+        registry.put_slot({**dataset.new_slot_record("v1", V1[slot], "NORMAL"), "status": status,
+                           "generation_date": "2026-10-16"})
+
+
+def test_v1_training_and_validation_run_in_slot_order(tmp_path, go, stack):
+    queue = _v1_queue(tmp_path, TRAIN_2_NORMAL)
+    with pytest.raises(BatchRefused, match=rf"{TRAIN_2_NORMAL - 1} of slots 1-{TRAIN_2_NORMAL - 1} aren't "
+                                           rf"finished \(the first is slot 1\)"):
+        go(queue)
+    _finish(stack, range(1, TRAIN_2_NORMAL - 1))
+    _finish(stack, [TRAIN_2_NORMAL - 1], status="PENDING")      # its queue stopped short
+    with pytest.raises(BatchRefused, match=f"finish the queue holding slot {TRAIN_2_NORMAL - 1} first"):
+        go(queue)
+    _finish(stack, [TRAIN_2_NORMAL - 1], status="EXHAUSTED")    # given up: finished
+    assert go(queue)["results"]["queue_slots"]["ACCEPTED"] == [TRAIN_2_NORMAL]
+
+
+def test_validation_waits_for_the_last_training_queue(tmp_path, go, stack):
+    _finish(stack, [s for s in range(1, VAL_NORMAL) if s != 560])
+    with pytest.raises(BatchRefused, match="the first is slot 560"):
+        go(_v1_queue(tmp_path, VAL_NORMAL))
+
+
+def test_a_queue_resumes_past_its_own_unfinished_slots(tmp_path, go, stack):
+    # v1-train-1 stopped short: its first slots accepted, the next one PENDING. Run again, it resumes.
+    first = min(s for s, e in V1.items() if e.get("incident", {}).get("injector") == "noop")
+    _finish(stack, range(1, first))
+    _finish(stack, [first], status="PENDING")
+    queue = _v1_queue(tmp_path, *range(1, first + 1))
+    assert go(queue)["results"]["queue_slots"]["ACCEPTED"] == list(range(1, first + 1))
+    assert go.log[0].endswith(f"{first} experiments, commit abc123") and "run 2" not in " ".join(go.log)
+
+
+def test_slot_order_holds_only_for_the_main_dataset(tmp_path, go):
+    assert go(_queue(tmp_path, [_entry(5)]))["results"]["queue_slots"]["ACCEPTED"] == [5]
