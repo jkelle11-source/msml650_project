@@ -200,7 +200,9 @@ rules it follows, so that nothing but the incident varies with the slot.
    3 Lambda and 3 payment runs alternate 2/1 and 1/2 by block. Training comes out 56/56 for spikes and
    throttling and 42/42 for Lambda and payment; validation 14/14, and 11/10 for Lambda and payment, with
    the extra run in opposite bands (Lambda 53/52 overall, payment 52/53).
-3. **Targets and templates in turn.** Lambda degradation's four targets round-robin (21 each in training);
+3. **Targets and templates in turn.** Lambda degradation's four targets take turns within each band, the
+   high band starting halfway round: 21 each in training, 10 or 11 in each band (in turn over all Lambda
+   runs, which M4-2's review replaced, cart-service went 12/9 in training and 5/0 in validation);
    cascades cycle the four templates (14 each in training, 4/4/3/3 in validation), and a template's runs
    go through every combination of its stages' bands, in complementary pairs (all low and all high, then
    the rest), so each stage is 7/7 in training. A three-stage template has all 8 combinations in

@@ -9,7 +9,9 @@ the rules in Docs/EVALUATION_INTEGRITY.md ("Building a queue"):
 2. Bands half and half: a block's 4 spikes and 4 throttling runs are 2 + 2; its
    3 Lambda and 3 payment runs alternate 2/1 and 1/2 by block, in opposite
    bands to each other.
-3. Lambda degradation's targets round-robin; cascades cycle the templates, and
+3. Lambda degradation's targets take turns within each band (the high band
+   starting halfway round), so each target is half and half too; cascades
+   cycle the templates, and
    a template's runs go through every combination of its stages' bands, in
    complementary pairs, so each stage is half and half (_cascade_bands).
 4. Slots are numbered after shuffling: slot i is the i-th run.
@@ -89,7 +91,12 @@ def entries(seed: int = SEED) -> list[dict]:
     order = random.Random(f"{seed}:order")
     targets = injectors.get("lambda-degradation").targets
     templates = list(integrity.CASCADES)
-    lambda_runs = cascade_runs = 0
+    # Targets take turns within each band, not over all Lambda runs: in turn over
+    # all of them, cart-service's runs split 12/9 by band in training and 5/0 in
+    # validation. The high band starts halfway round, so every target has 21 in
+    # training, 10 or 11 in each band.
+    lambda_runs = [0, 0]
+    cascade_runs = 0
     template_runs = dict.fromkeys(templates, 0)
 
     out, slot = [], 1
@@ -107,10 +114,11 @@ def entries(seed: int = SEED) -> list[dict]:
                 cascade_runs += 1
                 template_runs[template] += 1
             elif label == "LAMBDA_DEGRADATION":
+                turn = lambda_runs[band_index] + band_index * len(targets) // 2
                 entry["incident"] = integrity.incident_spec(
                     "lambda-degradation", phase, spec_rng,
-                    target=targets[lambda_runs % len(targets)], band_index=band_index)
-                lambda_runs += 1
+                    target=targets[turn % len(targets)], band_index=band_index)
+                lambda_runs[band_index] += 1
             else:
                 entry["incident"] = integrity.incident_spec(
                     integrity.INJECTOR_FOR[label], phase, spec_rng, band_index=band_index)

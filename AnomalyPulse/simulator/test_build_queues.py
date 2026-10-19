@@ -93,12 +93,27 @@ def test_only_training_bands_and_safe_intensities_are_used():
 
 # --- targets and cascade templates -----------------------------------------------------------
 
-def test_lambda_targets_round_robin():
-    targets = [e["incident"]["target"] for e in ENTRIES
-               if "incident" in e and e["incident"]["injector"] == "lambda-degradation"]
-    assert targets[:8] == list(injectors.get("lambda-degradation").targets) * 2
-    train = targets[:84]
-    assert Counter(train) == {t: 21 for t in injectors.get("lambda-degradation").targets}
+def _lambda_runs(entries, band_index=None):
+    """The targets of the Lambda degradation runs in `entries`, in run order (one band's, if given)."""
+    lows = [low for low, _ in integrity.BANDS["lambda-degradation"]["train"]]
+    return [e["incident"]["target"] for e in entries
+            if "incident" in e and e["incident"]["injector"] == "lambda-degradation"
+            and band_index in (None, lows.index(e["incident"]["band"]["low"]))]
+
+
+def test_lambda_targets_take_turns_within_each_band():
+    targets = list(injectors.get("lambda-degradation").targets)
+    assert _lambda_runs(ENTRIES, 0)[:8] == targets * 2
+    assert _lambda_runs(ENTRIES, 1)[:8] == (targets[2:] + targets[:2]) * 2
+    assert Counter(_lambda_runs(_split("train"))) == {t: 21 for t in targets}
+
+
+def test_every_lambda_target_is_half_and_half():
+    for phase, (fewest, most) in (("train", (10, 11)), ("val", (2, 3))):
+        for b in (0, 1):
+            counts = Counter(_lambda_runs(_split(phase), b))
+            assert set(counts) == set(injectors.get("lambda-degradation").targets), (phase, b)
+            assert fewest <= min(counts.values()) and max(counts.values()) <= most, (phase, b, counts)
 
 
 def _template(entry):

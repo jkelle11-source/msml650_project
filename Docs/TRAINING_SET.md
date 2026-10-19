@@ -39,7 +39,9 @@ from the data, not recomputed.
 | CASCADING_FAILURE | 56 | 14 | per stage: 7/7 per template in training |
 
 - Every 20 consecutive slots hold exactly 4/4/4/3/3/2 of the classes above, shuffled.
-- Lambda degradation's targets take turns (product, cart, order, payment): 21 each in training.
+- Lambda degradation's targets (product, cart, order, payment) take turns within each band, the high band
+  starting at order: 21 each in training, 10 or 11 of them in each band; 5 or 6 each in validation, 2 or 3
+  in each band.
 - Cascades cycle the four templates: 14 each in training, 4/4/3/3 in validation. A template's runs go
   through every combination of its stages' bands, in complementary pairs (all low and all high first),
   so each stage is 7/7 in training. The three-stage templates have all 8 combinations in training; the
