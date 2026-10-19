@@ -1,21 +1,10 @@
-"""Combine the per-window feature sets into one matrix (M4-5).
-
-Usage:  python -m features.build_matrix <requests.jsonl> <metrics.jsonl>
-"""
-import json
-import sys
-
+"""Combine the per-window feature sets into one matrix (M4-5)."""
 from features import guard
 from features import windows
 from features.metrics_features import metrics_features
 from features.request_features import DB_SERVICES, SERVICES, request_features
 from features.service_features import service_features
 from features.temporal_features import temporal_features
-
-
-def load_jsonl(path):
-    with open(path) as f:
-        return [json.loads(line) for line in f if line.strip()]
 
 
 # Excluded windows that still feed later windows' temporal features. The run's startup
@@ -90,13 +79,3 @@ def build_matrix(records, snapshots, bounds=None, lookback=None):
         raise ValueError(f"columns _sample_run() doesn't make (add them there): {sorted(made - set(cols))}")
     # A minute with no CloudWatch snapshot keeps its metrics columns, empty.
     return {w: {c: row.get(c) for c in cols} for w, row in rows.items()}
-
-
-if __name__ == "__main__":
-    matrix = build_matrix(load_jsonl(sys.argv[1]), load_jsonl(sys.argv[2]))
-    cols = sorted({c for row in matrix.values() for c in row})
-    print(f"{len(matrix)} windows, {len(cols)} columns")
-    for w, row in matrix.items():
-        print(w, "order p95:", row.get("order_p95_latency_ms"),
-              "| order lambda mean:", row.get("order_lambda_duration_ms_mean"),
-              "| product throttled:", row.get("product_throttled_requests"))

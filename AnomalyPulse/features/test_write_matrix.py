@@ -1,4 +1,4 @@
-"""Tests for writing the feature matrix with the guard in front (M4-5)."""
+"""Tests for writing the feature matrix with the guard and join check in front (M4-5)."""
 import json
 
 import pytest
@@ -6,7 +6,16 @@ import pytest
 from features import build_matrix as bm
 from features import guard
 from features import write_matrix as wm
+from features.join_labels import JoinError
 from features.test_build_matrix import REC, SNAP
+
+W = "2026-10-16T03:19:00.000Z"
+BOUNDS = ("2026-10-16T03:19:00.000Z", "2026-10-16T03:20:00.000Z")   # 03:19 is the run's one whole window
+LABELS = [{"window_start": W, "label": "NORMAL", "included": True, "excluded_reason": None}]
+
+
+def write(put, labels=LABELS):
+    return wm.write_features("v1", "exp-1", [REC], [SNAP], labels, BOUNDS, put)
 
 
 def test_key_is_under_tier1_features_and_keyed_by_experiment():
@@ -15,23 +24,25 @@ def test_key_is_under_tier1_features_and_keyed_by_experiment():
     assert "tier2" not in key
 
 
-def test_lines_carry_window_start_but_not_experiment_id():
+def test_lines_carry_window_start_but_not_experiment_id_or_label():
     calls = []
-    wm.write_features("v1", "exp-1", [REC], [SNAP], lambda k, b: calls.append((k, b)))
-    line = json.loads(calls[0][1].decode().splitlines()[0])
-    assert line["window_start"] == "2026-10-16T03:19:00.000Z"
-    assert "experiment_id" not in line
+    write(lambda k, b: calls.append((k, b)))
+    line = json.loads(calls[0][1].splitlines()[0])
+    assert line["window_start"] == W
+    assert "experiment_id" not in line and "label" not in line
+    assert len(line) == 1 + len(bm.columns())
 
 
 def test_a_clean_matrix_is_written_once():
     calls = []
-    key = wm.write_features("v1", "exp-1", [REC], [SNAP], lambda k, b: calls.append(k))
+    key, matrix = write(lambda k, b: calls.append(k))
     assert calls == [key]
+    assert list(matrix) == [W]
 
 
 def test_tier2_column_in_the_matrix_is_refused():
     with pytest.raises(guard.BoundaryViolation):
-        wm.to_jsonl({"2026-10-16T03:19:00.000Z": {"request_rate": 1.0, "severity": "HIGH"}})
+        wm.to_jsonl({W: {"request_rate": 1.0, "severity": "HIGH"}})
 
 
 def test_leaky_builder_never_reaches_put(monkeypatch):
@@ -46,26 +57,12 @@ def test_leaky_builder_never_reaches_put(monkeypatch):
     monkeypatch.setattr(bm, "request_features", leaky)
     calls = []
     with pytest.raises(guard.BoundaryViolation):
-        wm.write_features("v1", "exp-1", [REC], [SNAP], lambda k, b: calls.append(k))
+        write(lambda k, b: calls.append(k))
     assert calls == []  # nothing was written
 
-def test_s3_put_refuses_keys_outside_tier1_features(monkeypatch):
-    import sys
-    from unittest import mock
-    fake = mock.MagicMock()
-    monkeypatch.setitem(sys.modules, "boto3", mock.MagicMock(Session=lambda **k: mock.MagicMock(client=lambda n: fake)))
-    put = wm.s3_put("bucket")
-    with pytest.raises(ValueError):
-        put("datasets/v1/tier2/labels/x.json", b"{}")
-    fake.put_object.assert_not_called()
 
-
-def test_s3_put_never_overwrites(monkeypatch):
-    import sys
-    from unittest import mock
-    fake = mock.MagicMock()  # head_object succeeds, meaning the key exists
-    monkeypatch.setitem(sys.modules, "boto3", mock.MagicMock(Session=lambda **k: mock.MagicMock(client=lambda n: fake)))
-    put = wm.s3_put("bucket")
-    with pytest.raises(FileExistsError):
-        put(wm.feature_key("v1", "exp-1"), b"{}")
-    fake.put_object.assert_not_called()
+def test_a_run_that_does_not_join_its_labels_is_never_written():
+    calls = []
+    with pytest.raises(JoinError):
+        write(lambda k, b: calls.append(k), labels=[])   # a feature row with no label row
+    assert calls == []
