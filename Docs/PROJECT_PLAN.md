@@ -447,7 +447,8 @@ Do not randomly shuffle experiments into train and test sets. Instead, use a str
 
 ```text
 Experiments 1–700:    training + validation   (generated first)
-Experiments 701–1000: test set                (generated on a separate day)
+Experiments 701–1050: test set                (generated on a separate day)
+Experiments 1051 on:  stress slice            (generated with the test set, reported separately)
 ```
 
 Generating the test set on a separate day introduces natural variability in AWS environment state — Lambda cold-start behavior, background DynamoDB latency, network conditions — that a random split would obscure. This makes the test set a more honest evaluation of generalization.
@@ -1051,11 +1052,11 @@ This allows us to discuss the **serverless economics** of the architecture. (Bec
 
 Report the following to demonstrate that results generalize across the held-out regions of the simulator's parameter space (not to real-world incidents — see Section 6b):
 
-- All metrics computed on the temporally held-out test set (experiments 701–1000), not on the training or validation sets.
+- All metrics computed on the temporally held-out test set (experiments 701–1050), not on the training or validation sets.
 - Threshold baseline performance reported alongside every ML metric, so the margin of improvement is explicit.
 - Per-parameter-band breakdown for key incident types, confirming that performance does not degrade sharply on the held-out interleaved bands from Section 6b.
 - The extreme-extrapolation stress slice reported **separately** from the core generalization metrics.
-- Confounder accuracy: how often the classifier correctly handles co-occurring incidents that are not labeled as cascading failures.
+- Confounder accuracy: how often the classifier correctly handles co-occurring incidents that are not labeled as cascading failures. Confounders are a test-only probe, scored as `Docs/EVALUATION_INTEGRITY.md` describes.
 
 These results, taken together, allow us to argue that AnomalyPulse generalizes across held-out regions of the simulator's parameter space rather than fitting a fixed set of simulator configurations.
 
@@ -1082,7 +1083,7 @@ Generated first, using the training bands (interleaved with the test bands per S
 
 Split into training (experiments 1–560) and validation (experiments 561–700) for hyperparameter tuning.
 
-## Phase 2 — Test Set (Experiments 701–1000)
+## Phase 2 — Test Set (Experiments 701–1050)
 
 Generated on a separate day, using the held-out interleaved bands and the simulator diversity protocol:
 
@@ -1099,7 +1100,7 @@ Generated on a separate day, using the held-out interleaved bands and the simula
 350 total
 ```
 
-A small **extreme-extrapolation stress slice** (traffic > 10×, added latency > 1500ms, offered-load ratio > 6×, timeout > 5000ms) is generated in addition and reported separately from the core generalization metrics.
+A small **extreme-extrapolation stress slice** (traffic > 10×, added latency > 1500ms, offered-load ratio > 6×, timeout > 5000ms) is generated in addition, numbered from 1051, and reported separately from the core generalization metrics.
 
 The test set is generated with a shifted endpoint request distribution and is not inspected until all training and validation work is complete.
 

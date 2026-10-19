@@ -7,7 +7,7 @@
 > **Description:**
 > Turn the simulator into a **labeled, leakage-controlled dataset**: run the training experiments, aggregate telemetry into one-minute windows, apply the Window Labeling Policy, enforce the Feature/Label Boundary, and stand up the evaluation-integrity controls (interleaved parameter bands, temporal split, diversity protocol). This is the last sticky-ownership milestone, and it deliberately pre-positions people for the M5 capability split: Melisa (labeling) and Rachel (features) carry ML modeling; Josh (generation) moves to GenAI; Linu (eval controls) moves to dashboard; Jake (harness) moves to ML infra.
 >
-> **Scope boundary:** this milestone produces the **training + validation** set (experiments 1–700) and the *definitions/harness* for the test set. The test set (701–1000) is generated on a **separate day and sealed**, unopened until M9 — see `M9-1`.
+> **Scope boundary:** this milestone produces the **training + validation** set (experiments 1–700) and the *definitions/harness* for the test set. The test set (701–1050) is generated on a **separate day and sealed**, unopened until M9 — see `M9-1`.
 
 ## Assignment summary
 - **Jake** — Dataset-generation harness, S3 dataset layout, experiment registry
@@ -52,7 +52,7 @@
 - **Checks that keep the dataset on one configuration** (from M3-3's validation; `Docs/DB_THROTTLING_INJECTOR.md`):
   - *Before each batch:* refuse to start unless the stack matches the frozen configuration: function memory 1,769 MB, Products provisioned at 200 RCU, and one `Scan` of Products costing 0.5 RCU (a partition change would raise it). Record the configuration with the batch.
   - *After each run that has no `db-throttling` fault:* read the Products table's `ThrottledRequests` and `ReadThrottleEvents` for the run's window. Any throttling marks the run contaminated, and it is rerun.
-  - *After each `db-throttling` run:* rerun it if `observed.achieved_fraction` is below 0.97 or `observed.label_from` is null (the bank was never seen spent). Added by M4-1's validation: also if the steady throttle rate is more than 0.1 from `1 − 1/offered_ratio` (the window ran on burst capacity), or if DynamoDB served the injector more than 1.25× capacity over any minute after `label_from` (burst capacity came back).
+  - *After each `db-throttling` run:* rerun it if `observed.achieved_fraction` is below 0.97 or `observed.label_from` is null (the bank was never seen spent). Added by M4-1's validation: also if the steady throttle rate is more than 0.1 below `1 − 1/offered_ratio` (the window ran on burst capacity; one-sided since M4-3, whose validation saw a spike in the same cascade raise it), or if DynamoDB served the injector more than 1.25× capacity over any minute after `label_from` (burst capacity came back).
   - *After every run:* check the client kept sending. The batch runner holds the `Workload` and reads `outcomes()` after `run()`: rerun the run if any requests were dropped or more than 0.1% got no response (`error`). The manifest records the workload's settings, not what it sent, so a network drop mid-run can otherwise leave a `COMPLETED` run with a gap in its traffic.
 - **Runner host:** one small EC2 instance in us-east-2 that runs every batch (training and test). Non-burstable, such as `c7g.large` (about $0.07 an hour; check current pricing), because a burstable T instance runs short of CPU credits over days of load. It runs as `anomalypulse-simulator`, as `--profile sim` does on a laptop: an instance role allowed to assume it (added to `SimulatorRole`'s trust policy in `template.yaml`; Jake deploys) and a `sim` profile on the instance with `credential_source = Ec2InstanceMetadata`. Reach it through Session Manager (no SSH keys or open ports) and run each batch in `tmux`, so a dropped session doesn't stop it. Stop it between batches and terminate it after `M9-1`.
 
@@ -62,7 +62,7 @@
 - [x] Tier-1 and Tier-2 data are physically separated in S3, not interleaved. (`datasets/m4-1-validation/tier1/` holds each run's requests and metrics, only catalog Tier-1 and correlation fields; manifests, registry and index are under `tier2/`)
 - [x] Registry records generation date + phase per experiment (needed for the temporal split). (`generation_date` and `phase` in every slot record, and in `tier2/experiments.jsonl`)
 
-**Found and fixed in M4-1's validation:** from the runner host the DB-throttling surge ended on a read refused about 3 s into a full burst bank, so the window ran on burst capacity: at 2.0× the table served the whole load for the whole window and Product's p95 didn't move (`exp-20261016T033954Z-d548`). Cause: the injector's one client used one to three connections from inside the region, and over those DynamoDB spent burst at about half the surge's rate, in a seesaw of full and refused seconds. Over 16 clients, as from a laptop, it served the surge in full and the bank ran out at 33 s. Fix: the reads go over 16 clients; the surge ends on 10 s of served reads, not on a throttle; and the batch rejects a run where burst capacity comes back after `label_from`. Validated on the runner at 1.5×, 2.0×, 4.0× and 4.5×, each accepted at its first attempt: labeling starts ~47 s into the window, the steady throttle rate is within a point of `1 − 1/ratio`, and Product's p95 goes from 6 ms to 1.6 or 3.2 s. The fault window stays 5 minutes. Open for M4-3: that p95 doesn't rise with the ratio the way M3-3 measured, though the throttle counts do. `Docs/DATASET.md` has the numbers.
+**Found and fixed in M4-1's validation:** from the runner host the DB-throttling surge ended on a read refused about 3 s into a full burst bank, so the window ran on burst capacity: at 2.0× the table served the whole load for the whole window and Product's p95 didn't move (`exp-20261016T033954Z-d548`). Cause: the injector's one client used one to three connections from inside the region, and over those DynamoDB spent burst at about half the surge's rate, in a seesaw of full and refused seconds. Over 16 clients, as from a laptop, it served the surge in full and the bank ran out at 33 s. Fix: the reads go over 16 clients; the surge ends on 10 s of served reads, not on a throttle; and the batch rejects a run where burst capacity comes back after `label_from`. Validated on the runner at 1.5×, 2.0×, 4.0× and 4.5×, each accepted at its first attempt: labeling starts ~47 s into the window, the steady throttle rate is within a point of `1 − 1/ratio`, and Product's p95 goes from 6 ms to 1.6 or 3.2 s. The fault window stays 5 minutes. That p95 doesn't rise with the ratio the way M3-3 measured, though the throttle counts do; closed in M4-3 without further runs: the bands vary the ratio, and the throttle counts track it (`Docs/EVALUATION_INTEGRITY.md`, "Throttling bands and latency"). `Docs/DATASET.md` has the numbers.
 
 ---
 
@@ -78,12 +78,13 @@
 - 700 experiments generated per the §17 mix: 140 normal, 140 traffic spike (2×–4×, 6×–8×), 140 DB throttling (offered-load 1.5×–2.5×, 3.5×–4.5×), 105 Lambda degradation (200–500ms, 800–1100ms), 105 dependency failure (500–1500ms, 2500–3500ms), 70 cascading.
 - All experiments registered with manifests and Tier-1/Tier-2 separation intact.
 - A documented train/val cut (1–560 train, 561–700 validation) for M5 hyperparameter tuning.
+- A committed, seeded queue generator that follows `Docs/EVALUATION_INTEGRITY.md`, "Building a queue" (agreed 2026-10-17): blocks of 20 with `integrity.TRAIN_BLOCK`'s mix, bands half and half within each split, Lambda targets and cascade templates in turn, slots numbered in run order, training (four daily queues of 140) before validation. About 5 days nonstop on the runner, 5.5–6 with daily batches.
 
 **Definition of Done**
 - [ ] 700 experiments present in the registry with correct class balance and training-band parameters.
 - [ ] Spot-check confirms telemetry richness matches M2 (no silently-empty fields).
 - [ ] Train/validation boundary documented and reproducible.
-- [ ] **No test-band parameters used** — test bands remain unseen.
+- [ ] **No test-band parameters used** — test bands remain unseen. (Enforced since M4-3: `run-batch` refuses a `v1` queue entry outside its phase's bands, run shape or mix, `integrity.check_entry`.)
 
 ---
 
@@ -95,18 +96,20 @@
 
 **Context.** Implement the three structural leakage controls so results mean something. This defines the exact bands the generators consume and the split logic the evaluation enforces — the intellectual core of the "is this real or memorized?" defense.
 
+**Status:** built — `AnomalyPulse/simulator/integrity.py` (bands, split, diversity protocol, stress slice, cascade templates, seeded spec builders, and a queue guard `run-batch` applies to every `v1` queue) and [`Docs/EVALUATION_INTEGRITY.md`](../Docs/EVALUATION_INTEGRITY.md). Decided 2026-10-17: the test set is slots 701–1050 and the stress slice 1051 on; confounders stay a test-only probe, which M9-2 scores three ways; M4-1's p95-by-ratio item is closed without further runs. Validated on the runner 2026-10-18 in three batches into `m4-3-validation`: every cascade template is accepted at its heaviest corners, the test set's heaviest included, after three fixes the validation found: DB throttling now starts before the spike in its cascade, the batch's client keeps 512 requests open (was 256), and the steady-throttle check is one-sided (`Docs/EVALUATION_INTEGRITY.md`, "Validation on the runner").
+
 **Deliverables**
 - **Interleaved parameter-space partitioning:** codify the training vs held-out test bands from §6b for every incident type; test bands sit inside the trained range.
 - **Cascade specs and retry bands** (M3-5 left both to M4; `Docs/CASCADE.md`, "Open for M4"): the stage lists, bands and onset delays for the 70 training and 30 test cascades, and interleaved bands for `retry-amplification`'s `retries_per_failure`, which §6b doesn't cover. A spec with `retry-amplification` must overlap it with a stage that fails requests, or it has nothing to amplify (M3-5's validation retried 1 request). In training cascades that stage is `payment-failure`: DB throttling's training bands stop at 4.5×, where Product barely fails.
-- **Temporal-split logic:** enforce 1–700 = train/val, 701–1000 = test, keyed off generation date (test generated on a separate day).
+- **Temporal-split logic:** enforce 1–700 = train/val, 701–1050 = test (§17's 350 experiments), 1051 on = the stress slice, keyed off generation date (test generated on a separate day).
 - **Simulator diversity protocol** for the test set: varied incident durations (2-min, 12-min), shifted endpoint distribution, and confounder experiments (co-occurring types **not** labeled cascading).
 - Definition (not yet execution) of the separate **extreme-extrapolation stress slice** (traffic >10×, added latency >1500ms, offered-load >6×, timeout >5000ms).
 
 **Definition of Done**
-- [ ] Band definitions committed and importable by the generators; training and test bands provably interleaved, not overlapping.
-- [ ] Temporal-split function returns the correct partition for any `experiment_id`.
-- [ ] Diversity-protocol and extreme-slice specs written and ready for M9 execution.
-- [ ] A short "Evaluation Integrity Statement" drafted from §6b for the report.
+- [x] Band definitions committed and importable by the generators; training and test bands provably interleaved, not overlapping. (`integrity.BANDS`, `band()`, the spec builders; `check_bands()` proves the interleaving and its tests feed it broken tables; the guard holds every `v1` queue to the bands)
+- [x] Temporal-split function returns the correct partition for any `experiment_id`. (`temporal_split(records)` → `{experiment_id: partition}`, refusing a test run generated on or before the last training day; `split_of(slot)`)
+- [x] Diversity-protocol and extreme-slice specs written and ready for M9 execution. (`TEST_MIX`, `VARIED_DURATIONS_S`, `CONFOUNDER_PAIRS`, the stress bands and `COUNTS_*`; M9-1 validates the test-set kinds on the runner first)
+- [x] A short "Evaluation Integrity Statement" drafted from §6b for the report. (`Docs/EVALUATION_INTEGRITY.md`)
 
 ---
 

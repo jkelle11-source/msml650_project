@@ -1,0 +1,31 @@
+{
+  "dataset": "m4-3-validation",
+  "experiments": [
+    {"slot": 1, "phase": "train", "seed": 4301,
+     "cascade": {"baseline_s": 180, "cascade_s": 300, "recovery_s": 120, "stages": [
+       {"injector": "traffic-spike", "intensity": 0.95, "band": {"parameter": "multiplier", "low": 6, "high": 8}},
+       {"injector": "db-throttling", "onset_delay_s": 60, "onset_jitter_s": 10, "intensity": 0.05, "band": {"parameter": "load_ratio", "low": 1.5, "high": 2.5}},
+       {"injector": "lambda-degradation", "target": "order-service", "onset_delay_s": 60, "onset_jitter_s": 10, "intensity": 0.5, "band": {"parameter": "added_latency_ms", "low": 200, "high": 500}}]}},
+    {"slot": 2, "phase": "train", "seed": 4302,
+     "cascade": {"baseline_s": 180, "cascade_s": 300, "recovery_s": 120, "stages": [
+       {"injector": "traffic-spike", "intensity": 0.05, "band": {"parameter": "multiplier", "low": 2, "high": 4}},
+       {"injector": "db-throttling", "onset_delay_s": 60, "onset_jitter_s": 10, "intensity": 0.95, "band": {"parameter": "load_ratio", "low": 3.5, "high": 4.5}},
+       {"injector": "lambda-degradation", "target": "order-service", "onset_delay_s": 60, "onset_jitter_s": 10, "intensity": 0.5, "band": {"parameter": "added_latency_ms", "low": 800, "high": 1100}}]}},
+    {"slot": 3, "phase": "train", "seed": 4303,
+     "cascade": {"baseline_s": 180, "cascade_s": 300, "recovery_s": 120, "stages": [
+       {"injector": "db-throttling", "intensity": 0.5, "band": {"parameter": "load_ratio", "low": 1.5, "high": 2.5}},
+       {"injector": "lambda-degradation", "target": "product-service", "onset_delay_s": 60, "onset_jitter_s": 10, "intensity": 0.5, "band": {"parameter": "added_latency_ms", "low": 200, "high": 500}},
+       {"injector": "payment-failure", "onset_delay_s": 45, "onset_jitter_s": 10, "intensity": 0.5, "band": {"parameter": "timeout_ms", "low": 500, "high": 1500}},
+       {"injector": "retry-amplification", "onset_delay_s": 30, "onset_jitter_s": 10, "intensity": 0.5, "band": {"parameter": "retries_per_failure", "low": 1.5, "high": 2.0}}]}},
+    {"slot": 4, "phase": "train", "seed": 4304,
+     "cascade": {"baseline_s": 180, "cascade_s": 300, "recovery_s": 120, "stages": [
+       {"injector": "traffic-spike", "intensity": 0.95, "band": {"parameter": "multiplier", "low": 6, "high": 8}},
+       {"injector": "payment-failure", "onset_delay_s": 60, "onset_jitter_s": 10, "intensity": 0.95, "band": {"parameter": "timeout_ms", "low": 2500, "high": 3500}},
+       {"injector": "retry-amplification", "onset_delay_s": 30, "onset_jitter_s": 10, "intensity": 0.95, "band": {"parameter": "retries_per_failure", "low": 1.5, "high": 2.0}}]}},
+    {"slot": 5, "phase": "train", "seed": 4305,
+     "cascade": {"baseline_s": 180, "cascade_s": 300, "recovery_s": 120, "stages": [
+       {"injector": "lambda-degradation", "target": "order-service", "intensity": 0.5, "band": {"parameter": "added_latency_ms", "low": 800, "high": 1100}},
+       {"injector": "payment-failure", "onset_delay_s": 60, "onset_jitter_s": 10, "intensity": 0.5, "band": {"parameter": "timeout_ms", "low": 500, "high": 1500}},
+       {"injector": "retry-amplification", "onset_delay_s": 30, "onset_jitter_s": 10, "intensity": 0.5, "band": {"parameter": "retries_per_failure", "low": 0.5, "high": 1.0}}]}}
+  ]
+}

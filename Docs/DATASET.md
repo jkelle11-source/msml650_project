@@ -61,8 +61,8 @@ A queue is a JSON file naming the dataset and listing experiments in the order t
 
 | Key | Meaning |
 |---|---|
-| `slot` | The experiment's number, 1–1000 (plan §17). One number is one experiment: its spec can't change once it is registered. |
-| `phase` | `train` for 1–560, `val` for 561–700, `test` or `stress` (the extreme-extrapolation slice) from 701. Anything else is refused. |
+| `slot` | The experiment's number: 1–700 training and validation, 701–1050 the test set, 1051 on the stress slice (plan §17). One number is one experiment: its spec can't change once it is registered. |
+| `phase` | `train` for 1–560, `val` for 561–700, `test` or `stress` (the extreme-extrapolation slice) from 701; in `v1`, `test` for 701–1050 and `stress` from 1051. Anything else is refused. |
 | `seed` | The run's seed. A rerun uses it again, so a rerun is the same experiment. |
 | `incident` | One fault, as `start-incident` takes it: `injector`, `intensity`, `band`, `target`, `baseline_s`, `duration_s`, `recovery_s`. |
 | `cascade` | A cascade spec, as `start-cascade` takes it (`Docs/CASCADE.md`). |
@@ -72,6 +72,12 @@ A queue is a JSON file naming the dataset and listing experiments in the order t
 There is no `rps`: every run is sent at 20 rps. Generating a queue from M4-3's bands is M4-2's job; the
 queue file is the record of what was asked for. `run-batch --dry-run` checks a queue without AWS: each
 entry is resolved exactly as its run would be.
+
+**A `v1` queue must also pass M4-3's guard** (`integrity.check_entry`, `Docs/EVALUATION_INTEGRITY.md`):
+the phase its slot says; every band one of that phase's bands, every intensity from 0.05 to 0.95; the run
+shape above; the default mix, except `[40, 25, 15, 10, 10]` throughout the test set; 2- and 12-minute
+faults and confounders in the test set only; cascades from the templates, never in the stress slice. A
+validation dataset is not guarded, so it can probe band edges on purpose.
 
 ## Running a batch
 
@@ -116,8 +122,8 @@ CloudWatch check is finished first; the rest run in queue order.
 | Check | Rejected when |
 |---|---|
 | The run | It didn't end `COMPLETED` (a `FAILED` run includes `FellBehind`), or wasn't at 20 rps. |
-| The client (`Workload.outcomes()`) | Any request was dropped, or more than 0.1% got no response (`error`). A manifest records the workload's settings, not what it sent, so a network drop would otherwise leave a `COMPLETED` run with a gap. |
-| `db-throttling` | `observed.achieved_fraction` below 0.97; `observed.label_from` null (the bank was never seen spent); a steady throttle rate more than 0.1 from `1 − 1/offered_ratio` (the window ran on burst capacity, below); or `observed.steady_peak_served_per_s` above 1.25× capacity (DynamoDB served more than a spent bank over a minute after `label_from`: burst came back). |
+| The client (`Workload.outcomes()`) | Any request was dropped, or more than 0.1% got no response (`error`). A manifest records the workload's settings, not what it sent, so a network drop would otherwise leave a `COMPLETED` run with a gap. The client keeps up to 512 requests open (`batch.MAX_IN_FLIGHT`; 256 until M4-3's validation found a spike into heavy throttling needs more) and drops new ones past that. |
+| `db-throttling` | `observed.achieved_fraction` below 0.97; `observed.label_from` null (the bank was never seen spent); a steady throttle rate more than 0.1 below `1 − 1/offered_ratio` (the window ran on burst capacity, below; above it is the app's own extra reads, such as a spike in the same cascade, so since M4-3 the check is one-sided); or `observed.steady_peak_served_per_s` above 1.25× capacity (DynamoDB served more than a spent bank over a minute after `label_from`: burst came back). |
 | Products throttling (CloudWatch) | Any `ThrottledRequests` (summed over operations) or `ReadThrottleEvents` on Products in the run's minutes, except minutes that overlap a `db-throttling` window. |
 
 The CloudWatch check waits 5 minutes after a run ends, for the metrics to settle. It doesn't hold the
@@ -207,14 +213,20 @@ Its role can only assume `anomalypulse-simulator`, which trusts it by name (`inf
 On the instance the simulator runs as `--profile sim`, as on a laptop, but the credentials come from the
 instance and renew themselves: no SSO session to expire mid-batch.
 
+**Who can drive it:** anyone with the `AnomalyPulseDeveloper` permission set (`--profile dev`, the whole
+team). Its `PowerUserAccess` covers starting and stopping the instance, Session Manager sessions and
+`ssm send-command` (checked 2026-10-17: EC2 dry runs and IAM's policy simulator). Only creating or deleting
+the stack needs `admin`, because the stack makes an IAM role. One person drives a batch at a time; the
+experiment lock refuses a second.
+
 | Step | Command |
 |---|---|
 | Create (once; the shared stack must already trust `anomalypulse-runner`) | `aws cloudformation deploy --stack-name anomalypulse-runner --template-file AnomalyPulse/infra/runner/template.yaml --capabilities CAPABILITY_NAMED_IAM --profile admin` |
-| Instance id | `aws cloudformation describe-stacks --stack-name anomalypulse-runner --query "Stacks[0].Outputs" --profile admin` |
-| Connect | `aws ssm start-session --target <instance-id> --profile admin` (needs the Session Manager plugin: `brew install --cask session-manager-plugin`), or EC2 console → Connect → Session Manager. Then `sudo -iu ec2-user`. |
+| Instance id | `aws cloudformation describe-stacks --stack-name anomalypulse-runner --query "Stacks[0].Outputs" --profile dev` |
+| Connect | `aws ssm start-session --target <instance-id> --profile dev` (needs the Session Manager plugin: `brew install --cask session-manager-plugin`), or EC2 console → Connect → Session Manager. Then `sudo -iu ec2-user`. |
 | Set up, or move to another commit | `bash ~/msml650_project/AnomalyPulse/infra/runner/setup.sh <commit or branch>`. The first time: `git clone https://github.com/jkelle11-source/msml650_project.git ~/msml650_project` first. |
 | Run | `bash ~/msml650_project/AnomalyPulse/infra/runner/in-tmux.sh <session> <simulator arguments>`; logs in `~/logs/`. |
-| Stop between batches | `aws ec2 stop-instances --instance-ids <id> --profile admin` (`start-instances` to resume; the instance id stays, so the dataset's pin holds) |
+| Stop between batches | `aws ec2 stop-instances --instance-ids <id> --profile dev` (`start-instances` to resume; the instance id stays, so the dataset's pin holds) |
 | After M9-1 | `aws cloudformation delete-stack --stack-name anomalypulse-runner --profile admin` |
 
 Run every batch from a commit, not from files you are editing: setup.sh checks out a commit detached, and
@@ -311,8 +323,9 @@ In every run CloudWatch shows the surge's minute at 1,172–1,188 RCU/s and ever
 about 1,400 at 1.5×, 2,100 at 2.0×, 4,500 at 4.0× and 5,000 at 4.5×. Product's p50 stayed at 5–7 ms,
 and 0–5 requests a minute failed in the labeled stretch (22–35 in the surge's minute, which is excluded).
 
-**Open for M4-3:** in every labeled minute Product's p95 sat on a step of the app's retry ladder, 1.59 s
-(five retries) or 3.19 s (six), in no order by ratio: 1.59 s at 1.5× and 4.0×, 3.19 s at 2.0× and 4.5×.
-From a laptop M3-3 measured 0.78 s at 1.75×, 1.59 s at 3.0× and 3.2 s at 5.5×. The labels are right
-either way, and the throttle counts scale with the ratio; an analysis of the app's latency by band would
-not see the ratio.
+**p95 by ratio (closed in M4-3):** in every labeled minute Product's p95 sat on a step of the app's retry
+ladder, 1.59 s (five retries) or 3.19 s (six), in no order by ratio: 1.59 s at 1.5× and 4.0×, 3.19 s at
+2.0× and 4.5×. From a laptop M3-3 measured 0.78 s at 1.75×, 1.59 s at 3.0× and 3.2 s at 5.5×. The labels
+are right either way, and the throttle counts scale with the ratio; an analysis of the app's latency by
+band would not see the ratio. M4-3 closed this without further runs: the bands vary the ratio, and the
+throttle counts track it (`Docs/EVALUATION_INTEGRITY.md`, "Throttling bands and latency").
