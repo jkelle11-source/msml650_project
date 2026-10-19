@@ -39,6 +39,29 @@ def test_injected_tier2_column_fails_the_build(monkeypatch):
 def test_clean_build_does_not_raise():
     bm.build_matrix([REC], [SNAP])
 
+
+def test_every_row_has_every_column():
+    later = dict(REC, timestamp="2026-10-16T03:20:10.000Z")   # no snapshot covers 03:20
+    rows = bm.build_matrix([REC, later], [SNAP])
+    for row in rows.values():
+        assert list(row) == bm.columns()
+    assert len(bm.columns()) == 100
+
+
+def test_a_minute_with_no_snapshot_keeps_its_cloudwatch_columns_empty():
+    later = dict(REC, timestamp="2026-10-16T03:20:10.000Z")
+    row = bm.build_matrix([REC, later], [SNAP])["2026-10-16T03:20:00.000Z"]
+    assert row["product_throttled_requests"] is None
+    assert row["payment_lambda_throttle_count"] is None
+    assert row["product_p50_latency_ms"] == 10.0
+
+
+def test_a_column_the_sample_run_does_not_make_is_refused(monkeypatch):
+    # columns() is what every row carries; a new feature must show up in it too.
+    monkeypatch.setattr(bm, "columns", lambda: ["product_p50_latency_ms"])
+    with pytest.raises(ValueError, match="_sample_run"):
+        bm.build_matrix([REC], [SNAP])
+
 def test_matrix_includes_temporal_columns():
     later = dict(REC, timestamp="2026-10-16T03:20:10.000Z")
     rows = bm.build_matrix([REC, later], [SNAP])

@@ -1,13 +1,13 @@
 """Generate the feature-matrix documentation: column -> definition -> tier (M4-5).
 
-The column list comes from what build_matrix really produces, so the doc cannot
-drift. A column with no definition here raises, so adding a feature forces a doc
-update.   Usage:  python -m features.document_columns   (writes Docs/FEATURE_MATRIX.md)
+The column list is build_matrix.columns(), the columns every matrix row has, so the
+doc cannot drift. A column with no definition here raises, so adding a feature
+forces a doc update.   Usage:  python -m features.document_columns   (writes Docs/FEATURE_MATRIX.md)
 """
 import re
 from pathlib import Path
 
-from features import build_matrix
+from features.build_matrix import columns
 from features.request_features import SERVICES, _prefix
 from features.temporal_features import WINDOW
 
@@ -82,27 +82,6 @@ def describe(column):
     raise ValueError(f"no definition for column {column!r}: add a rule in document_columns.py")
 
 
-def columns():
-    """Every column build_matrix produces, from synthetic records for all four services."""
-    records, snaps = [], []
-    for svc in SERVICES:
-        is_order = svc == "order-service"
-        records.append({
-            "timestamp": "2026-01-01T00:00:10.000Z", "service": svc, "status_code": 200,
-            "latency_ms": 1.0, "lambda_duration_ms": 1.0, "cold_start": False,
-            "dependency": "payment-service" if is_order else None,
-            "dependency_latency_ms": 1.0 if is_order else None,
-            "dependency_error": False if is_order else None})
-        metrics = {"lambda": {"throttle_count": 0.0}}
-        if svc != "payment-service":  # Payment has no table
-            metrics["dynamodb"] = {"consumed_read_capacity": 1.0, "consumed_write_capacity": 1.0,
-                                   "throttled_requests": 0, "read_throttle_events": 0,
-                                   "write_throttle_events": 0}
-        snaps.append({"timestamp": "2026-01-01T00:01:00.000Z", "service": svc, "metrics": metrics})
-    rows = build_matrix.build_matrix(records, snaps)
-    return sorted({c for row in rows.values() for c in row})
-
-
 def render():
     cols = columns()
     lines = [
@@ -116,8 +95,9 @@ def render():
         "- **Every column is Tier-1**: derived from observable telemetry or CloudWatch counts. "
         "No Tier-2 name, join key, label or fault parameter is a column. "
         "`features/guard.py` fails the build if one appears.",
-        "- **Empty means unknown, not zero.** A service with no requests in a window has an empty "
-        "latency or error rate. Counts and request rates are `0`.",
+        "- **Every row has every column, and empty means unknown, not zero.** A service with no requests "
+        "in a window has an empty latency or error rate; counts and request rates are `0`. A minute with no "
+        "CloudWatch snapshot for a service has that service's CloudWatch columns empty.",
         "- **Temporal columns use only the current and earlier windows** of the same run.",
         "- **Temporal columns look back over a run's labeled windows and its startup minute only** "
         "(`build_matrix.lookback_windows()` of M4-4's `labels.jsonl`). Any other excluded window gets "
