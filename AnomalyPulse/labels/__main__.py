@@ -10,7 +10,8 @@ under tier2/ only:
 
     tier2/labels/experiment_id=<id>/labels.jsonl   one line per window, labeled or excluded
     tier2/labels/labeling_log.jsonl                one line per experiment: label counts and
-                                                   every excluded window with its reason
+                                                   every excluded window with its reason, or
+                                                   (error) why it could not be labeled
 
 Only v1's labels go to S3. A validation dataset is labeled from a local copy of
 its manifests (Docs/LABELING.md has the sync command): its labels are never
@@ -76,30 +77,32 @@ class S3Store:
 def label_dataset(dataset, store, out=sys.stdout):
     experiments = [json.loads(line) for line in
                    store.read(f"datasets/{dataset}/tier2/experiments.jsonl").splitlines() if line.strip()]
-    log, failed = [], []
+    log = []
     for exp in experiments:
         eid = exp["experiment_id"]
         manifest_ = json.loads(store.read(f"datasets/{dataset}/tier2/manifests/experiment_id={eid}/manifest.json"))
         try:
             windows = policy.label_experiment(manifest_)
         except policy.LabelingError as err:
-            failed.append({"experiment_id": eid, "error": str(err)})
+            # Same shape as a labeled run's line, with no windows and the reason.
+            log.append({**policy.summarize(eid, manifest_, []), "slot": exp.get("slot"), "error": str(err)})
             print(f"NOT LABELED {eid}: {err}", file=out)
             continue
         store.write(_labels_key(dataset, eid),
                     "".join(json.dumps(w.to_record()) + "\n" for w in windows))
-        summary = policy.summarize(eid, manifest_, windows)
-        summary["slot"] = exp.get("slot")
+        summary = {**policy.summarize(eid, manifest_, windows), "slot": exp.get("slot"), "error": None}
         log.append(summary)
         print(f"{eid} slot {exp.get('slot')}: {summary['labels']}  excluded {summary['excluded_reasons']}",
               file=out)
     store.write(f"datasets/{dataset}/tier2/labels/labeling_log.jsonl",
-                "".join(json.dumps(line) + "\n" for line in log + [{"not_labeled": failed}]))
+                "".join(json.dumps(line) + "\n" for line in log))
+    failed = [line for line in log if line["error"]]
     totals: dict = {}
     for line in log:
         for k, v in line["labels"].items():
             totals[k] = totals.get(k, 0) + v
-    print(f"{len(log)} experiments labeled, {len(failed)} not; windows by label {totals}", file=out)
+    print(f"{len(log) - len(failed)} experiments labeled, {len(failed)} not; windows by label {totals}",
+          file=out)
     return log, failed
 
 

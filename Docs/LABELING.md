@@ -40,7 +40,7 @@ aws s3 sync s3://<bucket>/datasets/m4-1-validation/tier2/ ~/mirror/datasets/m4-1
 | Path | Contents |
 |---|---|
 | `tier2/labels/experiment_id=<id>/labels.jsonl` | One line per window of the run: `window_start`, `label` (null when excluded), `included`, `excluded_reason`, and the evidence (`fault_ms` per fault, `multi_fault_ms`, `recovery_ms`). |
-| `tier2/labels/labeling_log.jsonl` | One line per experiment: label counts, exclusion counts and every excluded window with its reason; a last line lists runs that could not be labeled. |
+| `tier2/labels/labeling_log.jsonl` | One line per experiment, all of one shape: label counts, exclusion counts, every excluded window with its reason, and `error` (null, or why the run could not be labeled; such a run has no windows). |
 
 Excluded windows stay in the labels file so the exclusion is logged and M4-5 can see which windows are not
 training rows. A training row is a feature row whose label row has `included: true`.

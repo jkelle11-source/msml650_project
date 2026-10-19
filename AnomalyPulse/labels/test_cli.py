@@ -33,15 +33,19 @@ def test_writes_labels_and_a_log_under_tier2_only():
         base = _dataset(root, [(1, run("NORMAL", [])), (2, slot11()),
                                (3, run("DATABASE_THROTTLING", [bad]))])
         log, failed = label_dataset("d", LocalStore(root), out=io.StringIO())
-        assert len(log) == 2 and len(failed) == 1
+        assert len(log) == 3 and len(failed) == 1
         files = sorted(p.relative_to(root).as_posix() for p in Path(root).rglob("labels*.jsonl"))
         assert all("/tier2/labels/" in f for f in files)
         assert not (Path(root) / "datasets/d/tier1").exists()
         rows = [json.loads(x) for x in (base / "labels/experiment_id=exp-20261016T223852Z-0002/labels.jsonl")
                 .read_text().splitlines()]
         assert {r["label"] for r in rows if r["included"]} == {"NORMAL", "TRAFFIC_SPIKE", "CASCADING_FAILURE"}
-        log_lines = (base / "labels/labeling_log.jsonl").read_text().splitlines()
-        assert json.loads(log_lines[-1])["not_labeled"][0]["error"].count("label_from")
+        log_lines = [json.loads(x) for x in (base / "labels/labeling_log.jsonl").read_text().splitlines()]
+        # One line per experiment, all of one shape, so the log loads as a table.
+        assert [x["slot"] for x in log_lines] == [1, 2, 3]
+        assert len({tuple(sorted(x)) for x in log_lines}) == 1
+        assert log_lines[0]["error"] is None and log_lines[1]["error"] is None
+        assert "label_from" in log_lines[2]["error"] and log_lines[2]["windows"] == 0
 
 
 def test_only_v1_labels_go_to_s3():
