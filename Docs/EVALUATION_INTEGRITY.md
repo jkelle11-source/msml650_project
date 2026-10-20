@@ -200,12 +200,21 @@ rules it follows, so that nothing but the incident varies with the slot.
    3 Lambda and 3 payment runs alternate 2/1 and 1/2 by block. Training comes out 56/56 for spikes and
    throttling and 42/42 for Lambda and payment; validation 14/14, and 11/10 for Lambda and payment, with
    the extra run in opposite bands (Lambda 53/52 overall, payment 52/53).
-3. **Targets and templates in turn.** Lambda degradation's four targets round-robin (21 each in training);
-   cascades cycle the four templates (14 each in training, 4/4/3/3 in validation), and each stage's band
-   alternates across a template's runs. Intensities stay drawn by the builders.
+3. **Targets and templates in turn.** Lambda degradation's four targets take turns within each band, the
+   high band starting halfway round: 21 each in training, 10 or 11 in each band (in turn over all Lambda
+   runs, which M4-2's review replaced, cart-service went 12/9 in training and 5/0 in validation);
+   cascades cycle the four templates (14 each in training, 4/4/3/3 in validation), and a template's runs
+   go through every combination of its stages' bands, in complementary pairs (all low and all high, then
+   the rest), so each stage is 7/7 in training. A three-stage template has all 8 combinations in
+   training; the four-stage one has 14 of its 16 there and the other two in validation. (Decided in
+   M4-2's review: stages that alternate together, or in opposite bands, give a template only two of its
+   combinations, so a heavy stage would always come with the same band of the others.) Intensities stay
+   drawn by the builders.
 4. **Slots are numbered after shuffling:** slot *i* is the *i*-th run, so slot order is generation order.
 5. **Training and validation are separate queues, training first.** A rejected run is retried at the end
-   of its own queue, so training's reruns finish before validation begins.
+   of its own queue, so training's reruns finish before validation begins. `run-batch` enforces the order
+   (M4-2's review): a `v1` train/val queue waits until every slot before its first is accepted or
+   exhausted.
 6. **Training in four daily queues of 140 slots** (7 blocks, ~23.5 h each), then validation's 140. Each
    batch exports when it ends, so M4-4 and M4-5 get each day's runs and a problem shows within a day;
    someone starts the next queue.
@@ -317,6 +326,11 @@ Every intensity in slots 9 and 10 is 0.95, the top of the drawn range, so these 
 cascades of the two templates with a spike. The other two templates have no spike, and the heaviest
 confounder (a 9.9× spike with a 4,450 ms payment failure and no retries) needs about 90 open requests by
 the same arithmetic.
+
+M4-2's review ran the training all-high corners of those other two templates on 2026-10-19 (the queues now
+reach all-high in every template), at every intensity 0.95: both accepted at the first attempt, with at
+most 72 threads in the batch process and 86 Lambda functions at once (`TRAINING_SET.md`, "The heaviest
+cascades, run on the runner").
 
 ## Evaluation Integrity Statement
 

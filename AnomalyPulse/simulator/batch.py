@@ -342,7 +342,13 @@ class _Batch:
         self.accepted = []           # (slot, experiment_id, ended_at) accepted in this batch
 
     def refuse_if_out_of_order(self, records: dict) -> None:
-        """Training is generated first; the test set later, on a separate day (plan section 6b)."""
+        """Training is generated first; the test set later, on a separate day (plan section 6b).
+
+        In the main dataset, training and validation also run in slot order: a
+        queue waits until every slot before its first is accepted or exhausted,
+        so the daily queues go one after another and validation comes last
+        (Docs/EVALUATION_INTEGRITY.md, "Building a queue").
+        """
         groups = {"test" if e["phase"] in ("test", "stress") else "train" for e in self.queue.entries}
         if len(groups) > 1:
             raise BatchRefused("a batch is either training/validation or test/stress, not both: the test set "
@@ -353,6 +359,15 @@ class _Batch:
             if tested:
                 raise BatchRefused(f"test experiments are already generated (slots {tested[:5]}...); "
                                    f"training and validation are generated before the test set")
+            if self.queue.dataset == integrity.GUARDED_DATASET:
+                first = min(e["slot"] for e in self.queue.entries)
+                unfinished = [s for s in range(1, first)
+                              if records.get(s, {}).get("status") not in ("ACCEPTED", "EXHAUSTED")]
+                if unfinished:
+                    raise BatchRefused(
+                        f"{len(unfinished)} of slots 1-{first - 1} aren't finished (the first is slot "
+                        f"{unfinished[0]}); dataset {self.queue.dataset}'s training and validation run in slot "
+                        f"order, so finish the queue holding slot {unfinished[0]} first")
         else:
             trained = [r["generation_date"] for r in accepted if r["phase"] in ("train", "val")]
             today = manifest.to_iso(self.clock())[:10]
