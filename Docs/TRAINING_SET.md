@@ -50,6 +50,27 @@ from the data, not recomputed.
 - Every run is 10 minutes (180 s baseline, 300 s fault, 120 s recovery) at 20 rps in the default mix.
 - No test or stress band appears; `run-batch --dry-run` runs M4-3's guard on every entry.
 
+### The heaviest cascades, run on the runner (2026-10-19)
+
+Going through every combination puts every template at all-high in training. M4-3's validation had run that
+corner only for the two templates with a spike (`EVALUATION_INTEGRITY.md`, "Validation on the runner"), so
+M4-2's review ran the other two there, every intensity 0.95: one batch into dataset `m4-2-validation`
+(`batch-20261019T230019Z-b99d`, commit `90ff01a`, queue `simulator/queues/m4-2-validation.json`).
+
+| Slot | Cascade | Result |
+|---|---|---|
+| 1 | throttling 4.45× → Product +1,085 ms → payment failure 3,450 ms → retries 1.975 | Accepted at the first attempt; 12,300 sent, none dropped; steady throttle rate 0.781 (0.777 expected); 360 retries |
+| 2 | Order +1,085 ms → payment failure 3,450 ms → retries 1.975 | Accepted at the first attempt; 12,332 sent, none dropped; 426 retries |
+
+- **The client:** the batch process's thread count topped out at 72 and 34 (one thread per open request,
+  plus about 18 of the process's own and, in slot 1, the throttling injector's), against the 512 the client
+  keeps open. Neither template has a spike, so traffic stays at 20 rps.
+- **Lambda:** at most 86 functions ran at once across the account (Product 46, Order 29, Payment 23), and
+  Lambda throttled nothing.
+- **Latency:** Product's p95 was 2.9 s under throttling with the slowdown on (3.2 s in the minute
+  `label_from` fell in); Order's 3.5 s in slot 1 and 4.8 s in slot 2, Payment's 3.5 s.
+- `spot_check` passes both.
+
 ## Reproducing the queues
 
 ```bash

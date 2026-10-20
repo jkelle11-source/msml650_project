@@ -10,10 +10,10 @@ the rules in Docs/EVALUATION_INTEGRITY.md ("Building a queue"):
    3 Lambda and 3 payment runs alternate 2/1 and 1/2 by block, in opposite
    bands to each other.
 3. Lambda degradation's targets take turns within each band (the high band
-   starting halfway round), so each target is half and half too; cascades
-   cycle the templates, and
-   a template's runs go through every combination of its stages' bands, in
-   complementary pairs, so each stage is half and half (_cascade_bands).
+   starting halfway round), so each target is half and half too. Cascades
+   cycle the templates, and a template's runs go through every combination of
+   its stages' bands, in complementary pairs, so each stage is half and half
+   (_cascade_bands).
 4. Slots are numbered after shuffling: slot i is the i-th run.
 5./6. Four daily training queues of 140 slots, then one validation queue of 140.
 
