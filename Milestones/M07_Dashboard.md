@@ -15,6 +15,7 @@
 - **Build against a mock feed first.** Agree a dashboard data contract (the JSON the BFF returns) up front so the frontend and API proceed in parallel and the M8 swap to live data is a config change, not a rewrite.
 - **Causation discipline carries through to the UI.** The AI-diagnosis panel presents symptom ordering as an **observed sequence from correlated timestamps** (the §14 "began approximately 40 seconds later (observed sequence…)" wording), never as asserted causation. This is a hard requirement on the diagnosis panel copy.
 - **Ground truth is a first-class panel.** The console must show model prediction *and* injected ground truth together — that side-by-side is what makes the demo quantitatively convincing rather than a plausible story (§15).
+- **Deploy to your own stack, not `anomalypulse-shared`.** The shared stack isn't deployed until M9-1 has generated the test set (README, "Status"). The dashboard, its BFF and their permissions go in a separate stack, and the shared API's CORS (`AllowOrigin: '*'`, "narrow later" in `template.yaml`) waits until after M9-1.
 
 ---
 

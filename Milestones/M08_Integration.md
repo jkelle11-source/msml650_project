@@ -17,6 +17,7 @@
 ## Coordination notes
 - The integration order follows the data flow, so the seams have a natural sequence: **Jake's pipeline → Melisa's detect/classify → Rachel's classify→Bedrock → Josh's Bedrock→feed → Linu's live UI**. Each is blocked by the prior seam but the *interfaces* were all agreed in M5–M7, so gaps should be wiring, not redesign.
 - Preserve the two hard invariants end-to-end: **Tier-1-only features** into the models (M4-5 guard still green on the live path) and **observed-sequence wording** on any ordering shown to a human.
+- **The pipeline is its own stack, and runs alongside the shipper until M9-1.** `anomalypulse-shared` isn't deployed until M9-1 has generated the test set (README, "Status"), so `M8-1` doesn't replace the shipper or edit its subscription filters: the test set's telemetry must reach S3 the way training's did. The pipeline reads what the shipper and the metrics extractor land, triggered by an EventBridge schedule or a second subscription filter per service log group (each has 1 of 2), never by S3 notifications on the shared bucket. It writes under its own prefix and to its own Incidents table, never `raw/`, `metrics/`, `experiments/` or `datasets/`. Replacing the shipper, if still wanted, comes after M9-1.
 
 ---
 

@@ -15,6 +15,7 @@
 - **Input contract, not a log dump.** Bedrock receives structured evidence — the classified incident, confidence, duration, metric deltas, affected services (the JSON shape in §10) — never raw logs. The exact input schema is agreed with Rachel (classifier output, `M5-3`) so the M8 seam is trivial; capture it as a checklist item here, not a separate person's issue.
 - **Causation discipline.** Any ordering language ("failures began ~40s after latency rose") is phrased as an **observed sequence from correlated timestamps**, not proven causation. This wording rule is baked into the prompt and the output template so the dashboard (M7) and demo (M10) inherit it.
 - GenAI **quality evaluation** (evidence fidelity, hallucination rate, actionability, completeness) is scored in `M9-5` on the held-out test set — this milestone builds the generator and a smoke-level self-check, not the formal eval.
+- **Deploy to your own stack, not `anomalypulse-shared`.** The shared stack isn't deployed until M9-1 has generated the test set (README, "Status"), so the diagnosis Lambda, its Bedrock permissions and anything else this milestone adds go in a separate stack that reads the shared stack's SSM parameters.
 
 ---
 
