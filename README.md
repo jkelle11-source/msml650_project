@@ -31,10 +31,33 @@ is the front door: what the repo contains, its current status, and how to plug i
 Every M4 run is 10 minutes (3 baseline, 5 fault, 2 recovery) at 20 rps, from the runner host.
 After each daily batch: the spot check, then labels, then features ([Docs/TRAINING_SET.md](Docs/TRAINING_SET.md), "Running it").
 
-**No deploys until `v1`'s test set is generated (M9-1).** `v1` is pinned to the stack's configuration and the
-runner host, and its test set must run on both: after a deploy, the test set's batches refuse to start. With
-slots 1–700 done, other experiments can run again, one at a time, but never during a batch. The runner host
-stays stopped between batches and is terminated only after M9-1.
+**The shared stack (`anomalypulse-shared`) is not deployed until M9-1 has generated `v1`'s test set.** The
+test set must come from the same system as the training set, or its scores partly measure the change. `v1`'s
+pin records only the service functions, the metrics extractor and the Products table, but a deploy can change
+far more that shapes the telemetry without touching a service resource: `Globals` (they apply to every
+function), environment variables, the shipper and its subscription filters, API Gateway, the other tables. The
+stack was last updated 2026-10-16 03:17 UTC, before `v1` was pinned, so all 700 runs came from an undeployed
+stack. M9-1 checks it still is:
+
+```bash
+aws cloudformation describe-stacks --stack-name anomalypulse-shared --query "Stacks[0].LastUpdatedTime" --output text --profile dev
+# 2026-10-16T03:17:23.356000+00:00
+```
+
+**Everything M5–M8 add goes in its own stack** (the Diagnosis Lambda, the Incidents table, the event pipeline,
+the dashboard, SageMaker roles), reading the shared stack's SSM parameters below. Read the telemetry from S3,
+triggered by an EventBridge schedule or by a second subscription filter on a service's log group (each uses 1
+of its 2); never S3 event notifications, which change the shared bucket. Nothing new writes under `raw/`,
+`metrics/`, `experiments/` or `datasets/`, and nothing calls the app's API or its tables except the simulator.
+No edits in the console either: they bypass CloudFormation and the timestamp.
+
+**The simulator's run-time code is frozen too.** M9-1 runs from a commit newer than `0557121` (the one `v1`'s
+training and validation ran from), because it adds the test set's queue generator. Before it starts, diff
+`AnomalyPulse/simulator/` against `0557121`: only the queue generator, its queue files and docs may differ, not
+the workload, the injectors or the batch's checks.
+
+With slots 1–700 done, other experiments can run again, one at a time, but never during a batch. The runner
+host stays stopped between batches and is terminated only after M9-1.
 
 **Milestone 3 — Incident Simulator** (complete, merged to `main` and validated on the deployed
 stack, 2026-10-15). M3 built the tool that deliberately
@@ -75,8 +98,8 @@ a run's effect in landed telemetry, phase by phase.
   [Milestones/M04_Dataset.md](Milestones/M04_Dataset.md)).
 - **Run one experiment at a time.** Don't send other traffic to the API during a run.
 - **Leave the stack's configuration alone.** M4 keeps it as of PR #70 (the list is in
-  [Milestones/M04_Dataset.md](Milestones/M04_Dataset.md)); deploy only from `main` or a
-  branch that's up to date with it.
+  [Milestones/M04_Dataset.md](Milestones/M04_Dataset.md)), and `anomalypulse-shared` isn't
+  deployed at all until M9-1 has generated the test set (Status, above).
 
 **Milestone 2 — Observability** (complete, merged to `main`). Every request emits
 structured telemetry against an enforced schema, and that telemetry lands centrally
@@ -233,8 +256,8 @@ The Products table is `anomalypulse-products-v2`, created provisioned at 200 RCU
 depends on the table's partitions, so the table must never switch billing mode or
 change capacity during M4 ([Docs/DB_THROTTLING_INJECTOR.md](Docs/DB_THROTTLING_INJECTOR.md)).
 
-**Don't change memory, capacity, retries or these handlers' timing while M4
-generates its dataset.** They move every latency, duration and read-cost feature,
+**Don't change memory, capacity, retries or these handlers' timing until M9-1 has
+generated `v1`'s test set.** They move every latency, duration and read-cost feature,
 so runs before and after a change are not comparable.
 
 ### Telemetry landing zone (S3)

@@ -15,6 +15,7 @@
 
 ## Coordination notes
 - **The LLM is not the anomaly detector.** Detection/classification is fully owned by this milestone's ML; Bedrock only explains (§8, §20). Keep that separation clean.
+- **Deploy to your own stack, not `anomalypulse-shared`.** The shared stack isn't deployed until M9-1 has generated the test set (README, "Status"), so SageMaker's roles and any artifact bucket go in a separate stack. Train only on `v1`'s slots 1–700 (`integrity.temporal_split`): the test set, once generated, sits in the same dataset.
 - **SageMaker for training only.** A persistent real-time endpoint is billed per idle hour and would be the single most expensive component in an otherwise serverless design; it would also undercut the §16 cost story. Artifact → S3 → loaded by the Diagnosis Lambda at cold start (or a container Lambda). A managed inference path, if ever wanted, uses **SageMaker Serverless Inference** with an explicit idle-cost comparison — not a real-time endpoint.
 - **Report against the baseline, and read the two signals correctly** (§8, Model 0): the **margin over the threshold baseline** measures *multivariate learning* (most informative on cascades); the **train/test gap on held-out bands** measures *overfitting to simulator artifacts*. They are different questions — a small margin is not by itself evidence of overfitting.
 - All final metrics are computed on the temporally held-out test set in M9, never on train/validation.

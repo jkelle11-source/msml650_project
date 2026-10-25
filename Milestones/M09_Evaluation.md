@@ -39,6 +39,7 @@
 - The queue is built with `simulator/integrity.py`'s builders; `run-batch` refuses a `v1` entry that breaks a control (`Docs/EVALUATION_INTEGRITY.md`). The test-set kinds (12-minute faults, confounders, the stress bands) haven't run on the runner yet: validate them in a separate dataset first.
 - A 2-minute DB-throttling run that leaves no labeled window (when `label_from` falls in a minute's first 18 s, about 3 runs in 10) is rerun: `run-batch` rejects it (decided in M4-4's review, `Docs/LABELING.md`, "Windows per run"). Expect a few extra reruns among the varied-duration runs.
 - Test set registered, dated, and confirmed **not inspected** until all training/validation work was complete.
+- **Before the first test batch, check the system is the one training ran on.** `anomalypulse-shared`'s `LastUpdatedTime` still reads 2026-10-16T03:17:23Z, the time before `v1` was pinned (M5–M8 deploy to their own stack, README "Status"). A `git diff 0557121 -- AnomalyPulse/simulator/` shows only the test set's queue generator, its queues and docs, not the workload, the injectors or the batch's checks. The batch's own pin check covers the service functions, the metrics extractor and the Products table on top of that.
 
 **Definition of Done**
 - [ ] Test set generated on a separate day from training (dates in the registry prove it).
