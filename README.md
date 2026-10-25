@@ -18,17 +18,23 @@ is the front door: what the repo contains, its current status, and how to plug i
 
 ## Status
 
-**Milestone 4 — Dataset** (in progress; [Milestones/M04_Dataset.md](Milestones/M04_Dataset.md)).
+**Milestone 4 — Dataset** (complete, 2026-10-25; [Milestones/M04_Dataset.md](Milestones/M04_Dataset.md)).
 
 | Piece | Owner | Status |
 |---|---|---|
-| **M4-1** Batch runner, experiment registry, S3 dataset layout, runner host | Jake | Built: `python -m simulator run-batch`, the `datasets/<name>/` layout (`tier1/` apart from `tier2/`), the `anomalypulse-runner` stack ([Docs/DATASET.md](Docs/DATASET.md)). Validated on the runner host: capacity check, an 11-run batch, and DB throttling from the runner (fixed: 16 clients, the surge ends on 10 s of served reads) |
-| **M4-2** Generate training + validation set (1–700) | Josh | Waiting on M4-1, M4-3 |
-| **M4-3** Bands, temporal split, diversity protocol | Linu | Open |
-| **M4-4** Window labeling | Melisa | Open |
-| **M4-5** Features + Feature/Label Boundary guard | Rachel | Open |
+| **M4-1** Batch runner, experiment registry, S3 dataset layout, runner host | Jake | ✅ Done: `python -m simulator run-batch`, the `datasets/<name>/` layout (`tier1/` apart from `tier2/`), the `anomalypulse-runner` stack ([Docs/DATASET.md](Docs/DATASET.md)). Validated on the runner host: capacity check, an 11-run batch, and DB throttling from the runner (fixed: 16 clients, the surge ends on 10 s of served reads) |
+| **M4-2** Generate training + validation set (1–700) | Josh | ✅ Done: 700 of 700 accepted (2026-10-20 to 25 UTC): training (1–560) in `v1-train-1` to `v1-train-4`, validation (561–700) in `v1-val`. Every class on target, 2 reruns, 1 interrupted run redone, none exhausted; every spot check passed; 4,438 training rows (3,553 train, 885 val). Queues, spot check and runbook: [Docs/TRAINING_SET.md](Docs/TRAINING_SET.md) (PR #75) |
+| **M4-3** Bands, temporal split, diversity protocol | Linu | ✅ Done: `simulator/integrity.py` (interleaved bands, temporal split, diversity protocol, stress slice, cascade templates, the `v1` queue guard), validated on the runner ([Docs/EVALUATION_INTEGRITY.md](Docs/EVALUATION_INTEGRITY.md), PR #74) |
+| **M4-4** Window labeling | Melisa | ✅ Done: `python -m labels`, one label or one logged exclusion per one-minute window ([Docs/LABELING.md](Docs/LABELING.md), PR #73) |
+| **M4-5** Features + Feature/Label Boundary guard | Rachel | ✅ Done: `python -m features`, 106 Tier-1 columns per window, and the guard that fails the build on a Tier-2 name ([Docs/FEATURE_MATRIX.md](Docs/FEATURE_MATRIX.md), PR #76) |
 
 Every M4 run is 10 minutes (3 baseline, 5 fault, 2 recovery) at 20 rps, from the runner host.
+After each daily batch: the spot check, then labels, then features ([Docs/TRAINING_SET.md](Docs/TRAINING_SET.md), "Running it").
+
+**No deploys until `v1`'s test set is generated (M9-1).** `v1` is pinned to the stack's configuration and the
+runner host, and its test set must run on both: after a deploy, the test set's batches refuse to start. With
+slots 1–700 done, other experiments can run again, one at a time, but never during a batch. The runner host
+stays stopped between batches and is terminated only after M9-1.
 
 **Milestone 3 — Incident Simulator** (complete, merged to `main` and validated on the deployed
 stack, 2026-10-15). M3 built the tool that deliberately
@@ -119,13 +125,19 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [Docs/TELEMETRY_CONTRACT.md](Docs/TELEMETRY_CONTRACT.md) | The telemetry contract (M2): field list, Tier-1/Tier-2 split, timestamp/`request_id` discipline, and S3 layout. |
 | [Docs/SIMULATOR_INTERFACE.md](Docs/SIMULATOR_INTERFACE.md) | The incident simulator reference (M3): injector interface, experiment manifest, how to run an experiment, teardown. |
 | [Docs/DATASET.md](Docs/DATASET.md) | The dataset (M4): batches and their checks, the experiment registry, the `datasets/` S3 layout, the runner host. |
+| [Docs/EVALUATION_INTEGRITY.md](Docs/EVALUATION_INTEGRITY.md) | The leakage controls (M4-3): interleaved bands, the temporal split, the diversity protocol, cascade templates, how a queue is built, and the Evaluation Integrity Statement. |
+| [Docs/TRAINING_SET.md](Docs/TRAINING_SET.md) | `v1`'s training and validation set (M4-2): the train/val cut, what the queues hold, the runbook for each daily batch, and its status. |
+| [Docs/LABELING.md](Docs/LABELING.md) | Window labels (M4-4): the labeling decisions and the file format. |
+| [Docs/FEATURE_MATRIX.md](Docs/FEATURE_MATRIX.md) | The feature matrix (M4-5): how to build it, and every column with its definition and tier (generated from the code). |
 | [Docs/Summary.md](Docs/Summary.md) | Short project summary draft. |
 | [Milestones/](Milestones/) | The ten milestone specs (M1–M10), each with issues and Definition of Done. |
 | [Handoffs/](Handoffs/) | Onboarding and handoff docs — [M1-1_Handoff.md](Handoffs/M1-1_Handoff.md) (stack + team conventions), [M2-1_Handoff.md](Handoffs/M2-1_Handoff.md) (how to emit telemetry) and [M3-1_Handoff.md](Handoffs/M3-1_Handoff.md) (how to write an injector). |
 | [AnomalyPulse/infra/shared/](AnomalyPulse/infra/shared/) | The SAM stack — `template.yaml` defines the four Lambdas, their API routes, DynamoDB tables, per-service IAM roles, the telemetry layer, the S3 landing bucket, the log groups + subscription filters, and the SSM parameters. Also holds `field_catalog.json` (the full field registry incl. Tier-2) and `shipper/` (the CloudWatch Logs → S3 shipper Lambda). |
 | [AnomalyPulse/layers/telemetry/](AnomalyPulse/layers/telemetry/) | The `anomalypulse-telemetry` Lambda layer — the frozen `telemetry_schema.json` + `schema_validator.py`, plus `fault_config.py` (the reader each handler uses to pick up injected faults, M3), attached to every function and imported by service handlers and tests. |
 | [AnomalyPulse/services/](AnomalyPulse/services/) | The service code: one folder per service (`product/`, `cart/`, `order/`, `payment/`), each with `handler.py` and `test_handler.py`. |
-| [AnomalyPulse/simulator/](AnomalyPulse/simulator/) | The incident simulator (M3) — a local Python package, not deployed to Lambda. The runner and CLI, the experiment manifest schema, the experiment lock, the fault control-plane writer, the baseline workload (`workload.py`), the per-run telemetry report (`telemetry_report.py`), and `injectors/` (the interface, the registry, and one file per injector). M4's batch runner (`batch.py`), registry and layout (`dataset.py`), export (`export.py`), frozen-configuration check (`stack_config.py`) and queue files (`queues/`). |
+| [AnomalyPulse/simulator/](AnomalyPulse/simulator/) | The incident simulator (M3) — a local Python package, not deployed to Lambda. The runner and CLI, the experiment manifest schema, the experiment lock, the fault control-plane writer, the baseline workload (`workload.py`), the per-run telemetry report (`telemetry_report.py`), and `injectors/` (the interface, the registry, and one file per injector). M4's batch runner (`batch.py`), registry and layout (`dataset.py`), export (`export.py`), frozen-configuration check (`stack_config.py`), evaluation-integrity controls (`integrity.py`), queue generator (`build_queues.py`), telemetry spot check (`spot_check.py`) and queue files (`queues/`). |
+| [AnomalyPulse/labels/](AnomalyPulse/labels/) | M4-4's window labeler (`python -m labels`): the labeling policy and the labels it writes under `tier2/labels/`. |
+| [AnomalyPulse/features/](AnomalyPulse/features/) | M4-5's feature matrix (`python -m features`): the per-window Tier-1 features, the Feature/Label Boundary guard, and the join to the labels. |
 | [AnomalyPulse/infra/runner/](AnomalyPulse/infra/runner/) | M4's runner host: its own CloudFormation stack (`anomalypulse-runner`: one EC2 instance, reached through Session Manager), `setup.sh` and the tmux helper. |
 
 ---

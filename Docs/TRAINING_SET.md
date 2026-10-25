@@ -128,8 +128,37 @@ short of the counts above, in that run's class.
 
 | Queue | Batch | Started (UTC) | Accepted | Exhausted | Spot check | Labels + features |
 |---|---|---|---|---|---|---|
-| v1-train-1 | | | | | | |
-| v1-train-2 | | | | | | |
-| v1-train-3 | | | | | | |
-| v1-train-4 | | | | | | |
-| v1-val | | | | | | |
+| v1-train-1 | `batch-20261020T003325Z-4b00` | 2026-10-20 00:33 (finished 23:59) | 140 of 140, in 140 runs (no reruns) | 0 | Passed | 905 training rows, 635 windows excluded; 0 errors |
+| v1-train-2 | `batch-20261021T030239Z-0416` | 2026-10-21 03:02 (finished 10-22 02:38) | 140 of 140, in 141 runs (1 rerun) | 0 | Passed | 886 training rows, 654 windows excluded; 0 errors |
+| v1-train-3 | `batch-20261022T033044Z-6a4f` | 2026-10-22 03:30 (finished 10-23 02:56) | 140 of 140, in 140 runs (no reruns) | 0 | Passed | 876 training rows, 665 windows excluded; 0 errors |
+| v1-train-4 | `batch-20261023T051312Z-cbee` (`FAILED` at slot 542), then `batch-20261024T015359Z-2f9a` | 2026-10-23 05:13 (finished 10-24 05:09) | 140 of 140, in 141 runs (slot 542's first attempt interrupted; no reruns) | 0 | Passed | 886 training rows, 654 windows excluded; 0 errors |
+| v1-val | `batch-20261024T110907Z-1bf3` | 2026-10-24 11:09 (finished 10-25 10:44) | 140 of 140, in 141 runs (1 rerun) | 0 | Passed | 885 training rows, 655 windows excluded; 0 errors |
+
+**Done: 700 of 700 accepted, none exhausted,** generated 2026-10-20 to 25 UTC. The registry's class counts are
+the queues' (112/112/112/84/84/56 in training, 28/28/28/21/21/14 in validation), and the labels give M5
+4,438 training rows (labeled windows with features):
+
+| Label | Train (1–560) | Val (561–700) |
+|---|---|---|
+| NORMAL | 1,492 | 375 |
+| TRAFFIC_SPIKE | 574 | 144 |
+| LAMBDA_DEGRADATION | 434 | 108 |
+| DEPENDENCY_FAILURE | 420 | 105 |
+| DATABASE_THROTTLING | 418 | 100 |
+| CASCADING_FAILURE | 215 | 53 |
+| **Total** | **3,553** | **885** |
+
+NORMAL leads because every run contributes its two baseline minutes as well as its own label's windows.
+
+**Labels + features** counts each batch's runs in the logs of the latest rebuild (`labeling_log.jsonl`,
+`feature_log.jsonl`; both rewrite all of `v1`): training rows are labeled windows, each joined to its
+features; excluded windows are the startup minute, partial windows, recovery and the DB-throttling onset;
+errors are runs with an error in either log. No window has been missing a CloudWatch snapshot. Rows per
+batch vary with each run's start second and where `label_from` falls (`LABELING.md`, "Windows per run").
+
+**`v1-train-4` took two batches.** A Ctrl+C in its tmux window stopped it during slot 542. Ctrl+C there also
+stops the `tee` that writes the log, so the batch's next print failed and it ended `FAILED` with a broken
+pipe, not `ABORTED`. `python -m simulator cleanup`, then the same `in-tmux.sh` command, resumed it: slot 541's
+CloudWatch check, slot 542 again with the same seed, then 543–560. The interrupted attempt is never
+exported. To watch a batch, use `tail -f ~/logs/<session>-*.log`; to leave an attached tmux window, press
+Ctrl-b then d, never Ctrl+C.
