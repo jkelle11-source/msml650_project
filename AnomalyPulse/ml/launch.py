@@ -5,6 +5,8 @@
     python -m ml.launch smoke               # one smoke job per image, as --profile ml
     python -m ml.launch train --dry-run     # print the training request; create nothing
     python -m ml.launch train -C 0.5        # train once; train.py's default for what isn't given
+    python -m ml.launch tune --dry-run      # print the tuning request; create nothing
+    python -m ml.launch tune                # tune C: TUNE_JOBS training jobs, TUNE_PARALLEL at a time
 
 Every job runs as anomalypulse-sagemaker-training with network isolation on: its code 
 arrives through a `code` channel and its data through manifest channels, which list 
@@ -18,11 +20,19 @@ has (Python, libraries, environment) without judging it. Exits 0 when every job 
 and passed, 1 when not, 2 when the launcher lost contact with a job that may still be
 running.
 
-`train` runs ml/job/train.py in the XGBoost image. Its `train` channel copies in v1's
+`train` runs ml/job/train.py in our copy of the XGBoost image (the anomalypulse-ml
+stack's training image: at AWS's own address SageMaker would let a tuning job tune
+only XGBoost's settings, never C). Its `train` channel copies in v1's
 slots 1-560 and its `validation` channel 561-700, each run's features and labels at their
 dataset paths. It prints the package's model.json and checks it: the job read every run
 sent, and its libraries are ml/requirements-image.txt's, the ones the Diagnosis Lambda
 loads the model with. Exit codes as for smoke.
+
+`tune` runs train's job under a SageMaker tuning job: the same image, code, channels and
+role, with C chosen by the tuner from TUNE_RANGES and each job scored by the
+validation:macro_f1 line train.py prints. It lists every job it launched, then checks the
+best one's model as `train` does, and that the score the tuner read is model.json's. Exit
+codes as for smoke; 1 also when any of its training jobs failed.
 """
 import argparse
 import io
@@ -71,8 +81,6 @@ SMOKE_HYPERPARAMETERS = {"C": 0.5, "max_iter": 200}
 SMOKE_ARGV_PREDICTED = ["-C", "0.5", "--max_iter", "200"]
 SMOKE_ENV = ("SM_MODEL_DIR", "SM_CHANNEL_CODE", "SM_CHANNEL_FEATURES", "SM_CHANNEL_LABELS")
 
-# The smoke jobs of 2026-10-27 chose it: it has scikit-learn and xgboost (M5-2, M5-3).
-TRAIN_IMAGE = "xgboost"
 # The job imports join_labels from beside train.py, so the bundle carries it.
 TRAIN_CODE = (JOB_DIR / "train.py", JOB_DIR.parent.parent / "features" / "join_labels.py")
 # {channel: its temporal_split partition}. Both channels copy in both trees.
@@ -81,14 +89,31 @@ MODEL_FORMAT = 1
 # The Diagnosis Lambda installs these versions, so the model must have been trained with them.
 PINS = JOB_DIR.parent / "requirements-image.txt"
 
+# What the tuner may set. C on a log scale: each tenfold step changes the model about as much.
+TUNE_RANGES = {"ContinuousParameterRanges": [
+    {"Name": "C", "MinValue": "0.001", "MaxValue": "100", "ScalingType": "Logarithmic"}]}
+TUNE_JOBS = 4
+TUNE_PARALLEL = 2
+# Fixed, so a rerun tries the same values.
+TUNE_SEED = 650
+OBJECTIVE = "validation:macro_f1"
+# Read from the job's log, from the lines train.py prints. train:macro_f1 shows each job's gap.
+METRICS = [{"Name": "validation:macro_f1", "Regex": "validation:macro_f1=([0-9\\.]+)"},
+           {"Name": "train:macro_f1", "Regex": "train:macro_f1=([0-9\\.]+)"}]
+# The tuner reads a score rounded to 6 decimals; model.json keeps every digit.
+SCORE_TOLERANCE = 1e-6
+
 class LostContact(Exception):
-    """describe_training_job failed: the job itself may still be running."""
+    """A describe call failed: the job itself may still be running."""
     
 def lookup(session):
-    """The buckets and the training role, from the two stacks' SSM parameters."""
+    """The buckets, the training role and the training image, from the two stacks' SSM
+    parameters. The image is our copy of IMAGES["xgboost"], which the smoke jobs of
+    2026-10-27 chose: it has scikit-learn and xgboost (M5-2, M5-3)."""
     names = {"telemetry_bucket": "/anomalypulse/telemetry/bucket/name",
              "ml_bucket": "/anomalypulse/ml/bucket/name",
-             "role_arn": "/anomalypulse/ml/training-role-arn"}
+             "role_arn": "/anomalypulse/ml/training-role-arn",
+             "training_image": "/anomalypulse/ml/training-image-uri"}
     found = session.client("ssm").get_parameters(Names = list(names.values()))["Parameters"]
     values = {p["Name"]: p["Value"] for p in found}
     missing = [name for name in names.values() if name not in values]
@@ -176,6 +201,14 @@ def job_name(kind, variant, now):
         raise ValueError(f"training job names are at most 63 characters: {name}")
     return name
 
+def tuning_job_name(now):
+    """Each training job a tuning job launches is named <its name>-<number>-<hash>, so it
+    starts with anomalypulse- too, as the trainer role requires."""
+    name = f"anomalypulse-hpo-{now:%y%m%d%H%M%S}"
+    if len(name) > 32:
+        raise ValueError(f"tuning job names are at most 32 characters: {name}")
+    return name
+
 def code_key(name):
     return f"code/{name}/sourcedir.tar.gz"
 
@@ -212,10 +245,36 @@ def job_request(name, image_uri, entry_point, hyperparameters, config, channels 
         "ProfilerConfig": {"DisableProfiler": True},
     }
 
-def launch(s3, sm, bucket, request, uploads):
-    """Upload {key: bytes} to the ML bucket, then create the job, which reads them as it starts."""
+def tuning_request(name, config):
+    """The create_hyper_parameter_tuning_job request; no AWS call. Its training jobs are
+    train's, from job_request, so they can't drift from it: C is left to the tuner, and
+    the tuning API has no TrainingJobName or ProfilerConfig."""
+    job = job_request(name, config["training_image"], "train.py", {}, config, channels = tuple(TRAIN_CHANNELS))
+    definition = {key: value for key, value in job.items()
+                  if key not in ("TrainingJobName", "HyperParameters", "ProfilerConfig")}
+    definition["StaticHyperParameters"] = job["HyperParameters"]
+    definition["AlgorithmSpecification"] = dict(job["AlgorithmSpecification"], MetricDefinitions = METRICS)
+    return {
+        "HyperParameterTuningJobName": name,
+        "HyperParameterTuningJobConfig": {
+            "Strategy": "Bayesian",
+            "HyperParameterTuningJobObjective": {"Type": "Maximize", "MetricName": OBJECTIVE},
+            "ResourceLimits": {"MaxNumberOfTrainingJobs": TUNE_JOBS, "MaxParallelTrainingJobs": TUNE_PARALLEL},
+            "ParameterRanges": TUNE_RANGES,
+            "TrainingJobEarlyStoppingType": "Off",
+            "RandomSeed": TUNE_SEED,
+        },
+        "TrainingJobDefinition": definition,
+    }
+
+def upload(s3, bucket, uploads):
+    """Put {key: bytes} in the ML bucket."""
     for key, body in uploads.items():
         s3.put_object(Bucket = bucket, Key = key, Body = body)
+
+def launch(s3, sm, bucket, request, uploads):
+    """Upload {key: bytes} to the ML bucket, then create the job, which reads them as it starts."""
+    upload(s3, bucket, uploads)
     sm.create_training_job(**request)
 
 def wait(sm, names, out = sys.stdout, poll_s = POLL_S, sleep = time.sleep):
@@ -240,6 +299,33 @@ def wait(sm, names, out = sys.stdout, poll_s = POLL_S, sleep = time.sleep):
         if len(done) == len(names):
             return done
         sleep(poll_s)
+
+def wait_tuning(sm, name, out = sys.stdout, poll_s = POLL_S, sleep = time.sleep):
+    """describe_hyper_parameter_tuning_job once the tuning job has finished, printing each
+    change in its status or in its training jobs' counts. A failed describe raises LostContact."""
+    last = None
+    while True:
+        try:
+            d = sm.describe_hyper_parameter_tuning_job(HyperParameterTuningJobName = name)
+        except (BotoCoreError, ClientError) as err:
+            raise LostContact(f"{name}: {type(err).__name__}: {err}") from err
+        counts = tuple((key, n) for key, n in sorted((d.get("TrainingJobStatusCounters") or {}).items()) if n)
+        status = (d["HyperParameterTuningJobStatus"], counts)
+        if status != last:
+            jobs = ", ".join(f"{key} {n}" for key, n in counts) or "none yet"
+            print(f"{datetime.now(timezone.utc):%H:%M:%S} {name}: {status[0]}; training jobs: {jobs}", file = out)
+            last = status
+        if status[0] in FINISHED:
+            return d
+        sleep(poll_s)
+
+def tuning_jobs(sm, name):
+    """The summaries of every training job the tuning job launched, by C."""
+    jobs = []
+    for page in sm.get_paginator("list_training_jobs_for_hyper_parameter_tuning_job").paginate(
+            HyperParameterTuningJobName = name):
+        jobs += page["TrainingJobSummaries"]
+    return sorted(jobs, key = lambda job: float(job["TunedHyperParameters"]["C"]))
 
 def read_report(s3, description, member = "smoke.json"):
     """One file from the job's model.tar.gz (SageMaker's archive of /opt/ml/model)."""
@@ -395,26 +481,16 @@ def smoke(args, out=sys.stdout):
         print(f"  report: {d['ModelArtifacts']['S3ModelArtifacts']} (smoke.json)", file=out)
     return 0 if passed_all else 1
 
-def train(args, out = sys.stdout):
-    import boto3
-    session = boto3.Session(profile_name = args.profile, region_name = REGION)
-    config = lookup(session)
-    s3, sm = session.client("s3"), session.client("sagemaker")
-
+def prepare(s3, config, name, out):
+    """(ids, uploads) for a training or tuning job named `name`: the train/validation split,
+    every file of it checked present, and the code and manifests to upload. Prints what the
+    channels hold."""
     ids = split_ids(train_val_records(s3, config["telemetry_bucket"]))
     empty = [channel for channel, experiment_ids in ids.items() if not experiment_ids]
     if empty:
         raise RuntimeError(f"no accepted {DATASET} runs for the {' or '.join(empty)} channel")
     sizes = check_present(s3, config["telemetry_bucket"], channel_files(ids["train"] + ids["validation"]))
     code = bundle(TRAIN_CODE)
-    pins = read_pins()
-    # Only what was given: train.py's defaults hold for the rest, and model.json records both.
-    hyperparameters = {name: value for name, value in (("C", args.C), ("max_iter", args.max_iter))
-                       if value is not None}
-
-    name = job_name("train", "logreg", datetime.now(timezone.utc))
-    request = job_request(name, IMAGES[TRAIN_IMAGE], "train.py", hyperparameters, config,
-                          channels = tuple(TRAIN_CHANNELS))
     uploads = {code_key(name): code}
     for channel, experiment_ids in ids.items():
         keys = dataset_keys(channel_files(experiment_ids))
@@ -423,12 +499,47 @@ def train(args, out = sys.stdout):
         print(f"{channel}: {len(experiment_ids)} runs, {len(keys)} files", file = out)
     total = sum(sum(tree.values()) for tree in sizes.values())
     print(f"{total / 1e6:.1f} MB of data; bundle {len(code)} bytes", file = out)
+    return ids, uploads
+
+def print_dry_run(request, uploads, out):
+    print(json.dumps(request, indent = 2, sort_keys = True), file = out)
+    for key, body in uploads.items():
+        if key.endswith(".manifest"):
+            entries = json.loads(body)
+            print(f"{key}: {entries[0]}, then {len(entries) - 1} keys from {entries[1]}", file = out)
+
+def report_model(s3, d, ids, pins, out):
+    """(model.json, [(check, passed, detail)]) for a completed training job, printing both
+    and where its model is."""
+    model = read_report(s3, d, member = "model.json")
+    for line in summary(model):
+        print(f"  {line}", file = out)
+    results = check_model(model, ids, pins)
+    for check, passed, detail in results:
+        print(f"  {'PASS' if passed else 'FAIL'} {check:<16} {detail}", file = out)
+    artifact = d["ModelArtifacts"]["S3ModelArtifacts"]
+    bucket, key = artifact[len("s3://"):].split("/", 1)
+    # The bucket keeps every version; this one is the model just trained.
+    version = s3.head_object(Bucket = bucket, Key = key).get("VersionId")
+    print(f"  model: {artifact} (version {version})", file = out)
+    return model, results
+
+def train(args, out = sys.stdout):
+    import boto3
+    session = boto3.Session(profile_name = args.profile, region_name = REGION)
+    config = lookup(session)
+    s3, sm = session.client("s3"), session.client("sagemaker")
+
+    name = job_name("train", "logreg", datetime.now(timezone.utc))
+    ids, uploads = prepare(s3, config, name, out)
+    pins = read_pins()
+    # Only what was given: train.py's defaults hold for the rest, and model.json records both.
+    hyperparameters = {setting: value for setting, value in (("C", args.C), ("max_iter", args.max_iter))
+                       if value is not None}
+    request = job_request(name, config["training_image"], "train.py", hyperparameters, config,
+                          channels = tuple(TRAIN_CHANNELS))
     if args.dry_run:
-        print(json.dumps(request, indent = 2, sort_keys = True), file = out)
-        for key, body in uploads.items():
-            if key.endswith(".manifest"):
-                entries = json.loads(body)
-                print(f"{key}: {entries[0]}, then {len(entries) - 1} keys from {entries[1]}", file = out)
+        print_dry_run(request, uploads, out)
         return 0
 
     launch(s3, sm, config["ml_bucket"], request, uploads)
@@ -446,18 +557,62 @@ def train(args, out = sys.stdout):
         for line in tail_log(session.client("logs"), name):
             print(f"  | {line}", file = out)
         return 1
-    model = read_report(s3, d, member = "model.json")
-    for line in summary(model):
-        print(f"  {line}", file = out)
-    results = check_model(model, ids, pins)
-    for check, passed, detail in results:
-        print(f"  {'PASS' if passed else 'FAIL'} {check:<16} {detail}", file = out)
-    artifact = d["ModelArtifacts"]["S3ModelArtifacts"]
-    bucket, key = artifact[len("s3://"):].split("/", 1)
-    # The bucket keeps every version; this one is the model just trained.
-    version = s3.head_object(Bucket = bucket, Key = key).get("VersionId")
-    print(f"  model: {artifact} (version {version})", file = out)
+    _, results = report_model(s3, d, ids, pins, out)
     return 0 if all(passed for _, passed, _ in results) else 1
+
+def tune(args, out = sys.stdout):
+    import boto3
+    session = boto3.Session(profile_name = args.profile, region_name = REGION)
+    config = lookup(session)
+    s3, sm = session.client("s3"), session.client("sagemaker")
+
+    name = tuning_job_name(datetime.now(timezone.utc))
+    ids, uploads = prepare(s3, config, name, out)
+    pins = read_pins()
+    request = tuning_request(name, config)
+    if args.dry_run:
+        print_dry_run(request, uploads, out)
+        return 0
+
+    upload(s3, config["ml_bucket"], uploads)
+    sm.create_hyper_parameter_tuning_job(**request)
+    print(f"created {name}", file = out)
+    try:
+        d = wait_tuning(sm, name, out = out)
+        jobs = tuning_jobs(sm, name)
+    except LostContact as err:
+        print(f"LOST CONTACT {err}\nThe tuning job keeps running. Check it with: aws sagemaker "
+              f"describe-hyper-parameter-tuning-job --hyper-parameter-tuning-job-name {name} "
+              f"--profile {args.profile}", file = out)
+        return 2
+
+    print(f"\n{name}: {d['HyperParameterTuningJobStatus']}", file = out)
+    for job in jobs:
+        score = (job.get("FinalHyperParameterTuningJobObjectiveMetric") or {}).get("Value")
+        print(f"  C {float(job['TunedHyperParameters']['C']):<10.4g} {job['TrainingJobStatus']:<10} "
+              f"{OBJECTIVE} {'-' if score is None else f'{score:.4f}'}  {job['TrainingJobName']}", file = out)
+    failed = [job for job in jobs if job["TrainingJobStatus"] != "Completed"]
+    best = d.get("BestTrainingJob")
+    if d["HyperParameterTuningJobStatus"] != "Completed" or failed or not best:
+        if d.get("FailureReason"):
+            print(f"  {d['FailureReason']}", file = out)
+        # Every training job runs the same code, so the first failure's log usually explains the rest.
+        if failed:
+            print(f"  {failed[0]['TrainingJobName']}: {failed[0].get('FailureReason', '(no reason given)')}", file = out)
+            for line in tail_log(session.client("logs"), failed[0]["TrainingJobName"]):
+                print(f"  | {line}", file = out)
+        return 1
+
+    print(f"\nbest: {best['TrainingJobName']}, C {float(best['TunedHyperParameters']['C']):.4g}", file = out)
+    model, results = report_model(s3, sm.describe_training_job(TrainingJobName = best["TrainingJobName"]),
+                                  ids, pins, out)
+    # The score the tuner read from the log must be the validation score model.json records.
+    read = best["FinalHyperParameterTuningJobObjectiveMetric"]["Value"]
+    recorded = model["metrics"]["validation"]["macro_f1"]
+    same = abs(read - recorded) <= SCORE_TOLERANCE
+    print(f"  {'PASS' if same else 'FAIL'} {'objective':<16} "
+          + (f"{read}" if same else f"the tuner read {read}, model.json has {recorded}"), file = out)
+    return 0 if same and all(passed for _, passed, _ in results) else 1
 
 
 def main(argv=None):
@@ -472,9 +627,12 @@ def main(argv=None):
     t.add_argument("--max-iter", type = int, help = "the solver's iteration limit (train.py's default if not given)")
     t.add_argument("--dry-run", action = "store_true", help = "print the request; upload and create nothing")
     t.add_argument("--profile", default = "ml")
+    h = sub.add_parser("tune", help = "tune train's C with a SageMaker tuning job and check the best model")
+    h.add_argument("--dry-run", action = "store_true", help = "print the request; upload and create nothing")
+    h.add_argument("--profile", default = "ml")
     args = p.parse_args(argv)
     try:
-        return {"smoke": smoke, "train": train}[args.command](args)
+        return {"smoke": smoke, "train": train, "tune": tune}[args.command](args)
     except BotoCoreError as err:
         print(f"AWS: {err} (an expired SSO session? aws sso login)", file=sys.stderr)
         return 1

@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >-
-  AnomalyPulse ML (M5-M8) - the model bucket, SageMaker's training roles and,
+  AnomalyPulse ML (M5-M8) - the model bucket, the training image, SageMaker's training roles and,
   from M5-1's later steps, the Diagnosis Lambda. A stack of its own:
   anomalypulse-shared is not redeployed until M9-1, so that test data
   runs under the exact same conditions as training data.
@@ -42,6 +42,26 @@ Resources:
       OwnershipControls:
         Rules:
           - ObjectOwnership: BucketOwnerEnforced
+
+  # ---- Training Image ---------------------------------------
+  # Our copy of AWS's sagemaker-xgboost:3.0-5 (digest sha256:604abcbc...71fb3b),
+  # unchanged, which every training and tuning job runs. At AWS's address
+  # SageMaker treats the image as its built-in XGBoost algorithm, and a tuning
+  # job may then tune only XGBoost's own settings (M5-1, 2026-10-28). At ours it
+  # is a custom container, and any setting of ours can be tuned. Tags can't be
+  # overwritten, so the image behind 3.0-5, and with it the library versions the
+  # Diagnosis Lambda pins (ml/requirements-image.txt), never change. Pushed once
+  # by hand after the first deploy; retained if the stack is deleted.
+
+  TrainingImageRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: anomalypulse-ml/sagemaker-xgboost
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
 
   # ---- SageMaker Training Role ---------------------------------------
   # What a training job runs as: SageMaker assumes it to copy the channels in,
@@ -282,3 +302,10 @@ Resources:
       Name: /anomalypulse/ml/trainer-role-arn
       Type: String
       Value: !GetAtt TrainerRole.Arn
+
+  SsmTrainingImageUri:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /anomalypulse/ml/training-image-uri
+      Type: String
+      Value: !Sub '${TrainingImageRepository.RepositoryUri}:3.0-5'

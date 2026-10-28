@@ -4,16 +4,17 @@ Fits Pipeline(StandardScaler, LogisticRegression) on the `train` channel's label
 windows, scores it on the `validation` channel's, and writes package format 1 to
 <root>/model, which SageMaker uploads as model.tar.gz:
     
-    model.joblib    the fitted pipelien: the scaler and the model together
+    model.joblib    the fitted pipeline: the scaler and the model together
     model.json      what using it takes: the columns in order, the classes, the versions
 
 Each channel mirrors the dataset: tier1/features/experiment_id=<id>/features.jsonl and
 tier2/labels/experiment_id=<id>/labels.jsonl for every run in it. The job prints
 validation:macro_f1=<x>, which the tuning job reads from its log. Bad input stops it with
-the reason on stderr and in <root>/output/failure.
+exit 1 and the reason on stderr, so in the job's log. SageMaker's failure reason only says
+the script failed: the image's toolkit writes it, over anything we would.
 
 The root is /opt/ml in a job; set ANOMALYPULSE_JOB_ROOT to run it elsewhere. Python 3.10:
-the images's (ml/requirements-image.txt).
+the image's (ml/requirements-image.txt).
 """
 import importlib.metadata
 import json
@@ -53,11 +54,12 @@ class TrainError(Exception):
     """Bad input: the job stops with this message."""
 
 def read_settings(path):
-    """{name: value}: each value JSON-decoded once, sagemaker_* skipped (the toolkit's),
-    a default for any not sent. Raises TrainError on an unknown name or a wrong type."""
+    """{name: value}: each value JSON-decoded once, SageMaker's own skipped, a default for
+    any not sent. Raises TrainError on an unknown name or a wrong type."""
     settings = {name: default for name, (kind, default) in SETTINGS.items()}
     for name, text in json.loads(Path(path).read_text()).items():
-        if name.startswith("sagemaker_"):
+        # The toolkit's sagemaker_*, and the score a tuning job maximizes (plain text, not JSON).
+        if name.startswith("sagemaker_") or name == "_tuning_objective_metric":
             continue
         if name not in SETTINGS:
             raise TrainError(f"unknown setting: {name!r}; known: {sorted(SETTINGS)}")
@@ -111,7 +113,7 @@ def training_rows(runs):
     return rows
 
 def to_matrix(rows, columns):
-    """X, y), X's values in `columns` order. Raises TrainError on a row whose columns
+    """(X, y), X's values in `columns` order. Raises TrainError on a row whose columns
     differ from `columns`, or with an empty cell: a missing value is refused, never filled."""
     expected = set(columns) | {KEY, LABEL}
     X, y = [], []
@@ -191,9 +193,6 @@ def main():
         result = train(ROOT)
     except TrainError as err:
         print(f"TrainError: {err}", file = sys.stderr, flush = True)
-        output = ROOT / "output"
-        output.mkdir(parents = True, exist_ok = True)
-        (output / "failure").write_text(f"TrainError: {err}\n")
         return 1
     # Counts and scores only: the team reads these logs, so no rows and no labels.
     for name in CHANNELS:
