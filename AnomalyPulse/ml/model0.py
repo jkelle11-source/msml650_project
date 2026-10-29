@@ -6,7 +6,10 @@ A window is flagged as an anomaly if ANY service trips either rule:
 Two baselines for the latency rule, both built only from Tier-1 feature columns:
   "rolling_mean"    the ticket's literal rule: the service's rolling mean of p95.
                     That mean includes the current window, so it is a weak floor.
-  "previous_window" the previous window's p95, recovered as p95 - change.
+    "previous_window" the previous retained window's p95, recovered as p95 - change. The
+                    feature matrix's lookback is a run's labeled windows plus its startup
+                    minute, so an excluded window (such as DB-throttling onset) never
+                    becomes the baseline.
 An empty value (None) skips that check. Scoring treats "anomaly" as any label but NORMAL.
 """
 SERVICES = ("product", "cart", "order", "payment")
