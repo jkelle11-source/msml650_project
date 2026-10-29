@@ -71,8 +71,10 @@ Resources:
   # From the shared bucket it reads v1's features, window labels and
   # experiments.jsonl (the split), never tier2/manifests/ or tier2/registry/,
   # which hold fault parameters and bands. IAM can't tell test labels from
-  # training labels (both are tier2/labels/experiment_id=<id>/): the channel
-  # manifests and the training script's split check keep them out.
+  # training labels (both are tier2/labels/experiment_id=<id>/): the launcher's
+  # channel manifests keep them out, listing only the runs that
+  # integrity.temporal_split puts in train or val. A check inside the job
+  # itself is due before M9-1 writes the first test run (M09_Evaluation.md).
 
   TrainingRole:
     Type: AWS::IAM::Role

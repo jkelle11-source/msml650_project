@@ -36,12 +36,15 @@ def build_vector(window, columns):
     bad_types = {k: type(v).__name__ for k, v in window.items() 
                  if type(v) not in (int, float) and k in columns}
     
-    if wrong:
-        raise BadWindow(f"features {wrong} not in model; model accepts {acceptable}")
-    
+    # Only the names that differ: a renamed feature shows up once in each list.
+    problems = []
     if missing:
-        raise BadWindow(f"features {missing} not passed; model requires {acceptable}")
-    
+        problems.append("missing: " + ", ".join(sorted(missing)))
+    if wrong:
+        problems.append("not in the model: " + ", ".join(sorted(wrong)))
+    if problems:
+        raise BadWindow("features " + "; ".join(problems))
+
     if bad_types:
         raise BadWindow("features must be int or float: "
                         + ", ".join(f"{k} is {t}" 
