@@ -7,6 +7,8 @@
     python -m ml.launch train -C 0.5        # train once; train.py's default for what isn't given
     python -m ml.launch tune --dry-run      # print the tuning request; create nothing
     python -m ml.launch tune                # tune C: TUNE_JOBS training jobs, TUNE_PARALLEL at a time
+    python -m ml.launch promote <job> --dry-run   # check the job's model; write nothing
+    python -m ml.launch promote <job>       # point the Diagnosis Lambda at it
 
 Every job runs as anomalypulse-sagemaker-training with network isolation on: its code 
 arrives through a `code` channel and its data through manifest channels, which list 
@@ -33,6 +35,12 @@ role, with C chosen by the tuner from TUNE_RANGES and each job scored by the
 validation:macro_f1 line train.py prints. It lists every job it launched, then checks the
 best one's model as `train` does, and that the score the tuner read is model.json's. Exit
 codes as for smoke; 1 also when any of its training jobs failed.
+
+`promote` points the Diagnosis Lambda at one completed training job's model: it checks the
+model as `train` does, then writes the job, the package's S3 address and its version to
+the SSM parameter MODEL_POINTER, which the Lambda reads when it starts. It prints the
+pointer it replaces; promoting that job again undoes it. Exits 0 when promoted (or, with
+--dry-run, when it would be), 1 when not.
 """
 import argparse
 import io
@@ -88,6 +96,8 @@ TRAIN_CHANNELS = {"train": "train", "validation": "val"}
 MODEL_FORMAT = 1
 # The Diagnosis Lambda installs these versions, so the model must have been trained with them.
 PINS = JOB_DIR.parent / "requirements-image.txt"
+
+MODEL_POINTER = "/anomalypulse/ml/models/incident_type"
 
 # What the tuner may set. C on a log scale: each tenfold step changes the model about as much.
 TUNE_RANGES = {"ContinuousParameterRanges": [
@@ -524,6 +534,49 @@ def report_model(s3, d, ids, pins, out):
     print(f"  model: {artifact} (version {version})", file = out)
     return model, results
 
+def promote(args, out = sys.stdout):
+    import boto3
+    session = boto3.Session(profile_name = args.profile, region_name = REGION)
+    config = lookup(session)
+    s3, sm, ssm = session.client("s3"), session.client("sagemaker"), session.client("ssm")
+
+    d = sm.describe_training_job(TrainingJobName = args.job)
+    if d["TrainingJobStatus"] != "Completed":
+        print(f"{args.job} is {d['TrainingJobStatus']}: only a completed job's model can be promoted", file = out)
+        return 1
+    artifact = d["ModelArtifacts"]["S3ModelArtifacts"]
+    bucket, key = artifact[len("s3://"):].split("/", 1)
+    # SageMaker writes each job's package once, so its latest version is the one checked below.
+    version = s3.head_object(Bucket = bucket, Key = key).get("VersionId")
+    if version is None:
+        print(f"{artifact} has no version: the Lambda could not pin it", file = out)
+        return 1
+
+    model = read_report(s3, d, member = "model.json")
+    for line in summary(model):
+        print(f"  {line}", file = out)
+    results = check_model(model, split_ids(train_val_records(s3, config["telemetry_bucket"])), read_pins())
+    for check, passed, detail in results:
+        print(f"  {'PASS' if passed else 'FAIL'} {check:<16} {detail}", file = out)
+    if not all(passed for _, passed, _ in results):
+        return 1
+
+    # One parameter, so the job and its version always change together.
+    pointer = json.dumps({"job": args.job, "uri": artifact, "version_id": version,
+                          "validation_macro_f1": model["metrics"]["validation"]["macro_f1"]})
+    try:
+        current = ssm.get_parameter(Name = MODEL_POINTER)["Parameter"]["Value"]
+    except ssm.exceptions.ParameterNotFound:
+        current = "none"
+    # To undo a promotion, promote the job this names again.
+    print(f"current  {current}", file = out)
+    print(f"new      {pointer}", file = out)
+    if args.dry_run:
+        return 0
+    written = ssm.put_parameter(Name = MODEL_POINTER, Type = "String", Overwrite = True, Value = pointer)
+    print(f"promoted: {MODEL_POINTER} is now version {written['Version']}", file = out)
+    return 0
+
 def train(args, out = sys.stdout):
     import boto3
     session = boto3.Session(profile_name = args.profile, region_name = REGION)
@@ -630,9 +683,13 @@ def main(argv=None):
     h = sub.add_parser("tune", help = "tune train's C with a SageMaker tuning job and check the best model")
     h.add_argument("--dry-run", action = "store_true", help = "print the request; upload and create nothing")
     h.add_argument("--profile", default = "ml")
+    m = sub.add_parser("promote", help = "check a training job's model and point the Diagnosis Lambda at it")
+    m.add_argument("job", help = "the training job's name (for a tuned model, the best child's)")
+    m.add_argument("--dry-run", action = "store_true", help = "run the checks and print the pointer; write nothing")
+    m.add_argument("--profile", default = "ml")
     args = p.parse_args(argv)
     try:
-        return {"smoke": smoke, "train": train, "tune": tune}[args.command](args)
+        return {"smoke": smoke, "train": train, "tune": tune, "promote": promote}[args.command](args)
     except BotoCoreError as err:
         print(f"AWS: {err} (an expired SSO session? aws sso login)", file=sys.stderr)
         return 1

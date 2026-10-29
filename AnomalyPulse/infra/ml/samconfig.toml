@@ -7,7 +7,7 @@ s3_prefix = "anomalypulse-ml"
 region = "us-east-2"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM"
-image_repositories = []
+resolve_image_repos = true
 
 [default.global.parameters]
 region = "us-east-2"

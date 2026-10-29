@@ -278,6 +278,77 @@ Resources:
               - Effect: Allow
                 Action: s3:ListBucket
                 Resource: !GetAtt ModelBucket.Arn
+        - PolicyName: trainer-promote
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ssm:PutParameter
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/anomalypulse/ml/models/*'
+
+  # ---- Diagnosis Lambda ---------------------------------------
+  # Answers {"windows": [...]} with the promoted model's prediction for each
+  # (ml/diagnosis/handler.py). Each cold start reads the pointer that
+  # `ml.launch promote` writes, fetches exactly that version of the package
+  # into /tmp and loads it; warm calls reuse it. No endpoint: between calls
+  # nothing runs and nothing is billed. A container image, because the pinned
+  # libraries are over Lambda's 250 MB zip limit; the image also fixes Python
+  # and boto3, so it needs no runtime pin.
+
+  DiagnosisLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/anomalypulse-diagnosis
+      RetentionInDays: 90
+
+  DiagnosisRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: anomalypulse-diagnosis
+      Description: The AnomalyPulse Diagnosis Lambda runs as this role (M5-1)
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: diagnosis-load-model
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/anomalypulse/ml/models/incident_type'
+              # Fetching a given version needs GetObjectVersion, not GetObject.
+              - Effect: Allow
+                Action: s3:GetObjectVersion
+                Resource: !Sub '${ModelBucket.Arn}/training/*'
+
+  DiagnosisFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: anomalypulse-diagnosis
+      PackageType: Image
+      Architectures:
+        - arm64
+      # A starting point: the first real calls' REPORT lines show what it uses.
+      MemorySize: 1024
+      # The first start after a deploy reads an image Lambda hasn't cached:
+      # 39 s on 2026-10-29 (startup's 10 s limit, then a retry inside the
+      # call). Later starts took 1.5-5 s.
+      Timeout: 60
+      Role: !GetAtt DiagnosisRole.Arn
+      Environment:
+        Variables:
+          ANOMALYPULSE_MODEL_POINTER: /anomalypulse/ml/models/incident_type
+    Metadata:
+      DockerContext: ../../ml
+      Dockerfile: diagnosis/Dockerfile
+      DockerTag: python3.13
 
   # ---- SSM Parameters ---------------------------------------
   # For the launcher and, later, the Diagnosis Lambda and M6/M8.
