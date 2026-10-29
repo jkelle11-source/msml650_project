@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import math
 import time
 import tarfile
 import sklearn
@@ -14,7 +15,9 @@ import numpy as np
 from pathlib import Path
 from sklearn.linear_model import LogisticRegression
 
-LIBRARIES = ["scikit-learn", "numpy", "scipy", "joblib"]
+# Every model's pickle uses these, so every package must list them.
+REQUIRED_LIBRARIES = ["scikit-learn", "numpy", "scipy", "joblib"]
+KINDS = ("classifier", "detector")
 
 class BadWindow(ValueError):
     """A window the model can't take."""
@@ -60,25 +63,56 @@ def fetch_model(s3, uri, version_id, folder):
     except Exception as e:
         raise BadModel(f"error {e} while extracting file")       
 
+def installed_version(name):
+    """The version of `name` this Lambda installs, or None when it doesn't install it."""
+    try:
+        return importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
 def load_model(folder):
     """(pipeline, meta) from the folder's model.json and model.joblib."""
     meta = json.loads((Path(folder) / "model.json").read_text())
-    
+
     if not meta.get("format") == 1:
         raise BadModel(f"format must be 1; got {meta.get("format")}")
-    
-    for name in LIBRARIES:
-        loaded, expected = meta.get("libraries", {}).get(name), importlib.metadata.version(name)
+
+    kind = meta.get("kind", "classifier")
+    if kind not in KINDS:
+        raise BadModel(f"kind must be one of {KINDS}; got {kind}")
+
+    # The pickle loads correctly only under the versions it was saved with, so every library the
+    # package lists must be the version installed here.
+    recorded = {name: version for name, version in meta.get("libraries", {}).items() if name != "python"}
+    for name in sorted(set(REQUIRED_LIBRARIES) | set(recorded)):
+        loaded, expected = recorded.get(name), installed_version(name)
+        if expected is None:
+            raise BadModel(f"the package needs {name}, which this Lambda doesn't install")
         if loaded != expected:
             raise BadModel(f"{name} must be version {expected}; got {name} version {loaded}")
-        
+
     pipeline = joblib.load(Path(folder) / "model.joblib")
-    p_classes, m_classes = [str(c) for c in pipeline.classes_], meta["classes"]
-    
-    if p_classes != m_classes:
-        raise BadModel(f"model classes {p_classes} do not match metadata classes {m_classes}")
-    
+
+    if kind == "classifier":
+        if not hasattr(pipeline, "predict_proba"):
+            raise BadModel("a classifier's model must have predict_proba")
+        # XGBoost trains on class numbers 0..n-1, which stand for model.json's classes in order.
+        p_classes, m_classes = [str(c) for c in pipeline.classes_], meta["classes"]
+        if p_classes not in (m_classes, [str(i) for i in range(len(m_classes))]):
+            raise BadModel(f"model classes {p_classes} do not match metadata classes {m_classes}")
+    else:
+        if not hasattr(pipeline, "score_samples"):
+            raise BadModel("a detector's model must have score_samples")
+        threshold = meta.get("threshold")
+        if type(threshold) not in (int, float) or not math.isfinite(threshold):
+            raise BadModel(f"a detector's threshold must be a finite number; got {threshold!r}")
+
     return pipeline, meta
+
+def detect(pipeline, meta, vectors):
+    """[(score, anomalous)] from a detector: a window is anomalous when its score_samples score is
+    below the package's threshold. For M8-2, which runs the detector before the classifier."""
+    return [(float(score), bool(score < meta["threshold"])) for score in pipeline.score_samples(vectors)]
 
 def handler(event, context):
     """{"windows": [window, ...]} -> the model's prediction for each."""
@@ -121,4 +155,7 @@ def model_source():
 # Once per cold start: every call after it reuses the loaded model.
 FOLDER, POINTER = model_source()
 PIPELINE, MODEL = load_model(FOLDER)
+# handler answers with class probabilities, so the model it serves must be a classifier.
+if MODEL.get("kind", "classifier") != "classifier":
+    raise BadModel(f"this Lambda serves a classifier; {FOLDER} holds a {MODEL['kind']}")
     

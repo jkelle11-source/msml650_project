@@ -37,15 +37,17 @@ best one's model as `train` does, and that the score the tuner read is model.jso
 codes as for smoke; 1 also when any of its training jobs failed.
 
 `promote` points the Diagnosis Lambda at one completed training job's model: it checks the
-model as `train` does, then writes the job, the package's S3 address and its version to
-the SSM parameter MODEL_POINTER, which the Lambda reads when it starts. It prints the
-pointer it replaces; promoting that job again undoes it. Exits 0 when promoted (or, with
---dry-run, when it would be), 1 when not.
+model as `train` does, then writes the job, the package's S3 address, its version and its
+validation metrics to the SSM parameter /anomalypulse/ml/models/<the model's task>, which the
+Lambda reads when it starts. It prints the pointer it replaces; promoting that job again
+undoes it. Exits 0 when promoted (or, with --dry-run, when it would be), 1 when not.
 """
 import argparse
 import io
 import json
+import math
 import os
+import re
 import sys
 import tarfile
 import time
@@ -94,10 +96,16 @@ TRAIN_CODE = (JOB_DIR / "train.py", JOB_DIR.parent.parent / "features" / "join_l
 # {channel: its temporal_split partition}. Both channels copy in both trees.
 TRAIN_CHANNELS = {"train": "train", "validation": "val"}
 MODEL_FORMAT = 1
-# The Diagnosis Lambda installs these versions, so the model must have been trained with them.
+# The Diagnosis Lambda installs these versions, so every library a model lists must be one of them.
 PINS = JOB_DIR.parent / "requirements-image.txt"
+# Every model's pickle uses these, so every package must list them.
+REQUIRED_LIBRARIES = ("scikit-learn", "numpy", "scipy", "joblib")
+# A classifier answers with class probabilities; a detector with a score and its own threshold.
+MODEL_KINDS = ("classifier", "detector")
 
-MODEL_POINTER = "/anomalypulse/ml/models/incident_type"
+# One pointer per task, /anomalypulse/ml/models/<task>, for the Diagnosis Lambda to load.
+MODEL_POINTERS = "/anomalypulse/ml/models/"
+TASK_NAME = re.compile(r"[a-z][a-z0-9_]*")
 
 # What the tuner may set. C on a log scale: each tenfold step changes the model about as much.
 TUNE_RANGES = {"ContinuousParameterRanges": [
@@ -407,25 +415,36 @@ def read_pins(path = PINS):
     return pins
 
 def check_model(model, ids, pins):
-    """[(check, passed, detail)] for a training job's model.json: our package format, one
-    run read per run sent, the pinned library versions, and a solver that converged."""
+    """[(check, passed, detail)] for a training job's model.json: our package format, a kind the
+    Lambda can load, a task a pointer can be named after, one run read per run sent, the pinned
+    version of every library it lists (the four every model uses among them), and no solver that
+    failed to converge (a model without one records no `converged`)."""
+    def result(check, got, expected):
+        return (check, got == expected, got if got == expected else f"got {got}, expected {expected}")
     runs = {channel: len(experiment_ids) for channel, experiment_ids in ids.items()}
-    libraries = {name: (model.get("libraries") or {}).get(name) for name in pins}
-    expected = {"format": MODEL_FORMAT, "runs": runs, "libraries": pins, "converged": True}
-    got = {"format": model.get("format"), "runs": model.get("runs"), "libraries": libraries,
-           "converged": model.get("converged")}
-    return [(check, got[check] == expected[check],
-             got[check] if got[check] == expected[check] else f"got {got[check]}, expected {expected[check]}")
-            for check in expected]
+    recorded = {name: version for name, version in (model.get("libraries") or {}).items() if name != "python"}
+    names = sorted(set(REQUIRED_LIBRARIES) | set(recorded))
+    kind, threshold, task = model.get("kind", "classifier"), model.get("threshold"), model.get("task")
+    kind_ok = kind == "classifier" or (kind == "detector" and type(threshold) in (int, float)
+                                       and math.isfinite(threshold))
+    return [result("format", model.get("format"), MODEL_FORMAT),
+            ("kind", kind_ok, kind if kind_ok else
+             f"got kind {kind!r}, threshold {threshold!r}; expected one of {MODEL_KINDS}, a detector with a finite threshold"),
+            ("task", isinstance(task, str) and bool(TASK_NAME.fullmatch(task)),
+             task if isinstance(task, str) and TASK_NAME.fullmatch(task) else f"got {task!r}, expected {TASK_NAME.pattern}"),
+            result("runs", model.get("runs"), runs),
+            result("libraries", {name: recorded.get(name) for name in names}, {name: pins.get(name) for name in names}),
+            ("converged", model.get("converged") is not False, model.get("converged", "not recorded"))]
 
 def summary(model):
     """model.json in a few lines: what the job printed, and what it was fitted with."""
     lines = [f"{channel:<10} {model['runs'][channel]} runs, {model['rows'][channel]} rows, "
              + ", ".join(f"{metric} {value:.4f}" for metric, value in model["metrics"][channel].items())
              for channel in TRAIN_CHANNELS]
-    return lines + [f"settings   {model['settings']}",
-                    f"columns    {len(model['columns'])}",
-                    f"classes    {', '.join(model['classes'])}"]
+    lines += [f"settings   {model['settings']}", f"columns    {len(model['columns'])}"]
+    if model.get("kind", "classifier") == "detector":
+        return lines + [f"threshold  {model.get('threshold')}"]
+    return lines + [f"classes    {', '.join(model['classes'])}"]
 
 def smoke(args, out=sys.stdout):
     import boto3
@@ -562,19 +581,21 @@ def promote(args, out = sys.stdout):
         return 1
 
     # One parameter, so the job and its version always change together.
+    name = MODEL_POINTERS + model["task"]
     pointer = json.dumps({"job": args.job, "uri": artifact, "version_id": version,
-                          "validation_macro_f1": model["metrics"]["validation"]["macro_f1"]})
+                          "validation": model["metrics"]["validation"]})
     try:
-        current = ssm.get_parameter(Name = MODEL_POINTER)["Parameter"]["Value"]
+        current = ssm.get_parameter(Name = name)["Parameter"]["Value"]
     except ssm.exceptions.ParameterNotFound:
         current = "none"
     # To undo a promotion, promote the job this names again.
+    print(f"pointer  {name}", file = out)
     print(f"current  {current}", file = out)
     print(f"new      {pointer}", file = out)
     if args.dry_run:
         return 0
-    written = ssm.put_parameter(Name = MODEL_POINTER, Type = "String", Overwrite = True, Value = pointer)
-    print(f"promoted: {MODEL_POINTER} is now version {written['Version']}", file = out)
+    written = ssm.put_parameter(Name = name, Type = "String", Overwrite = True, Value = pointer)
+    print(f"promoted: {name} is now version {written['Version']}", file = out)
     return 0
 
 def train(args, out = sys.stdout):
