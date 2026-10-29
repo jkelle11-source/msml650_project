@@ -2,9 +2,7 @@
 
 > **The one-sentence version:** Models now train and tune in SageMaker, land versioned in S3 as a two-file **model package**, and reach the **Diagnosis Lambda** through one command, `promote` — so your M5 job is to **write a training script that writes that package**, run it through the launcher, and promote the one you pick. Jake has built the launcher, the package format, the promotion pointer and the Lambda that loads it, and has trained and promoted a logistic-regression baseline. Everything is **live** in `us-east-2` (stack `anomalypulse-ml`); the launcher and the job scripts are in `AnomalyPulse/ml/`.
 
-**Where it stands (2026-10-29):** M5-1 is merged (PR #79). The tuned baseline is promoted and answering real calls. The Lambda already installs xgboost and knows how to load an Isolation Forest. **Not built yet:**
-- the launcher runs only `ml/job/train.py`, so adding your model means a script plus a small launcher change (§2);
-- the Lambda serves one model per call; running the detector and the classifier in one call is M8-2's.
+**Where it stands (2026-10-29):** M5-1 is merged (PR #79). The tuned baseline is promoted and answering real calls. The Lambda already installs xgboost and knows how to load an Isolation Forest, and the launcher trains and tunes any job script you add (`--script`, §2). **Not built yet:** the Lambda serves one model per call; running the detector and the classifier in one call is M8-2's.
 
 The reference of record is [`Docs/ML_INFERENCE.md`](../Docs/ML_INFERENCE.md).
 
@@ -30,12 +28,12 @@ The reference of record is [`Docs/ML_INFERENCE.md`](../Docs/ML_INFERENCE.md).
 
 ## 2. What you do: add your model
 
-**1. A training script,** `AnomalyPulse/ml/job/<yours>.py`, modeled on `ml/job/train.py`. Reuse its helpers rather than copying them:
+**1. A training script,** `AnomalyPulse/ml/job/train_<model>.py`, modeled on `ml/job/train.py`. Name it after your model, never after a library: the job's code folder comes first on its import path, so an `xgboost.py` would hide xgboost itself. The launcher refuses names like that. Reuse `train.py`'s helpers rather than copying them; `import train` works, because the launcher bundles `train.py` with your script:
 - `load_runs`, `training_rows` and `to_matrix` read a channel and turn it into `(X, y)`;
-- `read_settings` reads the hyperparameters SageMaker passes;
+- `read_settings(path, known)` reads the settings SageMaker passes, given yours as `{name: (int, float or str, default)}`, for example `{"max_depth": (int, 6), "learning_rate": (float, 0.3)}`. It skips SageMaker's own settings, including the one every tuning job adds;
 - `scores` computes macro F1 and accuracy.
 
-`import train` works in the job when `train.py` is in your bundle. Your script must:
+Your script must:
 - **write `model.joblib` and `model.json`** to `<root>/model`, where `<root>` is `/opt/ml` in a job;
 - **print `validation:<metric>=<value>`** lines, which the tuner reads from the log;
 - **stop with a clear message** on bad input. SageMaker's own failure reason only ever says "exit code 1"; your message is in the log, and the launcher prints its tail.
@@ -55,12 +53,20 @@ The reference of record is [`Docs/ML_INFERENCE.md`](../Docs/ML_INFERENCE.md).
 | `converged` | only for a model with an iterative solver; omit it otherwise |
 | `libraries` | `python` plus **every library your model uses**, always including scikit-learn, numpy, scipy and joblib (add xgboost if you use it) |
 
-**3. A launcher command** in `ml/launch.py`, in your PR. Today `train` runs only `train.py`. Copy `train` (and `tune`, if you tune) and change:
-- the job-name variant: `job_name("train", "<your-model>", now)` gives `anomalypulse-train-<your-model>-<time>`;
-- the code bundle: `prepare()` bundles `TRAIN_CODE` today, so let it take yours (your script, `train.py` if you import it, and `features/join_labels.py`);
-- the entry point passed to `job_request`, and your settings.
+**3. Launch it with `--script`.** No launcher change is needed:
 
-`check_model`, `report_model`, `wait` and `promote` work for any package as they are. Jake reviews the change.
+```bash
+python -m ml.launch train --script ml/job/train_<model>.py --set max_depth=4 --set learning_rate=0.1
+python -m ml.launch tune --script ml/job/train_<model>.py --range max_depth=3:8 \
+    --range learning_rate=0.01:0.3:log --set n_estimators=300 --jobs 8 --parallel 2
+```
+
+- **`--script`** bundles your script with `train.py` and `features/join_labels.py`, and names the job `anomalypulse-train-<model>-<time>` (without the `train_`).
+- **`--set NAME=VALUE`** sends a setting, and is repeatable. A value that reads as JSON (`200`, `0.1`, `true`) is sent as that; anything else as text (`--set booster=gbtree`). Settings you don't send take your script's defaults.
+- **`--range NAME=LOW:HIGH`** lets the tuner choose a setting. Two integers make an integer range (`max_depth=3:8`); write `1.0:100` for a continuous one. Add `:log` to search on a log scale, which needs LOW above 0.
+- **`--jobs`** (default 4) and **`--parallel`** (default 2) set how many training jobs the tuner runs in all, and at once.
+
+`train` and `tune` then check the package as they do `train.py`'s, and `promote` works for any package.
 
 ---
 
@@ -159,11 +165,12 @@ Then, from `AnomalyPulse/`:
 python -m ml.launch train --dry-run        # print the request; upload and create nothing
 python -m ml.launch train -C 0.5           # one job: waits, prints the package's checks and its S3 version
 python -m ml.launch tune                   # tunes train.py's C: 4 jobs, 2 at a time
+python -m ml.launch train --script ml/job/train_<model>.py --dry-run    # your script (§2)
 python -m ml.launch promote <job> --dry-run
 python -m ml.launch promote <job>          # points the Lambda at it
 ```
 
-- **Cost:** a job bills about 2 minutes of an `ml.m5.large`. The baseline's tuning run billed 382 s for its 4 jobs. Jobs stop at 15 minutes.
+- **Cost:** a job bills about 2 minutes of an `ml.m5.large`. The baseline's tuning run billed 382 s for its 4 jobs, and `--jobs` multiplies that. Jobs stop at 15 minutes.
 - **Always dry-run first.** It checks every file the channels list exists, and prints the request.
 - **`promote` refuses** a job that didn't complete, a package with no S3 version, or a `model.json` that fails a check. It prints the pointer it replaces; promoting that job again undoes it.
 - **After a promotion,** warm copies of the Lambda keep the old model until Lambda retires them. Every reply names its model (`model.job`), so check that.
@@ -200,13 +207,13 @@ aws lambda invoke --function-name anomalypulse-diagnosis --cli-binary-format raw
 
 ## 6. Per-person quick start (your M5 ticket)
 
-Everyone: branch per ticket (`m5-<n>-<name>`), add your script and launcher command, try them locally (§3), then in SageMaker (§4), and open a PR.
+Everyone: branch per ticket (`m5-<n>-<name>`), add your script, try it locally (§3), then in SageMaker with `--script` (§4), and open a PR.
 
 - **Rachel — Incident classifier + threshold baseline (M5-3).**
   - **Model 0** (the threshold rule) needs no SageMaker and no package. Score it on the same validation windows (slots 561–700).
   - **The ML baseline to beat** is already trained. Logistic regression (C 1) scores validation macro F1 **0.988** (12 of 885 windows wrong, 9 of them NORMAL vs TRAFFIC_SPIKE), and tuning C to 25.8 gives **0.9923**.
   - **XGBoost** is in the training image and the Lambda. It trains on class numbers, so encode labels with `LabelEncoder` and write `model.json`'s `classes` as **`list(encoder.classes_)`, in that order**. The Lambda reads class `i` as `classes[i]`, and only checks the count, so any other order mislabels silently. List `xgboost` 3.0.5 in `libraries`, and omit `converged`.
-  - **To tune,** your settings reader must skip `_tuning_objective_metric`, which SageMaker adds to every tuning job; `train.py`'s `read_settings` shows how. Print `validation:macro_f1=` for the objective.
+  - **To tune,** use `tune --script` with a `--range` per setting (§2). Read your settings with `train.read_settings`, which skips `_tuning_objective_metric`, the setting SageMaker adds to every tuning job. Print `validation:macro_f1=` for the objective.
   - **Promote your pick as `incident_type`.** The Lambda then serves it with no code change, which is your Definition of Done's "loads and predicts in the Diagnosis Lambda". Check with a real call.
 - **Melisa — Anomaly detection (M5-2), then the live path (M8-2).**
   - **The supervised binary detector** is a classifier package. Derive its target from the six-class label (anything but NORMAL is an anomaly), and give it its own `task`.
@@ -233,8 +240,10 @@ Everyone: branch per ticket (`m5-<n>-<name>`), add your script and launcher comm
 |---|---|---|
 | A job fails with `ExecuteUserScriptError … exit code 1` | Your script stopped; SageMaker never shows why | The launcher prints the log's tail; your script's message is there. |
 | `AccessDenied` creating a job | Not `--profile ml`; or the name isn't `anomalypulse-*`; or another instance type; or network isolation is off | Use the launcher with `--profile ml` (the default). |
-| A tuning job is refused: `untunable hyperparameters` | The request names AWS's xgboost image, which SageMaker treats as its built-in algorithm | The launcher reads our copy from `/anomalypulse/ml/training-image-uri`; use `config["training_image"]`. |
-| Every tuning child fails on an unknown setting | SageMaker adds `_tuning_objective_metric` to every tuning job | Skip that exact name when reading settings (§6, Rachel). |
+| A tuning job is refused: `untunable hyperparameters` | The request names AWS's xgboost image, which SageMaker treats as its built-in algorithm | Launch through `tune`, which uses our copy of the image (`/anomalypulse/ml/training-image-uri`). |
+| Every tuning child fails on an unknown setting | SageMaker adds `_tuning_objective_metric` to every tuning job | Read settings with `train.read_settings`, which skips it. |
+| `--script` is refused | The file isn't a `.py` in `ml/job/`; or its name isn't lowercase letters, digits and `_`; or it's named after a library | Name it `ml/job/train_<model>.py`. |
+| `say what to tune … with --range` | `tune --script` without a `--range` | Only `train.py` has a default range (C); give yours. |
 | `promote` FAILs `libraries` | A listed version isn't the pin; a listed library isn't one the Lambda installs; or one of the four is missing | List exactly what your model uses, at the versions in `ml/requirements-image.txt`. |
 | `promote` FAILs `runs` | The model wasn't trained on v1's 560 / 140 split | Train through the launcher. |
 | `promote` FAILs `kind` or `task` | A detector without a numeric `threshold`; or a task name with capitals, dashes or slashes | Fix `model.json`. |
@@ -256,7 +265,7 @@ Everyone: branch per ticket (`m5-<n>-<name>`), add your script and launcher comm
 - [ ] Your script writes `model.joblib` + `model.json` (format 1, your `task`, every library you use at the pinned version)
 - [ ] It trains only on the `train` channel, and uses `validation` only to score and choose (settings, a cut-off)
 - [ ] Your package loads and answers in the local Lambda (§3)
-- [ ] Your launcher command dry-runs, then trains in SageMaker, and its checks all PASS
+- [ ] `train --script ml/job/train_<model>.py --dry-run` runs, then the real job trains in SageMaker and its checks all PASS
 - [ ] (Rachel) `classes` written in `LabelEncoder` order; Model 0 scored on the same validation windows; your pick promoted as `incident_type` and checked with a real call
 - [ ] (Melisa) Isolation Forest packaged as a detector with its `threshold`; the binary detector packaged as a classifier, under its own `task`
 - [ ] PR opened to `main`, with your validation metrics beside the baselines
