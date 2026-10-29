@@ -1,0 +1,384 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  AnomalyPulse ML (M5-M8) - the model bucket, the training image, SageMaker's training roles and,
+  from M5-1's later steps, the Diagnosis Lambda. A stack of its own:
+  anomalypulse-shared is not redeployed until M9-1, so that test data
+  runs under the exact same conditions as training data.
+
+Parameters:
+  TelemetryBucketName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /anomalypulse/telemetry/bucket/name
+    Description: The shared stack's telemetry bucket, read from its SSM parameter.
+
+Resources:
+
+  # ---- Model Bucket ---------------------------------------
+  # Everything training writes and the Diagnosis Lambda will read:
+  #   code/<job>/sourcedir.tar.gz          the training code (the launcher uploads it)
+  #   channels/<job>/<channel>.manifest    the exact files a channel copies in
+  #   training/<job>/output/model.tar.gz   SageMaker uploads /opt/ml/model here
+  # Versioning keeps every version of every key, so an overwrite or a delete
+  # never loses a model. Retained if the stack is deleted.
+
+  ModelBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub 'anomalypulse-ml-${AWS::AccountId}-${AWS::Region}'
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+
+  # ---- Training Image ---------------------------------------
+  # Our copy of AWS's sagemaker-xgboost:3.0-5 (digest sha256:604abcbc...71fb3b),
+  # unchanged, which every training and tuning job runs. At AWS's address
+  # SageMaker treats the image as its built-in XGBoost algorithm, and a tuning
+  # job may then tune only XGBoost's own settings (M5-1, 2026-10-28). At ours it
+  # is a custom container, and any setting of ours can be tuned. Tags can't be
+  # overwritten, so the image behind 3.0-5, and with it the library versions the
+  # Diagnosis Lambda pins (ml/requirements-image.txt), never change. Pushed once
+  # by hand after the first deploy; retained if the stack is deleted.
+
+  TrainingImageRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: anomalypulse-ml/sagemaker-xgboost
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+
+  # ---- SageMaker Training Role ---------------------------------------
+  # What a training job runs as: SageMaker assumes it to copy the channels in,
+  # pull the image, write logs and metrics, and upload /opt/ml/model.
+  # Trust: only SageMaker, and only for this account's jobs in this region
+  # (aws:SourceArn, confused-deputy protection; the account is in the ARN).
+  # From the shared bucket it reads v1's features, window labels and
+  # experiments.jsonl (the split), never tier2/manifests/ or tier2/registry/,
+  # which hold fault parameters and bands. IAM can't tell test labels from
+  # training labels (both are tier2/labels/experiment_id=<id>/): the launcher's
+  # channel manifests keep them out, listing only the runs that
+  # integrity.temporal_split puts in train or val. A check inside the job
+  # itself is due before M9-1 writes the first test run (M09_Evaluation.md).
+
+  TrainingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: anomalypulse-sagemaker-training
+      Description: AnomalyPulse SageMaker training jobs run as this role (M5-1)
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sagemaker.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              ArnLike:
+                aws:SourceArn:
+                  - !Sub 'arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:training-job/*'
+                  - !Sub 'arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:hyper-parameter-tuning-job/*'
+      Policies:
+        - PolicyName: training-read-dataset
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource:
+                  - !Sub 'arn:aws:s3:::${TelemetryBucketName}/datasets/v1/tier1/features/*'
+                  - !Sub 'arn:aws:s3:::${TelemetryBucketName}/datasets/v1/tier2/labels/*'
+                  - !Sub 'arn:aws:s3:::${TelemetryBucketName}/datasets/v1/tier2/experiments.jsonl'
+              # ListBucket makes a missing key read as 404 rather than 403.
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub 'arn:aws:s3:::${TelemetryBucketName}'
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - datasets/v1/tier1/features/*
+                      - datasets/v1/tier2/labels/*
+                      - datasets/v1/tier2/experiments.jsonl
+        - PolicyName: training-model-bucket
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource:
+                  - !Sub '${ModelBucket.Arn}/code/*'
+                  - !Sub '${ModelBucket.Arn}/channels/*'
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub '${ModelBucket.Arn}/training/*'
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt ModelBucket.Arn
+        - PolicyName: training-logs-and-metrics
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/sagemaker/TrainingJobs'
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/sagemaker/TrainingJobs:*'
+              # CloudWatch metric writes can't be scoped to a resource.
+              - Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: '*'
+        # AWS's prebuilt training images live in AWS's own accounts, so the
+        # repository can't be named here. Pulls only.
+        - PolicyName: training-pull-image
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                Resource: '*'
+
+  # ---- Trainer Role ---------------------------------------
+  # Assumed by teammates (the `ml` profile) to launch and watch training and
+  # tuning jobs; same trust as anomalypulse-simulator. It passes exactly one
+  # role, to SageMaker only. Every job it creates must have network isolation
+  # on (the job's code reaches only the files its channels copy in) and run on
+  # the instance types below (cost). The Null condition fails a request with no
+  # instance type at all, which ForAllValues alone would let through.
+
+  TrainerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: anomalypulse-trainer
+      Description: AnomalyPulse developers launch SageMaker training as this role (M5-1)
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+            Condition:
+              ArnLike:
+                aws:PrincipalArn:
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/aws-reserved/sso.amazonaws.com/us-east-2/AWSReservedSSO_AnomalyPulseDeveloper_*'
+      Policies:
+        - PolicyName: trainer-discovery
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/anomalypulse/*'
+        - PolicyName: trainer-launch-jobs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sagemaker:CreateTrainingJob
+                  - sagemaker:CreateHyperParameterTuningJob
+                Resource:
+                  - !Sub 'arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:training-job/anomalypulse-*'
+                  - !Sub 'arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:hyper-parameter-tuning-job/anomalypulse-*'
+                Condition:
+                  Bool:
+                    sagemaker:NetworkIsolation: 'true'
+                  ForAllValues:StringEquals:
+                    sagemaker:InstanceTypes:
+                      - ml.m5.large
+                      - ml.m5.xlarge
+                  'Null':
+                    sagemaker:InstanceTypes: 'false'
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt TrainingRole.Arn
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: sagemaker.amazonaws.com
+        - PolicyName: trainer-watch-jobs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sagemaker:DescribeTrainingJob
+                  - sagemaker:StopTrainingJob
+                  - sagemaker:DescribeHyperParameterTuningJob
+                  - sagemaker:StopHyperParameterTuningJob
+                  - sagemaker:ListTrainingJobsForHyperParameterTuningJob
+                Resource:
+                  - !Sub 'arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:training-job/anomalypulse-*'
+                  - !Sub 'arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:hyper-parameter-tuning-job/anomalypulse-*'
+              # List calls can't be scoped to a resource.
+              - Effect: Allow
+                Action:
+                  - sagemaker:ListTrainingJobs
+                  - sagemaker:ListHyperParameterTuningJobs
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - logs:DescribeLogStreams
+                  - logs:GetLogEvents
+                  - logs:FilterLogEvents
+                Resource:
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/sagemaker/TrainingJobs'
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/sagemaker/TrainingJobs:*'
+        # The launcher reads experiments.jsonl to build the train/val split,
+        # checks every file it lists exists, uploads the code and the channel
+        # manifests, and reads the model back to check it.
+        - PolicyName: trainer-data
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub 'arn:aws:s3:::${TelemetryBucketName}/datasets/v1/tier2/experiments.jsonl'
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub 'arn:aws:s3:::${TelemetryBucketName}'
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - datasets/v1/tier1/features/*
+                      - datasets/v1/tier2/labels/*
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource:
+                  - !Sub '${ModelBucket.Arn}/code/*'
+                  - !Sub '${ModelBucket.Arn}/channels/*'
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource:
+                  - !Sub '${ModelBucket.Arn}/code/*'
+                  - !Sub '${ModelBucket.Arn}/channels/*'
+                  - !Sub '${ModelBucket.Arn}/training/*'
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt ModelBucket.Arn
+        - PolicyName: trainer-promote
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ssm:PutParameter
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/anomalypulse/ml/models/*'
+
+  # ---- Diagnosis Lambda ---------------------------------------
+  # Answers {"windows": [...]} with the promoted model's prediction for each
+  # (ml/diagnosis/handler.py). Each cold start reads the pointer that
+  # `ml.launch promote` writes, fetches exactly that version of the package
+  # into /tmp and loads it; warm calls reuse it. No endpoint: between calls
+  # nothing runs and nothing is billed. A container image, because the pinned
+  # libraries are over Lambda's 250 MB zip limit; the image also fixes Python
+  # and boto3, so it needs no runtime pin.
+
+  DiagnosisLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/anomalypulse-diagnosis
+      RetentionInDays: 90
+
+  DiagnosisRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: anomalypulse-diagnosis
+      Description: The AnomalyPulse Diagnosis Lambda runs as this role (M5-1)
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: diagnosis-load-model
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/anomalypulse/ml/models/incident_type'
+              # Fetching a given version needs GetObjectVersion, not GetObject.
+              - Effect: Allow
+                Action: s3:GetObjectVersion
+                Resource: !Sub '${ModelBucket.Arn}/training/*'
+
+  DiagnosisFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: anomalypulse-diagnosis
+      PackageType: Image
+      Architectures:
+        - arm64
+      # A starting point: the first real calls' REPORT lines show what it uses.
+      MemorySize: 1024
+      # The first start after a deploy reads an image Lambda hasn't cached:
+      # 39 s on 2026-10-29 (startup's 10 s limit, then a retry inside the
+      # call). Later starts took 1.5-5 s.
+      Timeout: 60
+      Role: !GetAtt DiagnosisRole.Arn
+      Environment:
+        Variables:
+          ANOMALYPULSE_MODEL_POINTER: /anomalypulse/ml/models/incident_type
+    Metadata:
+      DockerContext: ../../ml
+      Dockerfile: diagnosis/Dockerfile
+      DockerTag: python3.13
+
+  # ---- SSM Parameters ---------------------------------------
+  # For the launcher and, later, the Diagnosis Lambda and M6/M8.
+
+  SsmModelBucketName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /anomalypulse/ml/bucket/name
+      Type: String
+      Value: !Ref ModelBucket
+
+  SsmTrainingRoleArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /anomalypulse/ml/training-role-arn
+      Type: String
+      Value: !GetAtt TrainingRole.Arn
+
+  SsmTrainerRoleArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /anomalypulse/ml/trainer-role-arn
+      Type: String
+      Value: !GetAtt TrainerRole.Arn
+
+  SsmTrainingImageUri:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /anomalypulse/ml/training-image-uri
+      Type: String
+      Value: !Sub '${TrainingImageRepository.RepositoryUri}:3.0-5'
