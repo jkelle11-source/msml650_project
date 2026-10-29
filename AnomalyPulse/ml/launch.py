@@ -5,8 +5,10 @@
     python -m ml.launch smoke               # one smoke job per image, as --profile ml
     python -m ml.launch train --dry-run     # print the training request; create nothing
     python -m ml.launch train -C 0.5        # train once; train.py's default for what isn't given
+    python -m ml.launch train --script ml/job/train_xgb.py --set max_depth=4   # another job script
     python -m ml.launch tune --dry-run      # print the tuning request; create nothing
     python -m ml.launch tune                # tune C: TUNE_JOBS training jobs, TUNE_PARALLEL at a time
+    python -m ml.launch tune --script ml/job/train_xgb.py --range learning_rate=0.01:0.3:log --jobs 8
     python -m ml.launch promote <job> --dry-run   # check the job's model; write nothing
     python -m ml.launch promote <job>       # point the Diagnosis Lambda at it
 
@@ -30,9 +32,16 @@ dataset paths. It prints the package's model.json and checks it: the job read ev
 sent, and its libraries are ml/requirements-image.txt's, the ones the Diagnosis Lambda
 loads the model with. Exit codes as for smoke.
 
+`--script ml/job/<name>.py` runs another job script the same way (train.py is the
+default). It is bundled with train.py and join_labels.py, so it can `import train` for the
+helpers that read the channels, and its jobs are named anomalypulse-train-<name>-<time>
+(without a leading train_). `--set NAME=VALUE` sends any setting; -C and --max-iter are
+train.py's, as --set C=... and --set max_iter=....
+
 `tune` runs train's job under a SageMaker tuning job: the same image, code, channels and
-role, with C chosen by the tuner from TUNE_RANGES and each job scored by the
-validation:macro_f1 line train.py prints. It lists every job it launched, then checks the
+role, with the settings each --range names chosen by the tuner (C from TUNE_RANGES for
+train.py when none is given), those --set names fixed, and each job scored by the
+validation:macro_f1 line the script prints. It lists every job it launched, then checks the
 best one's model as `train` does, and that the score the tuner read is model.json's. Exit
 codes as for smoke; 1 also when any of its training jobs failed.
 
@@ -93,6 +102,10 @@ SMOKE_ENV = ("SM_MODEL_DIR", "SM_CHANNEL_CODE", "SM_CHANNEL_FEATURES", "SM_CHANN
 
 # The job imports join_labels from beside train.py, so the bundle carries it.
 TRAIN_CODE = (JOB_DIR / "train.py", JOB_DIR.parent.parent / "features" / "join_labels.py")
+# --script: a file in ml/job/ that the toolkit can run as a module (python -m <name>), and
+# whose name doesn't hide a library it imports: the code directory comes first on sys.path.
+SCRIPT_NAME = re.compile(r"[a-z][a-z0-9_]*")
+SHADOWED = {"xgboost", "sklearn", "numpy", "scipy", "joblib", "pandas", "join_labels"}
 # {channel: its temporal_split partition}. Both channels copy in both trees.
 TRAIN_CHANNELS = {"train": "train", "validation": "val"}
 MODEL_FORMAT = 1
@@ -107,7 +120,8 @@ MODEL_KINDS = ("classifier", "detector")
 MODEL_POINTERS = "/anomalypulse/ml/models/"
 TASK_NAME = re.compile(r"[a-z][a-z0-9_]*")
 
-# What the tuner may set. C on a log scale: each tenfold step changes the model about as much.
+# What the tuner may set for train.py when no --range is given. C on a log scale: each
+# tenfold step changes the model about as much.
 TUNE_RANGES = {"ContinuousParameterRanges": [
     {"Name": "C", "MinValue": "0.001", "MaxValue": "100", "ScalingType": "Logarithmic"}]}
 TUNE_JOBS = 4
@@ -227,6 +241,71 @@ def tuning_job_name(now):
         raise ValueError(f"tuning job names are at most 32 characters: {name}")
     return name
 
+def job_script(path):
+    """(script, variant, code) for --script: the script's path in ml/job/, the job-name variant
+    (train.py's is "logreg"; ml/job/train_xgb.py's is "xgb"), and the files to bundle. Any
+    script but train.py is bundled with train.py and join_labels.py, so it can import train's
+    helpers. Raises ValueError on a script the toolkit couldn't run or import."""
+    script = Path(path)
+    if not script.is_file():
+        script = JOB_DIR / path
+    script = script.resolve()
+    if script.parent != JOB_DIR or script.suffix != ".py" or not script.is_file():
+        raise ValueError(f"--script must be a .py file in {JOB_DIR}: {path}")
+    if script.name == "smoke.py":
+        raise ValueError("smoke.py has its own command: python -m ml.launch smoke")
+    if not SCRIPT_NAME.fullmatch(script.stem):
+        raise ValueError(f"{script.name}: the toolkit runs it as python -m {script.stem}, "
+                         f"so its name must be lowercase letters, digits and _")
+    if script.stem in SHADOWED:
+        raise ValueError(f"{script.name} would hide the {script.stem} library from the job's imports")
+    if script == JOB_DIR / "train.py":
+        return script, "logreg", TRAIN_CODE
+    return script, script.stem.removeprefix("train_").replace("_", "-"), (script,) + TRAIN_CODE
+
+def setting(text):
+    """(name, value) from --set NAME=VALUE: the value as JSON when it parses as JSON (200,
+    0.1, true), else as text, so --set booster=gbtree sends the text "gbtree"."""
+    name, sep, value = text.partition("=")
+    if not sep or not name:
+        raise argparse.ArgumentTypeError(f"not NAME=VALUE: {text!r}")
+    try:
+        return name, json.loads(value)
+    except json.JSONDecodeError:
+        return name, value
+
+def parameter_range(text):
+    """(kind, range) from --range NAME=LOW:HIGH or NAME=LOW:HIGH:log. Two integers make an
+    IntegerParameterRanges entry, anything else a ContinuousParameterRanges one; :log searches
+    on a log scale, which needs LOW > 0."""
+    name, sep, spec = text.partition("=")
+    parts = spec.split(":")
+    if not sep or not name or len(parts) not in (2, 3) or (len(parts) == 3 and parts[2] != "log"):
+        raise argparse.ArgumentTypeError(f"not NAME=LOW:HIGH or NAME=LOW:HIGH:log: {text!r}")
+    integer = all(re.fullmatch(r"-?\d+", part) for part in parts[:2])
+    try:
+        low, high = (int(part) if integer else float(part) for part in parts[:2])
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"LOW and HIGH must be numbers: {text!r}") from None
+    if not low < high:
+        raise argparse.ArgumentTypeError(f"LOW must be below HIGH: {text!r}")
+    log = len(parts) == 3
+    if log and low <= 0:
+        raise argparse.ArgumentTypeError(f"a log range needs LOW > 0: {text!r}")
+    return ("IntegerParameterRanges" if integer else "ContinuousParameterRanges",
+            {"Name": name, "MinValue": str(low), "MaxValue": str(high),
+             "ScalingType": "Logarithmic" if log else "Linear"})
+
+def tuned(settings):
+    """[(name, value)]: a training job's tuned settings by name, numbers to 4 significant
+    digits (C 25.818801896635723 is "25.82")."""
+    def number(value):
+        try:
+            return f"{float(value):.4g}"
+        except ValueError:
+            return value
+    return [(name, number(value)) for name, value in sorted(settings.items())]
+
 def code_key(name):
     return f"code/{name}/sourcedir.tar.gz"
 
@@ -263,11 +342,19 @@ def job_request(name, image_uri, entry_point, hyperparameters, config, channels 
         "ProfilerConfig": {"DisableProfiler": True},
     }
 
-def tuning_request(name, config):
+def tuning_request(name, config, entry_point = "train.py", static = None, ranges = None,
+                   jobs = TUNE_JOBS, parallel = TUNE_PARALLEL):
     """The create_hyper_parameter_tuning_job request; no AWS call. Its training jobs are
-    train's, from job_request, so they can't drift from it: C is left to the tuner, and
-    the tuning API has no TrainingJobName or ProfilerConfig."""
-    job = job_request(name, config["training_image"], "train.py", {}, config, channels = tuple(TRAIN_CHANNELS))
+    train's, from job_request, so they can't drift from it: `ranges` (TUNE_RANGES if None)
+    are left to the tuner, `static` settings go to every job, and the tuning API has no
+    TrainingJobName or ProfilerConfig."""
+    ranges = TUNE_RANGES if ranges is None else ranges
+    tuned_names = {entry["Name"] for kind in ranges.values() for entry in kind}
+    overlap = sorted(tuned_names & set(static or {}))
+    if overlap:
+        raise ValueError(f"tuned and fixed at once: {overlap}")
+    job = job_request(name, config["training_image"], entry_point, static or {}, config,
+                      channels = tuple(TRAIN_CHANNELS))
     definition = {key: value for key, value in job.items()
                   if key not in ("TrainingJobName", "HyperParameters", "ProfilerConfig")}
     definition["StaticHyperParameters"] = job["HyperParameters"]
@@ -277,8 +364,8 @@ def tuning_request(name, config):
         "HyperParameterTuningJobConfig": {
             "Strategy": "Bayesian",
             "HyperParameterTuningJobObjective": {"Type": "Maximize", "MetricName": OBJECTIVE},
-            "ResourceLimits": {"MaxNumberOfTrainingJobs": TUNE_JOBS, "MaxParallelTrainingJobs": TUNE_PARALLEL},
-            "ParameterRanges": TUNE_RANGES,
+            "ResourceLimits": {"MaxNumberOfTrainingJobs": jobs, "MaxParallelTrainingJobs": parallel},
+            "ParameterRanges": ranges,
             "TrainingJobEarlyStoppingType": "Off",
             "RandomSeed": TUNE_SEED,
         },
@@ -338,12 +425,21 @@ def wait_tuning(sm, name, out = sys.stdout, poll_s = POLL_S, sleep = time.sleep)
         sleep(poll_s)
 
 def tuning_jobs(sm, name):
-    """The summaries of every training job the tuning job launched, by C."""
+    """The summaries of every training job the tuning job launched, by their tuned settings
+    (by name, then value)."""
     jobs = []
     for page in sm.get_paginator("list_training_jobs_for_hyper_parameter_tuning_job").paginate(
             HyperParameterTuningJobName = name):
         jobs += page["TrainingJobSummaries"]
-    return sorted(jobs, key = lambda job: float(job["TunedHyperParameters"]["C"]))
+    def order(job):
+        values = []
+        for _, value in sorted(job["TunedHyperParameters"].items()):
+            try:
+                values.append((0, float(value), ""))
+            except ValueError:
+                values.append((1, 0.0, value))
+        return values
+    return sorted(jobs, key = order)
 
 def read_report(s3, description, member = "smoke.json"):
     """One file from the job's model.tar.gz (SageMaker's archive of /opt/ml/model)."""
@@ -510,16 +606,16 @@ def smoke(args, out=sys.stdout):
         print(f"  report: {d['ModelArtifacts']['S3ModelArtifacts']} (smoke.json)", file=out)
     return 0 if passed_all else 1
 
-def prepare(s3, config, name, out):
+def prepare(s3, config, name, out, code = TRAIN_CODE):
     """(ids, uploads) for a training or tuning job named `name`: the train/validation split,
-    every file of it checked present, and the code and manifests to upload. Prints what the
-    channels hold."""
+    every file of it checked present, and the code (`code` bundled) and manifests to upload.
+    Prints what the channels hold."""
     ids = split_ids(train_val_records(s3, config["telemetry_bucket"]))
     empty = [channel for channel, experiment_ids in ids.items() if not experiment_ids]
     if empty:
         raise RuntimeError(f"no accepted {DATASET} runs for the {' or '.join(empty)} channel")
     sizes = check_present(s3, config["telemetry_bucket"], channel_files(ids["train"] + ids["validation"]))
-    code = bundle(TRAIN_CODE)
+    code = bundle(code)
     uploads = {code_key(name): code}
     for channel, experiment_ids in ids.items():
         keys = dataset_keys(channel_files(experiment_ids))
@@ -604,13 +700,12 @@ def train(args, out = sys.stdout):
     config = lookup(session)
     s3, sm = session.client("s3"), session.client("sagemaker")
 
-    name = job_name("train", "logreg", datetime.now(timezone.utc))
-    ids, uploads = prepare(s3, config, name, out)
+    script, variant, code = args.script
+    name = job_name("train", variant, datetime.now(timezone.utc))
+    ids, uploads = prepare(s3, config, name, out, code)
     pins = read_pins()
-    # Only what was given: train.py's defaults hold for the rest, and model.json records both.
-    hyperparameters = {setting: value for setting, value in (("C", args.C), ("max_iter", args.max_iter))
-                       if value is not None}
-    request = job_request(name, config["training_image"], "train.py", hyperparameters, config,
+    # Only what was given: the script's defaults hold for the rest, and model.json records both.
+    request = job_request(name, config["training_image"], script.name, args.settings, config,
                           channels = tuple(TRAIN_CHANNELS))
     if args.dry_run:
         print_dry_run(request, uploads, out)
@@ -640,10 +735,11 @@ def tune(args, out = sys.stdout):
     config = lookup(session)
     s3, sm = session.client("s3"), session.client("sagemaker")
 
+    script, _, code = args.script
     name = tuning_job_name(datetime.now(timezone.utc))
-    ids, uploads = prepare(s3, config, name, out)
+    ids, uploads = prepare(s3, config, name, out, code)
     pins = read_pins()
-    request = tuning_request(name, config)
+    request = tuning_request(name, config, script.name, args.settings, args.ranges, args.jobs, args.parallel)
     if args.dry_run:
         print_dry_run(request, uploads, out)
         return 0
@@ -663,7 +759,8 @@ def tune(args, out = sys.stdout):
     print(f"\n{name}: {d['HyperParameterTuningJobStatus']}", file = out)
     for job in jobs:
         score = (job.get("FinalHyperParameterTuningJobObjectiveMetric") or {}).get("Value")
-        print(f"  C {float(job['TunedHyperParameters']['C']):<10.4g} {job['TrainingJobStatus']:<10} "
+        picked = " ".join(f"{option} {value:<10}" for option, value in tuned(job["TunedHyperParameters"]))
+        print(f"  {picked} {job['TrainingJobStatus']:<10} "
               f"{OBJECTIVE} {'-' if score is None else f'{score:.4f}'}  {job['TrainingJobName']}", file = out)
     failed = [job for job in jobs if job["TrainingJobStatus"] != "Completed"]
     best = d.get("BestTrainingJob")
@@ -677,7 +774,8 @@ def tune(args, out = sys.stdout):
                 print(f"  | {line}", file = out)
         return 1
 
-    print(f"\nbest: {best['TrainingJobName']}, C {float(best['TunedHyperParameters']['C']):.4g}", file = out)
+    print(f"\nbest: {best['TrainingJobName']}, "
+          + ", ".join(f"{option} {value}" for option, value in tuned(best["TunedHyperParameters"])), file = out)
     model, results = report_model(s3, sm.describe_training_job(TrainingJobName = best["TrainingJobName"]),
                                   ids, pins, out)
     # The score the tuner read from the log must be the validation score model.json records.
@@ -689,6 +787,45 @@ def tune(args, out = sys.stdout):
     return 0 if same and all(passed for _, passed, _ in results) else 1
 
 
+def script_argument(path):
+    """job_script for argparse, which reports an ArgumentTypeError's message as it is."""
+    try:
+        return job_script(path)
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(str(err)) from None
+
+def job_arguments(args):
+    """Sets args.settings ({name: value} from --set, and train's -C and --max-iter) and, for
+    tune, args.ranges (None: TUNE_RANGES). Returns what's wrong with them, or None."""
+    given = list(args.set)
+    for name, value in (("C", getattr(args, "C", None)), ("max_iter", getattr(args, "max_iter", None))):
+        if value is not None:
+            given.append((name, value))
+    names = [name for name, _ in given]
+    twice = sorted({name for name in names if names.count(name) > 1})
+    if twice:
+        return f"set more than once: {', '.join(twice)}"
+    args.settings = dict(given)
+    if args.command != "tune":
+        return None
+    tuned_names = [entry["Name"] for _, entry in args.range]
+    twice = sorted({name for name in tuned_names if tuned_names.count(name) > 1})
+    if twice:
+        return f"--range given more than once for: {', '.join(twice)}"
+    both = sorted(set(tuned_names) & set(args.settings))
+    if both:
+        return f"both tuned and fixed: {', '.join(both)}"
+    if not args.range and args.script[0].name != "train.py":
+        return f"say what to tune in {args.script[0].name} with --range"
+    if not 1 <= args.parallel <= args.jobs:
+        return "--parallel must be from 1 to --jobs"
+    args.ranges = None
+    if args.range:
+        args.ranges = {}
+        for kind, entry in args.range:
+            args.ranges.setdefault(kind, []).append(entry)
+    return None
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="python -m ml.launch", description=__doc__.split("\n\n")[0])
     sub = p.add_subparsers(dest="command", required=True)
@@ -696,12 +833,25 @@ def main(argv=None):
     s.add_argument("--images", nargs="+", choices=sorted(IMAGES), default=sorted(IMAGES))
     s.add_argument("--dry-run", action="store_true", help="print the requests; upload and create nothing")
     s.add_argument("--profile", default="ml")
-    t = sub.add_parser("train", help = "train ml/job/train.py's model once on v1 and check its package")
-    t.add_argument("-C", type = float, help = "inverse regularization strength (train.py's default if not given)")
-    t.add_argument("--max-iter", type = int, help = "the solver's iteration limit (train.py's default if not given)")
+    t = sub.add_parser("train", help = "train a job script's model once on v1 and check its package")
+    t.add_argument("--script", type = script_argument, default = "train.py",
+                   help = "the job script in ml/job/ (default train.py, the logistic regression)")
+    t.add_argument("--set", type = setting, action = "append", default = [], metavar = "NAME=VALUE",
+                   help = "a setting to send the script, repeatable (the script's default for the rest)")
+    t.add_argument("-C", type = float, help = "train.py's inverse regularization strength: --set C=...")
+    t.add_argument("--max-iter", type = int, help = "train.py's solver iteration limit: --set max_iter=...")
     t.add_argument("--dry-run", action = "store_true", help = "print the request; upload and create nothing")
     t.add_argument("--profile", default = "ml")
-    h = sub.add_parser("tune", help = "tune train's C with a SageMaker tuning job and check the best model")
+    h = sub.add_parser("tune", help = "tune a job script's settings with a SageMaker tuning job and check the best model")
+    h.add_argument("--script", type = script_argument, default = "train.py",
+                   help = "the job script in ml/job/ (default train.py, whose C is tuned unless --range is given)")
+    h.add_argument("--range", type = parameter_range, action = "append", default = [], metavar = "NAME=LOW:HIGH[:log]",
+                   help = "a setting for the tuner to choose, repeatable; two integers make an integer range")
+    h.add_argument("--set", type = setting, action = "append", default = [], metavar = "NAME=VALUE",
+                   help = "a setting every job gets, repeatable")
+    h.add_argument("--jobs", type = int, default = TUNE_JOBS, help = f"training jobs in all (default {TUNE_JOBS})")
+    h.add_argument("--parallel", type = int, default = TUNE_PARALLEL,
+                   help = f"training jobs at a time (default {TUNE_PARALLEL})")
     h.add_argument("--dry-run", action = "store_true", help = "print the request; upload and create nothing")
     h.add_argument("--profile", default = "ml")
     m = sub.add_parser("promote", help = "check a training job's model and point the Diagnosis Lambda at it")
@@ -709,6 +859,10 @@ def main(argv=None):
     m.add_argument("--dry-run", action = "store_true", help = "run the checks and print the pointer; write nothing")
     m.add_argument("--profile", default = "ml")
     args = p.parse_args(argv)
+    if args.command in ("train", "tune"):
+        problem = job_arguments(args)
+        if problem:
+            p.error(problem)
     try:
         return {"smoke": smoke, "train": train, "tune": tune, "promote": promote}[args.command](args)
     except BotoCoreError as err:

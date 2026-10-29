@@ -66,8 +66,10 @@ Lambda installs). A library the Lambda doesn't install is refused. The Lambda ru
 training's 3.10; on 2026-10-28 and 10-29, the promoted model, an XGBoost classifier and an Isolation Forest
 each gave identical outputs under both on all 885 validation windows.
 
-**Adding your model (M5-2, M5-3).** Train it through the launcher (the training image has every pinned
-library) and write the same two files, with its own `task`:
+**Adding your model (M5-2, M5-3).** Write a job script in `ml/job/` and train it through the launcher
+with `python -m ml.launch train --script ml/job/<yours>.py` (and `tune --script … --range …`; the
+handoff, [`Handoffs/M5-1_Handoff.md`](../Handoffs/M5-1_Handoff.md), has the details). The training image
+has every pinned library. Write the same two files, with your model's own `task`:
 
 - **An XGBoost classifier** lists `xgboost` 3.0.5 in `libraries`. The Lambda installs it, and accepts its
   numbered classes as described above.

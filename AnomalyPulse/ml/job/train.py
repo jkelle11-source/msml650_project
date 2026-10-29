@@ -53,30 +53,33 @@ LIBRARIES = ("scikit-learn", "numpy", "scipy", "joblib")
 class TrainError(Exception):
     """Bad input: the job stops with this message."""
 
-def read_settings(path):
-    """{name: value}: each value JSON-decoded once, SageMaker's own skipped, a default for
-    any not sent. Raises TrainError on an unknown name or a wrong type."""
-    settings = {name: default for name, (kind, default) in SETTINGS.items()}
+def read_settings(path, known = SETTINGS):
+    """{name: value} for the settings `known` lists as {name: (int, float or str, default)}:
+    each value JSON-decoded once, SageMaker's own skipped, the default for any not sent.
+    Raises TrainError on an unknown name or a wrong type. Another job script passes its own
+    `known`."""
+    settings = {name: default for name, (kind, default) in known.items()}
     for name, text in json.loads(Path(path).read_text()).items():
         # The toolkit's sagemaker_*, and the score a tuning job maximizes (plain text, not JSON).
         if name.startswith("sagemaker_") or name == "_tuning_objective_metric":
             continue
-        if name not in SETTINGS:
-            raise TrainError(f"unknown setting: {name!r}; known: {sorted(SETTINGS)}")
+        if name not in known:
+            raise TrainError(f"unknown setting: {name!r}; known: {sorted(known)}")
         try:
             value = json.loads(text)
         except json.JSONDecodeError:
             raise TrainError(f"{name}: {text!r} is not JSON") from None
-        kind = SETTINGS[name][0]
+        kind = known[name][0]
+        if kind is str:
+            if not isinstance(value, str):
+                raise TrainError(f"{name} must be text, got {text!r}")
+            settings[name] = value
+            continue
         allowed, wanted = ((int, float), "a number") if kind is float else ((int,), "an integer")
         # bool is a subclass of int: true would otherwise pass as 1
         if isinstance(value, bool) or not isinstance(value, allowed):
             raise TrainError(f"{name} must be {wanted}, got {text!r}")
         settings[name] = kind(value)
-    if settings["C"] <= 0:
-        raise TrainError(f"C must be above 0, got {settings['C']}")
-    if settings["max_iter"] < 1:
-        raise TrainError(f"max_iter must be at least 1; got {settings['max_iter']}")
     return settings
 
 def read_jsonl(path):
@@ -165,6 +168,10 @@ def train(root):
     """Read the channels, fit, score, and write the package to <root>/model.
     Returns model.json's dict. Raises TrainError on bad input, before fitting."""
     settings = read_settings(root / "input" / "config" / "hyperparameters.json")
+    if settings["C"] <= 0:
+        raise TrainError(f"C must be above 0, got {settings['C']}")
+    if settings["max_iter"] < 1:
+        raise TrainError(f"max_iter must be at least 1; got {settings['max_iter']}")
     runs = {name: load_runs(root / "input" / "data" / name) for name in CHANNELS}
     rows = {name: training_rows(runs[name]) for name in CHANNELS}
     for name in CHANNELS:
