@@ -38,6 +38,9 @@
 - **Diagnosis Lambda** skeleton that loads an artifact from S3 at cold start (or container image) and runs prediction on a window vector.
 - A documented "cost per inference" measurement hook for M9.
 
+The package format, promoting a model, calling the Lambda and the cost hook are documented in
+[`Docs/ML_INFERENCE.md`](../Docs/ML_INFERENCE.md).
+
 **Definition of Done**
 - [ ] A trivial model trains in SageMaker and its artifact lands versioned in S3.
 - [ ] Diagnosis Lambda loads that artifact and returns a prediction for a sample window.
