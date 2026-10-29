@@ -170,15 +170,25 @@ curl -s -XPOST http://localhost:9000/2015-03-31/functions/function/invocations -
 |---|---|---|---|
 | Warm call | none | 2–3 ms | 3 ms |
 | Cold start | 1.5–5.0 s (4 seen) | 2–3 ms | startup + call, e.g. 1,484 ms |
-| First cold start after a deploy (2 seen) | ran past 10 s both times, and was retried inside the call | 29.3 s and 9.5 s | 29,303 and 9,509 ms |
+| First cold start after a deploy that changed the libraries (2 seen) | ran past 10 s both times, and was retried inside the call | 29.3 s and 9.5 s | 29,303 and 9,509 ms |
+| First cold start after a deploy that changed only `handler.py` (1 seen) | 3.7 s | 3 ms | 3,693 ms |
 
 Memory used: 232–235 MB of 1024 MB.
 
 A cold start imports scikit-learn, scipy and numpy, reads the pointer, fetches the package (8.7 KB) and
 loads it. Lambda allows startup 10 s; when startup runs over, Lambda retries it inside the first call,
-under the function's timeout. The first start after a deploy reads a new image that Lambda hasn't cached
-yet. That is an inference: with the same code and settings, later starts took 1.5–5 s, and a deploy that
-changed only the timeout (same image) started in 1.5 s. It is why the timeout is 60 s rather than 30 s.
+under the function's timeout.
+
+The first start after a deploy reads the parts of the new image that Lambda hasn't cached yet. That is an
+inference, but it fits every case seen on 2026-10-29:
+- the two slow starts came after deploys that changed the image's large library layer (the first image,
+  then adding xgboost);
+- a deploy that changed only `handler.py`, the image's small top layer, started in 3.7 s;
+- a deploy that changed only the timeout (the same image) started in 1.5 s;
+- later starts took 1.5–5 s.
+
+So expect one slow first start after any change to `ml/requirements-image.txt`. It is why the timeout is
+60 s rather than 30 s.
 
 ## Cost per inference (the M9-4 hook)
 
@@ -216,5 +226,5 @@ The GB-second price drops only above 7.5 billion GB-seconds a month.
 - **A startup that timed out has no `Init Duration`** (its `INIT_REPORT` line says `Status: timeout`), so
   `cold_starts` undercounts it. Its `REPORT` line bills only the retry inside the call; AWS's docs don't
   say whether the timed-out 10 s is billed too. If it is, that adds at most 10 GB-seconds (about
-  $0.00013) per such start, which so far has happened once per deploy.
+  $0.00013) per such start, which so far has happened once after each deploy that changed the libraries.
 - **The reply's `inference_ms` is not billed time.** Bill from the `REPORT` lines.
