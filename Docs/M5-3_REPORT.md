@@ -30,7 +30,7 @@ Scored by `ml/evaluate.py` on the same windows for every model, in the training 
 
 | Model | Accuracy | Macro-F1 | Train macro-F1 |
 |---|---|---|---|
-| Logistic regression (tuned, M5-1) | 0.9898 | 0.9923 | TBD |
+| Logistic regression (tuned, M5-1) | 0.9898 | 0.9923 | 0.9952 |
 | XGBoost (defaults) | 0.9831 | 0.9869 | 1.0000 |
 | Random Forest (defaults) | 0.9819 | 0.9860 | 1.0000 |
 
@@ -44,13 +44,17 @@ Model 0 flags 83.0% of cascade windows under both baselines. All three classifie
 
 **Margin over Model 0 measures multivariate learning.** Every classifier beats the threshold rule by a wide margin in the anomaly view: it catches about 4 in 10 anomalous windows, they catch 99% or more of them, and raise fewer false alarms. The cascade margin is +0.170.
 
-**The train/validation gap measures overfitting.** The two tree models score macro-F1 1.0000 on train and 0.986 to 0.987 on validation, so they fit the training windows perfectly and lose a little on unseen ones. It is mild. Whether it persists on held-out bands is M9's question. The tuned logistic regression's train score is TBD.
+**The train/validation gap measures overfitting.** The two tree models score macro-F1 1.0000 on train and 0.986 to 0.987 on validation, so they fit the training windows perfectly and lose a little on unseen ones. It is mild. Whether it persists on held-out bands is M9's question. The tuned logistic regression scores 0.9952 on train and 0.9923 on validation, a gap of about 0.003, so it generalizes from train to validation more tightly than the tree models do (at defaults, with no regularization search).
 
 ## Where the errors are
 
 - **XGBoost (15 of 885 wrong):** 13 are truly NORMAL windows called an incident (8 as TRAFFIC_SPIKE, 4 as LAMBDA_DEGRADATION, 1 as DEPENDENCY_FAILURE), and every one of those contained 13.7 to 29.4 s of fault, just under the labeler's 30 s rule. The other two are incident windows called NORMAL (34.1 s and 35.5 s of fault).
 - **Logistic regression (9 of 885 wrong):** 2 are NORMAL windows called TRAFFIC_SPIKE (22.3 s and 23.8 s of fault). 7 are incident windows called NORMAL, including 5 TRAFFIC_SPIKE windows with 35 to 49.5 s of fault, which are real misses and not label-boundary noise. We have not explained why.
 - **Trade-off:** logistic regression has the fewest false alarms (about 2) but misses about 7 real incidents. The tree models miss about 2 and false-alarm on 13 or more. Which is better depends on the relative cost of a missed incident and a false alarm.
+
+## Feature boundary check
+
+The Feature/Label Boundary guard (`features/guard.py`, M4-5) was run over every downloaded v1 train and validation feature file: 700 files, 106 columns, no forbidden names. Every column the models train on is Tier-1. The labels come from `tier2/labels/` through `join_labels`, after the matrix is written, and never enter it.
 
 ## Caveats to state
 
