@@ -1,7 +1,7 @@
 # Dashboard Data Contract (M7-2)
 
 **Owner:** Jake (the read API) · **Consumer:** the SRE console (M7-1, Linu) · **Stack:** `anomalypulse-dashboard` ·
-**Status:** draft for sign-off by Linu (all of it) and Josh (`diagnosis`)
+**Status:** signed off by Linu (2026-10-31, #27); `diagnosis` awaits Josh's sign-off
 
 The one JSON object the console reads, what every field means, and where each value comes from once M8 makes it
 live. The console renders only from this object. Until M8-5 the read API serves mock data in exactly this shape;
@@ -12,17 +12,22 @@ M8-5 switches its source to live data without changing the shape.
 ## The call
 
 ```text
-GET <base URL>/dashboard
+GET https://ffc8nyi6jl.execute-api.us-east-2.amazonaws.com/dashboard
 ```
+
+The URL is the `anomalypulse-dashboard` stack's `DashboardUrl` output, also published in SSM at
+`/anomalypulse/dashboard/url`. It stays the same across deploys of the stack.
 
 - **200** with the object below, `Content-Type: application/json`.
 - **503** with `{"error": "<what failed>"}` when the API can't read its source. The console keeps showing the
   last good reply, marked stale.
-- **Poll every 10–15 s.** The numbers describe one-minute windows, so they change at most once a minute; the
-  diagnosis can arrive at any time.
+- **Poll every 10–15 s** (the console polls every 15 s). The numbers describe one-minute windows, so they change
+  at most once a minute; the diagnosis can arrive at any time.
 - **Mock only:** `GET /dashboard?scenario=<name>` returns one of the fixed scenarios below, so every state of the
-  console can be built and checked. The live API ignores `scenario`.
-- The base URL and the CORS origin are set when the stack is deployed (open questions, below).
+  console can be built and checked; no `scenario` gives `healthy`. An unknown name returns **400** with
+  `{"error": "unknown scenario '<name>'; use one of: ..."}`. The live API ignores `scenario`.
+- **CORS:** any origin while the API serves mock data. M8-5 narrows it to the console's addresses,
+  `http://127.0.0.1:4173` and `http://localhost:4173` (a browser treats the two as different origins).
 
 ## Example
 
@@ -195,6 +200,11 @@ Each item of `faults`:
 | `no_ground_truth` | An incident with nothing injected, as in production: `ground_truth` and `comparison` are `null` |
 | `no_data` | The pipeline has stopped: `NO_DATA`, every number `null` |
 
+Every time in a scenario is placed at the moment of the request: `health.window_start` is the latest complete
+minute, and every other time keeps its offset from it, so the scenarios never go stale (and never turn into
+`NO_DATA` by age). The `incident` scenario's ids are the mock's own, and it sends Order's error rate as 30/180,
+which the example rounds to 0.167. The numbers are illustrative; none comes from the validation or test sets.
+
 ## Where each value comes from in M8
 
 | Section | Now (M7) | Live (M8) | Who |
@@ -204,11 +214,18 @@ Each item of `faults`:
 | `diagnosis` | the mock scenario | Bedrock's output, stored in the Incidents table | M8-3 (Rachel), M8-4 (Josh) |
 | `ground_truth`, `comparison` | the mock scenario | The manifest of the experiment running in that minute, read from the shared bucket (read only) | Jake |
 
+**The code** is in `AnomalyPulse/dashboard/`. `builder.py` applies every rule in this document to raw inputs:
+the latest window, the incident record, the manifest and the time. `mock_source.py` supplies the scenarios'
+inputs. `handler.py` picks the source from the `DASHBOARD_SOURCE` setting (anything but `mock`, including no
+setting, answers 503, never mock data) and is the only code that reads the clock. M8-5 adds a live source beside
+the mock one and changes nothing else.
+
 ## Open questions
 
-1. **Linu:** what are you building the console with (plain HTML/JavaScript, React, Streamlit, …), and from what
-   address will it load, both while you develop (e.g. `http://localhost:5173`) and for the demo? A page in a
-   browser can read the API's replies only if the API names that address (CORS). Until M8-5 the API allows any
-   address, since it serves mock data. Does polling every 10–15 s suit you? Does any panel need something that
-   isn't here?
+1. **Linu: answered** (2026-10-31, #27). The console is plain HTML/CSS and JavaScript modules: static files, no
+   build step. It runs from `http://127.0.0.1:4173` and `http://localhost:4173`, both while she develops and, for
+   the demo, on the presenting laptop; it is not hosted in AWS (revisit in M9 if a shareable link matters). It
+   polls every 15 s and keeps the last good reply on a 503 or a timeout. Nothing is missing. While `diagnosis`
+   is `null`, the incident panel shows "Severity pending": the manifest's severity is ground truth and never
+   fills it.
 2. **Josh:** do the `diagnosis` fields match M6-1's output schema? Does Bedrock give a `severity`?
