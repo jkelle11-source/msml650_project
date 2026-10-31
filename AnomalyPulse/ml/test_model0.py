@@ -55,3 +55,38 @@ def test_score_counts_anomalies_as_anything_but_normal():
 def test_score_refuses_mismatched_lengths():
     with pytest.raises(ValueError):
         model0.score(["NORMAL"], [True, False])
+def p95(value, svc="order"):
+    return {f"{svc}_p95_latency_ms": value}
+
+
+def test_earlier_mean_rule_fires_above_double_the_earlier_mean():
+    earlier = [p95(10.0), p95(10.0), p95(10.0)]
+    assert model0.flag_vs_earlier(p95(25.0), earlier)
+    assert not model0.flag_vs_earlier(p95(15.0), earlier)
+
+
+def test_earlier_mean_uses_only_the_last_n_rows():
+    earlier = [p95(100.0), p95(10.0), p95(10.0), p95(10.0)]
+    assert model0.flag_vs_earlier(p95(25.0), earlier, n=3)
+    assert not model0.flag_vs_earlier(p95(25.0), earlier, n=4)
+
+
+def test_the_current_window_is_not_in_its_own_mean():
+    # literal "2 x mean(this, prev1, prev2)" would not fire here; the earlier-only mean does
+    assert model0.flag_vs_earlier(p95(30.0), [p95(10.0), p95(10.0)], n=3)
+
+
+def test_earlier_mean_skips_empty_values_and_needs_some_history():
+    assert model0.flag_vs_earlier(p95(25.0), [p95(None), p95(10.0)])
+    assert not model0.flag_vs_earlier(p95(25.0), [])
+    assert not model0.flag_vs_earlier(p95(25.0), [p95(None)])
+
+
+def test_earlier_mean_rule_still_flags_errors_with_no_history():
+    assert model0.flag_vs_earlier(row(cart_error_rate_5xx=0.2), [])
+    assert not model0.flag_vs_earlier(row(cart_error_rate_5xx=0.05), [])
+
+
+def test_earlier_mean_needs_at_least_one_row():
+    with pytest.raises(ValueError):
+        model0.flag_vs_earlier(row(), [], n=0)

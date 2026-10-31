@@ -67,3 +67,27 @@ def score(labels, flagged):
         "recall_by_class": {c: ratio(sum(f for l, f in zip(labels, flagged) if l == c),
                                      sum(1 for l in labels if l == c)) for c in classes},
     }
+EARLIER = 3
+
+
+def flag_vs_earlier(row, earlier_rows, n=EARLIER):
+    """True if any service trips the latency or error rule in this feature row.
+
+    Latency: the service's p95 is more than RATIO x the mean of its p95 over the previous
+    n rows in `earlier_rows` (the current window is never in the mean). The caller passes
+    the run's earlier LOOKBACK windows in time order: its labeled windows plus the startup
+    minute, as the feature matrix does. Empty values are skipped; with none, only the
+    error rule can fire.
+    """
+    if n < 1:
+        raise ValueError(f"n must be at least 1, got {n}")
+    earlier = earlier_rows[-n:]
+    for svc in SERVICES:
+        p95 = _num(row, f"{svc}_p95_latency_ms")
+        values = [v for v in (_num(r, f"{svc}_p95_latency_ms") for r in earlier) if v is not None]
+        if p95 is not None and values and p95 > RATIO * (sum(values) / len(values)):
+            return True
+        errors = _num(row, f"{svc}_error_rate_5xx")
+        if errors is not None and errors > ERROR_LIMIT:
+            return True
+    return False
