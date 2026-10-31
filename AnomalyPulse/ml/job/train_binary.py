@@ -3,7 +3,8 @@
     python -m ml.launch train --script ml/job/train_binary.py --dry-run
     python -m ml.launch train --script ml/job/train_binary.py                  # logistic regression
     python -m ml.launch train --script ml/job/train_binary.py --set estimator=xgboost --set max_depth=4
-    python -m ml.launch tune --script ml/job/train_binary.py --range C=0.01:100:log --jobs 8
+
+No `tune`: the launcher's tuning job maximizes validation:macro_f1, which this script doesn't print.
 
 The labeled-data comparison point for the Isolation Forest (train_iforest.py): we do have
 labels here, so this detector measures what going unsupervised costs (PROJECT_PLAN §8). Its

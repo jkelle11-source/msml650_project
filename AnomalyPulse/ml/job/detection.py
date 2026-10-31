@@ -8,13 +8,22 @@ Metrics are flat numbers per channel, so model.json's `metrics` stays small enou
 promotion pointer (an SSM String). Anything longer (latency per run, recall per incident
 type, the threshold table) goes in model.json's `evaluation`.
 
+NORMAL windows come in two kinds, told apart by the label rows' `fault_ms` (M4-4):
+    healthy       no fault active at all.
+    fault-start   a fault was active for under half the minute, so the labeling policy calls
+                  the window NORMAL. On v1 every one is the minute a fault starts in.
+`fpr` counts a flagged NORMAL window of either kind, as the labels say. `fpr_healthy` is the
+false alarms an operator would see; `fault_start_flagged` is the faults caught early, which
+the labels count as false positives (Docs/DETECTION.md).
+
 Detection latency (§16) is measured per incident run, from the fault's onset to the END of
 the first window flagged ANOMALY: a window can only be scored once its minute has closed, so
 it can never be under the time left in the onset's minute. The onset comes from the label
 rows' evidence (`fault_ms`, M4-4): the first window with any counted fault active, where the
 fault has been active for its last fault_ms. DB throttling's onset is its `label_from`, the
-moment throttling is first observed (LABELING.md). Inference itself takes milliseconds
-(ML_INFERENCE.md), so latency is window-dominated by construction.
+moment throttling is first observed (LABELING.md). Only labeled incident windows count as a
+detection, so a flag in a fault-start window is not credited. Inference itself takes
+milliseconds (ML_INFERENCE.md), so latency is window-dominated by construction.
 """
 from datetime import datetime, timedelta, timezone
 
@@ -23,9 +32,9 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 
 NORMAL, ANOMALY = "NORMAL", "ANOMALY"
 WINDOW_S = 60
-# The operating point both detectors are compared at, threshold-free: recall with 5% of
-# NORMAL windows flagged.
-COMPARE_FPR = 0.05
+# The operating point both detectors are compared at, threshold-free: recall with 1% of
+# healthy windows flagged.
+COMPARE_FPR = 0.01
 
 def is_anomaly(labels):
     """[bool] from six-class labels: anything but NORMAL is an anomaly."""
@@ -50,13 +59,30 @@ def rates(counts):
     fpr = fp / (fp + tn) if fp + tn else 0.0
     return {"precision": precision, "recall": recall, "f1": f1, "fpr": fpr}
 
-def recall_at_fpr(truth, anomaly_scores, fpr = COMPARE_FPR):
-    """Recall when the cut-off flags `fpr` of the NORMAL windows: a threshold-free way to
+def healthy(runs, rows):
+    """[bool] per row: a NORMAL window with no fault active in it. `runs` is load_runs' list and
+    `rows` training_rows' for the same channel. A NORMAL window that isn't healthy is a
+    fault-start window."""
+    faulty = {(experiment_id, r["window_start"]) for experiment_id, _, label_rows in runs
+              for r in label_rows if any((r.get("fault_ms") or {}).values())}
+    return [row["label"] == NORMAL and (experiment_id, row["window_start"]) not in faulty
+            for experiment_id, row in rows]
+
+def false_alarms(truth, calm, flagged):
+    """fpr_healthy (share of healthy windows flagged) and fault_start_flagged (share of
+    fault-start windows flagged); 0.0 where there are none."""
+    truth, calm, flagged = (np.asarray(a, bool) for a in (truth, calm, flagged))
+    start = ~truth & ~calm
+    return {"fpr_healthy": float(flagged[calm].mean()) if calm.any() else 0.0,
+            "fault_start_flagged": float(flagged[start].mean()) if start.any() else 0.0}
+
+def recall_at_fpr(truth, calm, anomaly_scores, fpr = COMPARE_FPR):
+    """Recall when the cut-off flags `fpr` of the healthy windows: a threshold-free way to
     compare two detectors at the same false-alarm rate."""
-    truth, scores = np.asarray(truth, bool), np.asarray(anomaly_scores, float)
-    if truth.all() or not truth.any():
+    truth, calm, scores = np.asarray(truth, bool), np.asarray(calm, bool), np.asarray(anomaly_scores, float)
+    if not truth.any() or not calm.any():
         return 0.0
-    cut = np.quantile(scores[~truth], 1 - fpr)
+    cut = np.quantile(scores[calm], 1 - fpr)
     return float(np.mean(scores[truth] > cut))
 
 def ranking(truth, anomaly_scores):
@@ -133,14 +159,17 @@ def recall_by_label(rows, flagged):
 
 def evaluate(runs, rows, labels, flagged, anomaly_scores):
     """(metrics, evaluation) for one channel. metrics: flat numbers for model.json's
-    `metrics` and the log; evaluation: the confusion counts, recall per label and latency."""
+    `metrics` and the log; evaluation: the confusion counts, the NORMAL windows of each kind,
+    recall per label and latency."""
     truth = is_anomaly(labels)
+    calm = healthy(runs, rows)
     counts = confusion(truth, flagged)
     summary, per_run = latency(runs, rows, flagged)
-    metrics = {**rates(counts), **ranking(truth, anomaly_scores),
-               "recall_at_fpr_5": recall_at_fpr(truth, anomaly_scores)}
+    metrics = {**rates(counts), **false_alarms(truth, calm, flagged), **ranking(truth, anomaly_scores),
+               "recall_at_healthy_fpr_1": recall_at_fpr(truth, calm, anomaly_scores)}
     if "median_s" in summary:
         metrics["latency_median_s"] = summary["median_s"]
-    evaluation = {"confusion": counts, "recall_by_label": recall_by_label(rows, flagged),
-                  "latency": {**summary, "runs": per_run}}
+    normal = {"healthy": sum(calm), "fault_start": sum(not t and not c for t, c in zip(truth, calm))}
+    evaluation = {"confusion": counts, "normal_windows": normal,
+                  "recall_by_label": recall_by_label(rows, flagged), "latency": {**summary, "runs": per_run}}
     return metrics, evaluation

@@ -13,8 +13,10 @@ import sys
 import tarfile
 from pathlib import Path
 
-METRICS = ("precision", "recall", "f1", "fpr", "roc_auc", "average_precision",
-           "recall_at_fpr_5", "latency_median_s")
+# fpr counts every flagged NORMAL window; fpr_healthy and fault_start_flagged split it (detection.py).
+METRICS = ("precision", "recall", "f1", "fpr", "fpr_healthy", "fault_start_flagged", "roc_auc",
+           "average_precision", "recall_at_healthy_fpr_1", "latency_median_s")
+RULE_COLUMNS = ("threshold", "precision", "recall", "f1", "fpr", "fpr_healthy", "fault_start_flagged")
 
 def read_package(path):
     path = Path(path)
@@ -45,10 +47,9 @@ def table(unsupervised, supervised):
     if thresholds:
         lines += ["", f"Isolation Forest cut-off rules on validation (chosen: "
                   f"{unsupervised['evaluation']['threshold_rule']}):", "",
-                  "| rule | threshold | precision | recall | f1 | fpr |", "|---|---|---|---|---|---|"]
+                  "| rule | " + " | ".join(RULE_COLUMNS) + " |", "|---" * (len(RULE_COLUMNS) + 1) + "|"]
         for rule, e in thresholds.items():
-            lines.append(f"| {rule} | {e['threshold']:.4f} | {e['precision']:.4f} | {e['recall']:.4f} "
-                         f"| {e['f1']:.4f} | {e['fpr']:.4f} |")
+            lines.append(f"| {rule} | " + " | ".join(f"{e[c]:.4f}" for c in RULE_COLUMNS) + " |")
     return "\n".join(lines)
 
 def guard(packages):

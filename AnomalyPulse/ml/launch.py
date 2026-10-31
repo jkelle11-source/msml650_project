@@ -33,8 +33,8 @@ sent, and its libraries are ml/requirements-image.txt's, the ones the Diagnosis 
 loads the model with. Exit codes as for smoke.
 
 `--script ml/job/<name>.py` runs another job script the same way (train.py is the
-default). It is bundled with train.py and join_labels.py, so it can `import train` for the
-helpers that read the channels, and its jobs are named anomalypulse-train-<name>-<time>
+default). It is bundled with train.py, join_labels.py and detection.py, so it can `import train`
+for the helpers that read the channels, and its jobs are named anomalypulse-train-<name>-<time>
 (without a leading train_). `--set NAME=VALUE` sends any setting; -C and --max-iter are
 train.py's, as --set C=... and --set max_iter=....
 
@@ -100,15 +100,13 @@ SMOKE_HYPERPARAMETERS = {"C": 0.5, "max_iter": 200}
 SMOKE_ARGV_PREDICTED = ["-C", "0.5", "--max_iter", "200"]
 SMOKE_ENV = ("SM_MODEL_DIR", "SM_CHANNEL_CODE", "SM_CHANNEL_FEATURES", "SM_CHANNEL_LABELS")
 
-# The job imports join_labels from beside train.py, so the bundle carries it.
-#CHANGED BY MELISA
+# Every job's bundle: train.py imports join_labels from beside it, and the M5-2 detectors import
+# detection (their shared metrics) from beside them.
 TRAIN_CODE = (JOB_DIR / "train.py", JOB_DIR.parent.parent / "features" / "join_labels.py",
               JOB_DIR / "detection.py")
-
 # --script: a file in ml/job/ that the toolkit can run as a module (python -m <name>), and
 # whose name doesn't hide a library it imports: the code directory comes first on sys.path.
 SCRIPT_NAME = re.compile(r"[a-z][a-z0-9_]*")
-# CHANGED BY MELISA
 SHADOWED = {"xgboost", "sklearn", "numpy", "scipy", "joblib", "pandas", "join_labels", "detection"}
 # {channel: its temporal_split partition}. Both channels copy in both trees.
 TRAIN_CHANNELS = {"train": "train", "validation": "val"}
@@ -248,8 +246,8 @@ def tuning_job_name(now):
 def job_script(path):
     """(script, variant, code) for --script: the script's path in ml/job/, the job-name variant
     (train.py's is "logreg"; ml/job/train_xgb.py's is "xgb"), and the files to bundle. Any
-    script but train.py is bundled with train.py and join_labels.py, so it can import train's
-    helpers. Raises ValueError on a script the toolkit couldn't run or import."""
+    script but train.py is bundled with train.py, join_labels.py and detection.py, so it can
+    import their helpers. Raises ValueError on a script the toolkit couldn't run or import."""
     script = Path(path)
     if not script.is_file():
         script = JOB_DIR / path

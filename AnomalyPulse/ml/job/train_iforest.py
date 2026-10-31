@@ -2,21 +2,26 @@
 
     python -m ml.launch train --script ml/job/train_iforest.py --dry-run
     python -m ml.launch train --script ml/job/train_iforest.py --set n_estimators=300
-    python -m ml.launch tune --script ml/job/train_iforest.py --range max_samples=64:512 \
-        --range max_features=0.3:1.0 --jobs 8      # objective: validation:roc_auc
+
+No `tune`: the launcher's tuning job maximizes validation:macro_f1, which this script doesn't print.
 
 Isolation Forest is here to model production, where nobody labels incidents (PROJECT_PLAN §8).
 So the fit never sees an incident label:
     fit_on=normal (default)  fit on the training windows of a period known to be healthy, the
                              NORMAL windows, as a team would fit on a quiet baseline week. It uses
                              "this period was quiet", never which incident a window was.
-    fit_on=all               fit on every training window, label-blind. Our dataset is mostly
-                             incidents by design (over half its windows), which breaks the forest's
-                             "anomalies are rare" assumption: an ablation, not production.
+    fit_on=all               fit on every training window, label-blind. Over half our windows are
+                             incidents by design, against the forest's "anomalies are rare"
+                             assumption, yet on validation it ranks as well as fit_on=normal: the
+                             fully label-free ablation (Docs/DETECTION.md).
 
 The cut-off is the one choice that needs some labels. threshold_rule picks it:
-    fpr (default)  flag target_fpr of the validation NORMAL windows (default 5%): needs only
-                   known-healthy windows, the same thing the fit used.
+    fpr (default)  flag target_fpr of validation's healthy windows (default 1%): NORMAL windows
+                   with no fault active (detection.healthy), what a known-quiet period gives.
+                   Not every NORMAL window: the minute a fault starts in is NORMAL when the fault
+                   ran under half of it, and the forest rightly scores it as anomalous, so a
+                   budget spent on those flagged no healthy window and missed every DB-throttling
+                   window (PR #83's review).
     offset         scikit-learn's own cut-off (offset_, contamination="auto"): no labels at all.
     f1             the cut-off with the best validation F1: the optimistic, fully labeled case.
 All three are scored and kept in model.json's evaluation.thresholds, so one job gives the
@@ -42,7 +47,7 @@ from train import TrainError
 
 SETTINGS = {"n_estimators": (int, 200), "max_samples": (int, 256), "max_features": (float, 1.0),
             "fit_on": (str, "normal"), "threshold_rule": (str, "fpr"),
-            "target_fpr": (float, 0.05), "random_state": (int, 0)}
+            "target_fpr": (float, 0.01), "random_state": (int, 0)}
 FIT_ON = ("normal", "all")
 THRESHOLD_RULES = ("fpr", "offset", "f1")
 TASK = "anomaly_iforest"
@@ -83,13 +88,14 @@ def best_f1_threshold(truth, scores):
     best = max(cuts, key = lambda cut: detection.rates(detection.confusion(truth, scores < cut))["f1"])
     return float(best)
 
-def thresholds(model, truth, scores, target_fpr):
-    """{rule: cut-off on score_samples} for every rule, from the validation scores."""
+def thresholds(model, truth, calm, scores, target_fpr):
+    """{rule: cut-off on score_samples} for every rule, from the validation scores. `calm`
+    marks the healthy windows (detection.healthy)."""
     truth, scores = np.asarray(truth, bool), np.asarray(scores, float)
-    normal = scores[~truth]
-    if not len(normal):
-        raise TrainError("the validation channel has no NORMAL windows to set a cut-off on")
-    return {"fpr": float(np.quantile(normal, target_fpr)),
+    quiet = scores[np.asarray(calm, bool)]
+    if not len(quiet):
+        raise TrainError("the validation channel has no healthy windows to set a cut-off on")
+    return {"fpr": float(np.quantile(quiet, target_fpr)),
             "offset": float(model.offset_),
             "f1": best_f1_threshold(truth, scores)}
 
@@ -127,7 +133,8 @@ def run(root):
     model = fit(*data["train"], settings)
     scores = {name: model.score_samples(np.asarray(data[name][0], float)) for name in train.CHANNELS}
     truth = detection.is_anomaly(data["validation"][1])
-    cuts = thresholds(model, truth, scores["validation"], settings["target_fpr"])
+    calm = detection.healthy(runs["validation"], rows["validation"])
+    cuts = thresholds(model, truth, calm, scores["validation"], settings["target_fpr"])
     threshold = cuts[settings["threshold_rule"]]
 
     metrics, evaluation = {}, {"threshold_rule": settings["threshold_rule"], "thresholds": {}}
@@ -136,8 +143,9 @@ def run(root):
         metrics[name], evaluation[name] = detection.evaluate(
             runs[name], rows[name], data[name][1], flagged, -scores[name])
     for rule, cut in cuts.items():
-        counts = detection.confusion(truth, scores["validation"] < cut)
-        evaluation["thresholds"][rule] = {"threshold": cut, **detection.rates(counts)}
+        flagged = scores["validation"] < cut
+        evaluation["thresholds"][rule] = {"threshold": cut, **detection.rates(detection.confusion(truth, flagged)),
+                                          **detection.false_alarms(truth, calm, flagged)}
 
     counts = {"rows": {name: len(rows[name]) for name in train.CHANNELS},
               "runs": {name: len(runs[name]) for name in train.CHANNELS}}
