@@ -1,0 +1,150 @@
+/* AnomalyPulse: a live incident report. One column of plain sentences on white paper,
+   sections divided by dot leaders, and colour only where state lives: red, amber or
+   green on the state word, indigo for what the simulator injected. Atkinson Hyperlegible
+   Next (fonts/, SIL Open Font License) was drawn for legibility, which suits a screen
+   read from the back of a classroom, and it is bundled so the demo doesn't need Wi-Fi. */
+
+@font-face { font-family: "Atkinson Next"; font-weight: 400; font-style: normal; font-display: swap; src: url("fonts/atkinson-hyperlegible-next-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Atkinson Next"; font-weight: 400; font-style: italic; font-display: swap; src: url("fonts/atkinson-hyperlegible-next-latin-400-italic.woff2") format("woff2"); }
+@font-face { font-family: "Atkinson Next"; font-weight: 500; font-style: normal; font-display: swap; src: url("fonts/atkinson-hyperlegible-next-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Atkinson Next"; font-weight: 700; font-style: normal; font-display: swap; src: url("fonts/atkinson-hyperlegible-next-latin-700-normal.woff2") format("woff2"); }
+
+:root {
+  --paper: #ffffff;
+  --ink: #1d2430;
+  --soft: #5a6472;
+  --rule: #c9cfd6;
+  --red: #b42318;
+  --amber: #9a5b06;
+  --green: #23704a;
+  --indigo: #3b3f9f;
+  --grey: #6b7480;
+  --measure: 46rem;
+  --gutter: clamp(20px, 5vw, 64px);
+}
+
+* { box-sizing: border-box; }
+html { background: var(--paper); color: var(--ink); }
+body {
+  margin: 0; background: var(--paper);
+  font: 400 1.125rem/1.6 "Atkinson Next", "Segoe UI", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+h1, h2, h3, p { margin: 0; }
+button, select { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--indigo); outline-offset: 3px; }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---- masthead: a quiet running head, as on a report's page ------------------------ */
+.masthead {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap;
+  max-width: calc(var(--measure) + 2 * var(--gutter)); margin: 0 auto; padding: 22px var(--gutter) 0;
+  font-size: 0.95rem; color: var(--soft);
+}
+.wordmark { font-weight: 700; color: var(--ink); letter-spacing: 0.01em; }
+.feed { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.feed button {
+  border: 0; background: none; padding: 0; color: var(--ink); cursor: pointer;
+  text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px;
+}
+.feed button:hover { color: var(--indigo); }
+
+.demo {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  max-width: calc(var(--measure) + 2 * var(--gutter)); margin: 6px auto 0; padding: 0 var(--gutter);
+  font-size: 0.95rem; color: var(--soft);
+}
+.demo label { color: var(--ink); }
+.demo select { padding: 2px 6px; border: 1px solid var(--rule); border-radius: 3px; background: var(--paper); }
+
+.notice {
+  max-width: calc(var(--measure) + 2 * var(--gutter)); margin: 18px auto 0; padding: 0 var(--gutter);
+  font-weight: 500;
+}
+.notice-alarm { color: var(--red); }
+.notice-warn { color: var(--amber); }
+
+/* ---- the report ---------------------------------------------------------------------- */
+main { max-width: calc(var(--measure) + 2 * var(--gutter)); margin: 0 auto; padding: 44px var(--gutter) 72px; }
+body[data-state="loading"] main, body[data-state="empty"] main { display: none; }
+body[data-state="stale"] main { color: var(--grey); }
+body[data-state="stale"] main * { color: inherit !important; }
+
+/* The opening: dateline, a headline sentence, and the deck under it. */
+.dateline { font-size: 1rem; color: var(--soft); margin-bottom: 10px; }
+.state { font-weight: 700; margin-right: 6px; }
+.state-alarm { color: var(--red); }
+.state-ok { color: var(--green); }
+.state-warn { color: var(--amber); }
+.state-none, .state-idle { color: var(--grey); }
+h1 { font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1.15; font-weight: 700; letter-spacing: -0.01em; max-width: 22ch; }
+.deck { font-size: 1.3rem; line-height: 1.5; margin-top: 16px; max-width: 40em; }
+
+section + section, .lede + section { margin-top: 52px; }
+
+/* Section heads run into a dotted leader, the way a printed report sets them. */
+.leader { display: flex; align-items: baseline; gap: 12px; font-size: 1.2rem; font-weight: 700; margin-bottom: 18px; }
+.leader::after { content: ""; flex: 1; border-bottom: 2px dotted var(--rule); transform: translateY(-4px); }
+
+/* ---- the system: a line of key figures, then the services --------------------------- */
+.figures { display: flex; flex-wrap: wrap; gap: 8px 36px; margin: 0 0 22px; }
+.figure { display: flex; flex-direction: column-reverse; }
+.figure dt { font-size: 0.95rem; color: var(--soft); }
+.figure dd { margin: 0; font-size: 1.85rem; font-weight: 700; line-height: 1.2; }
+
+.services { width: 100%; border-collapse: collapse; }
+.services th, .services td { text-align: left; padding: 9px 0; border-bottom: 1px solid var(--rule); vertical-align: baseline; }
+.services thead th { font-size: 0.9rem; font-weight: 400; color: var(--soft); padding-top: 0; }
+.services tbody th { font-weight: 700; }
+.services td + td, .services thead th + th { padding-left: 18px; }
+.services .num { text-align: right; white-space: nowrap; }
+.service-state { font-weight: 500; }
+.state-inline { display: none; }
+.service-state.state-ok { color: var(--soft); font-weight: 400; }
+
+/* ---- what Bedrock says --------------------------------------------------------------- */
+.summary { font-size: 1.2rem; }
+.cause { margin-top: 14px; }
+.run-in { font-weight: 700; }
+.lists { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 40px; margin-top: 20px; }
+.lists h3 { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
+.lists ul, .lists ol { margin: 0; padding-left: 1.2em; }
+.lists li { margin: 3px 0; }
+.caveat { margin-top: 22px; font-size: 0.95rem; font-style: italic; color: var(--soft); }
+.pending { color: var(--soft); font-style: italic; }
+
+/* ---- prediction and ground truth: a two-column ledger, then the verdict as a sentence -- */
+.ledger { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; }
+.column h3 { font-size: 0.95rem; font-weight: 400; color: var(--soft); }
+.column .type { font-size: 1.6rem; font-weight: 700; line-height: 1.25; margin: 2px 0 6px; }
+.column .detail { font-size: 1rem; color: var(--soft); }
+.column-truth { border-left: 3px solid var(--indigo); padding-left: 20px; }
+.column-truth .type { color: var(--indigo); }
+.run-id { white-space: nowrap; }
+.type-none { color: var(--grey) !important; }
+.faults { list-style: none; margin: 12px 0 0; padding: 0; font-size: 1rem; }
+.fault { margin: 0 0 8px; }
+.fault-name { font-weight: 700; color: var(--indigo); }
+.fault-on .fault-state { color: var(--red); font-weight: 500; }
+.fault-off .fault-name, .fault-off .fault-state { color: var(--grey); font-weight: 400; }
+.fault-detail { display: block; color: var(--soft); font-size: 0.95rem; }
+
+.verdict { margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--rule); font-size: 1.2rem; max-width: 40em; }
+.mark { display: inline-block; width: 1.4em; font-weight: 700; }
+.verdict-match .mark, .verdict-match strong { color: var(--green); }
+.verdict-partial .mark, .verdict-partial strong { color: var(--amber); }
+.verdict-miss .mark, .verdict-miss strong { color: var(--red); }
+.verdict-none .mark, .verdict-none strong { color: var(--grey); }
+
+/* ---- narrow screens ---------------------------------------------------------------- */
+@media (max-width: 640px) {
+  body { font-size: 1.05rem; }
+  .figures { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; }
+  .figure dd { font-size: 1.5rem; }
+  .services thead th:nth-child(2), .services td.service-state { display: none; }
+  .services .state-inline { display: block; font-weight: 400; font-size: 0.9rem; }
+  .services td + td, .services thead th + th { padding-left: 10px; }
+  .lists, .ledger { grid-template-columns: 1fr; }
+  .column-truth { margin-top: 24px; }
+}
