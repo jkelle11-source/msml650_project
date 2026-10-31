@@ -46,6 +46,14 @@ def test_cascade_margin_is_exact_recall_minus_the_best_model0_recall():
     assert cascade["margin"]["xgboost"] == 0.5
 
 
+def test_the_margin_is_taken_against_the_stronger_model0():
+    # one variant flags no cascade window, the other flags one of the two
+    flags = {"previous_window": [False] * 6, "earlier_mean_3": [False, False, False, False, True, False]}
+    cascade = compare.compare(TRUTH, {"xgboost": PRED}, flags, CLASSES)["cascade"]
+    assert cascade["model0_recall"] == {"previous_window": 0.0, "earlier_mean_3": 0.5}
+    assert cascade["margin"]["xgboost"] == 0.0
+
+
 def test_no_cascade_windows_gives_no_cascade_section():
     truth = [N, A]
     report = compare.compare(truth, {"x": truth}, {"previous_window": [False, True]}, CLASSES)
@@ -54,9 +62,9 @@ def test_no_cascade_windows_gives_no_cascade_section():
 
 def test_markdown_names_every_model_and_the_cascade_margin():
     report = compare.compare(TRUTH, {"xgboost": PRED, "random_forest": TRUTH},
-                             {"rolling_mean": [False] * 6, "previous_window": [False, False, True, False, False, True]},
+                             {"previous_window": [False] * 6, "earlier_mean_3": [False, False, True, False, False, True]},
                              CLASSES)
     text = compare.render_markdown(report, CLASSES)
-    for needle in ("Model 0 (rolling_mean)", "Model 0 (previous_window)", "xgboost",
+    for needle in ("Model 0 (previous_window)", "Model 0 (earlier_mean_3)", "xgboost",
                    "random_forest", "Confusion matrix", "Cascade margin over Model 0"):
         assert needle in text

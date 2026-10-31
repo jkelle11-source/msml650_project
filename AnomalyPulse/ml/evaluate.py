@@ -5,7 +5,7 @@
 
 --root is laid out like a job's /opt/ml (input/data/validation/...). Each --package is a folder
 holding model.joblib and model.json. Prints the comparison report (ml/compare.py), Model 0's
-recall by class, and each model's time to recognize a cascade.
+recall by class, each model's time to recognize a cascade, and where its wrong windows sit.
 Run it in the training image's library versions, so the pickles load as they were written.
 """
 import argparse
@@ -139,16 +139,45 @@ def summarize_ttr(times):
             "max": max(found) if found else None, "never": len(times) - len(found)}
 
 
+def fault_minutes(label_rows):
+    """{window_start: (fault seconds, where)} for every window of a run. Fault seconds is the
+    longest-active fault's time in the window (labels.jsonl's fault_ms). `where` is "healthy"
+    with no fault time, "first minute" with fault time and none in the window before (the
+    fault begins inside it), else "later"."""
+    out, previous = {}, {}
+    for r in sorted(label_rows, key=lambda r: r["window_start"]):
+        faults = r.get("fault_ms") or {}
+        where = "healthy" if not faults else "later" if previous else "first minute"
+        out[r["window_start"]] = (max(faults.values(), default=0) / 1000, where)
+        previous = faults
+    return out
+
+
+def wrong_windows(runs, rows, guesses):
+    """[{run, window, true, predicted, fault_s, where}] for each row the model got wrong."""
+    minutes = {eid: fault_minutes(labels) for eid, _, labels in runs}
+    wrong = []
+    for (eid, row), guess in zip(rows, guesses):
+        if guess != row[train.LABEL]:
+            seconds, where = minutes[eid][row[train.KEY]]
+            wrong.append({"run": eid, "window": row[train.KEY], "true": row[train.LABEL],
+                          "predicted": guess, "fault_s": seconds, "where": where})
+    return wrong
+
+
 def build_report(root, packages):
     """(report, classes): Model 0's two baselines and each package, on the same windows."""
     runs = load_runs(root)
     rows = train.training_rows(runs)
     if not rows:
         raise EvalError("the validation channel has no labeled windows")
+    missing = [c for c in model0_columns() if c not in rows[0][1]]
+    if missing:
+        raise EvalError(f"Model 0 reads columns the features lack: {missing}")
     lookback = {eid: lookback_rows(features, labels) for eid, features, labels in runs}
     truth = [row[train.LABEL] for _, row in rows]
     flags = {
-        "previous_window": model0.predict([row for _, row in rows], "previous_window"),
+        "previous_window": model0.predict([row for _, row in rows]),
         EARLIER_BASELINE: [
             model0.flag_vs_earlier(
                 row, [r for r in lookback[eid] if r["window_start"] < row["window_start"]])
@@ -169,6 +198,7 @@ def build_report(root, packages):
             called.setdefault(eid, {})[row["window_start"]] = guess
         report["time_to_recognize"][name] = {
             eid: time_to_recognize(labels, called.get(eid, {})) for eid, labels in cascade_runs}
+    report["wrong"] = {name: wrong_windows(runs, rows, guesses) for name, guesses in predictions.items()}
     return report, classes
 
 
@@ -209,6 +239,30 @@ def render_time_to_recognize(ttr):
     return "\n".join(lines) + "\n"
 
 
+def render_wrong_windows(wrong):
+    lines = ["", "## Wrong windows", "",
+             "Where each wrong window sits in its run: the first minute of a fault (fault time in it, "
+             "none in the minute before), a healthy minute (no fault time), or later in a fault. Fault "
+             "seconds are the longest-active fault's time in the window, from labels.jsonl.", ""]
+    if not wrong:
+        lines.append("No trained model was scored.")
+        return "\n".join(lines) + "\n"
+    places = ("first minute", "healthy", "later")
+    lines += ["| Model | Wrong | First minute of a fault | Healthy minute | Later in a fault |",
+              "|---|---|---|---|---|"]
+    for name, windows in wrong.items():
+        counts = [sum(w["where"] == p for w in windows) for p in places]
+        lines.append(f"| {name} | {len(windows)} | " + " | ".join(map(str, counts)) + " |")
+    for name, windows in wrong.items():
+        if not windows:
+            continue
+        lines += ["", f"### {name}: wrong windows", "",
+                  "| Run | Window | True | Predicted | Fault (s) | Where |", "|---|---|---|---|---|---|"]
+        lines += [f"| {w['run']} | {w['window']} | {w['true']} | {w['predicted']} | {w['fault_s']:.1f} | "
+                  f"{w['where']} |" for w in windows]
+    return "\n".join(lines) + "\n"
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="python -m ml.evaluate", description=__doc__.split("\n\n")[0])
     parser.add_argument("--root", required=True, help="a job-style folder with input/data/validation")
@@ -222,17 +276,12 @@ def main(argv=None):
             parser.error(f"--package takes NAME=DIR, got {item!r}")
         packages[name] = Path(directory).expanduser()
     try:
-        root = Path(args.root).expanduser()
-        rows = load_validation(root)
-        missing = [c for c in model0_columns() if c not in rows[0][1]]
-        if missing:
-            raise EvalError(f"Model 0 reads columns the features lack: {missing}")
-        report, classes = build_report(root, packages)
+        report, classes = build_report(Path(args.root).expanduser(), packages)
     except (EvalError, TrainError) as err:
         print(f"error: {err}", file=sys.stderr)
         return 1
     text = (compare.render_markdown(report, classes) + render_model0_by_class(report)
-            + render_time_to_recognize(report["time_to_recognize"]))
+            + render_time_to_recognize(report["time_to_recognize"]) + render_wrong_windows(report["wrong"]))
     print(text)
     if args.out:
         Path(args.out).expanduser().write_text(text)

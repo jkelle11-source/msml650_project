@@ -9,10 +9,9 @@ def row(**values):
 
 
 def test_a_quiet_window_is_not_flagged():
-    quiet = row(order_p95_latency_ms=20.0, order_p95_latency_ms_change=1.0,
-                order_p95_latency_ms_roll_mean_3=19.0, order_error_rate_5xx=0.0)
-    assert not model0.flag(quiet, "previous_window")
-    assert not model0.flag(quiet, "rolling_mean")
+    quiet = row(order_p95_latency_ms=20.0, order_p95_latency_ms_change=1.0, order_error_rate_5xx=0.0)
+    assert not model0.flag(quiet)
+    assert not model0.flag_vs_earlier(quiet, [row(order_p95_latency_ms=19.0)])
 
 
 def test_error_rate_must_be_strictly_above_five_percent():
@@ -21,13 +20,8 @@ def test_error_rate_must_be_strictly_above_five_percent():
 
 
 def test_previous_window_rule_fires_at_double_the_previous_p95():
-    assert model0.flag(row(order_p95_latency_ms=100.0, order_p95_latency_ms_change=60.0), "previous_window")
-    assert not model0.flag(row(order_p95_latency_ms=50.0, order_p95_latency_ms_change=10.0), "previous_window")
-
-
-def test_rolling_mean_rule_is_the_literal_ticket_rule():
-    assert model0.flag(row(order_p95_latency_ms=100.0, order_p95_latency_ms_roll_mean_3=40.0), "rolling_mean")
-    assert not model0.flag(row(order_p95_latency_ms=100.0, order_p95_latency_ms_roll_mean_3=60.0), "rolling_mean")
+    assert model0.flag(row(order_p95_latency_ms=100.0, order_p95_latency_ms_change=60.0))
+    assert not model0.flag(row(order_p95_latency_ms=50.0, order_p95_latency_ms_change=10.0))
 
 
 def test_any_service_can_trip_it():
@@ -37,11 +31,6 @@ def test_any_service_can_trip_it():
 def test_empty_values_are_skipped_not_fatal():
     assert not model0.flag(row(order_p95_latency_ms=None, order_p95_latency_ms_change=None,
                                order_error_rate_5xx=None))
-
-
-def test_unknown_baseline_is_refused():
-    with pytest.raises(ValueError):
-        model0.flag(row(), "median")
 
 
 def test_score_counts_anomalies_as_anything_but_normal():
@@ -55,6 +44,8 @@ def test_score_counts_anomalies_as_anything_but_normal():
 def test_score_refuses_mismatched_lengths():
     with pytest.raises(ValueError):
         model0.score(["NORMAL"], [True, False])
+
+
 def p95(value, svc="order"):
     return {f"{svc}_p95_latency_ms": value}
 

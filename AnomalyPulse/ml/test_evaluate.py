@@ -133,7 +133,8 @@ def test_main_scores_and_writes_the_report_end_to_end(tmp_path, capsys):
     assert capsys.readouterr().out.strip() == text.strip()
     for needle in ("Model 0 (earlier_mean_3)", "Model 0 (previous_window)", "random_forest",
                    "Confusion matrix", "Cascade margin over Model 0",
-                   "Model 0: share of each anomaly class flagged", "Time to recognize a cascade"):
+                   "Model 0: share of each anomaly class flagged", "Time to recognize a cascade",
+                   "Wrong windows"):
         assert needle in text
 
 
@@ -216,3 +217,75 @@ def test_time_to_recognize_end_to_end_on_a_synthetic_cascade(tmp_path):
     per_run = report["time_to_recognize"]["random_forest"]
     assert list(per_run) == ["c"]
     assert per_run["c"] == pytest.approx(60.0)
+
+
+def write_validation_run(root, eid, windows):
+    """One validation run from (minute, label, reason, order p95, its change) tuples; a window
+    with a reason is excluded. Every other column Model 0 reads is 0."""
+    features, labels = [], []
+    for minute, label, reason, p95, change in windows:
+        row = {column: 0.0 for column in evaluate.model0_columns()}
+        row.update(window_start=w(minute), order_p95_latency_ms=p95, order_p95_latency_ms_change=change)
+        features.append(row)
+        labels.append(lab(w(minute), label, reason is None, reason))
+    base = root / "input" / "data" / "validation"
+    for tree, file, rows in (("tier1/features", "features.jsonl", features),
+                             ("tier2/labels", "labels.jsonl", labels)):
+        folder = base / tree / f"experiment_id={eid}"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / file).write_text("".join(json.dumps(r) + "\n" for r in rows))
+
+
+def test_the_earlier_mean_floor_leaves_out_the_current_window_and_onset_minutes(tmp_path):
+    # Lookback p95s before 03:03 are 100 (startup) and 100 (NORMAL): mean 100, so 250 > 2 x 100
+    # flags it. With 03:03 itself in the mean (150), or the excluded onset minute (400), it
+    # would not, and 03:01 (100 against 100) must not flag either.
+    write_validation_run(tmp_path, "v", [("03:00", None, "startup", 100.0, None),
+                                         ("03:01", "NORMAL", None, 100.0, 0.0),
+                                         ("03:02", None, "db_throttling_onset", 1000.0, 900.0),
+                                         ("03:03", "TRAFFIC_SPIKE", None, 250.0, 150.0)])
+    report, _ = evaluate.build_report(tmp_path, {})
+    assert report["model0"]["earlier_mean_3"]["recall"] == 1.0
+    assert report["model0"]["earlier_mean_3"]["fpr"] == 0.0
+
+
+def test_build_report_refuses_features_without_model0_columns(tmp_path):
+    write_validation_run(tmp_path, "v", [("03:01", "NORMAL", None, 100.0, 0.0)])
+    path = tmp_path / "input/data/validation/tier1/features/experiment_id=v/features.jsonl"
+    row = json.loads(path.read_text())
+    del row["cart_error_rate_5xx"]
+    path.write_text(json.dumps(row) + "\n")
+    with pytest.raises(evaluate.EvalError, match="cart_error_rate_5xx"):
+        evaluate.build_report(tmp_path, {})
+
+
+def test_fault_minutes_tells_healthy_first_and_later_minutes_apart():
+    labels = [dict(lab(w("11:31"), "NORMAL"), fault_ms={}),
+              dict(lab(w("11:33"), "TRAFFIC_SPIKE"), fault_ms={"f#0": 49526}),
+              dict(lab(w("11:32"), "NORMAL"), fault_ms={"f#0": 12000}),
+              dict(lab(w("11:34"), "CASCADING_FAILURE"), fault_ms={"f#0": 60000, "f#1": 43600}),
+              lab(w("11:35"), None, False, "recovery")]
+    assert evaluate.fault_minutes(labels) == {
+        w("11:31"): (0.0, "healthy"), w("11:32"): (12.0, "first minute"),
+        w("11:33"): (49.526, "later"), w("11:34"): (60.0, "later"), w("11:35"): (0.0, "healthy")}
+
+
+def test_wrong_windows_lists_only_the_misses_with_their_place():
+    labels = [dict(lab(w("11:31"), "NORMAL"), fault_ms={}),
+              dict(lab(w("11:32"), "NORMAL"), fault_ms={"f#0": 22300}),
+              dict(lab(w("11:33"), "TRAFFIC_SPIKE"), fault_ms={"f#0": 60000})]
+    runs = [("r", [], labels)]
+    rows = [("r", {"window_start": l["window_start"], "label": l["label"]}) for l in labels]
+    wrong = evaluate.wrong_windows(runs, rows, ["TRAFFIC_SPIKE", "TRAFFIC_SPIKE", "TRAFFIC_SPIKE"])
+    assert wrong == [{"run": "r", "window": w("11:31"), "true": "NORMAL", "predicted": "TRAFFIC_SPIKE",
+                      "fault_s": 0.0, "where": "healthy"},
+                     {"run": "r", "window": w("11:32"), "true": "NORMAL", "predicted": "TRAFFIC_SPIKE",
+                      "fault_s": 22.3, "where": "first minute"}]
+
+
+def test_the_wrong_window_summary_counts_each_place():
+    wrong = {"m": [{"run": "r", "window": w("11:32"), "true": "NORMAL", "predicted": "TRAFFIC_SPIKE",
+                    "fault_s": 22.3, "where": "first minute"}], "perfect": []}
+    text = evaluate.render_wrong_windows(wrong)
+    assert "| m | 1 | 1 | 0 | 0 |" in text and "| perfect | 0 | 0 | 0 | 0 |" in text
+    assert "### m: wrong windows" in text and "### perfect" not in text
