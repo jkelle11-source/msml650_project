@@ -153,6 +153,7 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [Docs/LABELING.md](Docs/LABELING.md) | Window labels (M4-4): the labeling decisions and the file format. |
 | [Docs/FEATURE_MATRIX.md](Docs/FEATURE_MATRIX.md) | The feature matrix (M4-5): how to build it, and every column with its definition and tier (generated from the code). |
 | [Docs/ML_INFERENCE.md](Docs/ML_INFERENCE.md) | Model packages and the Diagnosis Lambda (M5-1): the package format, promoting a model, calling the Lambda, cold starts, and the cost-per-inference hook for M9. |
+| [Docs/DASHBOARD_CONTRACT.md](Docs/DASHBOARD_CONTRACT.md) | The dashboard data contract (M7-2): the JSON object the SRE console reads, what every field means, the mock scenarios, and where each value comes from in M8. |
 | [Docs/Summary.md](Docs/Summary.md) | Short project summary draft. |
 | [Milestones/](Milestones/) | The ten milestone specs (M1–M10), each with issues and Definition of Done. |
 | [Handoffs/](Handoffs/) | Onboarding and handoff docs — [M1-1_Handoff.md](Handoffs/M1-1_Handoff.md) (stack + team conventions), [M2-1_Handoff.md](Handoffs/M2-1_Handoff.md) (how to emit telemetry), [M3-1_Handoff.md](Handoffs/M3-1_Handoff.md) (how to write an injector) and [M5-1_Handoff.md](Handoffs/M5-1_Handoff.md) (how to train, package and promote a model). |
@@ -164,6 +165,8 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [AnomalyPulse/features/](AnomalyPulse/features/) | M4-5's feature matrix (`python -m features`): the per-window Tier-1 features, the Feature/Label Boundary guard, and the join to the labels. |
 | [AnomalyPulse/ml/](AnomalyPulse/ml/) | M5's training and inference: the SageMaker launcher (`python -m ml.launch smoke / train / tune / promote`), the job scripts (`job/`), the pinned library versions (`requirements-image.txt`), and the Diagnosis Lambda (`diagnosis/`: `handler.py` and its `Dockerfile`). |
 | [AnomalyPulse/infra/ml/](AnomalyPulse/infra/ml/) | The `anomalypulse-ml` stack (M5–M8): the versioned model bucket, the training image's ECR copy, the SageMaker training and trainer roles, the Diagnosis Lambda, and its SSM parameters. |
+| [AnomalyPulse/dashboard/](AnomalyPulse/dashboard/) | M7-2's dashboard read API: `builder.py` (every rule of the dashboard contract), `mock_source.py` (the contract's six mock scenarios), `handler.py` (the Lambda: picks the source, reads the clock), and their tests. |
+| [AnomalyPulse/infra/dashboard/](AnomalyPulse/infra/dashboard/) | The `anomalypulse-dashboard` stack (M7-2): the read API's Lambda, its HTTP API (`GET /dashboard`, CORS), role and log group, and the URL's SSM parameter. |
 | [AnomalyPulse/infra/runner/](AnomalyPulse/infra/runner/) | M4's runner host: its own CloudFormation stack (`anomalypulse-runner`: one EC2 instance, reached through Session Manager), `setup.sh` and the tmux helper. |
 
 ---
@@ -191,6 +194,7 @@ aws ssm get-parameter --name <path> --query Parameter.Value --output text --prof
 | `/anomalypulse/tables/experiments/name` | Experiments table name | The simulator's experiment lock |
 | `/anomalypulse/tables/fault-config/name` | Fault-config table name | The simulator's fault control plane |
 | `/anomalypulse/simulator/role-arn` | Simulator role ARN | The `role_arn` of your `sim` AWS profile ([M3-1 handoff](Handoffs/M3-1_Handoff.md) §4) |
+| `/anomalypulse/dashboard/url` | The dashboard read API's URL (`https://…/dashboard`), published by the `anomalypulse-dashboard` stack | The SRE console (M7-1) and M8 |
 
 The Lambda functions, tables, and IAM roles now live in the same shared template,
 so functions reference each other directly (via `!Ref`/`!GetAtt`) rather than
@@ -311,6 +315,11 @@ These keep five people's code compatible. Full detail in
   or measures goes in the experiment manifest only (Tier-2), never into telemetry.
   One experiment runs at a time on the shared stack. Full contract:
   [Docs/SIMULATOR_INTERFACE.md](Docs/SIMULATOR_INTERFACE.md).
+- **Dashboard read API** — `GET /dashboard`, on its own HTTP API in the
+  `anomalypulse-dashboard` stack, returns the dashboard object itself, not the
+  services' `data`/`error` envelope; its errors are `{ "error": "…" }`. The SRE
+  console renders only from it. Full contract:
+  [Docs/DASHBOARD_CONTRACT.md](Docs/DASHBOARD_CONTRACT.md).
 
 ---
 
@@ -333,6 +342,23 @@ the shipper Lambda. Config (stack name, region, capabilities) is saved in
 replaces the whole stack with that branch's template and code, so an older
 branch rolls back whatever it lacks, such as the 1,769 MB memory setting. Merge
 `main` into a branch before deploying from it.
+
+### The dashboard stack
+
+The dashboard read API (M7-2) is its own stack, `anomalypulse-dashboard`, so
+deploying it never touches the shared stack:
+
+```bash
+cd AnomalyPulse/infra/dashboard
+sam build
+AWS_PROFILE=admin sam deploy
+```
+
+`admin`, because the stack creates an IAM role. The function's code is
+`AnomalyPulse/dashboard/`, which needs nothing beyond the Python standard library.
+Its URL is the stack's `DashboardUrl` output and `/anomalypulse/dashboard/url`.
+The function serves the contract's mock scenarios (`DASHBOARD_SOURCE: mock`)
+until M8-5 switches it to live data.
 
 ## Running the tests
 
@@ -357,6 +383,15 @@ The telemetry layer has its own schema/validator tests (they need `jsonschema` +
 ```bash
 cd AnomalyPulse/layers/telemetry
 pip install -r requirements.txt pytest
+python -m pytest
+```
+
+The dashboard read API's tests need only `pytest`, and reach no AWS. One of them
+checks the `incident` mock scenario against the example in
+`Docs/DASHBOARD_CONTRACT.md`, so a change to either shows up there:
+
+```bash
+cd AnomalyPulse/dashboard
 python -m pytest
 ```
 

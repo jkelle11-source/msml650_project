@@ -59,6 +59,22 @@
 - Documented data contract shared with Linu so frontend and API stay in lockstep.
 
 **Definition of Done**
-- [ ] Endpoint returns the agreed contract shape (mock-sourced acceptable at M7 exit).
-- [ ] Contract documented and matches what the frontend consumes.
-- [ ] Ready to swap to the live Incidents feed in `M8-5` without contract changes.
+- [x] Endpoint returns the agreed contract shape (mock-sourced acceptable at M7 exit).
+- [x] Contract documented and matches what the frontend consumes.
+- [x] Ready to swap to the live Incidents feed in `M8-5` without contract changes.
+
+**Done (2026-10-31).** `GET /dashboard` on the `anomalypulse-dashboard` stack serves the contract's six mock
+scenarios ([Docs/DASHBOARD_CONTRACT.md](../Docs/DASHBOARD_CONTRACT.md), signed off by Linu on #27; Josh's sign-off
+on `diagnosis` is pending). Decisions:
+- **Its own stack, with an HTTP API and one Lambda**, so the shared stack stays undeployed until M9-1. CORS allows
+  any origin until M8-5 narrows it to the console's `http://127.0.0.1:4173` and `http://localhost:4173`. The
+  console runs from the presenting laptop, not from AWS.
+- **A source switch, not a rewrite, for M8-5.** Each source hands over raw inputs (the latest window, the incident
+  record, the manifest), and one builder applies every rule. M8-5 writes a live source and sets
+  `DASHBOARD_SOURCE: live`. Anything but a known source answers 503, never mock data.
+- **`NO_DATA` beats everything** when the latest window is more than 3 minutes old: a stopped pipeline never reads
+  as healthy, and a stale window's numbers are never shown as current.
+- **The system KPIs count Product, Cart and Order**, not Payment, which is reached only through Order. The system
+  p95 is not combined from the services' p95s: M8-1's aggregator computes it from the raw requests.
+- **Prediction, diagnosis and ground truth never borrow from each other.** Each fault's `active_now` uses the
+  labeling policy's 30-second threshold, so an early cascade window can show the model right about the first fault.

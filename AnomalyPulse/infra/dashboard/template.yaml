@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  AnomalyPulse dashboard (M7-2) - the read API the SRE console polls: GET /dashboard
+  returns the object in Docs/DASHBOARD_CONTRACT.md. A stack of its own:
+  anomalypulse-shared is not redeployed until M9-1. Serves the contract's mock
+  scenarios until M8-5 switches DASHBOARD_SOURCE to live.
+
+Resources:
+
+  # ---- Dashboard Lambda ---------------------------------------
+  # Builds the reply (dashboard/handler.py). Mock data needs no AWS access, so the
+  # role can only write its logs; M8-5 adds reads of the Incidents table and the
+  # running experiment's manifest. DASHBOARD_SOURCE has no default in the code:
+  # anything but "mock" (or, from M8-5, "live") answers 503, never mock data.
+
+  DashboardLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/anomalypulse-dashboard
+      RetentionInDays: 90
+  
+  DashboardRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: anomalypulse-dashboard
+      Description: The AnomalyPulse dashboard read API runs as this role (M7-2)
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  
+  DashboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: anomalypulse-dashboard
+      CodeUri: ../../dashboard
+      Handler: handler.handler
+      Runtime: python3.13
+      Architectures:
+        - arm64
+      MemorySize: 256
+      Timeout: 10
+      Role: !GetAtt DashboardRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref DashboardLogGroup
+      Environment:
+        Variables:
+          DASHBOARD_SOURCE: mock
+      Events:
+        GetDashboard:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DashboardApi
+            Path: /dashboard
+            Method: GET
+  
+  # ---- Dashboard API ---------------------------------------
+  # An HTTP API (cheaper and simpler than the shared stack's REST API; no API key).
+  # CORS: a page in a browser may read a reply from another address only if the
+  # API names the page's address. Any origin while the API serves mock data; M8-5
+  # narrows it to the console's address (the contract's open question 1). With
+  # CORS set here, API Gateway answers the browser itself and ignores any CORS
+  # headers from the function. The console polls every 10-15 s; the throttle
+  # leaves room for many open pages and stops a runaway loop from running up calls.
+
+  DashboardApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+        AllowMethods:
+          - GET
+        MaxAge: 600
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 20
+        ThrottlingRateLimit: 10
+  
+  # ---- SSM Parameters ---------------------------------------
+  # For the console's config and M8.
+
+  SsmDashboardUrl:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /anomalypulse/dashboard/url
+      Type: String
+      Value: !Sub 'https://${DashboardApi}.execute-api.${AWS::Region}.amazonaws.com/dashboard'
+
+Outputs:
+  DashboardUrl:
+    Description: GET it for the dashboard object; add ?scenario=<name> for one of the mock scenarios
+    Value: !Sub 'https://${DashboardApi}.execute-api.${AWS::Region}.amazonaws.com/dashboard'
+  
+  
