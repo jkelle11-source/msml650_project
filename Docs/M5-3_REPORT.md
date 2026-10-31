@@ -8,8 +8,8 @@
   - `previous_window`: the previous retained window's p95.
   - `earlier_mean_3`: the mean of the 3 earlier lookback windows of the same run (the labeled windows plus the startup minute, as the feature matrix builds them), **excluding the current window**. This is the stronger floor, and the margin is reported against it. An earlier version used a mean that included the current window, which works out to p95 > 4x the mean of the two earlier windows, so it was replaced.
 - **Logistic regression** (tuned, M5-1): job `anomalypulse-hpo-261028173159-003-28af89d1`, C = 25.8, tuned on validation.
-- **XGBoost:** defaults, job `anomalypulse-train-incident-xgb-20261030T033735Z`; tuned, best of 6 in tuning job `anomalypulse-hpo-261031214659` (job `anomalypulse-hpo-261031214659-004-76a607cd`: learning rate 0.057, max depth 7, 321 trees). `subsample` and `colsample_bytree` were left at 1.0 and not searched.
-- **Random Forest** (defaults, not tuned): job `anomalypulse-train-incident-rf-20261030T034713Z`.
+- **XGBoost:** the script's defaults (200 trees, max depth 6, learning rate 0.3), job `anomalypulse-train-incident-xgb-20261030T033735Z`; tuned, best of 6 in tuning job `anomalypulse-hpo-261031214659` (job `anomalypulse-hpo-261031214659-004-76a607cd`: learning rate 0.057, max depth 7, 321 trees). `subsample` and `colsample_bytree` were left at 1.0 and not searched.
+- **Random Forest:** the script's defaults (300 trees, max depth 12), not tuned, job `anomalypulse-train-incident-rf-20261030T034713Z`.
 - **Data.** v1 slots 1-560 train, 561-700 validation (885 labeled windows: 375 NORMAL, 510 anomalous). The test set is not used.
 - **Metrics.** Produced by `ml/evaluate.py` and `ml/compare.py`, in the training image's pinned library versions (Python 3.10, scikit-learn 1.5.2, numpy 2.1.0, scipy 1.15.0, joblib 1.6.0, xgboost 3.0.5).
 
@@ -35,7 +35,7 @@
 | XGBoost (defaults) | 0.9831 | 0.9869 | 1.0000 | 15 |
 | Random Forest (defaults) | 0.9819 | 0.9860 | 1.0000 | 16 |
 
-Model 0 has no six-class output, so accuracy and macro-F1 do not apply to it. Per-class precision and recall and confusion matrices for each model come from `python -m ml.evaluate`.
+Model 0 has no six-class output, so accuracy and macro-F1 do not apply to it. Per-class precision and recall, confusion matrices and the list of wrong windows for each model come from `python -m ml.evaluate`.
 
 ### Model 0: share of each anomaly class flagged
 
@@ -78,18 +78,22 @@ In every run all models call the cascade at the first window labeled CASCADING_F
 
 ## How to read the two signals
 
-**Margin over Model 0 measures multivariate learning.** Every classifier beats the threshold rule by a wide margin in the anomaly view: Model 0's stronger baseline catches 49% of anomalous windows, the classifiers catch 99% or more, and they raise fewer false alarms in the logistic regression's case (0.005 against 0.061) and slightly fewer for the trees (0.035-0.037). The cascade margin is +0.094.
+**Margin over Model 0 measures multivariate learning.** Every classifier beats the threshold rule by a wide margin in the anomaly view: Model 0's stronger baseline catches 49% of anomalous windows and the classifiers 99% or more, with fewer false alarms: 2 of 375 NORMAL windows for logistic regression and 13-14 for the trees, against Model 0's 23. The cascade margin is +0.094.
 
 **The train/validation gap measures overfitting.** The tree models score 1.0000 on train and 0.986-0.987 on validation. Logistic regression scores 0.9952 on train and 0.9923 on validation, a gap of about 0.003. Whether the gap persists on held-out bands is M9's question.
 
 ## Where the errors are
 
-All 25 wrong windows across the three first models are the first minute of their run's fault, where the fault starts partway through the minute (Jake's analysis of the 885 windows):
+`python -m ml.evaluate` lists every wrong window and where it sits in its run. All 26 windows that any of the four classifiers gets wrong are the first minute of their run's fault, where the fault starts partway through the minute. None is a healthy minute (one with no fault time):
 
-- Logistic regression's 5 missed TRAFFIC_SPIKE windows have 35-49.5 s of fault.
-- The tree models' 13-14 false alarms on NORMAL windows have 13.7-29.4 s of fault, just under the labeler's 30 s rule.
+| Model | False alarms (NORMAL called an incident) | Misses (incident called NORMAL) |
+|---|---|---|
+| Logistic regression (tuned) | 2, with 22.3-23.8 s of fault | 7, with 30.2-49.5 s of fault |
+| XGBoost (tuned) | 13, with 11.8-29.1 s | 2, with 34.1-35.5 s |
+| XGBoost (defaults) | 13, with 13.7-29.4 s | 2, with 34.1-35.5 s |
+| Random Forest (defaults) | 14, with 13.7-29.4 s | 2, with 34.1-35.5 s |
 
-So the trade-off between the models is not missed incidents against false alarms in general. It is where each model draws the line in that first minute: logistic regression leans NORMAL (fewest false alarms, about 7 misses), and the trees lean incident (about 2 misses, 13-14 false alarms). Tuning XGBoost did not change this: its 6 tuning jobs scored 0.9828-0.9871 on validation, against 0.9869 for the defaults.
+Every false alarm names the fault that labels the run's next minute, and no model gets a later minute of a fault wrong, so every miss is caught a minute later. The trade-off between the models is therefore not missed incidents against false alarms in general. It is where each model draws the line in a fault's first minute, around the labeler's 30 s rule: logistic regression leans NORMAL (7 faults called a minute late, 2 called early), and the trees lean incident (2 late, 13-14 early). Tuning XGBoost did not change this: its 6 tuning jobs scored 0.9828-0.9871 on validation, against 0.9869 for the defaults.
 
 ## Feature boundary check
 
