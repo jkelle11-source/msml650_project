@@ -1,0 +1,113 @@
+{
+  "contract_version": 1,
+  "generated_at": "2026-10-30T14:34:05.000Z",
+  "health": {
+    "window_start": "2026-10-30T14:33:00.000Z",
+    "status": "INCIDENT",
+    "requests_per_min": 3840,
+    "error_rate": 0.004,
+    "p95_latency_ms": 95,
+    "active_incidents": 1,
+    "services": [
+      {
+        "service": "product-service",
+        "status": "DEGRADED",
+        "requests_per_min": 2880,
+        "error_rate": 0.003,
+        "p95_latency_ms": 61
+      },
+      {
+        "service": "cart-service",
+        "status": "DEGRADED",
+        "requests_per_min": 384,
+        "error_rate": 0.0,
+        "p95_latency_ms": 52
+      },
+      {
+        "service": "order-service",
+        "status": "DEGRADED",
+        "requests_per_min": 576,
+        "error_rate": 0.009,
+        "p95_latency_ms": 180
+      },
+      {
+        "service": "payment-service",
+        "status": "HEALTHY",
+        "requests_per_min": 192,
+        "error_rate": 0.0,
+        "p95_latency_ms": 112
+      }
+    ]
+  },
+  "incident": {
+    "incident_id": "inc-20261030T143200Z",
+    "prediction": {
+      "incident_type": "TRAFFIC_SPIKE",
+      "confidence": 0.88,
+      "started_at": "2026-10-30T14:32:00.000Z",
+      "detected_at": "2026-10-30T14:33:04.000Z",
+      "affected_services": [
+        "product-service",
+        "cart-service",
+        "order-service"
+      ],
+      "model": {
+        "estimator": "logistic_regression",
+        "job": "anomalypulse-hpo-261028173159-003-28af89d1"
+      }
+    },
+    "diagnosis": {
+      "severity": "MEDIUM",
+      "summary": "Requests rose from 1,200 to 3,840 per minute across Product, Cart and Order. Latency stayed under 200 ms and errors under 1%.",
+      "root_cause": "A surge in incoming traffic",
+      "evidence": [
+        "Requests per minute rose 3.2x.",
+        "p95 latency rose from 41 ms to 95 ms.",
+        "Error rate stayed at 0.4%."
+      ],
+      "recommended_actions": [
+        "Check where the extra traffic comes from",
+        "Confirm autoscaling and concurrency limits",
+        "Watch the database for throttling"
+      ]
+    },
+    "ground_truth": {
+      "experiment_id": "exp-20261030T142900Z-9c1e",
+      "incident_type": "CASCADING_FAILURE",
+      "severity": "MEDIUM",
+      "faults": [
+        {
+          "injector": "traffic-spike",
+          "target": null,
+          "active_from": "2026-10-30T14:31:55.000Z",
+          "active_until": "2026-10-30T14:36:55.000Z",
+          "active_now": true
+        },
+        {
+          "injector": "db-throttling",
+          "target": "product-service",
+          "active_from": "2026-10-30T14:34:00.000Z",
+          "active_until": "2026-10-30T14:36:55.000Z",
+          "active_now": false
+        },
+        {
+          "injector": "lambda-degradation",
+          "target": "order-service",
+          "active_from": "2026-10-30T14:35:00.000Z",
+          "active_until": "2026-10-30T14:36:55.000Z",
+          "active_now": false
+        },
+        {
+          "injector": "retry-amplification",
+          "target": null,
+          "active_from": "2026-10-30T14:35:30.000Z",
+          "active_until": "2026-10-30T14:36:55.000Z",
+          "active_now": false
+        }
+      ]
+    },
+    "comparison": {
+      "detection_latency_s": 69.0
+    }
+  }
+}

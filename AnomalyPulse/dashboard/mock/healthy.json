@@ -1,0 +1,43 @@
+{
+  "contract_version": 1,
+  "generated_at": "2026-10-30T14:34:05.000Z",
+  "health": {
+    "window_start": "2026-10-30T14:33:00.000Z",
+    "status": "HEALTHY",
+    "requests_per_min": 1200,
+    "error_rate": 0.0,
+    "p95_latency_ms": 170,
+    "active_incidents": 0,
+    "services": [
+      {
+        "service": "product-service",
+        "status": "HEALTHY",
+        "requests_per_min": 900,
+        "error_rate": 0.0,
+        "p95_latency_ms": 41
+      },
+      {
+        "service": "cart-service",
+        "status": "HEALTHY",
+        "requests_per_min": 120,
+        "error_rate": 0.0,
+        "p95_latency_ms": 38
+      },
+      {
+        "service": "order-service",
+        "status": "HEALTHY",
+        "requests_per_min": 180,
+        "error_rate": 0.0,
+        "p95_latency_ms": 170
+      },
+      {
+        "service": "payment-service",
+        "status": "HEALTHY",
+        "requests_per_min": 60,
+        "error_rate": 0.0,
+        "p95_latency_ms": 110
+      }
+    ]
+  },
+  "incident": null
+}

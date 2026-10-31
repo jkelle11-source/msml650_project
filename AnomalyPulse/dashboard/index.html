@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AnomalyPulse incident report</title>
+  <meta name="description" content="A live incident report: the system's state, the active incident, Bedrock's diagnosis, and the model's prediction beside the injected ground truth.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231d2430'/%3E%3Cpath d='M4 17h6l3-8 6 15 3-7h6' fill='none' stroke='%23fff' stroke-width='2.5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./js/app.js"></script>
+</head>
+<body data-state="loading">
+  <header class="masthead">
+    <p class="wordmark">AnomalyPulse</p>
+    <div class="feed">
+      <span id="updated"></span>
+      <button id="pause" type="button" aria-pressed="false">Pause updates</button>
+      <button id="refresh" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <div id="demo" class="demo" hidden>
+    <span id="source"></span>
+    <label for="scenario">Scenario</label>
+    <select id="scenario"></select>
+  </div>
+
+  <p id="notice" class="notice" role="alert" hidden></p>
+
+  <main id="report">
+    <section class="lede" aria-labelledby="headline">
+      <p class="dateline"><span id="state" class="state"></span> <span id="dateline"></span></p>
+      <h1 id="headline"></h1>
+      <p id="deck" class="deck"></p>
+    </section>
+
+    <section aria-labelledby="system-title">
+      <h2 id="system-title" class="leader"><span>The system</span></h2>
+      <dl id="figures" class="figures"></dl>
+      <table class="services">
+        <caption class="sr-only">Each service in the latest minute</caption>
+        <thead>
+          <tr><th scope="col">Service</th><th scope="col">State</th>
+            <th scope="col" class="num">Requests a minute</th><th scope="col" class="num">Failed</th><th scope="col" class="num">p95 latency</th></tr>
+        </thead>
+        <tbody id="services"></tbody>
+      </table>
+    </section>
+
+    <section id="diagnosis-section" aria-labelledby="diagnosis-title">
+      <h2 id="diagnosis-title" class="leader"><span>What Bedrock says</span></h2>
+      <div id="diagnosis"></div>
+    </section>
+
+    <section id="comparison-section" aria-labelledby="comparison-title">
+      <h2 id="comparison-title" class="leader"><span>Prediction and ground truth</span></h2>
+      <div id="comparison"></div>
+    </section>
+  </main>
+
+  <noscript><p class="notice">The report needs JavaScript to load its data.</p></noscript>
+</body>
+</html>
