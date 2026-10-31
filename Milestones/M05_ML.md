@@ -63,6 +63,9 @@ The package format, promoting a model, calling the Lambda and the cost hook are 
 - Both trained via the M5-1 SageMaker path and packaged as loadable artifacts.
 - Validation-set metrics (precision/recall/F1, FPR, detection latency) with the unsupervised-vs-supervised gap reported.
 
+The detectors, the Isolation Forest's cut-off, the healthy/fault-start split of the false alarms and the
+validation results are in [`Docs/DETECTION.md`](../Docs/DETECTION.md).
+
 **Definition of Done**
 - [ ] Both detectors train through SageMaker and produce loadable artifacts.
 - [ ] Validation metrics reported for both, with the cost of going unsupervised quantified.

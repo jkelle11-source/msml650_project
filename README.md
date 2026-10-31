@@ -153,6 +153,7 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [Docs/LABELING.md](Docs/LABELING.md) | Window labels (M4-4): the labeling decisions and the file format. |
 | [Docs/FEATURE_MATRIX.md](Docs/FEATURE_MATRIX.md) | The feature matrix (M4-5): how to build it, and every column with its definition and tier (generated from the code). |
 | [Docs/ML_INFERENCE.md](Docs/ML_INFERENCE.md) | Model packages and the Diagnosis Lambda (M5-1): the package format, promoting a model, calling the Lambda, cold starts, and the cost-per-inference hook for M9. |
+| [Docs/DETECTION.md](Docs/DETECTION.md) | Anomaly detection (M5-2): the Isolation Forest and the supervised binary detector, the forest's cut-off, healthy vs fault-start false alarms, and the validation results. |
 | [Docs/Summary.md](Docs/Summary.md) | Short project summary draft. |
 | [Milestones/](Milestones/) | The ten milestone specs (M1–M10), each with issues and Definition of Done. |
 | [Handoffs/](Handoffs/) | Onboarding and handoff docs — [M1-1_Handoff.md](Handoffs/M1-1_Handoff.md) (stack + team conventions), [M2-1_Handoff.md](Handoffs/M2-1_Handoff.md) (how to emit telemetry), [M3-1_Handoff.md](Handoffs/M3-1_Handoff.md) (how to write an injector) and [M5-1_Handoff.md](Handoffs/M5-1_Handoff.md) (how to train, package and promote a model). |
