@@ -101,11 +101,15 @@ SMOKE_ARGV_PREDICTED = ["-C", "0.5", "--max_iter", "200"]
 SMOKE_ENV = ("SM_MODEL_DIR", "SM_CHANNEL_CODE", "SM_CHANNEL_FEATURES", "SM_CHANNEL_LABELS")
 
 # The job imports join_labels from beside train.py, so the bundle carries it.
-TRAIN_CODE = (JOB_DIR / "train.py", JOB_DIR.parent.parent / "features" / "join_labels.py")
+#CHANGED BY MELISA
+TRAIN_CODE = (JOB_DIR / "train.py", JOB_DIR.parent.parent / "features" / "join_labels.py",
+              JOB_DIR / "detection.py")
+
 # --script: a file in ml/job/ that the toolkit can run as a module (python -m <name>), and
 # whose name doesn't hide a library it imports: the code directory comes first on sys.path.
 SCRIPT_NAME = re.compile(r"[a-z][a-z0-9_]*")
-SHADOWED = {"xgboost", "sklearn", "numpy", "scipy", "joblib", "pandas", "join_labels"}
+# CHANGED BY MELISA
+SHADOWED = {"xgboost", "sklearn", "numpy", "scipy", "joblib", "pandas", "join_labels", "detection"}
 # {channel: its temporal_split partition}. Both channels copy in both trees.
 TRAIN_CHANNELS = {"train": "train", "validation": "val"}
 MODEL_FORMAT = 1
