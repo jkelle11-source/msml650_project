@@ -77,6 +77,7 @@ has every pinned library. Write the same two files, with your model's own `task`
   `predict` uses `offset_`, which the default `contamination="auto"` sets to −0.5), and record it in
   `model.json`; the Lambda never picks one. `handler.detect(pipeline, meta, vectors)` returns each window's
   `(score, anomalous)`. With `threshold` set to the model's `offset_`, it flags exactly what `predict` flags.
+  M5-2's forest sets it from validation's healthy windows ([`DETECTION.md`](DETECTION.md)).
 - **Serving more than one model is M8-2's.** The Lambda loads one model at startup, the one its
   `ANOMALYPULSE_MODEL_POINTER` names, and refuses a detector there. M8-2 adds the detector's pointer, its
   read permission in the stack, and the window → detector → classifier path that uses `detect`.
