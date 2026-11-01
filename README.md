@@ -154,6 +154,7 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [Docs/FEATURE_MATRIX.md](Docs/FEATURE_MATRIX.md) | The feature matrix (M4-5): how to build it, and every column with its definition and tier (generated from the code). |
 | [Docs/ML_INFERENCE.md](Docs/ML_INFERENCE.md) | Model packages and the Diagnosis Lambda (M5-1): the package format, promoting a model, calling the Lambda, cold starts, and the cost-per-inference hook for M9. |
 | [Docs/DETECTION.md](Docs/DETECTION.md) | Anomaly detection (M5-2): the Isolation Forest and the supervised binary detector, the forest's cut-off, healthy vs fault-start false alarms, and the validation results. |
+| [Docs/M5-3_REPORT.md](Docs/M5-3_REPORT.md) | Incident classification (M5-3): Model 0 (the threshold baseline), logistic regression, XGBoost and Random Forest on validation, the cascade margin and time to recognize a cascade, the wrong windows, and the selected model. |
 | [Docs/DASHBOARD_CONTRACT.md](Docs/DASHBOARD_CONTRACT.md) | The dashboard data contract (M7-2): the JSON object the SRE console reads, what every field means, the mock scenarios, and where each value comes from in M8. |
 | [Docs/Summary.md](Docs/Summary.md) | Short project summary draft. |
 | [Milestones/](Milestones/) | The ten milestone specs (M1–M10), each with issues and Definition of Done. |
