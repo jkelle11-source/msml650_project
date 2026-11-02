@@ -45,6 +45,10 @@ export function showPage() {
     if (tab.dataset.tab === page) tab.setAttribute("aria-current", "page");
     else tab.removeAttribute("aria-current");
   }
+  // On a narrow screen the tab strip scrolls sideways: keep the current tab in view.
+  const current = document.querySelector(`[data-tab="${page}"]`), strip = current?.parentElement;
+  if (strip && strip.scrollWidth > strip.clientWidth)
+    strip.scrollLeft += current.getBoundingClientRect().left - strip.getBoundingClientRect().left - (strip.clientWidth - current.offsetWidth) / 2;
   // A page whose sections the data has hidden (no incident) shows its own empty note instead.
   for (const note of document.querySelectorAll("[data-empty]")) {
     const sections = [...document.querySelectorAll(`[data-page="${note.dataset.empty}"]`)];
@@ -57,9 +61,15 @@ export function showPage() {
   }
 }
 
+// The dot's meaning in words, so it never rests on colour alone.
+const DOT_HINTS = { ok: "all healthy", alarm: "incident", info: "details to see", pending: "waiting for Bedrock", none: "nothing to show" };
+
 export function updateTabs(reply) {
   const status = tabStatus(reply);
-  for (const { id } of PAGES) $(`dot-${id}`).className = `tab-dot dot-${status[id]}`;
+  for (const { id, label } of PAGES) {
+    $(`dot-${id}`).className = `tab-dot dot-${status[id]}`;
+    document.querySelector(`[data-tab="${id}"]`).title = `${label}: ${DOT_HINTS[status[id]]}`;
+  }
   showPage();
 }
 

@@ -41,17 +41,23 @@
 - [x] Console renders all panels from mock data with no hardcoded values.
 - [x] Diagnosis panel copy uses observed-sequence wording, not causal assertions (reviewed).
 - [x] Prediction and ground truth are shown side-by-side.
-- [ ] Layout reads as an SRE console (reviewer sign-off on §14 fidelity).
+- [x] Layout reads as an SRE console (reviewer sign-off on §14 fidelity).
 
-**Delivered (2026-11-01, PR #85).** The console is in `AnomalyPulse/console/`
-([README](../AnomalyPulse/console/README.md)) and renders only from the dashboard contract. Decisions:
+**Done (2026-11-02, PR #85).** The console is in `AnomalyPulse/console/`
+([README](../AnomalyPulse/console/README.md)) and renders only from the dashboard contract. Jake signed off the
+§14 layout on 2026-11-02. Decisions:
 - **Static files, no build step**, run from the presenting laptop at `http://127.0.0.1:4173` (`npm start`), as
   agreed on #27. It lives apart from the read API's code, because `AnomalyPulse/dashboard/` is packaged whole into
   that Lambda.
 - **Five pages instead of §14's single screen** (Overview, Incident, AI diagnosis, Ground truth, Timeline), so a
   presenter tells the story one step at a time; ←/→ step through them. The Overview leads with the incident's
   name, confidence, affected services and AI severity.
-- **Reads M7-2's mock API by default**, with a Demo Scenario picker. `?source=mock` reads snapshots of the API's
+- **Laid out for the projector.** On a 1280×720 screen the Overview fits without scrolling: the status once, in
+  the header; the incident's headline; four KPI tiles; the four services, each with §14's bar (the share of its
+  requests that succeeded, coloured by the API's status for it). The Ground truth page leads with the verdict.
+  No text is under 13px, one colour means one thing, and every colour is a contrast-checked token, so
+  `?theme=light` re-steps them all for a bright room. M10-5 picks the theme on the room's projector.
+- **Reads M7-2's mock API by default**, with a Scenario picker. `?source=mock` reads snapshots of the API's
   replies (`mock/`), the offline fallback; M8-5 sets `scenarios: false` in `js/config.js`.
 - **Every reply is checked against contract v1.** A failed poll keeps the last good reply, marked stale; before
   the first reply the console claims no state.

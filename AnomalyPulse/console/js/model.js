@@ -1,7 +1,7 @@
 // Contract v1 -> display-only view model. Never calculate backend health/status,
 // derive system p95 from per-service p95, or add Payment to system requests.
 import {
-  INJECTOR_TYPES, MISSING, clock, count, dateTime, incidentName, injectorName,
+  INJECTOR_TYPES, clock, count, incidentName, injectorName,
   latency, list, percent, serviceName, severityName,
 } from "./format.js";
 
@@ -114,45 +114,52 @@ export function checkReply(reply) {
   return reply;
 }
 
-const TONES = { HEALTHY: "ok", INCIDENT: "alarm", NO_DATA: "none", DEGRADED: "warn", IDLE: "idle" };
+// One colour per meaning (styles.css): ok green, warn amber (a degraded service, a medium
+// severity), alarm red (the incident), none grey (no data, idle, nothing to compare).
+const TONES = { HEALTHY: "ok", INCIDENT: "alarm", NO_DATA: "none", DEGRADED: "warn", IDLE: "none" };
 const STATES = { HEALTHY: "Healthy", INCIDENT: "Incident", NO_DATA: "No data", DEGRADED: "Degraded", IDLE: "Idle" };
+// The header says the system's status once, as PROJECT_PLAN §14 does ("● SYSTEM HEALTHY").
+const BANNERS = { HEALTHY: "System healthy", INCIDENT: "Incident active", NO_DATA: "No data" };
+const SEVERITY_TONES = { LOW: "ok", MEDIUM: "warn", HIGH: "alarm" };
 const labels = (ids) => ids.map(serviceName);
+const moment = (iso) => clock(iso, { seconds: true });
+const modelName = (estimator) => estimator.replaceAll("_", " ");
 export function verdict(prediction, truth) {
-  if (!truth) return { kind: "none", label: "No ground truth", detail: "No injected-fault record is available for this window. This is not an error." };
+  if (!truth) return { kind: "none", tone: "none", icon: "—", label: "No ground truth", detail: "No injected-fault record is available for this window. This is not an error." };
   if (prediction.incident_type === truth.incident_type)
-    return { kind: "match", label: "Same classification", detail: "The model's window class and the run's injected class agree." };
+    return { kind: "match", tone: "ok", icon: "✓", label: "Same classification", detail: "The model's window class and the run's injected class agree." };
   const active = truth.faults.filter((f) => f.active_now === true && f.injector !== "retry-amplification");
   if (truth.incident_type === "CASCADING_FAILURE" && active.length === 1 && INJECTOR_TYPES[active[0].injector] === prediction.incident_type)
-    return { kind: "partial", label: "Matches active fault", detail: "The run is a cascade, but only one of its injected faults is active in this minute. The window labeling policy uses that fault's class while it is the only one." };
-  return { kind: "different", label: "Different classifications", detail: "The model class describes this observed window; the injected class describes the full experiment. Compare the active faults before interpreting the difference." };
+    return { kind: "partial", tone: "ok", icon: "≈", label: "Matches active fault", detail: "The run is a cascade, but only one of its injected faults is active in this minute. The window labeling policy uses that fault's class while it is the only one." };
+  return { kind: "different", tone: "accent", icon: "≠", label: "Different classifications", detail: "The model class describes this observed window; the injected class describes the full experiment. Compare the active faults before interpreting the difference." };
 }
-function serviceRows(health, incident) {
-  const affected = new Set(incident?.prediction.affected_services ?? []);
+function serviceRows(health) {
   return health.services.map((row) => ({
     name: serviceName(row.service), state: STATES[row.status], tone: TONES[row.status],
-    affected: affected.has(row.service), requests: count(row.requests_per_min),
-    errors: percent(row.error_rate), p95: latency(row.p95_latency_ms),
+    requests: count(row.requests_per_min), errors: percent(row.error_rate), p95: latency(row.p95_latency_ms),
+    // The share of requests that didn't return a 5xx: the length of the row's bar (PROJECT_PLAN §14).
+    okShare: row.error_rate === null ? null : 1 - row.error_rate,
   }));
 }
 function incidentPanel(incident) {
-  const p = incident.prediction;
+  const p = incident.prediction, d = incident.diagnosis;
   return {
-    id: incident.incident_id, classCode: p.incident_type, type: incidentName(p.incident_type),
+    id: incident.incident_id, type: incidentName(p.incident_type),
     confidence: percent(p.confidence), confidenceFraction: p.confidence,
-    started: dateTime(p.started_at), detected: dateTime(p.detected_at),
+    started: moment(p.started_at), detected: moment(p.detected_at),
     affected: list(labels(p.affected_services)),
-    estimator: p.model.estimator, modelJob: p.model.job,
-    severity: incident.diagnosis ? { label: severityName(incident.diagnosis.severity), tone: incident.diagnosis.severity.toLowerCase() } : null,
+    model: modelName(p.model.estimator), modelJob: p.model.job,
+    severity: d ? { label: severityName(d.severity), tone: SEVERITY_TONES[d.severity] } : null,
   };
 }
 function diagnosisPanel(d) {
-  return d === null ? null : { severity: severityName(d.severity), rawSeverity: d.severity,
+  return d === null ? null : { severity: severityName(d.severity), severityTone: SEVERITY_TONES[d.severity],
     summary: d.summary, rootCause: d.root_cause, evidence: [...d.evidence], actions: [...d.recommended_actions] };
 }
 function faultRow(f) {
-  return { injector: f.injector, name: injectorName(f.injector),
+  return { name: injectorName(f.injector),
     target: f.target === null ? "No single target" : serviceName(f.target),
-    from: dateTime(f.active_from), until: dateTime(f.active_until),
+    from: moment(f.active_from), until: moment(f.active_until),
     active: f.active_now, state: f.active_now === null ? "Activity unavailable" : f.active_now ? "Active this minute" : "Not active this minute",
     note: f.injector === "retry-amplification" ? "Load amplification, not counted as an injected fault" : null };
 }
@@ -160,19 +167,18 @@ function comparisonPanel(incident) {
   const p = incident.prediction, g = incident.ground_truth;
   const latencyValue = incident.comparison?.detection_latency_s;
   return { prediction: {
-    classCode: p.incident_type, type: incidentName(p.incident_type), confidence: percent(p.confidence),
-    affected: list(labels(p.affected_services)), detected: dateTime(p.detected_at),
-    estimator: p.model.estimator, modelJob: p.model.job,
-  }, truth: g && { classCode: g.incident_type, type: incidentName(g.incident_type), severity: severityName(g.severity),
+    type: incidentName(p.incident_type), confidence: percent(p.confidence),
+    affected: list(labels(p.affected_services)), detected: moment(p.detected_at), model: modelName(p.model.estimator),
+  }, truth: g && { type: incidentName(g.incident_type), severity: severityName(g.severity),
     experiment: g.experiment_id, faults: g.faults.map(faultRow) },
   verdict: verdict(p, g), detection: incident.comparison ? (latencyValue === null
     ? "Alarm occurred before any injected fault began."
-    : `Detection latency: ${Number(latencyValue.toFixed(1))} s after first fault activation.`) : null };
+    : `Detected ${Number(latencyValue.toFixed(1))} s after the first fault began.`) : null };
 }
 function timeline(incident, generatedAt) {
   if (!incident) return [];
   const items = [];
-  const add = (at, kind, label, detail = "", active = false, planned = false) => { if (at) items.push({ at, kind, label, detail, active, planned, time: dateTime(at) }); };
+  const add = (at, kind, label, detail = "", active = false, planned = false) => { if (at) items.push({ at, kind, label, detail, active, planned, time: moment(at) }); };
   const p = incident.prediction;
   add(p.started_at, "incident", "Incident start", "First classified incident window");
   add(p.detected_at, "detection", "ML detection", incidentName(p.incident_type));
@@ -198,17 +204,16 @@ export function viewModel(reply) {
   checkReply(reply);
   const { health, incident } = reply;
   return {
-    status: { raw: health.status, label: STATES[health.status], tone: TONES[health.status] },
-    window: dateTime(health.window_start), generated: dateTime(reply.generated_at),
+    status: { raw: health.status, label: STATES[health.status], banner: BANNERS[health.status], tone: TONES[health.status] },
+    window: clock(health.window_start), generated: moment(reply.generated_at),
     report: makeReport(health, incident), noData: health.status === "NO_DATA",
     kpis: [
-      { label: "System health", value: STATES[health.status], tone: TONES[health.status] },
       { label: "Requests / min", value: count(health.requests_per_min) },
       { label: "Error rate", value: percent(health.error_rate) },
       { label: "P95 latency", value: latency(health.p95_latency_ms) },
       { label: "Active incidents", value: count(health.active_incidents) },
     ],
-    services: serviceRows(health, incident),
+    services: serviceRows(health),
     incident: incident && incidentPanel(incident),
     diagnosis: incident && diagnosisPanel(incident.diagnosis),
     diagnosisPending: Boolean(incident) && incident.diagnosis === null,

@@ -28,7 +28,7 @@ for (const { id } of SCENARIOS) {
     const vm = viewModel(data);
     assert.equal(data.contract_version, 1);
     assert.deepEqual(data.health.services.map(s => s.service), SERVICE_IDS);
-    assert.equal(vm.kpis.length, 5);
+    assert.equal(vm.kpis.length, 4);
     assert.equal(vm.services.length, 4);
     assert.deepEqual(vm.services.map(s => s.state), data.health.services.map(s => STATUS_LABELS[s.status]));
     for (const bad of ["undefined", "NaN", "[object Object]", "Infinity"])
@@ -39,7 +39,18 @@ test("healthy: no incident, healthy backend status, empty timeline", () => {
   const vm=viewModel(fixture("healthy"));
   assert.equal(vm.status.raw,"HEALTHY"); assert.equal(vm.incident,null);
   assert.equal(vm.comparison,null);assert.deepEqual(vm.timeline,[]);
-  assert.deepEqual(vm.kpis.map(k=>k.value),["Healthy","1,200","0%","64 ms","0"]);
+  assert.deepEqual(vm.kpis.map(k=>k.value),["1,200","0%","64 ms","0"]);
+});
+test("the status is said once, in the header, as §14 does", () => {
+  assert.deepEqual(["healthy","incident","no_data"].map(s=>viewModel(fixture(s)).status.banner),
+    ["System healthy","Incident active","No data"]);
+  assert.deepEqual(["healthy","incident","no_data"].map(s=>viewModel(fixture(s)).status.tone),["ok","alarm","none"]);
+  assert.ok(!viewModel(fixture("healthy")).kpis.some(k=>/health/i.test(k.label)), "no System health tile");
+});
+test("the header's two times: the minute the numbers describe, and when the reply was made", () => {
+  const vm=viewModel(fixture("incident"));                    // window 04:50:00.000Z, generated 04:51:48.048Z
+  assert.equal(vm.window,"04:50 UTC"); assert.equal(vm.generated,"04:51:48 UTC");
+  assert.equal(viewModel(fixture("no_data")).window,"—");
 });
 test("diagnosing: AI diagnosis and severity stay pending, never use ground-truth severity", () => {
   const vm=viewModel(fixture("diagnosing"));
@@ -50,19 +61,21 @@ test("incident: full diagnosis, evidence, actions, model identity and ground tru
   const vm=viewModel(fixture("incident"));
   assert.equal(vm.incident.type,"Dependency failure");
   assert.equal(vm.incident.confidence,"93%");
-  assert.equal(vm.incident.estimator,"logistic_regression");
+  assert.equal(vm.incident.model,"logistic regression");
+  assert.equal(vm.incident.started,"04:49:00 UTC"); assert.equal(vm.incident.detected,"04:50:04 UTC");
   assert.equal(vm.incident.affected,"Order and Payment");
-  assert.equal(vm.diagnosis.severity,"High");
+  assert.equal(vm.diagnosis.severity,"High"); assert.equal(vm.diagnosis.severityTone,"alarm");
   assert.equal(vm.diagnosis.evidence.length,2); assert.equal(vm.diagnosis.actions.length,3);
   assert.equal(vm.comparison.truth.experiment,"exp-mock-payment-failure");
-  assert.equal(vm.comparison.truth.faults[0].injector,"payment-failure");
+  assert.equal(vm.comparison.truth.faults[0].name,"Payment failure");
+  assert.equal(vm.comparison.truth.faults[0].from,"04:48:55 UTC"); assert.equal(vm.comparison.truth.faults[0].until,"04:53:55 UTC");
   assert.equal(vm.comparison.verdict.kind,"match");
   assert.match(vm.comparison.detection,/69 s/);
 });
 test("cascade_early: model and run classes differ legitimately with one active fault", () => {
   const vm=viewModel(fixture("cascade_early"));
-  assert.equal(vm.comparison.prediction.classCode,"TRAFFIC_SPIKE");
-  assert.equal(vm.comparison.truth.classCode,"CASCADING_FAILURE");
+  assert.equal(vm.comparison.prediction.type,"Traffic spike");
+  assert.equal(vm.comparison.truth.type,"Cascading failure");
   assert.equal(vm.comparison.verdict.kind,"partial");
   assert.deepEqual(vm.comparison.truth.faults.map(f=>f.active),[true,false]);
   assert.equal(vm.comparison.truth.faults.length,2);
@@ -75,12 +88,12 @@ test("cascade_early timeline: fault times after generated_at are planned, earlie
   // generated_at 04:51:48.342Z; the spike runs 04:48:55-04:58:55, the payment failure is planned 04:52:00-04:57:00
   const vm=viewModel(fixture("cascade_early"));
   assert.deepEqual(vm.timeline.map(e=>[e.time,e.label,e.planned]),[
-    ["2026-11-02 · 04:48:55 UTC","Traffic spike start",false],
-    ["2026-11-02 · 04:49:00 UTC","Incident start",false],
-    ["2026-11-02 · 04:50:04 UTC","ML detection",false],
-    ["2026-11-02 · 04:52:00 UTC","Payment failure planned start",true],
-    ["2026-11-02 · 04:57:00 UTC","Payment failure planned end",true],
-    ["2026-11-02 · 04:58:55 UTC","Traffic spike planned end",true],
+    ["04:48:55 UTC","Traffic spike start",false],
+    ["04:49:00 UTC","Incident start",false],
+    ["04:50:04 UTC","ML detection",false],
+    ["04:52:00 UTC","Payment failure planned start",true],
+    ["04:57:00 UTC","Payment failure planned end",true],
+    ["04:58:55 UTC","Traffic spike planned end",true],
   ]);
 });
 test("a fault that has ended reads as an end, not a planned one", () => {
@@ -99,7 +112,7 @@ test("no_ground_truth: missing injection is not an error or fabricated fault", (
 test("no_data: never represented as healthy, every null measurement is —", () => {
   const vm=viewModel(fixture("no_data"));
   assert.equal(vm.status.raw,"NO_DATA");assert.equal(vm.noData,true);
-  assert.deepEqual(vm.kpis.map(k=>k.value),["No data","—","—","—","0"]);
+  assert.deepEqual(vm.kpis.map(k=>k.value),["—","—","—","0"]);
   assert.ok(vm.services.every(s=>s.state==="No data"&&s.requests==="—"&&s.errors==="—"&&s.p95==="—"));
   assert.equal(vm.incident,null);
 });
@@ -114,20 +127,26 @@ test("null error rates and p95 of an idle service remain —; status is backend-
   const vm=viewModel(data);
   assert.equal(vm.services[1].state,"Idle");assert.equal(vm.services[1].requests,"0");
   assert.equal(vm.services[1].errors,"—");assert.equal(vm.services[1].p95,"—");
-  assert.equal(vm.kpis[2].value,"—");assert.equal(vm.kpis[3].value,"—");
+  assert.equal(vm.services[1].okShare,null); assert.equal(vm.services[1].tone,"none");
+  assert.equal(vm.kpis[1].value,"—");assert.equal(vm.kpis[2].value,"—");
 });
 test("system requests and p95 use only health values, not sums/percentile averaging",()=>{
   const data=fixture("incident");
   data.health.requests_per_min=11;data.health.p95_latency_ms=123;
   data.health.services[3].requests_per_min=900000;
-  assert.equal(viewModel(data).kpis[1].value,"11");
-  assert.equal(viewModel(data).kpis[3].value,"123 ms");
+  assert.equal(viewModel(data).kpis[0].value,"11");
+  assert.equal(viewModel(data).kpis[2].value,"123 ms");
 });
-test("affected highlighting uses prediction list, not error thresholds",()=>{
+test("a row's colour follows the backend's status, not an error threshold of the console's own",()=>{
   const data=fixture("incident");
-  data.health.services[0].error_rate=1;
-  const vm=viewModel(data);
-  assert.deepEqual(vm.services.map(s=>s.affected),[false,false,true,true]);
+  data.health.services[0].error_rate=1;                       // Product stays HEALTHY in the reply
+  assert.deepEqual(viewModel(data).services.map(s=>s.tone),["ok","ok","warn","warn"]);
+});
+test("each service's bar is the share of its requests that didn't return a 5xx",()=>{
+  // incident: Product 0, Cart 0, Order 30/180, Payment 0.5 error rate
+  const shares=viewModel(fixture("incident")).services.map(s=>s.okShare);
+  assert.deepEqual(shares.map(x=>Number(x.toFixed(4))),[1,1,0.8333,0.5]);
+  assert.ok(viewModel(fixture("no_data")).services.every(s=>s.okShare===null));
 });
 test("response must contain all nested contract fields, and version must be compatible",()=>{
   const data=fixture("incident");delete data.incident.prediction.model.job;
@@ -180,6 +199,27 @@ test("before any reply, the page claims no state: no 'No active incident', no he
   assert.doesNotMatch(html,/No active incident/);
   assert.doesNotMatch(html,/✓/);
   assert.match(html,/No reply yet/);
+});
+test("each verdict has its own icon as well as its colour, and a difference isn't shown as an error",()=>{
+  const shown=["incident","cascade_early","no_ground_truth"].map(s=>viewModel(fixture(s)).comparison.verdict);
+  assert.deepEqual(shown.map(v=>[v.kind,v.icon,v.tone]),[["match","✓","ok"],["partial","≈","ok"],["none","—","none"]]);
+  const data=fixture("cascade_early");data.incident.ground_truth.faults[1].active_now=true;
+  const v=verdict(data.incident.prediction,data.incident.ground_truth);
+  assert.deepEqual([v.kind,v.icon,v.tone],["different","≠","accent"]);
+});
+test("the page carries no developer-only text, and never calls mock data live",()=>{
+  const html=readFileSync(new URL("../index.html",import.meta.url),"utf8");
+  for (const text of ["LIVE SNAPSHOT","GET /dashboard","BACKEND STATUS","RESPONSE TIMESTAMPS"]) assert.ok(!html.includes(text),text);
+});
+const css=readFileSync(new URL("../styles.css",import.meta.url),"utf8");
+test("every colour is a theme token, so ?theme=light reaches all of the page",()=>{
+  const outside=css.replace(/:root(\[data-theme="light"\])?\s*\{[^}]*\}/g,"");
+  assert.deepEqual(outside.match(/#[0-9a-f]{3,8}\b|rgba?\(/gi),null);
+});
+test("no text is smaller than 13px, for the back of the room",()=>{
+  const sizes=[...css.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map(m=>Number(m[1]));
+  assert.ok(sizes.length>20); assert.ok(Math.min(...sizes)>=13,`smallest is ${Math.min(...sizes)}px`);
+  for (const m of css.matchAll(/font-size:clamp\((\d+)px/g)) assert.ok(Number(m[1])>=13);
 });
 test("null detection latency does not become zero",()=>{
   const data=fixture("incident");data.incident.comparison.detection_latency_s=null;

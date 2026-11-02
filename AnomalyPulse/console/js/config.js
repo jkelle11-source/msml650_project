@@ -1,5 +1,5 @@
 // Where the console reads from.
-//   M7 (now)      source: "api", scenarios: true    Jake's mock API; the Demo Scenario picker sends ?scenario=<name>
+//   M7 (now)      source: "api", scenarios: true    Jake's mock API; the Scenario picker sends ?scenario=<name>
 //   M8-5, live    source: "api", scenarios: false   live data, no picker
 // Overrides in the page's address, without editing this file:
 //   ?source=mock      the snapshots of the API's replies in mock/ (no network needed: the demo's fallback)

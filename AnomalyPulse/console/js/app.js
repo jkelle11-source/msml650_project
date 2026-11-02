@@ -19,11 +19,11 @@ const state = {
 };
 
 function sourceLabel() {
-  if (config.source === "mock") return "LOCAL MOCK";
+  if (config.source === "mock") return "Local mock";
   if (config.apiBaseUrl !== CONFIG.apiBaseUrl) {   // ?api=: it could be mock or live, so name it
-    try { return `API · ${new URL(config.apiBaseUrl).host}`; } catch { return "OTHER API"; }
+    try { return `API · ${new URL(config.apiBaseUrl).host}`; } catch { return "Other API"; }
   }
-  return demoEnabled ? "MOCK API" : "LIVE API";
+  return demoEnabled ? "Mock API" : "Live API";
 }
 function clearPolling() { clearTimeout(state.timer); state.timer = null; }
 function stopInflight() { state.inflight?.abort(); state.inflight = null; }
@@ -32,28 +32,32 @@ function schedule() {
   clearPolling();
   if (isActive()) state.timer = setTimeout(() => refresh(), config.pollMs);
 }
-async function refresh() {
+// manual: the presenter asked (Refresh, a new scenario, Resume). Only then, or before the first
+// reply, does the console show that it is fetching; a background poll changes nothing on screen
+// until its reply arrives, so the console doesn't flicker every 15 s on a projector.
+async function refresh({ manual = false } = {}) {
   if (state.stopped || document.hidden) return;
   clearPolling();
   stopInflight();
   const controller = new AbortController();
   state.inflight = controller;
-  $("refresh").disabled = true;
-  renderConnection({ source: sourceLabel(), kind: state.last ? "refreshing" : "connecting", lastSuccess: state.lastSuccess });
+  if (manual || !state.last) {
+    $("refresh").disabled = true;
+    renderConnection({ source: sourceLabel(), kind: state.last ? "refreshing" : "connecting" });
+  }
   try {
     const reply = await fetchReply(dashboardUrl(config, state.scenario), { signal: controller.signal, timeoutMs: config.timeoutMs });
     if (state.inflight !== controller || state.stopped) return;
     state.last = reply;
     state.lastScenario = state.scenario;
-    state.lastSuccess = new Date().toISOString();
     render(reply);
     updateTabs(reply);
-    renderConnection({ source: sourceLabel(), kind: "connected", lastSuccess: state.lastSuccess });
+    renderConnection({ source: sourceLabel(), kind: "connected" });
     renderNotice(null);
   } catch (error) {
     if (controller.signal.aborted || state.stopped) return;
     const reason = error instanceof FeedError ? error.message : "unexpected request failure";
-    renderConnection({ source: sourceLabel(), kind: state.last ? "stale" : "offline", lastSuccess: state.lastSuccess });
+    renderConnection({ source: sourceLabel(), kind: state.last ? "stale" : "offline" });
     if (!state.last) renderNoReply();
     const showing = state.last ? `The last successful ${state.lastScenario} snapshot remains visible.` : "No successful snapshot is available.";
     renderNotice(`${showing} Refresh failed (${reason}). The console will retry when visible.`, "error");
@@ -78,15 +82,16 @@ function initialize() {
       const url = new URL(location.href);
       url.searchParams.set("scenario", state.scenario);
       history.replaceState(null, "", url);
-      refresh();
+      refresh({ manual: true });
     });
   }
-  $("refresh").addEventListener("click", () => refresh());
+  $("refresh").addEventListener("click", () => refresh({ manual: true }));
   $("pause").addEventListener("click", () => {
     state.paused = !state.paused;
-    $("pause").textContent = state.paused ? "Resume auto-refresh" : "Pause auto-refresh";
+    $("pause").textContent = state.paused ? "Resume" : "Pause";
+    $("pause").title = state.paused ? "Resume auto-refresh" : "Pause auto-refresh";
     $("pause").setAttribute("aria-pressed", String(state.paused));
-    if (state.paused) clearPolling(); else refresh();
+    if (state.paused) clearPolling(); else refresh({ manual: true });
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) { clearPolling(); stopInflight(); $("refresh").disabled = false; }
@@ -96,7 +101,8 @@ function initialize() {
   window.addEventListener("pageshow", (event) => { if (event.persisted) { state.stopped = false; if (isActive()) refresh(); } });
   window.addEventListener("beforeunload", () => { clearPolling(); stopInflight(); });
   initNav();
-  renderConnection({ source: sourceLabel(), kind: "connecting", lastSuccess: null });
+  $("pause").title = "Pause auto-refresh";
+  renderConnection({ source: sourceLabel(), kind: "connecting" });
   refresh();
 }
 initialize();

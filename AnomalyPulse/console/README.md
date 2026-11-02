@@ -16,7 +16,7 @@ npm start                      # = python3 -m http.server 4173 --bind 127.0.0.1
 ```
 
 Open <http://127.0.0.1:4173> (the address the API allows). Opening `index.html` as a file doesn't work: the
-page loads modules and JSON over HTTP. Pick a state from **Demo Scenario**, or open `?scenario=<name>` directly.
+page loads modules and JSON over HTTP. Pick a state from **Scenario**, or open `?scenario=<name>` directly.
 For the demo, run it from the presenting laptop (agreed with Jake in #27).
 
 ## Test it
@@ -31,7 +31,7 @@ the console's reading of each scenario, and how failed requests are reported.
 ## Where it reads from
 
 By default it reads M7-2's read API, `https://ffc8nyi6jl.execute-api.us-east-2.amazonaws.com/dashboard`
-(also in SSM at `/anomalypulse/dashboard/url`), and the Demo Scenario picker sends `?scenario=<name>`. That API
+(also in SSM at `/anomalypulse/dashboard/url`), and the Scenario picker sends `?scenario=<name>`. That API
 serves mock data until M8-5, with every time placed at the moment of the request, so its timestamps differ from
 the snapshots in `mock/`.
 
@@ -44,6 +44,9 @@ Without editing the file, add to the page's address:
 
 - `?source=mock` to read the snapshots in `mock/`. Needs no network, so it is the demo's fallback.
 - `?api=<base URL>` to read another API. The source chip then shows that API's host.
+- `?theme=light` for the light presentation theme (below).
+
+The parameters combine, for example `?source=mock&theme=light&scenario=incident`.
 
 ## The six states
 
@@ -86,34 +89,58 @@ The tests check some of their values (the times, ids and numbers), so update tho
   fails, the last good reply stays on screen, the connection chip says it is stale, and a notice gives the
   reason (including the API's own message for a 400 or 503). Until the first reply arrives, the console claims
   no state: the status reads *No reply* and the incident page *No reply yet*, never *No active incident*.
+- **Quiet polling.** A background poll changes nothing on screen until its reply arrives. Only a refresh the
+  presenter asks for (Refresh, a new scenario, Resume) shows *Refreshing*, so nothing flickers every 15 s.
 
 ## Layout
 
-A dark operations console, in six sections from top to bottom:
+Laid out for the demo's projector: on a 1280×720 screen the Overview (the incident's headline, the KPIs and all
+four services) fits without scrolling, and no text is smaller than 13px. The header says the system's status once
+(*System healthy*, *Incident active* or *No data*) beside the presenter's controls; the tab row carries the
+minute the numbers describe and when the reply was made. Six sections, from top to bottom:
 
 1. **System overview:** a headline naming the incident (*Dependency failure detected*) with its confidence,
-   affected services and AI severity, then system health, requests per minute, error rate, p95 latency,
-   active incidents.
-2. **Service health:** the four services with their status, requests, error rate and p95; services the
-   model names as affected are marked.
-3. **Incident workspace:** the incident type, its id, start and detection times, affected services, the
-   model that answered, and a confidence bar.
+   affected services and AI severity, then requests per minute, error rate, p95 latency and active incidents.
+2. **Service health:** the four services with their status, a bar for the share of requests that succeeded
+   (§14's bars: the bar's colour is the service's status from the API, so the console invents no threshold),
+   error rate, requests and p95.
+3. **Active incident:** the incident type, start and detection times, affected services, the model that
+   answered, the incident id and model job, and a confidence bar.
 4. **AI diagnosis:** Bedrock's summary, likely root cause, supporting evidence and prioritised actions.
-5. **Prediction vs ground truth:** the model's prediction and what the simulator injected, side by side,
-   the injected faults and which are active this minute, and the comparison with detection latency.
+5. **Prediction vs ground truth:** the verdict first, large, with an icon (✓ same classification, ≈ matches the
+   active fault, ≠ different, — no ground truth) and the detection latency; then the prediction and what the
+   simulator injected, side by side, with the injected faults and which are active this minute. This is the
+   demo's ground-truth reveal (§15 part 3).
 6. **Event timeline:** every timestamp in the reply in order (faults starting and ending, the incident
    starting, the model detecting it), with planned fault times marked. Useful for narrating a cascade (M10-5).
 
-With no incident, 3 to 6 show an empty state.
+With no incident, 3 to 6 show an empty state. Times show as `05:41:04 UTC`: every time in a reply is from the
+last few minutes.
+
+## Colour
+
+One colour per meaning, the same everywhere: **green** healthy (and a verdict that matches), **amber** a
+degraded service or a medium severity, **red** the incident and its active faults, **grey** no data, idle or
+nothing to compare, **cyan** links and things to look at. Two more colours say whose an item is: **teal** the
+model's prediction, **violet** the injected faults. Every state also has words or an icon, never colour alone.
+
+Every colour is a token at the top of `styles.css`, checked for contrast against its own theme's surfaces (text
+at least 4.5:1). The card edges are 2:1 against the cards, so the layout holds on a projector, whose blacks are
+grey.
+
+**`?theme=light`** is a light presentation theme with the same tokens re-stepped for a white surface. Bright
+rooms and projectors often show a light page better; try both on the room's projector before the demo and use
+whichever reads better from the back.
 
 ## Pages
 
 A tab bar under the header splits the console into five pages, one part of the story at a time:
 **Overview** (1 and 2), **Incident** (3), **AI diagnosis** (4), **Ground truth** (5) and **Timeline** (6).
 The address names the page (`#overview`, `#incident`, `#diagnosis`, `#verify`, `#timeline`), so a page can be
-linked and the browser's back button works. Each tab has a dot: red for an incident, amber while the diagnosis
-is pending, cyan when there is something to see, a hollow ring when there is nothing. Previous / Next links at
-the bottom, or the ← and → keys, step through the pages in order, which is handy when presenting.
+linked and the browser's back button works. Each tab has a dot: red for an incident, a cyan ring while the
+diagnosis is pending, cyan when there is something to see, a grey ring when there is nothing (hover a tab for
+the words). Previous / Next links at the bottom, or the ← and → keys, step through the pages in order, which is
+handy when presenting.
 
 Atkinson Hyperlegible Next (fonts/, SIL Open Font License) is
 bundled so the demo doesn't depend on Wi-Fi.
