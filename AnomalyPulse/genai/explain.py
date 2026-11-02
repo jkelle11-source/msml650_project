@@ -20,7 +20,8 @@ import time
 from genai import contract, prompt, self_check
 
 # Claude Sonnet 4.6, chosen over Opus 4.6 on the five samples (2026-11-01: fewer self-check
-# findings); the account has no access to Claude 4.7 or later. A global cross-region inference
+# findings). Claude 4.7 and later have a Bedrock quota of 0 tokens per minute in this account
+# (never raised), so they fail until AWS Support raises it. A global cross-region inference
 # profile: Bedrock routes it to any region with capacity, at no premium over regional routing.
 MODEL_ID = os.environ.get("ANOMALYPULSE_BEDROCK_MODEL", "global.anthropic.claude-sonnet-4-6")
 REGION = os.environ.get("ANOMALYPULSE_BEDROCK_REGION", "us-east-2")

@@ -1,7 +1,7 @@
 # Dashboard Data Contract (M7-2)
 
 **Owner:** Jake (the read API) · **Consumer:** the SRE console (M7-1, Linu) · **Stack:** `anomalypulse-dashboard` ·
-**Status:** signed off by Linu (2026-10-31, #27); `diagnosis` awaits Josh's sign-off
+**Status:** signed off by Linu (2026-10-31, #27); `diagnosis` matches M6-1's output (Josh, PR #86)
 
 The one JSON object the console reads, what every field means, and where each value comes from once M8 makes it
 live. The console renders only from this object. Until M8-5 the read API serves mock data in exactly this shape;
@@ -155,7 +155,7 @@ or in `comparison`, is the point of showing them side by side.
 | `affected_services` | array of service names, at least one | The services the incident shows in: those whose own metrics in the latest window crossed a fixed line against their pre-incident baseline. M8-3 computes it with `genai.affected.affected_services()` from the feature windows, never from the manifest, and sends the same list to Bedrock (`Docs/DIAGNOSIS_CONTRACT.md`, "affected_services") |
 | `model` | object | Which model answered: `estimator` and `job`, from the Diagnosis Lambda's reply |
 
-`diagnosis` (the fields follow PROJECT_PLAN §10 and §14; M6-1's output schema has the final say):
+`diagnosis` (the fields follow PROJECT_PLAN §10 and §14, and are exactly M6-1's output: `Docs/DIAGNOSIS_CONTRACT.md`):
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -228,4 +228,7 @@ the mock one and changes nothing else.
    polls every 15 s and keeps the last good reply on a 503 or a timeout. Nothing is missing. While `diagnosis`
    is `null`, the incident panel shows "Severity pending": the manifest's severity is ground truth and never
    fills it.
-2. **Josh:** do the `diagnosis` fields match M6-1's output schema? Does Bedrock give a `severity`?
+2. **Josh: answered** (PR #86). The `diagnosis` fields are exactly M6-1's output, and Bedrock gives a
+   `severity`, from a fixed rubric that M6-1's self-check recomputes from the input. Beside `diagnosis`, the
+   explanation Lambda's reply carries `evidence_metrics` (the input metrics each evidence bullet cites) and
+   `self_check` (`passed` and findings); M8-3 stores them, and M8-4 decides whether the console shows them.

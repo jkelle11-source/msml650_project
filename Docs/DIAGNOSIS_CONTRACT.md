@@ -209,7 +209,7 @@ python -m genai.run_samples --profile <your-profile>               # the five sa
 **Deploy** (its own stack, never `anomalypulse-shared`):
 
 ```bash
-cd AnomalyPulse/infra/genai && sam build && sam deploy
+cd AnomalyPulse/infra/genai && sam build && AWS_PROFILE=admin sam deploy    # admin: it creates an IAM role
 aws lambda invoke --function-name anomalypulse-explain --cli-binary-format raw-in-base64-out \
   --payload file://../../genai/samples/dependency_failure.json reply.json --profile <your-profile>
 ```
@@ -218,22 +218,28 @@ aws lambda invoke --function-name anomalypulse-explain --cli-binary-format raw-i
 profile; Bedrock through `bedrock-runtime`, us-east-2), adaptive thinking at effort `medium`. The model,
 region and effort are environment variables (`ANOMALYPULSE_BEDROCK_MODEL`, `_REGION`, `_EFFORT`).
 
-**Why this model (2026-11-01).** The account can use Claude Opus 4.6 and Sonnet 4.6 on Bedrock, but none
-of Claude 4.7 or later ("not available for this account"), and the newer `bedrock-mantle` endpoint answers
-404 for every model, so the code uses `bedrock-runtime`. Run on the five samples, Opus 4.6 had 7 real
+**Why this model (2026-11-01).** Of the Claude models, the account can call Opus 4.6 and Sonnet 4.6 on Bedrock
+(3M and 6M tokens per minute, cross-region). Claude 4.7 and later (Opus 4.7, 4.8 and 5.5, Sonnet 5.5, ...) are
+enabled, but their Bedrock quota is 0 tokens per minute and has never been raised (checked 2026-11-02), so calls
+to them fail ("not available for this account"; for Opus 4.8, "Too many tokens per day"). Using one means
+asking AWS Support to raise its quota first. The newer `bedrock-mantle` endpoint answers 404 for every model,
+so the code uses `bedrock-runtime`. Run on the five samples with the first prompt, Opus 4.6 had 7 real
 self-check findings (two diagnoses with 7 bullets, causal wording, a speculated deployment) and Sonnet 4.6
 had 3; the prompt was tightened against those. Sonnet wrote about twice the output tokens (~1,200 a
 diagnosis, thinking included) and was a little slower (median 31 s against 26 s); at list prices the two
-cost about the same per diagnosis. Bedrock's own prices apply (aws.amazon.com/bedrock/pricing).
+cost about the same per diagnosis. Bedrock's own prices apply (aws.amazon.com/bedrock/pricing). Opus's
+answers to that first prompt are kept in `genai/samples/results/`; the final self-check finds 12 problems in
+them, while Sonnet's answers to the final prompt pass (that folder's README says what each run is).
 
 **SDK 1.x, deliberately.** Python SDK 2.0 and later send API version `2026-10-21`, which Bedrock accepts
 only for Claude 4.7 and later, so `requirements.txt` pins the 1.x release tested (1.17.0). Moving to a
-4.7-or-later model, once the account has one, is also the time to move to SDK 2.x.
+4.7-or-later model, once its quota is raised, is also the time to move to SDK 2.x.
 
 ## Open questions (for M8-3)
 
 1. **Baseline:** the mean of the lookback windows before `started_at`? A cascade's later windows would
    then compare against the pre-cascade baseline, which is what an engineer wants to see.
+   (`genai.affected.baseline()` computes that mean, and `affected_services` was calibrated with it.)
 2. **Which metrics to send:** proposal: per affected service, `request_rate`, `p95_latency_ms`,
    `error_rate_5xx`, plus the type's own signals (throttle counts and DB latency for throttling,
    `lambda_duration_ms_mean` for Lambda degradation, the three `dependency_*` for dependency failures), and
