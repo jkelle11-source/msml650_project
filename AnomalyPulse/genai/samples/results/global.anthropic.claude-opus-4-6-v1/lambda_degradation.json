@@ -1,0 +1,57 @@
+{
+  "incident_id": "inc-sample-lambda-degradation",
+  "diagnosis": {
+    "severity": "HIGH",
+    "summary": "The order-service Lambda is experiencing severe compute degradation. Mean handler duration has risen from 2 ms to 352 ms (176x increase) and p95 end-to-end latency has jumped from 24 ms to 375 ms (roughly 15.6x baseline), while the request rate and error rate remain unchanged.",
+    "root_cause": "A Lambda execution environment issue in order-service (such as a new deployment with heavier processing, an inefficient dependency, or a runtime bottleneck) is the most likely root cause of the degradation.",
+    "evidence": [
+      "Mean Lambda handler duration rose from 2 ms to 352 ms, a 176x increase",
+      "Median end-to-end latency rose from 17 ms to 360 ms, roughly a 21x increase",
+      "p95 end-to-end latency rose from 24 ms to 375 ms, approximately 15.6x baseline, crossing the 10x threshold",
+      "Error rate remains at 0%, indicating the service is slow but not failing",
+      "Request rate is steady at 2.9 rps, ruling out a traffic spike as the cause"
+    ],
+    "recommended_actions": [
+      "Review recent order-service Lambda deployments or configuration changes that may have introduced heavier processing logic",
+      "Check order-service CloudWatch logs for slow operations, increased cold starts, or SDK initialization delays",
+      "Profile the order-service Lambda handler to identify which code path is adding approximately 350 ms of execution time",
+      "If a faulty deployment is identified, roll back the order-service Lambda to the last known good version",
+      "Consider enabling Lambda Provisioned Concurrency for order-service if cold starts are contributing to the latency increase"
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "order-service.lambda_duration_ms_mean"
+    ],
+    [
+      "order-service.p50_latency_ms"
+    ],
+    [
+      "order-service.p95_latency_ms"
+    ],
+    [
+      "order-service.error_rate_5xx"
+    ],
+    [
+      "order-service.request_rate"
+    ]
+  ],
+  "self_check": {
+    "passed": false,
+    "findings": [
+      "root_cause: claims 'deploy', but the input has no metric for it",
+      "evidence[2]: the number 10 is not in or derivable from the input",
+      "evidence[4]: causal wording 'ruling out'; correlated timestamps are an observed sequence, not proof of cause",
+      "evidence[4]: causal wording 'cause'; correlated timestamps are an observed sequence, not proof of cause"
+    ]
+  },
+  "model": {
+    "id": "global.anthropic.claude-opus-4-6-v1",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 2143,
+    "output_tokens": 468
+  },
+  "latency_ms": 26264
+}

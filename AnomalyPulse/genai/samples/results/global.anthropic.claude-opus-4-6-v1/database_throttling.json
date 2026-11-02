@@ -1,0 +1,63 @@
+{
+  "incident_id": "inc-sample-db-throttling",
+  "diagnosis": {
+    "severity": "HIGH",
+    "summary": "Product-service is experiencing severe DynamoDB read throttling, with 1400 read throttle events per minute and p95 latency spiking from 6 ms to 1586 ms (approximately 264x baseline). Read capacity consumption surged from 480 to 11900 RCU/min while request rate remained steady at about 15 rps, indicating the capacity spike is not driven by additional traffic.",
+    "root_cause": "DynamoDB read throttling on the Products table is the most likely root cause, with consumed read capacity rising roughly 25x above baseline while provisioned capacity appears insufficient to handle the load.",
+    "evidence": [
+      "p95 latency rose from 6 ms to 1586 ms, approximately 264x the baseline",
+      "p50 latency remains nearly unchanged at 6 ms versus a 5 ms baseline, showing most requests still succeed quickly while a tail of requests is heavily delayed by retries",
+      "DynamoDB p95 latency jumped from 4 ms to 1580 ms, accounting for nearly all of the end-to-end latency increase",
+      "Read throttle events went from 0 to 1400 per minute",
+      "Consumed read capacity surged from 480 to 11900 RCU/min, roughly a 25x increase",
+      "Request rate is stable at about 15 rps (baseline 15.0), so the capacity surge is not caused by increased external traffic",
+      "5xx error rate is 0.4%, below the 5% threshold but non-zero, indicating some requests are failing"
+    ],
+    "recommended_actions": [
+      "Increase provisioned read capacity or switch to on-demand capacity mode on the Products DynamoDB table to eliminate throttling",
+      "Investigate what is driving the 25x read capacity increase at a steady request rate, such as a missing or invalidated cache layer, a scan operation replacing queries, or a hot partition key",
+      "Enable or review DynamoDB auto-scaling settings to ensure the table can absorb sudden read capacity spikes",
+      "Add or restore an application-level cache (e.g., DAX or in-memory Lambda cache) in front of the Products table to reduce direct DynamoDB reads"
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "product-service.p95_latency_ms"
+    ],
+    [
+      "product-service.p50_latency_ms"
+    ],
+    [
+      "product-service.db_latency_ms_p95"
+    ],
+    [
+      "product-service.read_throttle_events"
+    ],
+    [
+      "product-service.db_consumed_read_capacity"
+    ],
+    [
+      "product-service.request_rate"
+    ],
+    [
+      "product-service.error_rate_5xx"
+    ]
+  ],
+  "self_check": {
+    "passed": false,
+    "findings": [
+      "evidence has 7 bullets; 1 to 6 expected",
+      "summary: causal wording 'driven'; correlated timestamps are an observed sequence, not proof of cause",
+      "evidence[5]: causal wording 'caused'; correlated timestamps are an observed sequence, not proof of cause"
+    ]
+  },
+  "model": {
+    "id": "global.anthropic.claude-opus-4-6-v1",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 2292,
+    "output_tokens": 616
+  },
+  "latency_ms": 27656
+}

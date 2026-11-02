@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  AnomalyPulse explanation (M6-1) - the Lambda that turns a classified incident's
+  structured evidence into a diagnosis with Claude in Amazon Bedrock
+  (Docs/DIAGNOSIS_CONTRACT.md). A stack of its own: anomalypulse-shared is not
+  redeployed until M9-1. No trigger: M8-3 invokes it directly.
+
+Resources:
+
+  # ---- Explain Lambda ---------------------------------------
+  # genai/handler.py. It reads nothing from AWS but Bedrock: the input carries the
+  # evidence, and the reply goes back to the caller (M8-3 stores it).
+
+  ExplainLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/anomalypulse-explain
+      RetentionInDays: 90
+
+  ExplainRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: anomalypulse-explain
+      Description: The AnomalyPulse explanation Lambda runs as this role (M6-1)
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: bedrock-claude
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # bedrock-runtime through a cross-region inference profile: the call is
+              # authorized on the profile and on the foundation model in whichever
+              # region serves it (a global profile's model ARN has no region). Claude
+              # models only.
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub 'arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*anthropic.claude-*'
+                  - 'arn:aws:bedrock:*::foundation-model/anthropic.claude-*'
+                  - 'arn:aws:bedrock:::foundation-model/anthropic.claude-*'
+
+  ExplainFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      FunctionName: anomalypulse-explain
+      CodeUri: ../../genai
+      Handler: genai.handler.handler
+      Runtime: python3.13
+      Architectures:
+        - arm64
+      MemorySize: 512
+      # One Bedrock call: typically seconds; the SDK retries 429/5xx.
+      Timeout: 120
+      Role: !GetAtt ExplainRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref ExplainLogGroup
+      Environment:
+        Variables:
+          ANOMALYPULSE_BEDROCK_MODEL: global.anthropic.claude-sonnet-4-6
+          ANOMALYPULSE_BEDROCK_REGION: us-east-2
+          ANOMALYPULSE_BEDROCK_EFFORT: medium
+
+  # ---- SSM Parameters ---------------------------------------
+  # For M8-3, which invokes the function by name.
+
+  SsmExplainFunction:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /anomalypulse/genai/explain-function
+      Type: String
+      Value: !Ref ExplainFunction
+
+Outputs:
+  ExplainFunctionName:
+    Value: !Ref ExplainFunction

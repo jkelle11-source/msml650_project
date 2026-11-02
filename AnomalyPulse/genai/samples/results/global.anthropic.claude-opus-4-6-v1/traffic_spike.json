@@ -1,0 +1,55 @@
+{
+  "incident_id": "inc-sample-traffic-spike",
+  "diagnosis": {
+    "severity": "LOW",
+    "summary": "All three services are experiencing a roughly 3x traffic spike that began at 14:03 UTC. Request rates rose from 15 to 45.1 rps on product-service, 2 to 6 rps on cart-service, and 2.9 to 8.8 rps on order-service. Latencies and error rates remain largely nominal across all services.",
+    "root_cause": "A sudden surge in inbound traffic across all three services is the most likely root cause, consistent with an external traffic spike such as a flash sale, bot activity, or marketing campaign driving concurrent load.",
+    "evidence": [
+      "Product-service request rate rose from 15 to 45.1 rps, a 3x increase",
+      "Cart-service request rate rose from 2 to 6 rps, a 3x increase",
+      "Order-service request rate rose from 2.9 to 8.8 rps, roughly a 3x increase",
+      "Product-service p95 latency increased modestly from 24 ms to 31 ms (29% rise), well within normal range",
+      "Order-service p95 latency increased slightly from 58 ms to 61 ms (5% rise), remaining healthy",
+      "Product-service 5xx error rate is 0%, indicating no failures despite the traffic surge"
+    ],
+    "recommended_actions": [
+      "Monitor Lambda concurrent executions and DynamoDB consumed capacity across all three services to detect any approaching limits before throttling begins",
+      "Review API Gateway throttling and Lambda reserved concurrency settings to ensure headroom if traffic continues to climb",
+      "Investigate the traffic source (CloudFront or API Gateway access logs) to determine whether the spike is legitimate user traffic or bot activity",
+      "If the spike is expected to persist or grow, consider enabling DynamoDB auto-scaling or switching to on-demand capacity mode on all three tables"
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "product-service.request_rate"
+    ],
+    [
+      "cart-service.request_rate"
+    ],
+    [
+      "order-service.request_rate"
+    ],
+    [
+      "product-service.p95_latency_ms"
+    ],
+    [
+      "order-service.p95_latency_ms"
+    ],
+    [
+      "product-service.error_rate_5xx"
+    ]
+  ],
+  "self_check": {
+    "passed": true,
+    "findings": []
+  },
+  "model": {
+    "id": "global.anthropic.claude-opus-4-6-v1",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 2218,
+    "output_tokens": 516
+  },
+  "latency_ms": 25632
+}

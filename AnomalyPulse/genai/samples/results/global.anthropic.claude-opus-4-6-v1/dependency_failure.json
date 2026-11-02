@@ -1,0 +1,56 @@
+{
+  "incident_id": "inc-sample-dependency-failure",
+  "diagnosis": {
+    "severity": "HIGH",
+    "summary": "Payment-service is experiencing severe latency degradation, with p95 latency rising from 110 ms to 2900 ms (about 26x baseline). Order-service, which depends on payment-service, is seeing 57 dependency errors per minute and a 16.7% 5xx error rate. The incident has been ongoing for approximately 2 minutes.",
+    "root_cause": "A failure or severe slowdown in payment-service is the most likely root cause, causing order-service dependency calls to time out or fail.",
+    "evidence": [
+      "Payment-service p95 latency rose from 110 ms to 2900 ms, roughly a 26x increase.",
+      "Order-service dependency call p95 latency rose from 112 ms to 2950 ms, closely matching the payment-service slowdown.",
+      "Order-service is recording 57 dependency errors per minute against a baseline of 0.",
+      "Order-service 5xx error rate rose from 0% to 16.7%.",
+      "Order-service p95 latency rose from 130 ms to 2950 ms, approximately 22.7x its baseline.",
+      "Payment-service latency rose first, and order-service 5xx errors appeared about 40 seconds later (observed sequence from correlated timestamps)."
+    ],
+    "recommended_actions": [
+      "Investigate payment-service Lambda logs and CloudWatch metrics for errors, timeouts, or upstream issues causing the latency spike.",
+      "Consider reducing the order-service timeout for payment-service calls and adding a circuit breaker to fail fast and protect order-service availability.",
+      "Check whether payment-service Lambda concurrency is being throttled or if cold starts are contributing to the slowdown.",
+      "Review API Gateway and Lambda error metrics for payment-service to identify whether the issue is in the handler, a downstream dependency, or the network path."
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "payment-service.p95_latency_ms"
+    ],
+    [
+      "order-service.dependency_latency_ms_p95"
+    ],
+    [
+      "order-service.dependency_error_count"
+    ],
+    [
+      "order-service.error_rate_5xx"
+    ],
+    [
+      "order-service.p95_latency_ms"
+    ],
+    [
+      "payment-service.p95_latency_ms",
+      "order-service.error_rate_5xx"
+    ]
+  ],
+  "self_check": {
+    "passed": true,
+    "findings": []
+  },
+  "model": {
+    "id": "global.anthropic.claude-opus-4-6-v1",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 2292,
+    "output_tokens": 536
+  },
+  "latency_ms": 25570
+}

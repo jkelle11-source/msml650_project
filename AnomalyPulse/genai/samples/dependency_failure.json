@@ -1,0 +1,64 @@
+{
+  "contract_version": 1,
+  "incident_id": "inc-sample-dependency-failure",
+  "incident_type": "DEPENDENCY_FAILURE",
+  "confidence": 0.93,
+  "started_at": "2026-10-30T14:32:00.000Z",
+  "window_start": "2026-10-30T14:33:00.000Z",
+  "duration_minutes": 2,
+  "affected_services": [
+    "order-service",
+    "payment-service"
+  ],
+  "metrics": [
+    {
+      "service": "payment-service",
+      "metric": "p95_latency_ms",
+      "baseline": 110,
+      "current": 2900,
+      "unit": "ms"
+    },
+    {
+      "service": "order-service",
+      "metric": "dependency_latency_ms_p95",
+      "baseline": 112,
+      "current": 2950,
+      "unit": "ms"
+    },
+    {
+      "service": "order-service",
+      "metric": "dependency_error_count",
+      "baseline": 0,
+      "current": 57,
+      "unit": "count/min"
+    },
+    {
+      "service": "order-service",
+      "metric": "error_rate_5xx",
+      "baseline": 0.0,
+      "current": 0.167,
+      "unit": "share"
+    },
+    {
+      "service": "order-service",
+      "metric": "p95_latency_ms",
+      "baseline": 130,
+      "current": 2950,
+      "unit": "ms"
+    }
+  ],
+  "observed_sequence": [
+    {
+      "at": "2026-10-30T14:32:00.000Z",
+      "service": "payment-service",
+      "metric": "p95_latency_ms",
+      "observation": "rose above its baseline"
+    },
+    {
+      "at": "2026-10-30T14:32:40.000Z",
+      "service": "order-service",
+      "metric": "error_rate_5xx",
+      "observation": "rose above its baseline"
+    }
+  ]
+}

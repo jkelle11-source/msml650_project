@@ -1,0 +1,52 @@
+{
+  "incident_id": "inc-sample-traffic-spike",
+  "diagnosis": {
+    "severity": "LOW",
+    "summary": "A traffic spike is affecting product-service, cart-service, and order-service simultaneously. Request rates have risen roughly 3x across all three services compared to baseline. No errors or meaningful latency increases are present at this time.",
+    "root_cause": "A coordinated surge in incoming traffic across all three services is the most likely root cause, with product-service absorbing the largest absolute load increase and all services remaining healthy so far.",
+    "evidence": [
+      "product-service request rate rose from 15.0 rps to 45.1 rps, a 3x increase.",
+      "cart-service request rate rose from 2.0 rps to 6.0 rps, also a 3x increase.",
+      "order-service request rate rose from 2.9 rps to 8.8 rps, approximately a 3x increase.",
+      "product-service p95 latency increased modestly from 24 ms to 31 ms, and order-service p95 latency moved from 58 ms to 61 ms, both well within normal range.",
+      "product-service error_rate_5xx remains at 0.0 with no errors observed during the spike."
+    ],
+    "recommended_actions": [
+      "Monitor DynamoDB consumed capacity and throttle metrics on all three tables as load continues, since a 3x traffic increase may push provisioned capacity limits.",
+      "Watch Lambda concurrency and cold_start_count across product-service, cart-service, and order-service for signs of scaling pressure.",
+      "Check order-service dependency calls to payment-service for rising latency or error counts as order traffic has tripled.",
+      "If the spike is sustained, consider increasing DynamoDB provisioned or auto-scaling capacity on the product-service, cart-service, and order-service tables proactively."
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "product-service.request_rate"
+    ],
+    [
+      "cart-service.request_rate"
+    ],
+    [
+      "order-service.request_rate"
+    ],
+    [
+      "product-service.p95_latency_ms",
+      "order-service.p95_latency_ms"
+    ],
+    [
+      "product-service.error_rate_5xx"
+    ]
+  ],
+  "self_check": {
+    "passed": true,
+    "findings": []
+  },
+  "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 2386,
+    "output_tokens": 498
+  },
+  "latency_ms": 5755
+}
