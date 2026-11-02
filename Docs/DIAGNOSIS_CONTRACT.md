@@ -4,8 +4,8 @@
 (stack `anomalypulse-genai`, `AnomalyPulse/infra/genai/`) · **Used by:** M8-3 (builds the input, stores the
 reply), M8-4 (feeds it to the dashboard), M9-5 (scores it)
 
-**Status:** draft for agreement with M5-3's classifier output (Rachel) at the M8-3 seam; open questions at
-the end.
+**Status:** documented (M6-1, PR #86). Agreement with M8-3 (Rachel, #30) is pending on the three open
+questions at the end, which carry proposals.
 
 Bedrock is a constrained **explanation generator, not a diagnoser** (plan §10, §20). It is handed the
 classifier's answer and the observed evidence, and writes the diagnosis an engineer reads. It never sees raw
@@ -235,14 +235,22 @@ them, while Sonnet's answers to the final prompt pass (that folder's README says
 only for Claude 4.7 and later, so `requirements.txt` pins the 1.x release tested (1.17.0). Moving to a
 4.7-or-later model, once its quota is raised, is also the time to move to SDK 2.x.
 
-## Open questions (for M8-3)
+## Open questions (for M8-3, #30)
 
-1. **Baseline:** the mean of the lookback windows before `started_at`? A cascade's later windows would
-   then compare against the pre-cascade baseline, which is what an engineer wants to see.
-   (`genai.affected.baseline()` computes that mean, and `affected_services` was calibrated with it.)
-2. **Which metrics to send:** proposal: per affected service, `request_rate`, `p95_latency_ms`,
-   `error_rate_5xx`, plus the type's own signals (throttle counts and DB latency for throttling,
-   `lambda_duration_ms_mean` for Lambda degradation, the three `dependency_*` for dependency failures), and
-   any other metric that moved by 2x or more.
-3. **When to call:** once when the incident is first classified, and again when its type changes (a cascade
-   is first classified as its first fault)?
+Each has a proposal; M8-3 agrees or changes it (M8-3's Definition of Done, carried from M6-1's).
+
+1. **Baseline.** Proposal: the mean of the windows before `started_at` that were classified `NORMAL`, up
+   to the last 5 (`genai.affected.baseline()`), held fixed for the whole incident. A cascade's later minutes
+   then still compare against the pre-cascade state, which is what an engineer wants to see. A metric with
+   nothing to average gets `baseline: null`. (`affected_services` was calibrated with this mean, over the
+   one or two quiet minutes v1's runs have before their fault.)
+2. **Which metrics to send** (about 5–10). Proposal: for each affected service, `request_rate`,
+   `p95_latency_ms` and `error_rate_5xx`, so Bedrock can also say what didn't move; any other metric of
+   that service past the line `affected_services` uses (2x its baseline, 1.75x for request rate, or a count
+   above zero); and the incident type's own signals (throttle counts, `db_latency_ms_p95` and consumed
+   read capacity for database throttling; `lambda_duration_ms_mean` for Lambda degradation; Order's three
+   `dependency_*` for dependency failures). Bedrock can cite only what it is sent.
+3. **When to call.** Proposal: once when the incident is first classified, and again each time its
+   `incident_type` changes (a cascade is first classified as its first fault's type, then as
+   `CASCADING_FAILURE` once two faults overlap). Not every minute: a call costs about 3¢ and takes 6–32 s,
+   and the console shows "Severity pending" until the reply is stored.

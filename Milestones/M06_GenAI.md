@@ -59,7 +59,9 @@ all five samples' diagnoses pass the self-check (`genai/samples/results/`). Deci
 - [x] For a set of sample inputs (one per incident type), Bedrock produces a well-formed report matching the template.
 - [x] No output claim references a service/metric/value absent from its input (smoke-checked).
 - [x] Ordering claims are phrased as observed sequences, not causation.
-- [ ] Input contract agreed and documented with Rachel (`M5-3`) for the M8 seam.
+- [ ] Input contract agreed and documented with Rachel (`M5-3`) for the M8 seam. *Documented; the agreement
+  moved to `M8-3` (#30, 2026-11-02), whose Definition of Done now carries it. The contract's three open
+  questions are posted there for Rachel, with proposals.*
 
 ---
 
