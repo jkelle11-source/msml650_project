@@ -1,11 +1,9 @@
 // Where the console reads from.
-//
-//   M7 (now)      source: "api", scenarios: true    Jake's mock API, ?scenario=<name> picks the state
+//   M7 (now)      source: "api", scenarios: true    Jake's mock API; the Demo Scenario picker sends ?scenario=<name>
 //   M8-5, live    source: "api", scenarios: false   live data, no picker
-//
-// Two overrides in the page's address, without editing this file:
-//   ?source=mock      read the local copies in mock/ (works with no network: the demo's fallback)
-//   ?api=<base URL>   read another API
+// Overrides in the page's address, without editing this file:
+//   ?source=mock      the local copies in mock/ (no network needed: the demo's fallback)
+//   ?api=<base URL>   another read API
 export const CONFIG = {
   source: "api",
   // M7-2's read API (also in SSM at /anomalypulse/dashboard/url).
@@ -15,12 +13,11 @@ export const CONFIG = {
   timeoutMs: 8000,
 };
 
-// The read API's fixed mock states (Docs/DASHBOARD_CONTRACT.md, "Mock scenarios").
 export const SCENARIOS = [
   { id: "healthy", label: "Healthy" },
-  { id: "diagnosing", label: "Incident, diagnosis pending" },
-  { id: "incident", label: "Incident, diagnosed" },
-  { id: "cascade_early", label: "Cascade, first minutes" },
-  { id: "no_ground_truth", label: "Incident with no injected fault" },
-  { id: "no_data", label: "Pipeline stopped" },
+  { id: "diagnosing", label: "Diagnosing" },
+  { id: "incident", label: "Incident" },
+  { id: "cascade_early", label: "Cascade · early" },
+  { id: "no_ground_truth", label: "No ground truth" },
+  { id: "no_data", label: "No data" },
 ];

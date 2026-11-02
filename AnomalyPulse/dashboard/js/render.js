@@ -1,140 +1,174 @@
-// Puts a view model (model.js) on the status board. Text goes in with textContent only.
-
+// DOM-only renderer. Strings from the response are text nodes, never HTML.
+import { viewModel } from "./model.js";
+import { dateTime, MISSING } from "./format.js";
+const $ = (id) => document.getElementById(id);
 function el(tag, className, ...children) {
   const node = document.createElement(tag);
   if (className) node.className = className;
   for (const child of children) {
     if (child === null || child === undefined || child === false) continue;
-    node.append(typeof child === "string" ? document.createTextNode(child) : child);
+    if (typeof child === "string" || typeof child === "number") node.append(document.createTextNode(String(child)));
+    else node.append(child);
   }
   return node;
 }
-
-const $ = (id) => document.getElementById(id);
-
-function renderBanner(vm) {
-  const b = vm.banner;
-  $("banner").className = `banner tone-${b.tone}`;
-  $("banner-title").textContent = b.title;
-  $("banner-facts").replaceChildren(...b.facts.map((f) => el("li", null, f)));
-  $("updated").textContent = vm.generated;
-  document.title = `${b.title}: AnomalyPulse`;
+function labelValue(label, value, className = "") {
+  return el("div", `detail-cell ${className}`, el("dt", null, label), el("dd", null, value ?? MISSING));
 }
-
-function renderHealth(vm) {
-  $("kpis").replaceChildren(...vm.kpis.map((k) => {
-    const item = el("div", "kpi", el("dt", null, k.label), el("dd", null, k.value));
-    if (k.note) item.title = k.note;
-    return item;
+function badge(text, tone = "neutral") { return el("span", `badge badge-${tone}`, text); }
+function sectionTitle(title, subtitle) {
+  return el("div", "panel-heading", el("h3", null, title), subtitle && el("span", "mono tiny muted", subtitle));
+}
+function renderHeader(vm) {
+  $("window").textContent = vm.window;
+  $("generated").textContent = vm.generated;
+  $("system-state").textContent = `BACKEND STATUS / ${vm.status.raw}`;
+  $("system-label").textContent = vm.status.raw;
+  $("system-label").className = `status-indicator status-${vm.status.tone}`;
+  $("deck").textContent = vm.report.deck;
+  document.title = `${vm.status.raw} · AnomalyPulse`;
+  document.body.dataset.health = vm.status.raw.toLowerCase().replaceAll("_", "-");
+}
+function renderKpis(vm) {
+  $("figures").replaceChildren(...vm.kpis.map((k) => {
+    const block = el("div", `kpi ${k.tone ? `kpi-${k.tone}` : ""}`,
+      el("dt", null, k.label), el("dd", "numeric", k.value));
+    return block;
   }));
-  $("services").replaceChildren(...vm.services.map((s) => el("li", `service tone-${s.tone}`,
-    el("p", "service-head", el("span", "lamp", ""), el("span", "service-name", s.name)),
-    el("p", "service-state", s.state),
-    el("dl", "service-figures",
-      el("div", null, el("dt", null, "Requests/min"), el("dd", null, s.requests)),
-      el("div", null, el("dt", null, "Errors"), el("dd", null, s.errors)),
-      el("div", null, el("dt", null, "p95"), el("dd", null, s.p95))))));
 }
-
-function row(label, ...value) {
-  return el("div", "detail", el("dt", null, label), el("dd", null, ...value));
+function renderServices(vm) {
+  $("services").replaceChildren(...vm.services.map((s) => {
+    const th = el("th", "service-name", el("span", "service-name-inner", el("span", "service-indicator"), s.name));
+    th.scope = "row";
+    if (s.affected) th.append(el("span", "affected-tag", "Affected"));
+    const row = el("tr", s.affected ? "is-affected" : "", th,
+      el("td", "state-col", badge(s.state, s.tone)),
+      el("td", "numeric", s.requests),
+      el("td", "numeric", s.errors),
+      el("td", "numeric", s.p95));
+    // Attribute labels make each metric intelligible in stacked mobile layout.
+    [...row.querySelectorAll("td")].forEach((td, index) => td.dataset.label = ["Status", "Requests / min", "Error rate", "P95 latency"][index]);
+    return row;
+  }));
 }
-
 function renderIncident(vm) {
-  const hasIncident = Boolean(vm.incident);
-  $("incident-row").hidden = !hasIncident;
-  $("check-section").hidden = !hasIncident;
-  $("all-clear").hidden = hasIncident;
-  if (!hasIncident) {
-    $("all-clear").textContent = vm.noData
-      ? "Incident details and the AI diagnosis appear here once data is arriving again."
-      : "No active incident. Incident details, the AI diagnosis and the model check appear here when one is detected.";
+  const host = $("incident");
+  if (!vm.incident) {
+    host.replaceChildren(el("div", `empty-state ${vm.noData ? "empty-unknown" : ""}`,
+      el("span", "empty-orbit", vm.noData ? "?" : "✓"),
+      el("h3", null, vm.noData ? "Incident status unavailable" : "No active incident"),
+      el("p", null, vm.noData
+        ? "The telemetry pipeline has no recent data. This is not confirmation of system health."
+        : "The backend reports no active incident for this window. Detection details will appear here when an incident is reported.")));
     return;
   }
   const i = vm.incident;
-  const meter = el("span", "meter");
-  meter.setAttribute("aria-hidden", "true");
-  const fill = el("span", "meter-fill");
-  fill.style.width = `${Math.round(i.confidenceShare * 100)}%`;
-  meter.append(fill);
-  const severity = i.severity
-    ? el("span", `severity sev-${i.severity.tone}`, i.severity.label)
-    : el("span", "severity sev-pending", "Pending the diagnosis");
-  $("incident").replaceChildren(
-    row("Type", el("strong", "incident-type", i.type)),
-    row("Confidence", el("span", "confidence", i.confidence), meter),
-    row("Severity", severity),
-    row("Affected", i.affected),
-    row("Started", i.started),
-    row("Detected", i.detected));
+  const progress = el("progress", "confidence-meter");
+  progress.max = 100; progress.value = i.confidenceFraction * 100;
+  progress.setAttribute("aria-label", `Model confidence ${i.confidence}`);
+  host.replaceChildren(
+    el("div", "incident-top", el("div", null,
+      el("span", "mini-tag incident-flag", "ACTIVE INCIDENT"),
+      el("h3", "incident-name", i.type),
+      el("p", "mono incident-code", i.classCode)),
+      el("div", "incident-severity", el("span", "muted mini-tag", "AI SEVERITY"),
+        i.severity ? badge(i.severity.label, i.severity.tone) : badge("Severity pending", "warn"))),
+    el("div", "incident-meta", labelValue("Incident ID", i.id, "mono"),
+      labelValue("Started at", i.started), labelValue("ML detected at", i.detected),
+      labelValue("Affected services", i.affected), labelValue("Estimator", i.estimator),
+      labelValue("Model job", i.modelJob, "mono")),
+    el("div", "confidence-wrap", el("div", "confidence-line", el("span", null, "Classification confidence"),
+      el("strong", "numeric", i.confidence)), progress));
 }
-
 function renderDiagnosis(vm) {
-  if (!vm.incident) return;
+  const panel = $("diagnosis");
+  $("diagnosis-section").hidden = !vm.incident;
+  if (!vm.incident) { panel.replaceChildren(); return; }
   if (vm.diagnosisPending) {
-    $("diagnosis").replaceChildren(el("p", "pending",
-      "Waiting for Bedrock. The explanation appears here as soon as it arrives."));
+    panel.replaceChildren(
+      sectionTitle("AI diagnosis pending.", "BEDROCK / WAITING"),
+      el("p", "pending-label", "Severity pending"),
+      el("p", "muted", "The incident is classified, but the diagnosis has not yet been returned. Nothing is filled from injected ground truth."));
     return;
   }
   const d = vm.diagnosis;
-  $("diagnosis").replaceChildren(
-    el("p", "summary", d.summary),
-    el("h3", null, "Root cause"), el("p", "cause", d.rootCause),
-    el("h3", null, "Evidence"), el("ul", "plain-list", ...d.evidence.map((e) => el("li", null, e))),
-    el("h3", null, "Recommended actions"), el("ol", "plain-list", ...d.actions.map((a) => el("li", null, a))),
-    el("p", "caveat", "Where Bedrock orders symptoms, the order is an observed sequence from correlated " +
-      "timestamps, not proof that one caused the other."));
+  const evidence = el("ul", "evidence-list", ...d.evidence.map((text) => el("li", null, text)));
+  const actions = el("ol", "action-list", ...d.actions.map((text) => el("li", null, text)));
+  panel.replaceChildren(
+    el("div", "diagnosis-head", sectionTitle("AI assessment", "BEDROCK / RETURNED"),
+      el("div", "severity-row", el("span", "muted small", "Severity"), badge(d.severity, d.rawSeverity.toLowerCase()))),
+    el("div", "diagnosis-summary", el("p", "mini-tag", "SUMMARY"), el("p", null, d.summary)),
+    el("div", "root-cause", el("p", "mini-tag", "LIKELY ROOT CAUSE"), el("p", "root-text", d.rootCause)),
+    el("div", "analysis-columns", el("div", "analysis-column", el("h4", null, "Supporting evidence"), evidence),
+      el("div", "analysis-column", el("h4", null, "Prioritized actions"), actions)),
+    el("p", "sequence-note", "Symptom ordering in the diagnosis is an observed sequence from correlated timestamps; it is not proof of causation."));
 }
-
-const MARKS = { match: "✓", partial: "✓", miss: "✗", none: "–" };
-
-function renderCheck(vm) {
-  if (!vm.comparison) return;
+function modelCard(c) {
+  const p = c.prediction;
+  return el("article", "compare-card compare-model", el("div", "compare-top", el("span", "mini-tag", "MODEL PREDICTION"), badge("ML", "cyan")),
+    el("h3", "compare-class", p.type), el("p", "mono compare-code", p.classCode),
+    el("dl", "compare-fields", labelValue("Confidence", p.confidence),
+      labelValue("Affected services", p.affected), labelValue("Detection time", p.detected),
+      labelValue("Estimator", p.estimator, "mono"), labelValue("Model job", p.modelJob, "mono")));
+}
+function truthCard(c) {
+  if (!c.truth) return el("article", "compare-card compare-truth", el("span", "mini-tag", "INJECTED GROUND TRUTH"),
+    el("h3", "compare-class", "No injected-fault record"),
+    el("p", "muted", "No injected-fault record is available for this window. This is expected for real-world incidents and is not an error."));
+  const t = c.truth;
+  const faults = el("ul", "fault-list", ...t.faults.map((f) => el("li", `fault-row ${f.active === true ? "fault-active" : ""}`,
+    el("div", "fault-title", el("strong", null, f.name), badge(f.state, f.active === true ? "alarm" : f.active === null ? "neutral" : "idle")),
+    el("p", "fault-description", `Injector: ${f.injector} · Target: ${f.target}`),
+    el("p", "fault-description", `Activation interval: ${f.from} → ${f.until}`),
+    f.note && el("p", "fault-description", f.note))));
+  return el("article", "compare-card compare-truth", el("span", "mini-tag", "INJECTED GROUND TRUTH"),
+    el("h3", "compare-class", t.type), el("p", "mono compare-code", t.classCode),
+    el("dl", "compare-fields", labelValue("Ground-truth severity", t.severity),
+      labelValue("Experiment ID", t.experiment, "mono")),
+    el("h4", "fault-heading", `Injected faults (${t.faults.length})`), faults);
+}
+function renderComparison(vm) {
+  $("comparison-section").hidden = !vm.comparison;
+  if (!vm.comparison) { $("comparison").replaceChildren(); return; }
   const c = vm.comparison;
-  const side = (label, type, ...lines) => el("div", "side", el("p", "side-label", label),
-    el("p", "side-type", type), ...lines.filter(Boolean).map((l) => el("p", "side-line", l)));
-  const model = side("Model predicted", c.prediction.type, c.prediction.confidence, c.prediction.model);
-  const truth = c.truth
-    ? side("Simulator injected", c.truth.type, c.truth.severity, `Run ${c.truth.experiment}`)
-    : side("Simulator injected", "Nothing", "No experiment was running.");
-  truth.classList.add("side-truth");
-
-  const mark = el("span", "mark", MARKS[c.verdict.kind]);
-  mark.setAttribute("aria-hidden", "true");
-  const verdict = el("div", `verdict verdict-${c.verdict.kind}`, mark, el("p", "verdict-label", c.verdict.label));
-
-  const parts = [el("div", "versus", model, verdict, truth), el("p", "verdict-detail", c.verdict.detail)];
-  if (c.detection) parts.push(el("p", "verdict-detail", c.detection));
-  if (c.truth) {
-    parts.push(el("h3", null, "Injected faults"), el("ul", "faults", ...c.truth.faults.map((f) =>
-      el("li", `fault fault-${f.tone}`,
-        el("span", "fault-dot", ""),
-        el("span", "fault-name", f.name),
-        el("span", "fault-state", f.label),
-        el("span", "fault-detail", `${f.target}, ${f.window}${f.note ? `. ${f.note}` : ""}`)))));
-  }
-  $("check").replaceChildren(...parts);
+  $("comparison").replaceChildren(el("div", "compare-grid", modelCard(c), truthCard(c)),
+    el("div", `comparison-verdict verdict-${c.verdict.kind}`,
+      el("span", "mini-tag", "COMPARISON"),
+      el("strong", null, c.verdict.label),
+      el("p", null, c.verdict.detail),
+      c.detection && el("p", "detection-latency", c.detection)));
 }
-
-export function render(vm) {
-  renderBanner(vm);
-  renderHealth(vm);
+function renderTimeline(vm) {
+  $("timeline-section").hidden = !vm.incident;
+  if (!vm.incident) { $("timeline").replaceChildren(); return; }
+  $("timeline").replaceChildren(...vm.timeline.map((event) => el("li", `timeline-item timeline-${event.kind} ${event.active ? "timeline-active" : ""}`,
+    el("span", "timeline-dot"),
+    el("time", "timeline-time", event.time),
+    el("div", "timeline-main", el("strong", null, event.label),
+      event.active && badge("Active in window", "alarm"),
+      event.detail && el("p", "muted", event.detail)))));
+}
+export function render(replyOrVm) {
+  const vm = Object.hasOwn(replyOrVm, "contract_version") ? viewModel(replyOrVm) : replyOrVm;
+  renderHeader(vm);
+  renderKpis(vm);
+  renderServices(vm);
   renderIncident(vm);
   renderDiagnosis(vm);
-  renderCheck(vm);
+  renderComparison(vm);
+  renderTimeline(vm);
 }
-
-// When requests fail the board no longer knows the current state, so the banner stops claiming one.
-export function renderUnknownStatus() {
-  $("banner").className = "banner tone-none";
-  $("banner-title").textContent = "Data out of date";
-  $("banner-facts").replaceChildren(el("li", null, "The latest request failed; the board below is the last good reply"));
+export function renderConnection({ source, kind, lastSuccess }) {
+  $("source-label").textContent = source;
+  const labels = { connected: "Connected", connecting: "Connecting", refreshing: "Refreshing", stale: "STALE · last good data", offline: "Offline · no data" };
+  $("connection-state").textContent = labels[kind] ?? kind;
+  $("connection-state").className = `connection-chip connection-${kind}`;
+  $("last-success").textContent = lastSuccess ? dateTime(lastSuccess) : MISSING;
+  document.body.dataset.state = kind === "stale" ? "stale" : kind === "offline" ? "offline" : kind === "connected" ? "ready" : kind;
 }
-
-// The line under the top bar: a stale reply or a failed request.
 export function renderNotice(text, tone = "warn") {
-  const box = $("notice");
-  box.hidden = !text;
-  box.className = `notice notice-${tone}`;
-  box.textContent = text ?? "";
+  const notice = $("notice");
+  notice.hidden = !text;
+  notice.className = `notice notice-${tone}`;
+  notice.textContent = text ?? "";
 }

@@ -1,4 +1,4 @@
-# AnomalyPulse status board (M7-1)
+# AnomalyPulse operations console (M7-1)
 
 The SRE console from PROJECT_PLAN §14: service health, the active incident, Bedrock's diagnosis, and the
 model's prediction beside the injected ground truth. It renders only from the one JSON object the read API
@@ -15,7 +15,7 @@ npm start                      # = python3 -m http.server 4173 --bind 127.0.0.1
 ```
 
 Open <http://127.0.0.1:4173> (the address the API allows). Opening `index.html` as a file doesn't work: the
-page loads modules and JSON over HTTP. Pick a state from **Scenario**, or open `?scenario=<name>` directly.
+page loads modules and JSON over HTTP. Pick a state from **Demo Scenario**, or open `?scenario=<name>` directly.
 For the demo, run it from the presenting laptop (agreed with Jake in #27).
 
 ## Test it
@@ -30,7 +30,7 @@ the console's reading of each scenario, and how failed requests are reported.
 ## Where it reads from
 
 By default it reads M7-2's read API, `https://ffc8nyi6jl.execute-api.us-east-2.amazonaws.com/dashboard`
-(also in SSM at `/anomalypulse/dashboard/url`), and the Scenario picker sends `?scenario=<name>`. That API
+(also in SSM at `/anomalypulse/dashboard/url`), and the Demo Scenario picker sends `?scenario=<name>`. That API
 serves mock data until M8-5, with every time placed at the moment of the request, so its timestamps and ids
 differ from the copies in `mock/`.
 
@@ -61,32 +61,42 @@ contract's scenario descriptions.
 ## What the console promises
 
 - **Nothing is invented.** Every value comes from the reply. A `null` number shows as a dash, never `0`.
-- **Severity is Bedrock's.** Until the diagnosis arrives the incident shows "Severity pending"; the injected
+- **Severity is Bedrock's.** Until the diagnosis arrives, the incident's AI severity is pending; the injected
   severity appears only on the ground-truth side.
 - **Observed sequence, not cause.** Bedrock's text is shown as written (as text, never HTML), under a note
-  that any ordering of symptoms is an observed sequence from correlated timestamps.
-- **The verdict:** *Match* when the classes agree; *Matches the active fault* in a cascade's first minutes,
-  when only one fault is active and the model names it (the Window Labeling Policy labels those windows the
-  same way; retry amplification never counts as a fault); *Mismatch* otherwise; *No ground truth* when nothing
-  was injected.
-- **Failures are visible.** Polls every 15 s with an 8 s timeout. If a request fails, the last good reply
-  stays on screen, greyed out, the banner turns grey and says "Data out of date", and a line under the top bar
-  gives the reason.
+  that symptom ordering is an observed sequence from correlated timestamps, not proof of causation.
+- **The comparison:** *Same classification* when the classes agree; *Matches active fault* in a cascade's
+  first minutes, when only one fault is active and the model names it (retry amplification never counts as a
+  fault); a difference otherwise; nothing to compare when nothing was injected.
+- **Failures are visible.** Polls every 15 s while the tab is visible, with an 8 s timeout. If a request
+  fails, the last good reply stays on screen, the connection chip says it is stale, and a notice gives the
+  reason (including the API's own message for a 400 or 503).
 
-## Design
+## Layout
 
-A status board, read top to bottom, so it can be explained in that order:
+A dark operations console, in six sections from top to bottom:
 
-1. **The banner** answers "is anything wrong?" in one line: red with the incident and where it is
-   ("Dependency failure in Orders and Payments", then confidence, severity, start), green for "All systems
-   normal", grey when there is no data or the data is out of date.
-2. **Key figures** for the latest minute: requests, error rate, p95 latency, active incidents.
-3. **Service health:** one light per service, green, amber or grey, with its own numbers.
-4. **Incident details** (type, a confidence meter, severity, affected services, times) beside **AI diagnosis**
-   (summary, root cause, evidence, recommended actions).
-5. **Did the model get it right?** The model's prediction and what the simulator injected, side by side, with
-   a tick or a cross between them, then the injected faults and which are active this minute.
+1. **System overview:** system health, requests per minute, error rate, p95 latency, active incidents.
+2. **Service health:** the four services with their status, requests, error rate and p95; services the
+   model names as affected are marked.
+3. **Incident workspace:** the incident type, its id, start and detection times, affected services, the
+   model that answered, and a confidence bar.
+4. **AI diagnosis:** Bedrock's summary, likely root cause, supporting evidence and prioritised actions.
+5. **Prediction vs ground truth:** the model's prediction and what the simulator injected, side by side,
+   the injected faults and which are active this minute, and the comparison with detection latency.
+6. **Event timeline:** every timestamp in the reply in order (faults starting and ending, the incident
+   starting, the model detecting it). Useful for narrating a cascade (M10-5).
 
-With no incident, 4 and 5 are replaced by one line. Colour only ever means state (green, amber, red, grey),
-plus indigo for what the simulator injected. Atkinson Hyperlegible Next (fonts/, SIL Open Font License) was
-drawn for legibility, which suits a projector, and is bundled so the demo doesn't depend on Wi-Fi.
+With no incident, 3 to 6 show an empty state.
+
+## Pages
+
+A tab bar under the header splits the console into five pages, one part of the story at a time:
+**Overview** (1 and 2), **Incident** (3), **AI diagnosis** (4), **Ground truth** (5) and **Timeline** (6).
+The address names the page (`#overview`, `#incident`, `#diagnosis`, `#verify`, `#timeline`), so a page can be
+linked and the browser's back button works. Each tab has a dot: red for an incident, amber while the diagnosis
+is pending, cyan when there is something to see, a hollow ring when there is nothing. Previous / Next links at
+the bottom, or the ← and → keys, step through the pages in order, which is handy when presenting.
+
+Atkinson Hyperlegible Next (fonts/, SIL Open Font License) is
+bundled so the demo doesn't depend on Wi-Fi.

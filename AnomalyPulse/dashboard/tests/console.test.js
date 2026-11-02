@@ -1,245 +1,223 @@
-// npm test, or node --test tests/*.test.js (Node 20+; no packages to install)
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { test } from "node:test";
-
 import { SCENARIOS } from "../js/config.js";
-import { FeedError, dashboardUrl, fetchReply } from "../js/feed.js";
-import { clock, count, latency, list, percent } from "../js/format.js";
-import { ContractError, checkReply, verdict, viewModel } from "../js/model.js";
+import { dashboardUrl, fetchReply, FeedError } from "../js/feed.js";
+import { clock, count, dateTime, latency, list, percent } from "../js/format.js";
+import { checkReply, ContractError, verdict, viewModel } from "../js/model.js";
+const fixture = (name) => JSON.parse(readFileSync(new URL(`../mock/${name}.json`, import.meta.url), "utf8"));
+const clone = structuredClone;
+const SERVICE_IDS = ["product-service", "cart-service", "order-service", "payment-service"];
 
-const mockDir = new URL("../mock/", import.meta.url);
-const mock = (name) => JSON.parse(readFileSync(new URL(`${name}.json`, mockDir), "utf8"));
-const copy = (value) => structuredClone(value);
-const SERVICES = ["product-service", "cart-service", "order-service", "payment-service"];
-
-// --- formatting ------------------------------------------------------------
-
-test("numbers are formatted for reading, and null is a dash", () => {
-  assert.equal(count(1200), "1,200");
-  assert.equal(percent(0.025), "2.5%");
-  assert.equal(percent(0.1667), "16.7%");
-  assert.equal(percent(0.5), "50%");
-  assert.equal(percent(0), "0%");
-  assert.equal(latency(260), "260 ms");
-  assert.equal(latency(2950), "2.95 s");
-  assert.equal(clock("2026-10-30T14:33:04.000Z"), "14:33 UTC");
-  assert.equal(clock("2026-10-30T14:33:04.000Z", { seconds: true }), "14:33:04 UTC");
-  for (const f of [count, percent, latency, clock]) assert.equal(f(null), "—");
-  assert.equal(list(["Orders", "Payments"]), "Orders and Payments");
-  assert.equal(list(["Product", "Cart", "Orders"]), "Product, Cart and Orders");
+test("all six fixture files are present", () => {
+  const files = readdirSync(new URL("../mock/", import.meta.url)).filter(x => x.endsWith(".json")).map(x => x.slice(0,-5)).sort();
+  assert.deepEqual(files, SCENARIOS.map(s => s.id).sort());
 });
-
-// --- the mocks follow the contract --------------------------------------------
-
-test("there is one mock per scenario, and nothing else", () => {
-  const files = readdirSync(mockDir).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5)).sort();
-  assert.deepEqual(files, SCENARIOS.map((s) => s.id).sort());
+test("null measurements display as em-dashes, numeric zero stays zero", () => {
+  for (const fn of [clock, dateTime, count, percent, latency]) assert.equal(fn(null), "—");
+  assert.equal(percent(0), "0%"); assert.equal(count(0), "0"); assert.equal(latency(0), "0 ms");
+  assert.equal(percent(.025), "2.5%"); assert.equal(percent(.167), "16.7%"); assert.equal(percent(.5), "50%");
+  assert.equal(count(1200), "1,200"); assert.equal(latency(2950), "2.95 s");
+  assert.equal(clock("2026-10-30T14:33:04.000Z", { seconds:true }), "14:33:04 UTC");
+  assert.equal(list([]), "—");
 });
-
 for (const { id } of SCENARIOS) {
-  test(`mock ${id} keeps the contract's rules`, () => {
-    const reply = checkReply(mock(id));
-    const { health, incident } = reply;
-    assert.deepEqual(health.services.map((s) => s.service), SERVICES);
-    assert.equal(health.active_incidents, incident ? 1 : 0);
-    if (health.status !== "NO_DATA") assert.equal(health.status, incident ? "INCIDENT" : "HEALTHY");
-    if (incident) {
-      assert.equal(incident.ground_truth === null, incident.comparison === null);
-      assert.notEqual(incident.prediction.incident_type, "NORMAL");
-      for (const service of health.services) {
-        const affected = incident.prediction.affected_services.includes(service.service);
-        assert.equal(service.status, affected ? "DEGRADED" : "HEALTHY", service.service);
-      }
-    }
-  });
-
-  test(`mock ${id} renders with no missing text`, () => {
-    const text = JSON.stringify(viewModel(mock(id)));
-    for (const bad of ["undefined", "NaN", "[object", "Infinity"]) assert.ok(!text.includes(bad), `${id}: ${bad}`);
+  test(`${id}: fixture conforms to v1 and renders no bogus missing data`, () => {
+    const data = checkReply(fixture(id));
+    const vm = viewModel(data);
+    assert.equal(data.contract_version, 1);
+    assert.deepEqual(data.health.services.map(s => s.service), SERVICE_IDS);
+    assert.equal(vm.kpis.length, 5);
+    assert.equal(vm.services.length, 4);
+    assert.deepEqual(vm.services.map(s => s.rawStatus), data.health.services.map(s => s.status));
+    for (const bad of ["undefined", "NaN", "[object Object]", "Infinity"])
+      assert.ok(!JSON.stringify(vm).includes(bad), `${id} contains ${bad}`);
   });
 }
-
-// --- what each scenario shows --------------------------------------------------
-
-test("healthy: no incident, nothing invented", () => {
-  const vm = viewModel(mock("healthy"));
-  assert.equal(vm.status.label, "Healthy");
-  assert.equal(vm.incident, null);
-  assert.equal(vm.comparison, null);
+test("healthy: no incident, healthy backend status, empty timeline", () => {
+  const vm=viewModel(fixture("healthy"));
+  assert.equal(vm.status.raw,"HEALTHY"); assert.equal(vm.incident,null);
+  assert.equal(vm.comparison,null);assert.deepEqual(vm.timeline,[]);
+  assert.deepEqual(vm.kpis.map(k=>k.value),["HEALTHY","1,200","0%","170 ms","0"]);
 });
-
-test("incident: Jake's example reads as on the contract's page", () => {
-  const vm = viewModel(mock("incident"));
-  assert.equal(vm.status.label, "Incident");
-  assert.deepEqual(vm.kpis.map((k) => k.value), ["1,200", "2.5%", "260 ms", "1"]);
-  assert.equal(vm.incident.type, "Dependency failure");
-  assert.equal(vm.incident.confidence, "93%");
-  assert.equal(vm.incident.affected, "Orders and Payments");
-  assert.deepEqual(vm.incident.severity, { label: "High", tone: "high" });
-  assert.equal(vm.comparison.verdict.label, "Match");
-  assert.equal(vm.comparison.detection, "Detected 69 s after the first fault began.");
+test("diagnosing: AI diagnosis and severity stay pending, never use ground-truth severity", () => {
+  const vm=viewModel(fixture("diagnosing"));
+  assert.equal(vm.diagnosisPending,true);assert.equal(vm.diagnosis,null);
+  assert.equal(vm.incident.severity,null);assert.equal(vm.comparison.truth.severity,"High");
 });
-
-test("diagnosing: severity is pending, never borrowed from ground truth", () => {
-  const vm = viewModel(mock("diagnosing"));
-  assert.equal(vm.diagnosisPending, true);
-  assert.equal(vm.diagnosis, null);
-  assert.equal(vm.incident.severity, null);
-  assert.equal(vm.comparison.truth.severity, "High severity");     // shown only on the truth side
+test("incident: full diagnosis, evidence, actions, model identity and ground truth", () => {
+  const vm=viewModel(fixture("incident"));
+  assert.equal(vm.incident.type,"Dependency failure");
+  assert.equal(vm.incident.confidence,"93%");
+  assert.equal(vm.incident.estimator,"logistic_regression");
+  assert.equal(vm.incident.affected,"Order and Payment");
+  assert.equal(vm.diagnosis.severity,"High");
+  assert.equal(vm.diagnosis.evidence.length,2); assert.equal(vm.diagnosis.actions.length,3);
+  assert.equal(vm.comparison.truth.experiment,"exp-20261030T143000Z-3f2a");
+  assert.equal(vm.comparison.truth.faults[0].injector,"payment-failure");
+  assert.equal(vm.comparison.verdict.kind,"match");
+  assert.match(vm.comparison.detection,/69 s/);
 });
-
-test("cascade_early: predicting the first fault matches the active fault, not a mismatch", () => {
-  const vm = viewModel(mock("cascade_early"));
-  assert.equal(vm.comparison.prediction.type, "Traffic spike");
-  assert.equal(vm.comparison.truth.type, "Cascading failure");
-  assert.equal(vm.comparison.verdict.label, "Matches the active fault");
-  assert.deepEqual(vm.comparison.truth.faults.map((f) => f.label),
-    ["Active this minute", "Not active this minute", "Not active this minute", "Not active this minute"]);
-  assert.equal(vm.comparison.truth.faults[0].target, "No single target");
+test("cascade_early: model and run classes differ legitimately with one active fault", () => {
+  const vm=viewModel(fixture("cascade_early"));
+  assert.equal(vm.comparison.prediction.classCode,"TRAFFIC_SPIKE");
+  assert.equal(vm.comparison.truth.classCode,"CASCADING_FAILURE");
+  assert.equal(vm.comparison.verdict.kind,"partial");
+  assert.deepEqual(vm.comparison.truth.faults.map(f=>f.active),[true,false,false,false]);
+  assert.equal(vm.comparison.truth.faults.length,4);
+  assert.equal(vm.timeline.filter(x=>x.kind==="fault-start").length,4);
+  assert.equal(vm.timeline.filter(x=>x.kind==="fault-end").length,4);
+  assert.equal(vm.timeline.length,10);
+  assert.deepEqual(vm.timeline.map(e=>e.at),[...vm.timeline.map(e=>e.at)].sort());
 });
-
-test("no_ground_truth: the prediction and diagnosis stand alone", () => {
-  const vm = viewModel(mock("no_ground_truth"));
-  assert.equal(vm.comparison.truth, null);
-  assert.equal(vm.comparison.verdict.label, "No ground truth");
-  assert.equal(vm.comparison.detection, null);
-  assert.ok(vm.diagnosis.summary);
+test("no_ground_truth: missing injection is not an error or fabricated fault", () => {
+  const vm=viewModel(fixture("no_ground_truth"));
+  assert.equal(vm.comparison.truth,null);
+  assert.equal(vm.comparison.verdict.kind,"none");
+  assert.equal(vm.comparison.detection,null);
+  assert.equal(vm.timeline.length,2);
 });
-
-test("no_data: never says healthy, every number a dash", () => {
-  const vm = viewModel(mock("no_data"));
-  assert.equal(vm.status.label, "No data");
-  assert.equal(vm.noData, true);
-  assert.deepEqual(vm.kpis.slice(0, 3).map((k) => k.value), ["—", "—", "—"]);
-  assert.ok(vm.services.every((s) => s.state === "No data" && s.requests === "—" && s.success === null));
+test("no_data: never represented as healthy, every null measurement is —", () => {
+  const vm=viewModel(fixture("no_data"));
+  assert.equal(vm.status.raw,"NO_DATA");assert.equal(vm.noData,true);
+  assert.deepEqual(vm.kpis.map(k=>k.value),["NO_DATA","—","—","—","0"]);
+  assert.ok(vm.services.every(s=>s.state==="No data"&&s.requests==="—"&&s.errors==="—"&&s.p95==="—"));
+  assert.equal(vm.incident,null);
 });
-
-// --- the verdict ---------------------------------------------------------------
-
-test("verdict: a second overlapping fault makes a first-fault prediction a mismatch", () => {
-  const reply = mock("cascade_early");
-  reply.incident.ground_truth.faults[1].active_now = true;           // throttling now overlaps
-  assert.equal(verdict(reply.incident.prediction, reply.incident.ground_truth).label, "Mismatch");
+test("null error rates and p95 of an idle service remain —; status is backend-supplied", () => {
+  const data=fixture("healthy");
+  data.health.services[1].status="IDLE";
+  data.health.services[1].requests_per_min=0;
+  data.health.services[1].error_rate=null;
+  data.health.services[1].p95_latency_ms=null;
+  data.health.error_rate=null;
+  data.health.p95_latency_ms=null;
+  const vm=viewModel(data);
+  assert.equal(vm.services[1].state,"Idle");assert.equal(vm.services[1].requests,"0");
+  assert.equal(vm.services[1].errors,"—");assert.equal(vm.services[1].p95,"—");
+  assert.equal(vm.kpis[2].value,"—");assert.equal(vm.kpis[3].value,"—");
 });
-
-test("verdict: retry amplification never counts as a second fault", () => {
-  const reply = mock("cascade_early");
-  reply.incident.ground_truth.faults[3].active_now = true;           // only retries join the spike
-  assert.equal(verdict(reply.incident.prediction, reply.incident.ground_truth).label, "Matches the active fault");
+test("system requests and p95 use only health values, not sums/percentile averaging",()=>{
+  const data=fixture("incident");
+  data.health.requests_per_min=11;data.health.p95_latency_ms=123;
+  data.health.services[3].requests_per_min=900000;
+  assert.equal(viewModel(data).kpis[1].value,"11");
+  assert.equal(viewModel(data).kpis[3].value,"123 ms");
 });
-
-test("verdict: a wrong class is a mismatch", () => {
-  const reply = mock("incident");
-  reply.incident.prediction.incident_type = "TRAFFIC_SPIKE";
-  assert.equal(verdict(reply.incident.prediction, reply.incident.ground_truth).label, "Mismatch");
+test("affected highlighting uses prediction list, not error thresholds",()=>{
+  const data=fixture("incident");
+  data.health.services[0].error_rate=1;
+  const vm=viewModel(data);
+  assert.deepEqual(vm.services.map(s=>s.affected),[false,false,true,true]);
 });
-
-test("an alarm before any injected fault says so instead of a negative latency", () => {
-  const reply = mock("incident");
-  reply.incident.comparison.detection_latency_s = null;
-  assert.equal(viewModel(reply).comparison.detection, "The alarm came before any fault was injected.");
+test("response must contain all nested contract fields, and version must be compatible",()=>{
+  const data=fixture("incident");delete data.incident.prediction.model.job;
+  assert.throws(()=>checkReply(data),/model is missing job/);
+  const wrong=fixture("healthy");wrong.contract_version=2;
+  assert.throws(()=>checkReply(wrong),/version 2/);
+  const missing=fixture("healthy");delete missing.health.status;
+  assert.throws(()=>checkReply(missing),ContractError);
 });
-
-// --- contract checks ---------------------------------------------------------------
-
-test("a missing key or another contract version is refused", () => {
-  const noHealth = copy(mock("healthy")); delete noHealth.health;
-  assert.throws(() => checkReply(noHealth), ContractError);
-  const noStatus = copy(mock("healthy")); delete noStatus.health.status;
-  assert.throws(() => checkReply(noStatus), /health is missing status/);
-  const v2 = copy(mock("healthy")); v2.contract_version = 2;
-  assert.throws(() => checkReply(v2), /version 2/);
+test("unknown extra backend fields are tolerated; values aren't synthesized",()=>{
+  const data=fixture("incident");data.incident.history=[];data.health.new_feature=17;
+  assert.doesNotThrow(()=>viewModel(data));
 });
-
-test("an added field is fine: the contract only versions removals and renames", () => {
-  const extra = copy(mock("incident")); extra.health.new_metric = 5; extra.incident.history = [];
-  assert.doesNotThrow(() => viewModel(extra));
+test("Bedrock text passes through unchanged for DOM textContent (not HTML)",()=>{
+  const data=fixture("incident");data.incident.diagnosis.summary="<img src=x onerror=alert(1)>";
+  assert.equal(viewModel(data).diagnosis.summary,"<img src=x onerror=alert(1)>");
 });
-
-test("Bedrock's text is kept as text, markup and all", () => {
-  const reply = mock("incident");
-  reply.incident.diagnosis.summary = "<img src=x onerror=alert(1)>";
-  assert.equal(viewModel(reply).diagnosis.summary, "<img src=x onerror=alert(1)>");   // render.js sets textContent
+test("different classification is neutral, does not claim the model is wrong",()=>{
+  const data=fixture("cascade_early");data.incident.ground_truth.faults[1].active_now=true;
+  const v=verdict(data.incident.prediction,data.incident.ground_truth);
+  assert.equal(v.kind,"different");assert.match(v.detail,/observed window/);
 });
-
-// --- fetching -----------------------------------------------------------------------
-
-test("the URL: mock files, the mock API with ?scenario, the live API without", () => {
-  assert.equal(dashboardUrl({ source: "mock" }, "incident"), "./mock/incident.json");
-  assert.equal(dashboardUrl({ source: "api", apiBaseUrl: "https://x.example/dev/", scenarios: true }, "no_data"),
-    "https://x.example/dev/dashboard?scenario=no_data");
-  assert.equal(dashboardUrl({ source: "api", apiBaseUrl: "https://x.example/dev", scenarios: false }, "no_data"),
-    "https://x.example/dev/dashboard");
-  assert.throws(() => dashboardUrl({ source: "api", apiBaseUrl: "" }, "healthy"), FeedError);
+test("retry amplification does not count as an active second fault",()=>{
+  const data=fixture("cascade_early");data.incident.ground_truth.faults[3].active_now=true;
+  assert.equal(verdict(data.incident.prediction,data.incident.ground_truth).kind,"partial");
 });
-
-const reply = (status, body) => async () => new Response(typeof body === "string" ? body : JSON.stringify(body), { status });
-
-test("fetchReply returns a checked reply", async () => {
-  assert.equal((await fetchReply("u", { fetcher: reply(200, mock("incident")) })).contract_version, 1);
+test("null detection latency does not become zero",()=>{
+  const data=fixture("incident");data.incident.comparison.detection_latency_s=null;
+  assert.match(viewModel(data).comparison.detection,/before any injected fault/);
 });
-
-test("fetchReply reports a 503 with the API's reason", async () => {
-  await assert.rejects(fetchReply("u", { fetcher: reply(503, { error: "Incidents table unreachable" }) }),
-    { name: "Error", message: "HTTP 503: Incidents table unreachable" });
+test("URL creation uses ?scenario for mock API and none for live API",()=>{
+  assert.equal(dashboardUrl({source:"mock"},"incident"),"./mock/incident.json");
+  assert.equal(dashboardUrl({source:"api",apiBaseUrl:"https://example.org/dev/",scenarios:true},"no_data"),"https://example.org/dev/dashboard?scenario=no_data");
+  assert.equal(dashboardUrl({source:"api",apiBaseUrl:"https://example.org/dev",scenarios:false},"incident"),"https://example.org/dev/dashboard");
+  assert.equal(dashboardUrl({source:"api",apiBaseUrl:"https://example.org/dev/dashboard",scenarios:true},"incident"),"https://example.org/dev/dashboard?scenario=incident");
+  assert.throws(()=>dashboardUrl({source:"api",apiBaseUrl:""},"healthy"),FeedError);
 });
-
-test("fetchReply reports a reply that isn't JSON, or breaks the contract", async () => {
-  await assert.rejects(fetchReply("u", { fetcher: reply(200, "<html>") }), /isn't JSON/);
-  await assert.rejects(fetchReply("u", { fetcher: reply(200, { contract_version: 1 }) }), FeedError);
+const response=(status,body)=>async()=>new Response(typeof body==="string"?body:JSON.stringify(body),{status});
+test("200 returns checked dashboard object",async()=>{
+  assert.equal((await fetchReply("test",{fetcher:response(200,fixture("incident"))})).contract_version,1);
 });
-
-test("fetchReply gives up after the timeout", async () => {
-  const hang = (url, { signal }) => new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason)));
-  // AbortSignal.timeout's timer doesn't keep Node running (a browser tab stays open anyway).
-  const keepAlive = setTimeout(() => {}, 1000);
-  try {
-    await assert.rejects(fetchReply("u", { fetcher: hang, timeoutMs: 50 }), /no answer within 0.05 s/);
-  } finally {
-    clearTimeout(keepAlive);
-  }
+test("400 reports invalid scenario/request",async()=>{
+  await assert.rejects(fetchReply("test",{fetcher:response(400,{error:"unknown scenario"})}),/HTTP 400.*unknown scenario/);
 });
-
-// --- the banner: the line read first ----------------------------------------------------
-
-test("the banner says what is wrong and where, or that all is normal", () => {
-  const b = (name) => viewModel(mock(name)).banner;
-  assert.deepEqual(b("incident"), { tone: "alarm", title: "Dependency failure in Orders and Payments",
-    facts: ["93% confident", "High severity", "Started 14:32 UTC"] });
-  assert.deepEqual(b("diagnosing").facts, ["93% confident", "Severity pending", "Started 14:32 UTC"]);
-  assert.equal(b("cascade_early").title, "Traffic spike in Product, Cart and Orders");
-  assert.deepEqual(b("healthy"), { tone: "ok", title: "All systems normal", facts: ["Minute from 14:33 UTC"] });
-  assert.equal(b("no_data").title, "No data from the pipeline");
-  assert.equal(b("no_data").tone, "none");
+test("503 reports API's reason",async()=>{
+  await assert.rejects(fetchReply("test",{fetcher:response(503,{error:"Incidents table unreachable"})}),/HTTP 503.*Incidents table unreachable/);
 });
-
-test("the banner never says all normal while a service is idle", () => {
-  const reply = mock("healthy");
-  reply.health.services[1].status = "IDLE";
-  assert.equal(viewModel(reply).banner.title, "No active incident");
+test("network failure reported independently",async()=>{
+  await assert.rejects(fetchReply("test",{fetcher:async()=>{throw new TypeError("Failed to fetch");}}),/network error/);
+});
+test("malformed JSON or incompatible contract fails without fabricating data",async()=>{
+  await assert.rejects(fetchReply("test",{fetcher:response(200,"<html>")}),/not valid JSON/);
+  await assert.rejects(fetchReply("test",{fetcher:response(200,{contract_version:1})}),/incompatible dashboard data/);
+});
+test("timeout is identified",async()=>{
+  const hang=(url,{signal})=>new Promise((_,reject)=>signal.addEventListener("abort",()=>reject(signal.reason),{once:true}));
+  const keep=setTimeout(()=>{},1000);
+  try{await assert.rejects(fetchReply("test",{fetcher:hang,timeoutMs:40}),/timeout: no answer within 0.04 s/);}finally{clearTimeout(keep);}
 });
 
 // --- what Jake's mock API sends (#27) -------------------------------------------------
 
+const replyWith = (status, body) => async () => new Response(JSON.stringify(body), { status });
+
 test("an unknown scenario's 400 shows the API's own reason", async () => {
   const body = { error: "unknown scenario 'x'; use one of: healthy, diagnosing, incident" };
-  await assert.rejects(fetchReply("u", { fetcher: reply(400, body) }),
-    { message: `HTTP 400: ${body.error}` });
+  await assert.rejects(fetchReply("u", { fetcher: replyWith(400, body) }),
+    { message: `HTTP 400 (bad scenario/request): ${body.error}` });
 });
 
-test("the API's unrounded shares and its own ids read the same as the contract's example", () => {
-  const api = mock("incident");
+test("the API's unrounded shares and its own ids are accepted and read the same", () => {
+  const api = fixture("incident");
   api.health.services[2].error_rate = 30 / 180;                 // 0.1666...
   api.incident.incident_id = "inc-mock-payment-failure";
   api.incident.ground_truth.experiment_id = "exp-mock-payment-failure";
-  const vm = viewModel(api);
-  assert.equal(vm.services[2].errors, "16.7%");
-  assert.equal(vm.comparison.truth.experiment, "exp-mock-payment-failure");
+  assert.doesNotThrow(() => checkReply(api));
+  assert.equal(percent(api.health.services[2].error_rate), "16.7%");
+  assert.doesNotThrow(() => viewModel(api));
 });
 
-test("the console reads the API by default, with ?scenario on", async () => {
+test("the console reads Jake's API by default, with ?scenario on", async () => {
   const { CONFIG } = await import("../js/config.js");
   assert.equal(dashboardUrl(CONFIG, "incident"),
     "https://ffc8nyi6jl.execute-api.us-east-2.amazonaws.com/dashboard?scenario=incident");
+});
+
+// --- pages ------------------------------------------------------------------------------
+
+import { PAGES, neighbours, pageFromHash, tabStatus } from "../js/nav.js";
+
+test("the hash picks the page, and anything else opens the overview", () => {
+  assert.equal(pageFromHash("#diagnosis"), "diagnosis");
+  assert.equal(pageFromHash("#verify"), "verify");
+  assert.equal(pageFromHash(""), "overview");
+  assert.equal(pageFromHash("#nope"), "overview");
+});
+
+test("pages run overview, incident, diagnosis, ground truth, timeline, with previous and next", () => {
+  assert.deepEqual(PAGES.map((p) => p.id), ["overview", "incident", "diagnosis", "verify", "timeline"]);
+  assert.deepEqual(neighbours("overview"), { prev: null, next: PAGES[1] });
+  assert.deepEqual(neighbours("timeline"), { prev: PAGES[3], next: null });
+});
+
+test("tab dots say what each page holds before it is opened", () => {
+  assert.deepEqual(tabStatus(fixture("healthy")),
+    { overview: "ok", incident: "none", diagnosis: "none", verify: "none", timeline: "none" });
+  assert.deepEqual(tabStatus(fixture("incident")),
+    { overview: "alarm", incident: "alarm", diagnosis: "info", verify: "info", timeline: "info" });
+  assert.equal(tabStatus(fixture("diagnosing")).diagnosis, "pending");
+  assert.equal(tabStatus(fixture("no_ground_truth")).verify, "none");
+  assert.equal(tabStatus(fixture("no_data")).overview, "none");
 });

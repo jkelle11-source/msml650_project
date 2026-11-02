@@ -3,65 +3,123 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AnomalyPulse status board</title>
-  <meta name="description" content="Service health, the active incident, its AI diagnosis, and whether the model's prediction matches what was injected.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231d2430'/%3E%3Cpath d='M4 17h6l3-8 6 15 3-7h6' fill='none' stroke='%23fff' stroke-width='2.5'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#0a111d">
+  <meta name="description" content="AnomalyPulse SRE console: service health, ML incident detection, AI diagnosis and injected ground truth.">
+  <title>AnomalyPulse · Operations Console</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a111d'/%3E%3Cpath d='M4 17h6l3-8 6 15 3-7h6' fill='none' stroke='%2358d8ee' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./js/app.js"></script>
 </head>
-<body data-state="loading">
-  <header class="top">
-    <p class="wordmark">AnomalyPulse</p>
-    <div class="top-controls">
-      <span id="updated"></span>
-      <button id="pause" type="button" aria-pressed="false">Pause updates</button>
-      <button id="refresh" type="button">Refresh</button>
+<body data-state="loading" data-source="local-mock">
+  <a class="skip-link" href="#main">Skip to dashboard</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="identity">
+        <span class="pulse-mark" aria-hidden="true">
+          <svg viewBox="0 0 36 32" role="presentation" focusable="false"><path d="M2 17h9l5-10 6 19 5-9h7"/></svg>
+        </span>
+        <div>
+          <p class="wordmark">AnomalyPulse</p>
+          <p class="subbrand">OBSERVABILITY / SRE CONSOLE</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="connection-status" aria-live="polite" aria-atomic="true">
+          <span class="source-chip" id="source-label">CONNECTING</span>
+          <span class="connection-chip" id="connection-state">Connecting</span>
+        </div>
+        <div class="header-actions">
+          <button type="button" id="pause" class="button button-secondary" aria-pressed="false">Pause auto-refresh</button>
+          <button type="button" id="refresh" class="button button-primary"><span aria-hidden="true">↻</span> Refresh</button>
+        </div>
+      </div>
     </div>
   </header>
-
-  <div id="demo" class="demo" hidden>
-    <label for="scenario">Scenario</label>
-    <select id="scenario"></select>
-    <span id="source"></span>
+  <div class="meta-bar">
+    <div class="meta-inner">
+      <span>Reporting window <strong id="window">—</strong></span>
+      <span>Generated <strong id="generated">—</strong></span>
+      <span>Last successful refresh <strong id="last-success">—</strong></span>
+      <div id="demo" class="scenario-control" hidden>
+        <label for="scenario">Demo Scenario</label>
+        <select id="scenario" aria-label="Demo Scenario"></select>
+      </div>
+    </div>
   </div>
+  <nav class="page-nav" aria-label="Console pages">
+    <div class="page-nav-inner">
+      <a href="#overview" data-tab="overview"><span class="tab-dot" id="dot-overview"></span>Overview</a>
+      <a href="#incident" data-tab="incident"><span class="tab-dot" id="dot-incident"></span>Incident</a>
+      <a href="#diagnosis" data-tab="diagnosis"><span class="tab-dot" id="dot-diagnosis"></span>AI diagnosis</a>
+      <a href="#verify" data-tab="verify"><span class="tab-dot" id="dot-verify"></span>Ground truth</a>
+      <a href="#timeline" data-tab="timeline"><span class="tab-dot" id="dot-timeline"></span>Timeline</a>
+    </div>
+  </nav>
+  <div id="notice" class="notice" role="alert" hidden></div>
 
-  <p id="notice" class="notice" role="alert" hidden></p>
-
-  <main id="board">
-    <section id="banner" class="banner" aria-live="polite">
-      <span class="lamp" aria-hidden="true"></span>
-      <div>
-        <h1 id="banner-title"></h1>
-        <ul id="banner-facts" class="facts"></ul>
+  <main id="main" class="content">
+    <section class="overview-intro" data-page="overview" aria-labelledby="page-title">
+      <div class="eyebrow"><span class="eyebrow-line"></span> SYSTEM SNAPSHOT <span class="snapshot-status" id="system-state">Awaiting telemetry</span></div>
+      <div class="intro-row">
+        <div>
+          <h1 id="page-title">Operations overview</h1>
+          <p class="intro-copy" id="deck">Reading the latest dashboard response…</p>
+        </div>
+        <p class="status-indicator" id="system-label" role="status">LOADING</p>
       </div>
     </section>
 
-    <dl id="kpis" class="kpis" aria-label="The latest minute"></dl>
-
-    <section aria-labelledby="services-title">
-      <h2 id="services-title">Service health</h2>
-      <ul id="services" class="services"></ul>
+    <section class="section" data-page="overview" aria-labelledby="overview-title">
+      <div class="section-heading"><h2 id="overview-title">System overview</h2><span class="section-index">01 / LIVE SNAPSHOT</span></div>
+      <dl id="figures" class="kpi-grid" aria-label="System KPI values">
+        <div class="kpi"><dt>System health</dt><dd>—</dd></div>
+        <div class="kpi"><dt>Requests / min</dt><dd>—</dd></div>
+        <div class="kpi"><dt>Error rate</dt><dd>—</dd></div>
+        <div class="kpi"><dt>P95 latency</dt><dd>—</dd></div>
+        <div class="kpi"><dt>Active incidents</dt><dd>—</dd></div>
+      </dl>
     </section>
 
-    <p id="all-clear" class="all-clear" hidden></p>
-
-    <div id="incident-row" class="two-up">
-      <section class="panel" aria-labelledby="incident-title">
-        <h2 id="incident-title">Incident details</h2>
-        <dl id="incident" class="details"></dl>
-      </section>
-      <section class="panel" aria-labelledby="diagnosis-title">
-        <h2 id="diagnosis-title">AI diagnosis</h2>
-        <div id="diagnosis"></div>
-      </section>
-    </div>
-
-    <section id="check-section" class="panel check" aria-labelledby="check-title">
-      <h2 id="check-title">Did the model get it right?</h2>
-      <div id="check"></div>
+    <section class="section" data-page="overview" aria-labelledby="services-title">
+      <div class="section-heading"><h2 id="services-title">Service health</h2><span class="section-index">02 / FOUR SERVICES</span></div>
+      <div class="panel services-panel">
+        <div class="panel-topline"><span>Backend-reported service status</span><span>5xx rate · P95 end-to-end latency</span></div>
+        <table class="services-table">
+          <caption class="sr-only">Four services in the latest one-minute reporting window, including backend status and metrics</caption>
+          <thead><tr><th scope="col">Service</th><th scope="col">Status</th><th scope="col" class="numeric">Requests / min</th><th scope="col" class="numeric">Error rate</th><th scope="col" class="numeric">P95 latency</th></tr></thead>
+          <tbody id="services"></tbody>
+        </table>
+        <div class="service-call"><span class="mini-tag">SERVICE CALL</span><span class="call-node">Order</span><span class="call-arrow" aria-label="calls">→</span><span class="call-node">Payment</span><span class="muted">Only documented inter-service call edge</span></div>
+      </div>
     </section>
+
+    <section class="section" data-page="incident" aria-labelledby="incident-title">
+      <div class="section-heading"><h2 id="incident-title">Incident workspace</h2><span class="section-index">03 / MODEL DETECTION</span></div>
+      <div id="incident" class="panel incident-workspace">
+        <div class="empty-state"><span class="empty-orbit" aria-hidden="true">✓</span><h3>No active incident</h3><p>The incident workspace will populate when the backend reports a detection.</p></div>
+      </div>
+    </section>
+
+    <section class="section" data-page="diagnosis" id="diagnosis-section" aria-labelledby="diagnosis-title" hidden>
+      <div class="section-heading"><h2 id="diagnosis-title">AI diagnosis</h2><span class="section-index">04 / BEDROCK ANALYSIS</span></div>
+      <div id="diagnosis" class="panel diagnosis-panel"></div>
+    </section>
+
+    <section class="section" data-page="verify" id="comparison-section" aria-labelledby="comparison-title" hidden>
+      <div class="section-heading"><h2 id="comparison-title">Prediction vs ground truth</h2><span class="section-index">05 / INJECTED FAULTS</span></div>
+      <div id="comparison"></div>
+    </section>
+
+    <section class="section" data-page="timeline" id="timeline-section" aria-labelledby="timeline-title" hidden>
+      <div class="section-heading"><h2 id="timeline-title">Event timeline</h2><span class="section-index">06 / RESPONSE TIMESTAMPS ONLY</span></div>
+      <div class="panel timeline-panel"><p class="muted timeline-caveat">Only events with timestamps present in this response are shown. “End / planned end” follows the injector's supplied activation interval.</p><ol class="timeline" id="timeline"></ol></div>
+    </section>
+    <div class="panel page-empty" data-empty="diagnosis" hidden><h3>No diagnosis to show</h3><p>Bedrock explains an incident once one is detected. Pick an incident in Demo Scenario to see one.</p></div>
+    <div class="panel page-empty" data-empty="verify" hidden><h3>Nothing to compare</h3><p>The prediction and the injected ground truth appear here while an incident is active.</p></div>
+    <div class="panel page-empty" data-empty="timeline" hidden><h3>No events yet</h3><p>Fault, incident and detection times appear here while an incident is active.</p></div>
+    <div class="page-steps" aria-label="Page steps"><a id="prev-page" href="#overview"></a><a id="next-page" href="#incident"></a></div>
+    <footer class="footer"><span>ANOMALYPULSE · M7-1 OPERATIONS CONSOLE</span><span>All metrics, classifications and fault details are read from GET /dashboard.</span></footer>
   </main>
-
-  <noscript><p class="notice">The status board needs JavaScript to load its data.</p></noscript>
+  <noscript><p class="notice">Enable JavaScript to load the dashboard response.</p></noscript>
 </body>
 </html>
