@@ -8,7 +8,8 @@ is what the dashboard and the demo inherit.
 """
 import json
 
-from genai.contract import METRICS
+from genai.contract import (ACTIONS, EVIDENCE_BULLETS, HIGH_5XX, HIGH_P95_RATIO, MEDIUM_5XX,
+                            MEDIUM_P95_RATIO, METRICS)
 
 _GLOSSARY = "\n".join(f"- {name} ({unit}): {meaning}" for name, (unit, meaning) in METRICS.items())
 
@@ -34,9 +35,10 @@ Rules. They are checked automatically, so follow them exactly.
    "rose 26x", a percent change, or a share written as a percent: 0.167 is 16.7%). Round sensibly. Keep
    units right: ms is milliseconds (1590 ms may be written 1.59 s), request_rate is per second, and
    counts and capacity are per minute.
-3. evidence: 3 to 6 bullets. Each is one observed fact, stated as what the numbers show, and lists in
-   `metrics` exactly the input metrics it rests on, as "<service>.<metric>". No explanations of
-   mechanism in evidence ("because the SDK retried..."): that is root_cause's job.
+3. evidence: {EVIDENCE_BULLETS[0]} to {EVIDENCE_BULLETS[1]} bullets. Each is one observed fact, stated as what
+   the numbers show, and lists in `metrics` exactly the input metrics it rests on, as
+   "<service>.<metric>"; its numbers come from those metrics only. No explanations of mechanism in
+   evidence ("because the SDK retried..."): that is root_cause's job.
 4. Ordering: if you say one change came before or after another, take it only from observed_sequence,
    and include the words "observed sequence" in that sentence, for example: "Order failures began about
    40 seconds after Payment latency rose (observed sequence from correlated timestamps)." If there is no
@@ -50,14 +52,15 @@ Rules. They are checked automatically, so follow them exactly.
    the most likely root cause."). It may say how the observed symptoms connect, but adds no fact
    the input doesn't have.
 7. summary: two or three plain sentences: what is wrong, where, and how large, in the input's terms.
-8. recommended_actions: 2 to 5 concrete steps an engineer can take on this stack, most useful first.
-   They may name AWS components of the stack (Lambda, DynamoDB, API Gateway, the payment dependency)
-   but must not state facts that aren't in the input.
+8. recommended_actions: {ACTIONS[0]} to {ACTIONS[1]} concrete steps an engineer can take on this stack, most
+   useful first. They may name AWS components of the stack (Lambda, DynamoDB, API Gateway, the payment
+   dependency) but must not state facts that aren't in the input.
 9. severity, from the affected services' current values (use these thresholds to choose severity;
    don't mention the thresholds anywhere in the text):
-   HIGH if any 5xx share is at least 0.05, or any p95 latency is at least 10x its baseline;
-   MEDIUM if any 5xx share is at least 0.01, or any p95 latency is at least 2x its baseline, or any
-   throttle or dependency-error count is above zero;
+   HIGH if any 5xx share is at least {HIGH_5XX}, or any p95 latency is at least {HIGH_P95_RATIO}x its
+   baseline;
+   MEDIUM if any 5xx share is at least {MEDIUM_5XX}, or any p95 latency is at least {MEDIUM_P95_RATIO}x its
+   baseline, or any throttle or dependency-error count is above zero;
    LOW otherwise.
 10. Plain text in every field: no Markdown, no headings, no bullet characters."""
 

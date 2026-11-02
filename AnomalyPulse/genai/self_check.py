@@ -7,7 +7,12 @@ the field and what is wrong. It checks:
 - numbers: every number written must come from the input (a baseline or
   current value, or a ratio, percent change, difference, percent of a share, or
   ms in seconds derived from them; the confidence; the duration; the gap
-  between two observed_sequence steps);
+  between two observed_sequence steps), rounded no further than it is written
+  ("2950" must be 2945-2955, "2.9" 2.85-2.95). An evidence bullet's numbers
+  must come from the metrics it cites, so a real value put on the wrong metric
+  is caught;
+- severity: it must be the rubric's (contract.severity()), and no field may
+  mention a threshold;
 - services: every service named must be in the input;
 - times: a clock time written ("14:32") must be one of the input's times;
 - metric families: a claim about throttling, cold starts, capacity, errors,
@@ -25,10 +30,14 @@ look at, which may be a component or service with no metric in the input
 """
 import re
 from datetime import datetime
+from itertools import combinations
 
-from genai.contract import SERVICES
+from genai.contract import SERVICES, metric_ref, severity
 
 _SERVICE_NAMES = {s.split("-")[0]: s for s in SERVICES}   # "order" -> "order-service"
+# Where "order" is a plain word, not order-service: "in order to", "the order of", "order of magnitude".
+_NOT_SERVICES = re.compile(r"\bin order (to|for|that)\b|\b(the|this|that|same|chronological|time) order\b|"
+                           r"\border of\b", re.IGNORECASE)
 
 # Keyword -> the input metrics that support a claim about it. Matched case-insensitively.
 FAMILIES = {
@@ -41,7 +50,9 @@ FAMILIES = {
     r"latenc|\bslow": ("p50_latency_ms", "p95_latency_ms", "p99_latency_ms", "db_latency_ms_mean",
                        "db_latency_ms_p95", "dependency_latency_ms_mean", "dependency_latency_ms_p95"),
     r"request rate|\btraffic\b|requests per second|\brps\b": ("request_rate",),
-    r"\bduration\b|\bcpu\b|compute time": ("lambda_duration_ms_mean", "lambda_duration_ms_p95"),
+    # Compute time, not the incident's duration ("over the 4-minute duration" is the input's own).
+    r"\bcpu\b|compute time|\b(lambda|handler|function|execution|invocation) (duration|time)\b": (
+        "lambda_duration_ms_mean", "lambda_duration_ms_p95"),
     r"dynamodb|\bdatabase\b|\bdb\b|\btable\b": (
         "db_latency_ms_mean", "db_latency_ms_p95", "db_consumed_read_capacity",
         "db_consumed_write_capacity", "throttled_requests", "read_throttle_events",
@@ -60,47 +71,76 @@ CAUSAL = re.compile(r"\b(caus(e|ed|es|ing)|because|due to|led to|leads? to|leadi
                     r"result(ed|s|ing)? in|as a result|trigger(ed|s|ing)?|dr(o|i)ve[ns]?|driving|"
                     r"rul(e|es|ed|ing) out)\b",
                     re.IGNORECASE)
-ORDERING = re.compile(r"\b(after|before|later|earlier|followed|preceded|subsequently|then|first|"
-                      r"prior to|once)\b", re.IGNORECASE)
+# "First" orders symptoms only when something moved first ("the first sign" is not an order).
+ORDERING = re.compile(r"\b(after|before|later|earlier|followed|preceded|subsequently|then|prior to)\b|"
+                      r"\b(rose|moved|changed|began|started|appeared|came|happened|occurred|spiked|jumped) "
+                      r"first\b|\bfirst to\b", re.IGNORECASE)
 _NUMBER = re.compile(r"(?<![\w.])-?\d+(?:,\d{3})*(?:\.\d+)?")
-# Tokens whose digits are names, not values: p95, 5xx, 4xx, 2xx, timestamps, ids.
-_NOT_VALUES = re.compile(r"\bp\d{2}\b|\b\dxx\b|\d{4}-\d\d-\d\dT[\d:.]+Z?|\b[a-z]+-\d+\b|\bHTTP ?\d+\b",
+# Tokens whose digits are names, not values: p95, 5xx, 4xx, 2xx, timestamps, ids, status codes
+# ("HTTP 503", "500 responses", "status 502").
+_NOT_VALUES = re.compile(r"\bp\d{2}\b|\b\dxx\b|\d{4}-\d\d-\d\dT[\d:.]+Z?|\b[a-z]+-\d+\b|\bHTTP ?\d+\b|"
+                         r"\bstatus( code)? [1-5]\d\d\b|\b[1-5]\d\d (responses?|errors?|status)\b",
                          re.IGNORECASE)
 # Clock times ("14:32", "17:04:05"): checked against the input's times, then not read as numbers.
 _CLOCK = re.compile(r"\b(\d{1,2}):(\d{2})(?::(\d{2}))?\b")
-# "Before the incident" is the baseline, not an order between two symptoms.
-_BASELINE_PHRASES = re.compile(r"\b(before|prior to|since) (the|this) incident( began| started)?\b",
-                               re.IGNORECASE)
+# The baseline, not an order between two symptoms: "before the incident", and a "before" that
+# closes a comparison ("15.1 rps against 15.0 before").
+_BASELINE_PHRASES = re.compile(r"\b(before|prior to|since) (the|this) incident( began| started)?\b|"
+                               r"\bbefore(?=\s*(?:[.,;:)]|$))", re.IGNORECASE)
 _SENTENCES = re.compile(r"(?<=[.!?])\s+")
 
 
-def _allowed_numbers(evidence: dict) -> list[float]:
-    allowed = {0.0, 1.0, 100.0, float(evidence["duration_minutes"]),
-               evidence["confidence"], evidence["confidence"] * 100, float(len(evidence["affected_services"]))}
-    for m in evidence["metrics"]:
-        values = [v for v in (m["baseline"], m["current"]) if v is not None]
-        b, c = m["baseline"], m["current"]
-        if b is not None:
-            values += [c - b, abs(c - b)]
-            if b:
-                values += [c / b, (c - b) / b * 100, abs(c - b) / b * 100]
-        for v in values:
-            allowed.add(float(v))
-            if m["unit"] == "share":
-                allowed.add(v * 100)
-                if v:
-                    allowed.add(1 / v)       # "1 in 6" for a share of 0.167
-            if m["unit"] == "ms":
-                allowed.add(v / 1000)
-            if m["unit"] == "rps":
-                allowed.add(v * 60)
+def _forms(values, unit) -> set[float]:
+    """Values as they may be written: as is, a share as a percent or "1 in N", ms as seconds,
+    rps per minute."""
+    out = set()
+    for v in values:
+        out.add(float(v))
+        if unit == "share":
+            out.add(v * 100)
+            if v:
+                out.add(1 / v)       # "1 in 6" for a share of 0.167
+        if unit == "ms":
+            out.add(v / 1000)
+        if unit == "rps":
+            out.add(v * 60)
+    return out
+
+
+def _metric_numbers(m: dict) -> set[float]:
+    """One metric's baseline and current, and the changes derived from them."""
+    b, c = m["baseline"], m["current"]
+    values = [v for v in (b, c) if v is not None]
+    if b is not None:
+        values += [c - b, abs(c - b)]
+        if b:
+            values += [c / b, (c - b) / b * 100, abs(c - b) / b * 100]
+    return _forms(values, m["unit"])
+
+
+def _between(metrics: list[dict]) -> set[float]:
+    """Comparisons between two cited metrics in the same unit: the gap and ratio of their currents."""
+    out = set()
+    for a, b in combinations(metrics, 2):
+        if a["unit"] == b["unit"]:
+            values = [abs(a["current"] - b["current"])]
+            values += [x / y for x, y in ((a["current"], b["current"]), (b["current"], a["current"])) if y]
+            out |= _forms(values, a["unit"])
+    return out
+
+
+def _general_numbers(evidence: dict) -> set[float]:
+    """Numbers any field may write: 0, 1, 100, the confidence, the duration, the number of affected
+    services, and the gaps between observed_sequence steps."""
+    out = {0.0, 1.0, 100.0, float(evidence["duration_minutes"]), evidence["confidence"],
+           evidence["confidence"] * 100, float(len(evidence["affected_services"]))}
     times = [datetime.fromisoformat(s["at"].replace("Z", "+00:00"))
              for s in evidence.get("observed_sequence", [])]
     for i, a in enumerate(times):
         for later in times[i + 1:]:
             gap = (later - a).total_seconds()
-            allowed |= {gap, gap / 60}
-    return sorted(allowed)
+            out |= {gap, gap / 60}
+    return out
 
 
 def _input_clocks(evidence: dict) -> set[str]:
@@ -114,46 +154,69 @@ def _input_clocks(evidence: dict) -> set[str]:
     return clocks
 
 
-def _matches(number: float, allowed: list[float]) -> bool:
-    for v in allowed:
-        tolerance = max(abs(v) * 0.06, 0.06 if abs(v) < 10 else 0.6)
-        if abs(number - v) <= tolerance:
-            return True
-    return False
+def _matches(raw: str, allowed) -> bool:
+    """Whether a number as written rounds from an allowed value: within half a unit of its last
+    significant digit ("2.9" +/-0.05, "2950" +/-5, "26" +/-0.5, "2900" +/-50)."""
+    digits = raw.replace(",", "").lstrip("-")
+    if "." in digits:
+        half_unit = 0.5 * 10 ** -len(digits.split(".")[1])
+    else:
+        zeros = len(digits) - len(digits.rstrip("0"))
+        half_unit = 0.5 * 10 ** zeros if digits.rstrip("0") else 0.5
+    number = float(digits) * (-1 if raw.startswith("-") else 1)
+    # The margin only absorbs float error (2.95 - 2.9 is 0.0500000000000003).
+    return any(abs(number - v) <= half_unit * (1 + 1e-9) for v in allowed)
 
 
 def _texts(diagnosis: dict):
-    """(field, text, is_claim) for every string in the diagnosis."""
-    yield "summary", diagnosis.get("summary", ""), True
-    yield "root_cause", diagnosis.get("root_cause", ""), True
+    """(field, text, is_claim, cited refs or None) for every string in the diagnosis."""
+    yield "summary", diagnosis.get("summary", ""), True, None
+    yield "root_cause", diagnosis.get("root_cause", ""), True, None
     for i, item in enumerate(diagnosis.get("evidence", [])):
-        yield f"evidence[{i}]", item.get("statement", ""), True
+        yield f"evidence[{i}]", item.get("statement", ""), True, item.get("metrics", [])
     for i, action in enumerate(diagnosis.get("recommended_actions", [])):
-        yield f"recommended_actions[{i}]", action, False
+        yield f"recommended_actions[{i}]", action, False, None
 
 
 def check(evidence: dict, diagnosis: dict) -> list[str]:
     """Findings for a raw diagnosis (evidence items with `statement` and `metrics`). Empty means none."""
     findings = []
-    allowed = _allowed_numbers(evidence)
+    by_ref = {metric_ref(m["service"], m["metric"]): m for m in evidence["metrics"]}
+    general = _general_numbers(evidence)
+    anywhere = general.union(*(_metric_numbers(m) for m in evidence["metrics"]))
     services = set(evidence["affected_services"]) | {m["service"] for m in evidence["metrics"]}
     present = {m["metric"] for m in evidence["metrics"]}
     has_sequence = bool(evidence.get("observed_sequence"))
-
     clocks = _input_clocks(evidence)
 
-    for field, text, is_claim in _texts(diagnosis):
+    expected = severity(evidence)
+    if diagnosis.get("severity") != expected:
+        findings.append(f"severity: {diagnosis.get('severity')}, but the rubric gives {expected}")
+
+    for field, text, is_claim, cites in _texts(diagnosis):
+        own = None
+        if cites is not None:
+            cited = [by_ref[r] for r in cites if r in by_ref]
+            own = general.union(*(_metric_numbers(m) for m in cited), _between(cited))
         for clock in _CLOCK.finditer(text):
             if clock.group(0) not in clocks:
                 findings.append(f"{field}: the time {clock.group(0)} is not in the input")
         for raw in _NUMBER.findall(_NOT_VALUES.sub(" ", _CLOCK.sub(" ", text))):
-            if not _matches(float(raw.replace(",", "")), allowed):
+            if own is not None and _matches(raw, own):
+                continue
+            if not _matches(raw, anywhere):
                 findings.append(f"{field}: the number {raw} is not in or derivable from the input")
+            elif own is not None:
+                findings.append(f"{field}: the number {raw} is not from the metrics it cites")
+        if re.search(r"\bthresholds?\b", text, re.IGNORECASE):
+            findings.append(f"{field}: mentions a threshold; the severity rubric's are never quoted")
         if not is_claim:
             # An action may point at any part of the stack the prompt describes (Order calls
             # Payment on every POST /orders); it states no fact, so services aren't checked.
             continue
-        for word in re.findall(r"\b(product|cart|order|payment)(?:-service)?\b", text, re.IGNORECASE):
+        named = re.findall(r"\b(product|cart|order|payment)(?:-service)?\b", _NOT_SERVICES.sub(" ", text),
+                           re.IGNORECASE)
+        for word in named:
             if _SERVICE_NAMES[word.lower()] not in services:
                 findings.append(f"{field}: names {_SERVICE_NAMES[word.lower()]}, which the input doesn't")
         for pattern, family in FAMILIES.items():
@@ -173,7 +236,6 @@ def check(evidence: dict, diagnosis: dict) -> list[str]:
                 findings.append(f"{field}: makes an ordering claim, but the input has no observed_sequence")
 
     cited = {ref for item in diagnosis.get("evidence", []) for ref in item.get("metrics", [])}
-    known = {f"{m['service']}.{m['metric']}" for m in evidence["metrics"]}
-    for ref in sorted(cited - known):
+    for ref in sorted(cited - set(by_ref)):
         findings.append(f"evidence cites {ref}, which is not in the input")
     return sorted(set(findings), key=findings.index)

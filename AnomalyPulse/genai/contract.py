@@ -44,6 +44,19 @@ METRICS = {
     "dependency_error_count": ("count/min", "Order's calls to Payment that failed or timed out"),
 }
 
+# How many evidence bullets and recommended actions a diagnosis has (inclusive). The prompt
+# states these and check_output_shape() holds the answer to them.
+EVIDENCE_BULLETS = (3, 6)
+ACTIONS = (2, 5)
+
+# The severity rubric, from the affected services' current values. The prompt states it and
+# the self-check recomputes it (severity()), so Bedrock's severity is checked, not trusted.
+HIGH_5XX, HIGH_P95_RATIO = 0.05, 10
+MEDIUM_5XX, MEDIUM_P95_RATIO = 0.01, 2
+# Counts any one of which above zero makes an incident at least MEDIUM.
+ALERT_COUNTS = ("throttled_requests", "read_throttle_events", "write_throttle_events",
+                "lambda_throttle_count", "dependency_error_count")
+
 # Fields that would leak the answer (Tier-2). An input carrying any of them is refused.
 FORBIDDEN_KEYS = {"ground_truth", "manifest", "experiment_id", "fault_injection_params", "params",
                   "error_type", "db_throttled", "injector", "band", "intensity", "label"}
@@ -184,6 +197,26 @@ def output_schema(evidence: dict) -> dict:
     }
 
 
+def severity(evidence: dict) -> str:
+    """The rubric's severity for an input: what Bedrock's `severity` must be."""
+    affected = set(evidence["affected_services"])
+    metrics = [m for m in evidence["metrics"] if m["service"] in affected]
+
+    def p95_ratio_at_least(ratio):
+        return any(m["metric"] == "p95_latency_ms" and m["baseline"]
+                   and m["current"] >= ratio * m["baseline"] for m in metrics)
+
+    def share_5xx_at_least(share):
+        return any(m["metric"] == "error_rate_5xx" and m["current"] >= share for m in metrics)
+
+    if share_5xx_at_least(HIGH_5XX) or p95_ratio_at_least(HIGH_P95_RATIO):
+        return "HIGH"
+    if share_5xx_at_least(MEDIUM_5XX) or p95_ratio_at_least(MEDIUM_P95_RATIO) \
+            or any(m["metric"] in ALERT_COUNTS and m["current"] > 0 for m in metrics):
+        return "MEDIUM"
+    return "LOW"
+
+
 def check_output_shape(raw: dict) -> list[str]:
     """Shape problems the schema can't express (counts, empty strings). Empty means well-formed."""
     problems = []
@@ -191,15 +224,16 @@ def check_output_shape(raw: dict) -> list[str]:
         if not str(raw.get(field, "")).strip():
             problems.append(f"{field} is empty")
     evidence, actions = raw.get("evidence") or [], raw.get("recommended_actions") or []
-    if not 1 <= len(evidence) <= 6:
-        problems.append(f"evidence has {len(evidence)} bullets; 1 to 6 expected")
+    if not EVIDENCE_BULLETS[0] <= len(evidence) <= EVIDENCE_BULLETS[1]:
+        problems.append(f"evidence has {len(evidence)} bullets; "
+                        f"{EVIDENCE_BULLETS[0]} to {EVIDENCE_BULLETS[1]} expected")
     for i, item in enumerate(evidence):
         if not item.get("metrics"):
             problems.append(f"evidence[{i}] cites no input metric")
         if not str(item.get("statement", "")).strip():
             problems.append(f"evidence[{i}] is empty")
-    if not 1 <= len(actions) <= 6:
-        problems.append(f"recommended_actions has {len(actions)} items; 1 to 6 expected")
+    if not ACTIONS[0] <= len(actions) <= ACTIONS[1]:
+        problems.append(f"recommended_actions has {len(actions)} items; {ACTIONS[0]} to {ACTIONS[1]} expected")
     if any(not str(a).strip() for a in actions):
         problems.append("a recommended action is empty")
     return problems

@@ -99,7 +99,8 @@ point of M9-5 is that Bedrock explains from what a monitor could see.
 ```
 
 - **`diagnosis` is exactly the dashboard contract's `diagnosis`** (`Docs/DASHBOARD_CONTRACT.md`): `severity`
-  (`LOW`/`MEDIUM`/`HIGH`, Bedrock's judgment from a fixed rubric in the prompt), `summary`, `root_cause`,
+  (`LOW`/`MEDIUM`/`HIGH`, Bedrock's judgment from a fixed rubric in the prompt, which `self_check` recomputes
+  from the input: below), `summary`, `root_cause`,
   `evidence` (strings), `recommended_actions` (strings, in the order to try them). The dashboard's open
   question 2 is answered: the fields match, and Bedrock gives a severity. The classifier's `confidence` is
   not repeated here; it is the dashboard's `prediction.confidence`.
@@ -122,19 +123,38 @@ In the prompt (`genai/prompt.py`) and checked by `genai/self_check.py`:
    sequence" and is taken from `observed_sequence`. Causal words ("caused", "driven by", "led to",
    "triggered", "due to"), negated ones included, appear only in `root_cause`, which is worded as *most
    likely*.
-3. **Evidence** is 3–6 bullets of observed fact; mechanism belongs in `root_cause`. The severity rubric's
-   thresholds are used, never quoted.
-4. **Recommended actions** name parts of the stack to inspect, but state no facts that aren't in the input.
+3. **Evidence** is 3–6 bullets of observed fact, each with numbers from the metrics it cites only; mechanism
+   belongs in `root_cause`. The severity rubric's thresholds are used, never quoted.
+4. **Recommended actions** (2–5) name parts of the stack to inspect, but state no facts that aren't in the
+   input.
 
-`self_check` flags: a number not in or derivable from the input (a value, ratio, percent change, difference,
-share as a percent or as "1 in N", ms as seconds, the confidence, the duration, a gap between sequence
-steps); a clock time not in the input; in the summary, root cause or evidence, a service the input doesn't
-name, a claim about a kind of signal (throttling, cold starts, capacity, errors, latency, traffic, compute
-time, the database, timeouts, retries) with no metric of that kind in the input (retries are supported by
-`db_latency_ms`, defined as including the SDK's retries), any mention of a deployment or release (no metric
-covers one), causal wording outside `root_cause`, and an ordering sentence without "observed sequence" or
-with no `observed_sequence` in the input. Actions are checked for numbers and times only. It is a dry run
-for M9-5's evaluation, not that evaluation.
+**The severity rubric** (`contract.severity()`; the prompt states the same constants), from the affected
+services' current values: `HIGH` if any 5xx share is at least 0.05 or any p95 latency at least 10x its
+baseline; `MEDIUM` if any 5xx share is at least 0.01, any p95 at least 2x its baseline, or any throttle or
+dependency-error count above zero; `LOW` otherwise.
+
+`self_check` flags:
+
+- **Numbers** not in or derivable from the input (a value, ratio, percent change, difference, share as a
+  percent or as "1 in N", ms as seconds, the confidence, the duration, a gap between sequence steps),
+  rounded no further than written: "2950" must be 2945–2955 and "2.9" 2.85–2.95. In an evidence bullet, the
+  numbers must come from the metrics that bullet cites (or a gap or ratio between two of them), so a real
+  value on the wrong metric is caught. On the five samples a number picked at random from 1 to 1000 passes
+  2–4.5% of the time in the summary and under 3% in a bullet (it was 7–56% with the first version's flat 6%
+  tolerance and no per-bullet check).
+- **Severity** other than the rubric's, and any mention of a threshold.
+- **A clock time** not in the input.
+- In the summary, root cause or evidence: **a service** the input doesn't name ("in order to" and "the
+  order of" are words, not order-service); **a claim about a kind of signal** (throttling, cold starts,
+  capacity, errors, latency, traffic, compute time, the database, timeouts, retries) with no metric of that
+  kind in the input (retries are supported by `db_latency_ms`, defined as including the SDK's retries; "the
+  4-minute duration" is the input's own, not compute time); any mention of **a deployment** or release (no
+  metric covers one); **causal wording** outside `root_cause`; and **an ordering sentence** without
+  "observed sequence" or with no `observed_sequence` in the input ("the first sign" and "15.0 before" order
+  nothing).
+
+Actions are checked for numbers, times and thresholds only. It is a dry run for M9-5's evaluation, not that
+evaluation.
 
 ## Running it
 

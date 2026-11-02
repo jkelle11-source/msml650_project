@@ -112,7 +112,16 @@ def test_the_prompt_carries_the_fidelity_and_wording_rules():
     assert "observed sequence" in p and "Causal words belong in root_cause only" in p
     assert "Mention only services, metrics and values that appear in it" in p
     assert "evidence: 3 to 6 bullets" in p and "don't mention the thresholds" in p
+    assert "its numbers come from those metrics only" in p
     assert all(name in p for name in contract.METRICS)
+
+
+def test_the_prompt_states_the_limits_and_rubric_the_code_checks():
+    p = " ".join(prompt.SYSTEM_PROMPT.split())
+    assert "recommended_actions: 2 to 5 concrete steps" in p
+    assert "HIGH if any 5xx share is at least 0.05, or any p95 latency is at least 10x its baseline" in p
+    assert ("MEDIUM if any 5xx share is at least 0.01, or any p95 latency is at least 2x its baseline, "
+            "or any throttle or dependency-error count is above zero") in p
 
 
 def test_the_request_holds_bedrock_to_the_schema():
@@ -183,6 +192,47 @@ def test_an_invented_number_is_flagged():
     assert findings == ["summary: the number 4.8 is not in or derivable from the input"]
 
 
+def test_a_number_from_another_metric_is_flagged_in_a_bullet():
+    # 2950 ms is Order's p95; this bullet cites only Payment's.
+    claim = _with(evidence=[{"statement": "Payment p95 latency is 2950 ms.",
+                             "metrics": ["payment-service.p95_latency_ms"]}])
+    assert self_check.check(DEP, claim) == [
+        "evidence[0]: the number 2950 is not from the metrics it cites"]
+    # Opus 4.6 quoted the rubric's threshold on the throttling sample (2026-11-01).
+    claim = {**_with(severity="HIGH"), "evidence": [
+        {"statement": "5xx error rate is 0.4%, below the 5% threshold but non-zero.",
+         "metrics": ["product-service.error_rate_5xx"]}]}
+    assert "evidence[0]: the number 5 is not from the metrics it cites" in self_check.check(
+        SAMPLES["database_throttling"], claim)
+
+
+def test_a_bullet_may_compare_the_metrics_it_cites():
+    claim = _with(evidence=[{"statement": "Order's p95 is 2950 ms, 50 ms above Payment's 2900 ms.",
+                             "metrics": ["order-service.p95_latency_ms", "payment-service.p95_latency_ms"]}])
+    assert self_check.check(DEP, claim) == []
+
+
+def test_status_codes_are_not_values():
+    claim = _with(evidence=[{"statement": "Order's 5xx share rose from 0% to 16.7%, all 500 responses.",
+                             "metrics": ["order-service.error_rate_5xx"]}])
+    assert self_check.check(DEP, claim) == []
+
+
+@pytest.mark.parametrize("written, ok", [
+    ("2.9 s", True),        # 2900 or 2950 ms, to one decimal
+    ("2,900 ms", True),
+    ("2,950 ms", False),    # Order's p95, written exactly: not Payment's 2900
+    ("26x", True),          # 26.36
+    ("26.4x", True),
+    ("27x", False),
+    ("about 3,000 ms", True),
+])
+def test_a_number_is_held_to_the_precision_it_is_written_in(written, ok):
+    claim = _with(evidence=[{"statement": f"Payment p95 latency is {written}.",
+                             "metrics": ["payment-service.p95_latency_ms"]}])
+    assert (self_check.check(DEP, claim) == []) is ok
+
+
 def test_derived_numbers_are_accepted():
     # ratio, percent of a share, ms as seconds, confidence, the sequence gap
     text = ("Payment p95 rose about 26x to 2.9 s; Order 5xx is 16.7%; confidence 93%. "
@@ -198,6 +248,20 @@ def test_metric_names_and_times_are_not_read_as_values():
 def test_a_service_absent_from_the_input_is_flagged():
     findings = self_check.check(DEP, _with(summary="Cart-service latency also rose."))
     assert "summary: names cart-service, which the input doesn't" in findings
+
+
+@pytest.mark.parametrize("text", [
+    "Read capacity must rise in order to stop the throttling.",          # "in order to" is no service
+    "Over the 4-minute duration, read throttle events reached 1,400 per minute.",   # the input's duration
+    "The first sign is p95 latency at 1,586 ms against 6 ms.",           # "first" orders nothing here
+    "Request rate is flat at 15.1 rps against 15.0 before.",             # the prompt's own example
+])
+def test_faithful_wording_is_not_flagged(text):
+    throttling = SAMPLES["database_throttling"]
+    claim = {**GOOD, "summary": text, "root_cause": "DynamoDB read throttling is the most likely root cause.",
+             "evidence": [{"statement": "Read throttle events reached 1,400 per minute.",
+                           "metrics": ["product-service.read_throttle_events"]}]}
+    assert self_check.check(throttling, claim) == []
 
 
 def test_a_metric_family_absent_from_the_input_is_flagged():
@@ -265,6 +329,63 @@ def test_ordering_needs_a_sequence_in_the_input():
     assert any("no observed_sequence" in f for f in findings)
 
 
-def test_shape_problems_are_reported():
-    assert contract.check_output_shape(_with(evidence=[], recommended_actions=[])) == [
-        "evidence has 0 bullets; 1 to 6 expected", "recommended_actions has 0 items; 1 to 6 expected"]
+def _metric(service, metric, baseline, current):
+    return {"service": service, "metric": metric, "baseline": baseline, "current": current,
+            "unit": contract.METRICS[metric][0]}
+
+
+@pytest.mark.parametrize("metrics, expected", [
+    # 5xx share: 0.05 and over is HIGH, 0.01 and over MEDIUM
+    ([_metric("order-service", "error_rate_5xx", 0.0, 0.05)], "HIGH"),
+    ([_metric("order-service", "error_rate_5xx", 0.0, 0.049)], "MEDIUM"),
+    ([_metric("order-service", "error_rate_5xx", 0.0, 0.01)], "MEDIUM"),
+    ([_metric("order-service", "error_rate_5xx", 0.0, 0.009)], "LOW"),
+    # p95 against its baseline: 10x is HIGH, 2x MEDIUM; no baseline, no ratio
+    ([_metric("order-service", "p95_latency_ms", 100, 1000)], "HIGH"),
+    ([_metric("order-service", "p95_latency_ms", 100, 999)], "MEDIUM"),
+    ([_metric("order-service", "p95_latency_ms", 100, 200)], "MEDIUM"),
+    ([_metric("order-service", "p95_latency_ms", 100, 199)], "LOW"),
+    ([_metric("order-service", "p95_latency_ms", None, 5000)], "LOW"),
+    # any throttle or dependency-error count above zero is MEDIUM
+    ([_metric("order-service", "dependency_error_count", 0, 1)], "MEDIUM"),
+    ([_metric("order-service", "lambda_throttle_count", 0, 3)], "MEDIUM"),
+    ([_metric("order-service", "dependency_error_count", 0, 0)], "LOW"),
+    # only the affected services count: Payment isn't affected here
+    ([_metric("order-service", "p95_latency_ms", 100, 110),
+      _metric("payment-service", "error_rate_5xx", 0.0, 0.5)], "LOW"),
+])
+def test_the_severity_rubric(metrics, expected):
+    evidence = {**DEP, "affected_services": ["order-service"], "metrics": metrics}
+    evidence.pop("observed_sequence")
+    assert contract.severity(evidence) == expected
+
+
+def test_the_samples_cover_each_severity_the_saved_diagnoses_gave():
+    assert {name: contract.severity(s) for name, s in SAMPLES.items()} == {
+        "cascading_failure": "HIGH", "database_throttling": "HIGH", "dependency_failure": "HIGH",
+        "lambda_degradation": "HIGH", "traffic_spike": "LOW"}
+
+
+def test_a_threshold_is_never_quoted():
+    # Opus 4.6 wrote this on the Lambda-degradation sample (2026-11-01).
+    claim = _with(evidence=[{"statement": "Payment p95 latency rose 26x, crossing the 10x threshold.",
+                             "metrics": ["payment-service.p95_latency_ms"]}])
+    assert "evidence[0]: mentions a threshold; the severity rubric's are never quoted" in self_check.check(
+        DEP, claim)
+
+
+def test_a_severity_off_the_rubric_is_flagged():
+    assert self_check.check(DEP, _with(severity="MEDIUM")) == ["severity: MEDIUM, but the rubric gives HIGH"]
+
+
+@pytest.mark.parametrize("bullets, actions, problems", [
+    (3, 2, []),
+    (6, 5, []),
+    (2, 2, ["evidence has 2 bullets; 3 to 6 expected"]),
+    (7, 2, ["evidence has 7 bullets; 3 to 6 expected"]),
+    (3, 1, ["recommended_actions has 1 items; 2 to 5 expected"]),
+    (3, 6, ["recommended_actions has 6 items; 2 to 5 expected"]),
+])
+def test_shape_limits_match_the_prompt(bullets, actions, problems):
+    raw = _with(evidence=[GOOD["evidence"][0]] * bullets, recommended_actions=["Inspect Payment."] * actions)
+    assert contract.check_output_shape(raw) == problems
