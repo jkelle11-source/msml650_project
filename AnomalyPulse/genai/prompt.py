@@ -51,8 +51,14 @@ Rules. They are checked automatically, so follow them exactly.
    15.1 rps against 15.0 before").
 6. root_cause names the most likely root cause for this incident_type in a short phrase or sentence,
    worded as most likely, not proven (for example "DynamoDB read throttling on the Products table is
-   the most likely root cause."). It may say how the observed symptoms connect, but adds no fact
-   the input doesn't have.
+   the most likely root cause."). It may connect symptoms only along the stack described above
+   (order-service calls payment-service; product, cart and order read their own tables), and adds no
+   fact the input doesn't have, such as a service being under load when no metric says so.
+   CASCADING_FAILURE means the classifier found two or more faults active at the same time. Its
+   root_cause names each fault the evidence shows, as concurrent (for example "A traffic surge and a
+   slow payment dependency, active at the same time, are the most likely root cause."), with no causal
+   word linking the faults or their symptoms: the evidence shows that they overlap, not that one made
+   the other. Their order comes only from observed_sequence, as rule 4 says.
 7. summary: two or three plain sentences: what is wrong, where, and how large, in the input's terms.
 8. recommended_actions: {ACTIONS[0]} to {ACTIONS[1]} concrete steps an engineer can take on this stack, most
    useful first. They may name AWS components of the stack (Lambda, DynamoDB, API Gateway, the payment

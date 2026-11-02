@@ -41,6 +41,7 @@
     "findings": [
       "root_cause: claims 'deploy', but the input has no metric for it",
       "evidence[2]: the number 10 is not in or derivable from the input",
+      "evidence[2]: mentions a threshold; the severity rubric's are never quoted",
       "evidence[4]: causal wording 'ruling out'; correlated timestamps are an observed sequence, not proof of cause",
       "evidence[4]: causal wording 'cause'; correlated timestamps are an observed sequence, not proof of cause"
     ]

@@ -46,9 +46,11 @@
   "self_check": {
     "passed": false,
     "findings": [
-      "evidence has 7 bullets; 1 to 6 expected",
+      "evidence has 7 bullets; 3 to 6 expected",
       "summary: causal wording 'driven'; correlated timestamps are an observed sequence, not proof of cause",
-      "evidence[5]: causal wording 'caused'; correlated timestamps are an observed sequence, not proof of cause"
+      "evidence[5]: causal wording 'caused'; correlated timestamps are an observed sequence, not proof of cause",
+      "evidence[6]: the number 5 is not from the metrics it cites",
+      "evidence[6]: mentions a threshold; the severity rubric's are never quoted"
     ]
   },
   "model": {

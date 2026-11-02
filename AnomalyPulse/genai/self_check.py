@@ -11,7 +11,7 @@ the field and what is wrong. It checks:
   ("2950" must be 2945-2955, "2.9" 2.85-2.95). An evidence bullet's numbers
   must come from the metrics it cites, so a real value put on the wrong metric
   is caught;
-- severity: it must be the rubric's (contract.severity()), and no field may
+- severity: it must be the rubric's (contract.severity()), and no claim may
   mention a threshold;
 - services: every service named must be in the input;
 - times: a clock time written ("14:32") must be one of the input's times;
@@ -20,7 +20,9 @@ the field and what is wrong. It checks:
   metric of that kind in the input (retries: db_latency_ms, which includes the
   SDK's retries); deployments have no metric, so any claim of one is unsupported;
 - causation: no causal verbs ("caused", "led to", "due to", ...) outside
-  root_cause, which is worded as most likely;
+  root_cause, which is worded as most likely; and none in a cascade's
+  root_cause either, whose faults are concurrent ("in turn", "produced", "put
+  payment-service under load" are links the evidence can't show);
 - ordering: a sentence that orders symptoms must say "observed sequence", and
   needs an observed_sequence in the input.
 
@@ -71,6 +73,13 @@ CAUSAL = re.compile(r"\b(caus(e|ed|es|ing)|because|due to|led to|leads? to|leadi
                     r"result(ed|s|ing)? in|as a result|trigger(ed|s|ing)?|dr(o|i)ve[ns]?|driving|"
                     r"rul(e|es|ed|ing) out)\b",
                     re.IGNORECASE)
+# A cascade's faults are concurrent, so its root_cause links nothing causally. The noun "cause"
+# ("the most likely root cause", "root causes") is the one causal word it needs, so it isn't in
+# this list.
+CASCADE_LINKS = re.compile(r"\b(caus(ed|ing)|(?<!root )causes|because|due to|led to|leads? to|leading to|"
+                           r"result(ed|s|ing)? in|as a result|trigger(ed|s|ing)?|dr(o|i)ve[ns]?|driving|"
+                           r"produc(e|ed|es|ing)|in turn|push(ed|es|ing)|under (load|pressure|strain))\b",
+                           re.IGNORECASE)
 # "First" orders symptoms only when something moved first ("the first sign" is not an order).
 ORDERING = re.compile(r"\b(after|before|later|earlier|followed|preceded|subsequently|then|prior to)\b|"
                       r"\b(rose|moved|changed|began|started|appeared|came|happened|occurred|spiked|jumped) "
@@ -208,12 +217,13 @@ def check(evidence: dict, diagnosis: dict) -> list[str]:
                 findings.append(f"{field}: the number {raw} is not in or derivable from the input")
             elif own is not None:
                 findings.append(f"{field}: the number {raw} is not from the metrics it cites")
-        if re.search(r"\bthresholds?\b", text, re.IGNORECASE):
-            findings.append(f"{field}: mentions a threshold; the severity rubric's are never quoted")
         if not is_claim:
             # An action may point at any part of the stack the prompt describes (Order calls
-            # Payment on every POST /orders); it states no fact, so services aren't checked.
+            # Payment on every POST /orders); it states no fact, so services aren't checked. Nor
+            # thresholds: "approaching throttling thresholds" is DynamoDB's capacity, not the rubric.
             continue
+        if re.search(r"\bthresholds?\b", text, re.IGNORECASE):
+            findings.append(f"{field}: mentions a threshold; the severity rubric's are never quoted")
         named = re.findall(r"\b(product|cart|order|payment)(?:-service)?\b", _NOT_SERVICES.sub(" ", text),
                            re.IGNORECASE)
         for word in named:
@@ -227,6 +237,10 @@ def check(evidence: dict, diagnosis: dict) -> list[str]:
             for verb in CAUSAL.findall(text):
                 findings.append(f"{field}: causal wording {verb[0]!r}; correlated timestamps are an "
                                 f"observed sequence, not proof of cause")
+        elif evidence["incident_type"] == "CASCADING_FAILURE":
+            for link in CASCADE_LINKS.finditer(text):
+                findings.append(f"root_cause: a cascade's faults are concurrent, but it links them causally "
+                                f"({link.group(0)!r})")
         for sentence in _SENTENCES.split(text):
             ordered = ORDERING.search(_BASELINE_PHRASES.sub(" ", sentence))
             if ordered and "observed sequence" not in sentence.lower():

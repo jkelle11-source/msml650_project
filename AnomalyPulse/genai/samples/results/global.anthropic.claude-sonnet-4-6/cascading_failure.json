@@ -2,27 +2,29 @@
   "incident_id": "inc-sample-cascading-failure",
   "diagnosis": {
     "severity": "HIGH",
-    "summary": "Order-service is returning 5xx errors at 25.0% of requests and its p95 latency has risen from 130 ms to 1030 ms. Payment-service p95 latency has jumped from 110 ms to 1020 ms. Request rates to both product-service and order-service have roughly tripled from their baselines.",
-    "root_cause": "A sharp traffic surge across product-service and order-service is the most likely root cause of this cascading failure: the increased order volume put payment-service under load, degrading its latency nearly 9.3x, which in turn produced a flood of dependency errors at order-service and pushed its 5xx rate to 25.0%.",
+    "summary": "A traffic surge and a degraded payment dependency are active at the same time across product-service, order-service, and payment-service, lasting at least 4 minutes. Request rates on both product-service and order-service have tripled, while payment-service p95 latency has risen from 110 ms to 1020 ms. Order-service is returning 5xx errors on 25% of requests with its p95 latency up nearly 8x to 1030 ms.",
+    "root_cause": "A traffic surge on product-service and order-service, active at the same time as a severe payment-service latency degradation, are the most likely concurrent root causes. The traffic surge appeared first at 17:03:00, payment-service latency rose about 65 seconds later, and order-service errors appeared about 35 seconds after that (observed sequence from correlated timestamps).",
     "evidence": [
-      "Product-service request rate rose from 15.0 rps to 44.8 rps, a 2.99x increase; order-service request rate rose from 2.9 rps to 8.7 rps, a 3x increase.",
-      "Payment-service p95 latency rose from 110 ms to 1020 ms, a 9.3x increase.",
-      "Order-service dependency error count rose from 0 to 150 per minute.",
-      "Order-service error_rate_5xx rose from 0.0 to 0.25, meaning 25.0% of requests are now returning 5xx responses.",
-      "Order-service p95 latency rose from 130 ms to 1030 ms, a 7.9x increase.",
-      "In the observed sequence, product-service request rate rose above baseline at 17:03:00, payment-service p95 latency rose above baseline at 17:04:05, and order-service 5xx errors rose above baseline at 17:04:40."
+      "Product-service request rate rose from 15.0 rps to 44.8 rps, a 3x increase.",
+      "Order-service request rate rose from 2.9 rps to 8.7 rps, also a 3x increase.",
+      "Payment-service p95 latency rose from 110 ms to 1020 ms, approximately 9.3x its baseline.",
+      "Order-service dependency error count rose from 0 to 150 per minute, indicating all payment calls that fail or time out are now occurring at that rate.",
+      "Order-service 5xx error rate rose from 0.0 to 0.25, meaning 25% of order requests are now returning server errors.",
+      "Order-service p95 latency rose from 130 ms to 1030 ms, nearly 8x its baseline."
     ],
     "recommended_actions": [
-      "Inspect payment-service Lambda concurrency and throttle metrics immediately to determine whether it is saturated under the current request volume.",
-      "Check whether payment-service has any reserved or provisioned concurrency limits and raise them, or enable auto-scaling, to absorb the tripled order-service call rate.",
-      "Add or tune a timeout and circuit-breaker on order-service's outbound call to payment-service to shed load and stop accumulating dependency errors.",
-      "Review API Gateway or upstream throttling on product-service and order-service to determine whether the traffic spike can be rate-limited at the edge while payment-service recovers.",
-      "Once the incident is resolved, evaluate DynamoDB capacity and Lambda concurrency provisioning for payment-service to handle sustained traffic at the observed 3x level."
+      "Investigate payment-service immediately: check Lambda logs, error output, and invoke it directly to confirm and characterize its latency degradation.",
+      "Examine order-service logs for the specific failure mode on the 150 dependency errors per minute to determine whether payment-service is timing out, returning errors, or being throttled.",
+      "Check Lambda concurrency utilization and throttle counts on payment-service and order-service given the 3x traffic increase; increase reserved concurrency or enable provisioned concurrency if throttling is occurring.",
+      "Review API Gateway and Lambda metrics on product-service for throttling or capacity constraints under the elevated 44.8 rps load.",
+      "Add or tighten a timeout and circuit-breaker on order-service's outbound call to payment-service to limit the blast radius of continued payment degradation on order 5xx rates."
     ]
   },
   "evidence_metrics": [
     [
-      "product-service.request_rate",
+      "product-service.request_rate"
+    ],
+    [
       "order-service.request_rate"
     ],
     [
@@ -36,11 +38,6 @@
     ],
     [
       "order-service.p95_latency_ms"
-    ],
-    [
-      "product-service.request_rate",
-      "payment-service.p95_latency_ms",
-      "order-service.error_rate_5xx"
     ]
   ],
   "self_check": {
@@ -52,8 +49,8 @@
     "effort": "medium"
   },
   "usage": {
-    "input_tokens": 2586,
-    "output_tokens": 1422
+    "input_tokens": 2748,
+    "output_tokens": 2438
   },
-  "latency_ms": 14876
+  "latency_ms": 21649
 }

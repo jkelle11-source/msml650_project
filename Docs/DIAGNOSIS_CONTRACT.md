@@ -154,10 +154,17 @@ In the prompt (`genai/prompt.py`) and checked by `genai/self_check.py`:
 2. **Ordering is an observed sequence, not causation.** A sentence that orders symptoms says "observed
    sequence" and is taken from `observed_sequence`. Causal words ("caused", "driven by", "led to",
    "triggered", "due to"), negated ones included, appear only in `root_cause`, which is worded as *most
-   likely*.
-3. **Evidence** is 3–6 bullets of observed fact, each with numbers from the metrics it cites only; mechanism
+   likely* and connects symptoms only along the stack (Order calls Payment; Product, Cart and Order read
+   their own tables).
+3. **A cascade's faults are concurrent.** `CASCADING_FAILURE` means two or more faults are active at once
+   (plan §3), and the simulator injects each one on its own (`Docs/CASCADE.md`), so its `root_cause` names
+   the faults the evidence shows as concurrent, links none of them causally, and orders them only by the
+   observed sequence. This is the demo's cascade narration (plan §15, Demo Part 4). The first prompt let
+   Sonnet write that "the increased order volume put payment-service under load, ... which in turn produced
+   a flood of dependency errors"; no metric shows Payment's load, and the payment fault was injected.
+4. **Evidence** is 3–6 bullets of observed fact, each with numbers from the metrics it cites only; mechanism
    belongs in `root_cause`. The severity rubric's thresholds are used, never quoted.
-4. **Recommended actions** (2–5) name parts of the stack to inspect, but state no facts that aren't in the
+5. **Recommended actions** (2–5) name parts of the stack to inspect, but state no facts that aren't in the
    input.
 
 **The severity rubric** (`contract.severity()`; the prompt states the same constants), from the affected
@@ -174,19 +181,21 @@ dependency-error count above zero; `LOW` otherwise.
   value on the wrong metric is caught. On the five samples a number picked at random from 1 to 1000 passes
   2–4.5% of the time in the summary and under 3% in a bullet (it was 7–56% with the first version's flat 6%
   tolerance and no per-bullet check).
-- **Severity** other than the rubric's, and any mention of a threshold.
+- **Severity** other than the rubric's, and, in the summary, root cause or evidence, any mention of a
+  threshold.
 - **A clock time** not in the input.
 - In the summary, root cause or evidence: **a service** the input doesn't name ("in order to" and "the
   order of" are words, not order-service); **a claim about a kind of signal** (throttling, cold starts,
   capacity, errors, latency, traffic, compute time, the database, timeouts, retries) with no metric of that
   kind in the input (retries are supported by `db_latency_ms`, defined as including the SDK's retries; "the
   4-minute duration" is the input's own, not compute time); any mention of **a deployment** or release (no
-  metric covers one); **causal wording** outside `root_cause`; and **an ordering sentence** without
+  metric covers one); **causal wording** outside `root_cause`, and in a cascade's `root_cause` any causal
+  link ("in turn", "produced", "under load"; the noun "root cause" is fine); and **an ordering sentence** without
   "observed sequence" or with no `observed_sequence` in the input ("the first sign" and "15.0 before" order
   nothing).
 
-Actions are checked for numbers, times and thresholds only. It is a dry run for M9-5's evaluation, not that
-evaluation.
+Actions are checked for numbers and times only ("approaching throttling thresholds" there is DynamoDB's
+capacity, not the rubric). It is a dry run for M9-5's evaluation, not that evaluation.
 
 ## Running it
 

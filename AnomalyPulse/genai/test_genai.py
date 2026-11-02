@@ -321,6 +321,34 @@ def test_a_deployment_is_never_supported():
     assert any("'deploy'" in f for f in self_check.check(DEP, claim))
 
 
+def _cascade_links(evidence, root_cause):
+    return [f for f in self_check.check(evidence, _with(root_cause=root_cause)) if "cascade" in f]
+
+
+def test_a_cascades_root_cause_links_its_faults_causally_never():
+    cascade = SAMPLES["cascading_failure"]
+    # Sonnet 4.6 wrote this on the cascade sample (2026-11-01). The simulator injects the payment
+    # fault on its own (Docs/CASCADE.md), and no metric says Payment was under load.
+    wrote = ("A sharp traffic surge across product-service and order-service is the most likely root cause "
+             "of this cascading failure: the increased order volume put payment-service under load, degrading "
+             "its latency nearly 9.3x, which in turn produced a flood of dependency errors at order-service "
+             "and pushed its 5xx rate to 25.0%.")
+    assert [f.split("(")[-1] for f in _cascade_links(cascade, wrote)] == [
+        "'under load')", "'in turn')", "'produced')", "'pushed')"]
+    concurrent = ("A traffic surge and a slow payment dependency, active at the same time, are the most "
+                  "likely root cause.")
+    assert _cascade_links(cascade, concurrent) == []
+    # Sonnet 4.6's answer to the revised prompt (2026-11-02): "root causes" is the noun.
+    revised = ("A traffic surge on product-service and order-service, active at the same time as a severe "
+               "payment-service latency degradation, are the most likely concurrent root causes.")
+    assert _cascade_links(cascade, revised) == []
+    assert _cascade_links(cascade, "The surge causes Payment's slowdown.") != []
+    # Other incident types may connect symptoms along the call path in root_cause.
+    along_the_path = ("A slow payment dependency is the most likely root cause; Order calls Payment on "
+                      "every POST /orders, so it produced Order's 5xx.")
+    assert _cascade_links(DEP, along_the_path) == []
+
+
 def test_actions_may_name_components_and_services_without_metrics():
     actions = ["Inspect DynamoDB capacity on the Orders table.", "Check for throttling.",
                "Check the cart-service logs too."]
@@ -408,6 +436,13 @@ def test_a_threshold_is_never_quoted():
                              "metrics": ["payment-service.p95_latency_ms"]}])
     assert "evidence[0]: mentions a threshold; the severity rubric's are never quoted" in self_check.check(
         DEP, claim)
+
+
+def test_an_action_may_speak_of_capacity_thresholds():
+    # Sonnet 4.6 on the traffic-spike sample (2026-11-02): DynamoDB's limits, not the rubric's.
+    action = ("Check DynamoDB consumed capacity on all three tables against provisioned limits to ensure "
+              "the tables are not approaching throttling thresholds.")
+    assert self_check.check(DEP, _with(recommended_actions=[action, "Inspect Payment."])) == []
 
 
 def test_a_severity_off_the_rubric_is_flagged():

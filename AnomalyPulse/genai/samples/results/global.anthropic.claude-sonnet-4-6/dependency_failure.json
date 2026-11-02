@@ -2,22 +2,22 @@
   "incident_id": "inc-sample-dependency-failure",
   "diagnosis": {
     "severity": "HIGH",
-    "summary": "Payment-service is severely degraded, with p95 latency rising from 110 ms to 2900 ms (26.4x). Order-service is reflecting this degradation, with its own p95 latency at 2950 ms against a 130 ms baseline and a 5xx error rate of 16.7%. The incident has been active for 2 minutes.",
-    "root_cause": "A severe slowdown within payment-service is the most likely root cause. Order-service calls payment-service on every POST /orders, so payment-service latency spiking 26.4x above baseline propagated directly into order-service dependency latency and then into order-service 5xx errors, which appeared 40 seconds after payment-service latency rose (observed sequence from correlated timestamps).",
+    "summary": "Payment-service p95 latency has risen from 110 ms to 2,900 ms, a roughly 26x increase, and order-service is now returning 5xx errors on 16.7% of requests. Both services are severely degraded and have been in this state for 2 minutes.",
+    "root_cause": "A sharp increase in payment-service response time, active concurrently with order-service call failures and elevated end-to-end latency, is the most likely root cause of this DEPENDENCY_FAILURE.",
     "evidence": [
-      "Payment-service p95 latency rose from 110 ms to 2900 ms, a 26.4x increase.",
-      "Order-service p95 dependency latency (time spent calling payment-service) rose from 112 ms to 2950 ms, a 26.3x increase.",
-      "Order-service dependency error count rose from 0 to 57 per minute.",
-      "Order-service 5xx error rate rose from 0.0 to 16.7%.",
-      "Order-service p95 end-to-end latency rose from 130 ms to 2950 ms, a 22.7x increase.",
-      "Payment-service p95 latency rose above its baseline at 14:32:00; order-service 5xx errors rose above their baseline at 14:32:40, 40 seconds later (observed sequence)."
+      "Payment-service p95 latency rose from 110 ms to 2,900 ms, a 26x increase over baseline.",
+      "Order-service p95 latency to the payment dependency rose from 112 ms to 2,950 ms, matching the payment-service degradation.",
+      "Order-service is recording 57 dependency errors per minute against a baseline of 0.",
+      "Order-service end-to-end p95 latency rose from 130 ms to 2,950 ms, a roughly 23x increase.",
+      "Order-service 5xx error rate is now 16.7%, up from 0.0% at baseline.",
+      "Payment-service p95 latency rose above its baseline at 14:32:00 and order-service 5xx errors rose above their baseline at 14:32:40, about 40 seconds later (observed sequence from correlated timestamps)."
     ],
     "recommended_actions": [
-      "Inspect payment-service Lambda logs and error traces starting at 14:32:00 to identify what is causing the latency spike.",
-      "Check payment-service Lambda concurrency and throttle metrics to determine whether the function is being starved of capacity.",
-      "Consider adding or lowering a timeout on order-service calls to payment-service so that slow payment calls fail fast and reduce cascading latency into order-service.",
-      "If payment-service cannot be recovered quickly, evaluate temporarily returning a degraded response from order-service (e.g. queuing orders) to stop the 16.7% 5xx rate from reaching customers.",
-      "Review payment-service recent deployments or configuration changes that coincide with the 14:32:00 start time."
+      "Inspect payment-service Lambda logs and X-Ray traces starting at 14:32:00 for errors, timeouts, or unusual execution patterns.",
+      "Check payment-service Lambda concurrency and throttle metrics to determine whether invocations are being limited or queued.",
+      "Review payment-service cold start counts and mean handler duration to identify whether Lambda execution itself has slowed.",
+      "Consider adding or reducing the timeout on the order-service call to payment-service to fail fast and shed load while the root issue is investigated.",
+      "If payment-service cannot be stabilised quickly, evaluate circuit-breaking or temporarily disabling POST /orders to protect downstream customers from further 5xx responses."
     ]
   },
   "evidence_metrics": [
@@ -31,10 +31,10 @@
       "order-service.dependency_error_count"
     ],
     [
-      "order-service.error_rate_5xx"
+      "order-service.p95_latency_ms"
     ],
     [
-      "order-service.p95_latency_ms"
+      "order-service.error_rate_5xx"
     ],
     [
       "payment-service.p95_latency_ms",
@@ -50,8 +50,8 @@
     "effort": "medium"
   },
   "usage": {
-    "input_tokens": 2460,
-    "output_tokens": 1221
+    "input_tokens": 2623,
+    "output_tokens": 890
   },
-  "latency_ms": 10858
+  "latency_ms": 8907
 }
