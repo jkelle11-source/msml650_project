@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  AnomalyPulse live telemetry pipeline (M8-1) - a second subscription filter on
+  each service log group feeds a forwarder Lambda, then an EventBridge bus, an
+  SQS queue and the Aggregator (Docs/PIPELINE.md). A stack of its own: the
+  shipper keeps landing raw/ beside it, and anomalypulse-shared is not
+  redeployed until M9-1.
+
+Resources:
+
+  # ---- Event Bus ---------------------------------------
+  # The forwarder puts telemetry on it. From step 6 the Aggregator announces
+  # each window on it too, and M8-2 adds its own rule for those.
+
+  PipelineBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: anomalypulse-pipeline
+  
+  # ---- Queues ---------------------------------------
+  # The telemetry queue holds every record between the bus and the Aggregator,
+  # so a burst waits here instead of being lost; its backlog is the §16 number.
+
+  TelemetryQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: anomalypulse-telemetry
+  
+  # Telemetry that never reached the telemetry queue: events the rule couldn't
+  # deliver and deliveries the forwarder failed 3 times. Kept 14 days (the most
+  # SQS allows) to be read and sent again. Its alarm comes with the forwarder.
+
+  UndeliveredQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: anomalypulse-telemetry-undelivered
+      MessageRetentionPeriod: 1209600
+  
+  # ---- Routing ---------------------------------------
+  # EventBridge retries a failed delivery for an hour, not its default 24: a
+  # record that late can't help any live window, and in the undelivered queue
+  # it's seen. Errors it can't retry (a missing permission, a missing queue)
+  # go there at once.
+
+  TelemetryRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: anomalypulse-telemetry-to-queue
+      EventBusName: !Ref PipelineBus
+      EventPattern:
+        source:
+          - anomalypulse.telemetry
+        detail-type:
+          - TelemetryRecords
+      Targets:
+        - Id: telemetry-queue
+          Arn: !GetAtt TelemetryQueue.Arn
+          RetryPolicy:
+            MaximumEventAgeInSeconds: 3600
+          DeadLetterConfig:
+            Arn: !GetAtt UndeliveredQueue.Arn
+  
+  # ---- Queue Policies ---------------------------------------
+  # EventBridge may send to each queue only on behalf of our rule
+  # (aws:SourceArn), so no other rule, in this account or another, can fill
+  # them.
+
+  TelemetryQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref TelemetryQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: 
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt TelemetryQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt TelemetryRule.Arn
+  
+  UndeliveredQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref UndeliveredQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt UndeliveredQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt TelemetryRule.Arn
+  
