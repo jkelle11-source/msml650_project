@@ -44,6 +44,23 @@ METRICS = {
     "dependency_error_count": ("count/min", "Order's calls to Payment that failed or timed out"),
 }
 
+# The metrics each service has, as the feature matrix makes them (a test checks this against
+# features.build_matrix.columns()): Payment has no table, and only Order calls a dependency.
+_TABLE_METRICS = {"db_latency_ms_mean", "db_latency_ms_p95", "db_consumed_read_capacity",
+                  "db_consumed_write_capacity", "throttled_requests", "read_throttle_events",
+                  "write_throttle_events"}
+_DEPENDENCY_METRICS = {"dependency_latency_ms_mean", "dependency_latency_ms_p95", "dependency_error_count"}
+SERVICE_METRICS = {
+    "product-service": set(METRICS) - _DEPENDENCY_METRICS,
+    "cart-service": set(METRICS) - _DEPENDENCY_METRICS,
+    "order-service": set(METRICS),
+    "payment-service": set(METRICS) - _TABLE_METRICS - _DEPENDENCY_METRICS,
+}
+
+# What an observed_sequence step may say: the first window in which a metric left its baseline.
+# A fixed set, so no free text reaches Bedrock.
+OBSERVATIONS = ("rose above its baseline", "fell below its baseline")
+
 # How many evidence bullets and recommended actions a diagnosis has (inclusive). The prompt
 # states these and check_output_shape() holds the answer to them.
 EVIDENCE_BULLETS = (3, 6)
@@ -142,6 +159,8 @@ def validate_input(evidence: dict) -> dict:
             raise BadInput(f"metrics[{i}].service {m['service']!r} is not a service")
         if m["metric"] not in METRICS:
             raise BadInput(f"metrics[{i}].metric {m['metric']!r} is not in the contract's metrics")
+        if m["metric"] not in SERVICE_METRICS[m["service"]]:
+            raise BadInput(f"metrics[{i}]: {m['service']} has no {m['metric']}")
         if m["unit"] != METRICS[m["metric"]][0]:
             raise BadInput(f"metrics[{i}] {m['metric']} is in {METRICS[m['metric']][0]}, not {m['unit']!r}")
         _number(m["baseline"], f"metrics[{i}].baseline", nullable=True)
@@ -156,6 +175,8 @@ def validate_input(evidence: dict) -> dict:
         if not isinstance(step, dict) or set(step) != {"at", "service", "metric", "observation"}:
             raise BadInput(f"observed_sequence[{i}] must have exactly at, service, metric, observation")
         at = _time(step["at"], f"observed_sequence[{i}].at")
+        if step["observation"] not in OBSERVATIONS:
+            raise BadInput(f"observed_sequence[{i}].observation must be one of: {', '.join(OBSERVATIONS)}")
         if metric_ref(step["service"], step["metric"]) not in seen:
             raise BadInput(f"observed_sequence[{i}] names {step['service']}.{step['metric']}, "
                            f"which is not in metrics")

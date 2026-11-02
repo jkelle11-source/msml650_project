@@ -43,7 +43,7 @@ files in `genai/samples/` are valid examples.
 
 | Field | Meaning | From (M8-3) |
 |---|---|---|
-| `incident_id` | The incident's id | The dashboard contract's `incident_id` |
+| `incident_id` | The incident's id. Returned with the diagnosis; never sent to Bedrock (nor `contract_version`) | The dashboard contract's `incident_id` |
 | `incident_type` | One of `TRAFFIC_SPIKE`, `DATABASE_THROTTLING`, `LAMBDA_DEGRADATION`, `DEPENDENCY_FAILURE`, `CASCADING_FAILURE`; never `NORMAL` | Classifier reply: the latest window's `label` |
 | `confidence` | 0–1 | That label's probability |
 | `started_at`, `window_start` | The incident's first window; the latest window | `window_start` of those windows |
@@ -65,12 +65,16 @@ before `started_at`), or `null` when there was nothing to measure. Units are fix
 | `cold_start_count`, `lambda_throttle_count`, `throttled_requests`, `read_throttle_events`, `write_throttle_events`, `dependency_error_count` | `count/min` |
 | `db_consumed_read_capacity` / `db_consumed_write_capacity` | `RCU/min` / `WCU/min` |
 
+Only the feature matrix's pairs are accepted (`contract.SERVICE_METRICS`): Payment has no table, so no `db_*`
+or throttle metric, and only Order has the three `dependency_*` metrics.
+
 Send the metrics that moved and enough context to show what didn't (Bedrock may only cite what it is sent).
 About 5–10 metrics is plenty.
 
 **`observed_sequence`.** Only what the windows show: the first window in which a metric left its baseline.
-With one-minute windows, M8-3 can give minute resolution; finer times need the request records. Without it,
-Bedrock makes no ordering claim at all.
+`observation` is `"rose above its baseline"` or `"fell below its baseline"`, nothing else, so no free text
+reaches Bedrock. With one-minute windows, M8-3 can give minute resolution; finer times need the request
+records. Without it, Bedrock makes no ordering claim at all.
 
 **Never in the input** (refused by `validate_input`): ground truth, the manifest, `experiment_id`, fault
 parameters, `injector`, `band`, `intensity`, `label`, `error_type`, `db_throttled`. These are Tier-2: the
@@ -111,7 +115,10 @@ point of M9-5 is that Bedrock explains from what a monitor could see.
   `passed: false` and its findings, so M8-3 can store it flagged rather than lose it.
 - **Errors.** A bad input raises `BadInput` (it never reaches Bedrock). A refusal (Bedrock declining; there
   is no server-side fallback on Bedrock) or an answer cut off at `max_tokens` raises `DiagnosisFailed`.
-  Invoked as a Lambda, both come back as a `FunctionError` with the message.
+  A Bedrock attempt is cut off at 50 s and retried once (as are throttles and 5xx), then raises the SDK's
+  error, so a stalled call fails inside the Lambda's 120 s timeout instead of the Lambda timing out (a
+  throttle whose `retry-after` asks for a longer wait can still outlast it). Invoked as a Lambda, all of these
+  come back as a `FunctionError` with the message.
 
 ## The wording rules
 

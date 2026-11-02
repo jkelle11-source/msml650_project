@@ -61,7 +61,8 @@ Resources:
       Architectures:
         - arm64
       MemorySize: 512
-      # One Bedrock call: typically seconds; the SDK retries 429/5xx.
+      # One Bedrock call took 6-32 s on the samples. genai/explain.py cuts an attempt off at
+      # 50 s and retries once (429/5xx/timeouts), which fits; a test holds the two together.
       Timeout: 120
       Role: !GetAtt ExplainRole.Arn
       LoggingConfig:

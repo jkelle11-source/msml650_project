@@ -28,6 +28,13 @@ REGION = os.environ.get("ANOMALYPULSE_BEDROCK_REGION", "us-east-2")
 # request always asks; on 5.x models it is on anyway and "adaptive" is the same as leaving it out.
 EFFORT = os.environ.get("ANOMALYPULSE_BEDROCK_EFFORT", "medium")
 MAX_TOKENS = 16000
+# One attempt is cut off at TIMEOUT_S and retried MAX_RETRIES times, so a stalled call fails as
+# an APITimeoutError inside the Lambda's 120 s (infra/genai/template.yaml) instead of the Lambda
+# timing out. Diagnoses took 6-32 s on the samples (2026-11-01). The SDK's defaults (600 s, 2
+# retries) could run 30 minutes. A throttled call the API asks to wait longer (retry-after) can
+# still outlast the Lambda.
+TIMEOUT_S = 50
+MAX_RETRIES = 1
 
 _client = None
 
@@ -42,7 +49,7 @@ def client():
     global _client
     if _client is None:
         from anthropic import AnthropicBedrock
-        _client = AnthropicBedrock(aws_region=REGION)
+        _client = AnthropicBedrock(aws_region=REGION, timeout=TIMEOUT_S, max_retries=MAX_RETRIES)
     return _client
 
 

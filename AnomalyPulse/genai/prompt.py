@@ -65,7 +65,13 @@ Rules. They are checked automatically, so follow them exactly.
 10. Plain text in every field: no Markdown, no headings, no bullet characters."""
 
 
+# Bookkeeping Bedrock doesn't need. The id is free text M8-3 makes up, so it stays out of the
+# prompt like any other text that isn't evidence.
+_NOT_SENT = ("incident_id", "contract_version")
+
+
 def user_message(evidence: dict) -> str:
     """The request's user turn: the evidence, as sorted JSON so equal inputs give equal prompts."""
+    sent = {k: v for k, v in evidence.items() if k not in _NOT_SENT}
     return ("Write the diagnosis for this incident. Evidence:\n\n"
-            + json.dumps(evidence, indent=2, sort_keys=True))
+            + json.dumps(sent, indent=2, sort_keys=True))

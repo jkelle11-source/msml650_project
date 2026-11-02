@@ -4,6 +4,7 @@ Run from AnomalyPulse/:  python -m pytest -q genai
 """
 import copy
 import json
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -82,6 +83,13 @@ def test_one_sample_per_incident_type():
     (lambda d: d.update(started_at="2026-10-30 14:32"), "UTC time"),
     (lambda d: d["observed_sequence"].reverse(), "time order"),
     (lambda d: d["observed_sequence"][0].update(metric="request_rate"), "not in metrics"),
+    # pairs the feature matrix doesn't have: Payment has no table, only Order calls a dependency
+    (lambda d: d["metrics"][0].update(metric="db_latency_ms_mean"), "payment-service has no db_latency_ms_mean"),
+    (lambda d: d["metrics"][2].update(service="product-service"),
+     "product-service has no dependency_error_count"),
+    # no free text reaches Bedrock
+    (lambda d: d["observed_sequence"][0].update(observation="error_type was DynamoDBThrottle"),
+     "observation must be one of"),
 ])
 def test_a_bad_input_is_refused(change, problem):
     evidence = copy.deepcopy(DEP)
@@ -95,6 +103,18 @@ def test_ground_truth_can_never_reach_bedrock(key):
     evidence = {**copy.deepcopy(DEP), key: {"anything": 1}}
     with pytest.raises(contract.BadInput, match="ground truth must never reach Bedrock"):
         contract.validate_input(evidence)
+
+
+def test_each_service_has_the_metrics_the_feature_matrix_makes():
+    # Docs/FEATURE_MATRIX.md is generated from features.build_matrix.columns(), and the features
+    # tests fail when it isn't current; reading it keeps these tests free of the simulator's deps.
+    doc = (Path(__file__).parent.parent.parent / "Docs" / "FEATURE_MATRIX.md").read_text()
+    columns = re.findall(r"^\| `([a-z0-9_]+)` \|", doc, re.MULTILINE)
+    temporal = ("_change", "_roll_mean_3", "_roll_std_3")
+    for service, metrics in contract.SERVICE_METRICS.items():
+        prefix = service.split("-")[0] + "_"
+        made = {c[len(prefix):] for c in columns if c.startswith(prefix) and not c.endswith(temporal)}
+        assert metrics == made, service
 
 
 def test_the_schema_only_lets_evidence_cite_input_metrics():
@@ -133,7 +153,23 @@ def test_the_request_holds_bedrock_to_the_schema():
     assert req["thinking"] == {"type": "adaptive"}
     assert "temperature" not in req and "top_p" not in req
     assert explain.request(DEP, "us.anthropic.claude-sonnet-4-6")["model"] == "us.anthropic.claude-sonnet-4-6"
-    assert json.loads(req["messages"][0]["content"].split("\n\n", 1)[1]) == DEP
+    sent = json.loads(req["messages"][0]["content"].split("\n\n", 1)[1])
+    assert sent == {k: v for k, v in DEP.items() if k not in ("incident_id", "contract_version")}
+    assert DEP["incident_id"] not in req["messages"][0]["content"]
+
+
+def test_the_client_gives_up_inside_the_lambdas_timeout(monkeypatch):
+    import anthropic
+    made = {}
+    monkeypatch.setattr(anthropic, "AnthropicBedrock", lambda **kw: made.update(kw) or "client")
+    monkeypatch.setattr(explain, "_client", None)
+    assert explain.client() == "client"
+    assert made == {"aws_region": "us-east-2", "timeout": explain.TIMEOUT_S, "max_retries": explain.MAX_RETRIES}
+    template = (Path(__file__).parent.parent / "infra" / "genai" / "template.yaml").read_text()
+    function = template.split("FunctionName: anomalypulse-explain", 1)[1]
+    lambda_timeout = int(re.search(r"\bTimeout: (\d+)", function).group(1))
+    # every attempt, plus the SDK's backoff (under a second for one retry) and 15 s to spare
+    assert explain.TIMEOUT_S * (explain.MAX_RETRIES + 1) + 15 <= lambda_timeout
 
 
 def test_equal_inputs_give_equal_prompts():
