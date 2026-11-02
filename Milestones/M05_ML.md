@@ -63,6 +63,9 @@ The package format, promoting a model, calling the Lambda and the cost hook are 
 - Both trained via the M5-1 SageMaker path and packaged as loadable artifacts.
 - Validation-set metrics (precision/recall/F1, FPR, detection latency) with the unsupervised-vs-supervised gap reported.
 
+The detectors, the Isolation Forest's cut-off, the healthy/fault-start split of the false alarms and the
+validation results are in [`Docs/DETECTION.md`](../Docs/DETECTION.md).
+
 **Definition of Done**
 - [ ] Both detectors train through SageMaker and produce loadable artifacts.
 - [ ] Validation metrics reported for both, with the cost of going unsupervised quantified.
@@ -84,6 +87,12 @@ The package format, promoting a model, calling the Lambda and the cost hook are 
 - **XGBoost** six-class classifier, plus Random Forest and Logistic Regression baselines for the progression story (§8).
 - Trained via the M5-1 SageMaker path; selected artifact packaged for the Diagnosis Lambda.
 - Validation metrics: accuracy, macro-F1, confusion matrix, per-class precision/recall — **reported alongside the threshold baseline** so the margin is explicit.
+
+Model 0's two baselines, the four classifiers' validation results, the cascade margin, time to recognize a
+cascade and the wrong windows are in [`Docs/M5-3_REPORT.md`](../Docs/M5-3_REPORT.md). **Selected model:
+the tuned logistic regression, not XGBoost** (decided 2026-10-31). It scored the higher validation
+macro-F1 (0.9923 against the tuned XGBoost's 0.9871), and every difference between them is in a fault's
+first minute. M9 reports every classifier on the test set, and the choice is not revisited on test numbers.
 
 **Definition of Done**
 - [ ] Threshold baseline implemented and its metrics recorded as the floor.

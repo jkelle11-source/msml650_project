@@ -61,7 +61,7 @@ python -m ml.launch tune --script ml/job/train_<model>.py --range max_depth=3:8 
     --range learning_rate=0.01:0.3:log --set n_estimators=300 --jobs 8 --parallel 2
 ```
 
-- **`--script`** bundles your script with `train.py` and `features/join_labels.py`, and names the job `anomalypulse-train-<model>-<time>` (without the `train_`).
+- **`--script`** bundles your script with `train.py`, `features/join_labels.py` and `ml/job/detection.py` (M5-2's detection metrics), and names the job `anomalypulse-train-<model>-<time>` (without the `train_`).
 - **`--set NAME=VALUE`** sends a setting, and is repeatable. A value that reads as JSON (`200`, `0.1`, `true`) is sent as that; anything else as text (`--set booster=gbtree`). Settings you don't send take your script's defaults.
 - **`--range NAME=LOW:HIGH`** lets the tuner choose a setting. Two integers make an integer range (`max_depth=3:8`); write `1.0:100` for a continuous one. Add `:log` to search on a log scale, which needs LOW above 0.
 - **`--jobs`** (default 4) and **`--parallel`** (default 2) set how many training jobs the tuner runs in all, and at once.
