@@ -1,0 +1,90 @@
+{
+  "contract_version": 1,
+  "generated_at": "2026-11-02T04:51:48.048Z",
+  "health": {
+    "window_start": "2026-11-02T04:50:00.000Z",
+    "status": "INCIDENT",
+    "requests_per_min": 1200,
+    "error_rate": 0.025,
+    "p95_latency_ms": 260.0,
+    "active_incidents": 1,
+    "services": [
+      {
+        "service": "product-service",
+        "requests_per_min": 900,
+        "error_rate": 0.0,
+        "p95_latency_ms": 41.0,
+        "status": "HEALTHY"
+      },
+      {
+        "service": "cart-service",
+        "requests_per_min": 120,
+        "error_rate": 0.0,
+        "p95_latency_ms": 38.0,
+        "status": "HEALTHY"
+      },
+      {
+        "service": "order-service",
+        "requests_per_min": 180,
+        "error_rate": 0.16666666666666666,
+        "p95_latency_ms": 2950.0,
+        "status": "DEGRADED"
+      },
+      {
+        "service": "payment-service",
+        "requests_per_min": 60,
+        "error_rate": 0.5,
+        "p95_latency_ms": 2900.0,
+        "status": "DEGRADED"
+      }
+    ]
+  },
+  "incident": {
+    "incident_id": "inc-mock-payment-failure",
+    "prediction": {
+      "incident_type": "DEPENDENCY_FAILURE",
+      "confidence": 0.93,
+      "started_at": "2026-11-02T04:49:00.000Z",
+      "detected_at": "2026-11-02T04:50:04.000Z",
+      "affected_services": [
+        "order-service",
+        "payment-service"
+      ],
+      "model": {
+        "estimator": "logistic_regression",
+        "job": "anomalypulse-hpo-261028173159-003-28af89d1"
+      }
+    },
+    "diagnosis": {
+      "severity": "HIGH",
+      "summary": "Payment latency rose from 110 ms to 2.9 s. Order failures began about 40 seconds later (observed sequence from correlated timestamps).",
+      "root_cause": "Payment dependency timeout",
+      "evidence": [
+        "Payment p95 latency rose 26x.",
+        "Order 5xx share rose from 0% to 16.7%."
+      ],
+      "recommended_actions": [
+        "Inspect payment service health",
+        "Review timeout/retry configuration",
+        "Check recent deployment"
+      ]
+    },
+    "ground_truth": {
+      "experiment_id": "exp-mock-payment-failure",
+      "incident_type": "DEPENDENCY_FAILURE",
+      "severity": "HIGH",
+      "faults": [
+        {
+          "injector": "payment-failure",
+          "target": "payment-service",
+          "active_from": "2026-11-02T04:48:55.000Z",
+          "active_until": "2026-11-02T04:53:55.000Z",
+          "active_now": true
+        }
+      ]
+    },
+    "comparison": {
+      "detection_latency_s": 69.0
+    }
+  }
+}

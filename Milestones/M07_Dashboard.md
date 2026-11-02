@@ -38,10 +38,27 @@
 - Renders entirely from the agreed data contract against a mock feed.
 
 **Definition of Done**
-- [ ] Console renders all panels from mock data with no hardcoded values.
-- [ ] Diagnosis panel copy uses observed-sequence wording, not causal assertions (reviewed).
-- [ ] Prediction and ground truth are shown side-by-side.
+- [x] Console renders all panels from mock data with no hardcoded values.
+- [x] Diagnosis panel copy uses observed-sequence wording, not causal assertions (reviewed).
+- [x] Prediction and ground truth are shown side-by-side.
 - [ ] Layout reads as an SRE console (reviewer sign-off on §14 fidelity).
+
+**Delivered (2026-11-01, PR #85).** The console is in `AnomalyPulse/console/`
+([README](../AnomalyPulse/console/README.md)) and renders only from the dashboard contract. Decisions:
+- **Static files, no build step**, run from the presenting laptop at `http://127.0.0.1:4173` (`npm start`), as
+  agreed on #27. It lives apart from the read API's code, because `AnomalyPulse/dashboard/` is packaged whole into
+  that Lambda.
+- **Five pages instead of §14's single screen** (Overview, Incident, AI diagnosis, Ground truth, Timeline), so a
+  presenter tells the story one step at a time; ←/→ step through them. The Overview leads with the incident's
+  name, confidence, affected services and AI severity.
+- **Reads M7-2's mock API by default**, with a Demo Scenario picker. `?source=mock` reads snapshots of the API's
+  replies (`mock/`), the offline fallback; M8-5 sets `scenarios: false` in `js/config.js`.
+- **Every reply is checked against contract v1.** A failed poll keeps the last good reply, marked stale; before
+  the first reply the console claims no state.
+- **The comparison verdict** is *Same classification*, *Matches active fault* (one of a cascade's faults active,
+  and the model names it; retry amplification never counts), *Different classifications*, or *No ground truth*.
+- **Planned isn't past.** The timeline marks fault times after the reply's `generated_at` as planned: a running
+  experiment's manifest has only its planned times.
 
 ---
 
