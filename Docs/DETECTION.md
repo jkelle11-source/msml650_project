@@ -125,3 +125,12 @@ so its runs take 60–120 s (median 97.2 s for both).
 - Report `fpr` against the labels, with `fpr_healthy` and `fault_start_flagged` beside it.
 - Time detection from labeled incident windows only; db_throttling_onset minutes are never scored.
 - The forest's cut-off is this package's `threshold`, set on validation, never on the test set.
+
+## On the live path (M8-1)
+
+Live windows are built as training's were, but with no labels their temporal columns look back over every
+earlier minute, and the live path scores minutes no label covers. Measured on validation
+([`PIPELINE.md`](PIPELINE.md)): the forest's recall stays 510/510, and its healthy false alarms go from 4 to 5
+of 336 (the first NORMAL minute after idle time). It also flags every minute whose look-back still holds a fault,
+for about 3 minutes after a fault ends, and the first full minute after idle time. None of those minutes is
+labeled, so no metric above counts them.
