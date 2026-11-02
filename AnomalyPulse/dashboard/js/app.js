@@ -9,11 +9,12 @@ import { render, renderNotice, renderUnknownStatus } from "./render.js";
 const params = new URLSearchParams(location.search);
 const config = { ...CONFIG };
 if (params.get("api")) Object.assign(config, { source: "api", apiBaseUrl: params.get("api") });
+if (params.get("source") === "mock") config.source = "mock";
 
 const state = {
   scenario: SCENARIOS.some((s) => s.id === params.get("scenario")) ? params.get("scenario") : SCENARIOS[0].id,
   paused: false,
-  last: null,          // the last reply that rendered, for the stale notice
+  last: null,
   timer: null,
   inflight: null,
 };

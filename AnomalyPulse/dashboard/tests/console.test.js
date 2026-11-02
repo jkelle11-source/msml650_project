@@ -201,23 +201,45 @@ test("fetchReply gives up after the timeout", async () => {
   }
 });
 
-// --- the report's opening sentences ------------------------------------------------
+// --- the banner: the line read first ----------------------------------------------------
 
-test("the headline says what is happening, where, in plain words", () => {
-  const r = (name) => viewModel(mock(name)).report;
-  assert.equal(r("incident").headline, "A dependency failure is affecting Orders and Payments.");
-  assert.equal(r("incident").deck, "The model is 93% confident. It started at 14:32 UTC and was detected " +
-    "at 14:33:04 UTC. Bedrock rates it high severity.");
-  assert.match(r("diagnosing").deck, /Bedrock's explanation hasn't arrived yet\.$/);
-  assert.equal(r("cascade_early").headline, "A traffic spike is hitting Product, Cart and Orders.");
-  assert.equal(r("healthy").headline, "All four services are healthy.");
-  assert.equal(r("healthy").deck, "They handled 1,200 requests in the minute, with no errors and a p95 latency of 170 ms.");
-  assert.equal(r("no_data").headline, "No telemetry has arrived for more than three minutes.");
-  assert.equal(r("no_data").label, "No data");
+test("the banner says what is wrong and where, or that all is normal", () => {
+  const b = (name) => viewModel(mock(name)).banner;
+  assert.deepEqual(b("incident"), { tone: "alarm", title: "Dependency failure in Orders and Payments",
+    facts: ["93% confident", "High severity", "Started 14:32 UTC"] });
+  assert.deepEqual(b("diagnosing").facts, ["93% confident", "Severity pending", "Started 14:32 UTC"]);
+  assert.equal(b("cascade_early").title, "Traffic spike in Product, Cart and Orders");
+  assert.deepEqual(b("healthy"), { tone: "ok", title: "All systems normal", facts: ["Minute from 14:33 UTC"] });
+  assert.equal(b("no_data").title, "No data from the pipeline");
+  assert.equal(b("no_data").tone, "none");
 });
 
-test("the headline never claims health while a service is idle or degraded", () => {
+test("the banner never says all normal while a service is idle", () => {
   const reply = mock("healthy");
   reply.health.services[1].status = "IDLE";
-  assert.equal(viewModel(reply).report.headline, "No incident is active.");
+  assert.equal(viewModel(reply).banner.title, "No active incident");
+});
+
+// --- what Jake's mock API sends (#27) -------------------------------------------------
+
+test("an unknown scenario's 400 shows the API's own reason", async () => {
+  const body = { error: "unknown scenario 'x'; use one of: healthy, diagnosing, incident" };
+  await assert.rejects(fetchReply("u", { fetcher: reply(400, body) }),
+    { message: `HTTP 400: ${body.error}` });
+});
+
+test("the API's unrounded shares and its own ids read the same as the contract's example", () => {
+  const api = mock("incident");
+  api.health.services[2].error_rate = 30 / 180;                 // 0.1666...
+  api.incident.incident_id = "inc-mock-payment-failure";
+  api.incident.ground_truth.experiment_id = "exp-mock-payment-failure";
+  const vm = viewModel(api);
+  assert.equal(vm.services[2].errors, "16.7%");
+  assert.equal(vm.comparison.truth.experiment, "exp-mock-payment-failure");
+});
+
+test("the console reads the API by default, with ?scenario on", async () => {
+  const { CONFIG } = await import("../js/config.js");
+  assert.equal(dashboardUrl(CONFIG, "incident"),
+    "https://ffc8nyi6jl.execute-api.us-east-2.amazonaws.com/dashboard?scenario=incident");
 });

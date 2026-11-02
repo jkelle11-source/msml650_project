@@ -45,54 +45,35 @@ function systemStatus(health) {
   return { tone: "none", label: "No data" };
 }
 
-// The key figures line: the top-line numbers, each a value and what it counts.
+// The key figures under the banner.
 function kpis(health) {
-  const incidents = health.active_incidents;
   return [
-    { label: "requests a minute", value: count(health.requests_per_min),
+    { label: "Requests per minute", value: count(health.requests_per_min),
       note: "To Product, Cart and Order. Payment is reached through Order, so it isn't counted twice." },
-    { label: "of requests failed", value: percent(health.error_rate), note: "Share that returned a 5xx." },
+    { label: "Error rate", value: percent(health.error_rate), note: "Share of those requests that returned a 5xx." },
     { label: "p95 latency", value: latency(health.p95_latency_ms), note: "End to end, over all of those requests." },
-    { label: incidents === 1 ? "active incident" : "active incidents", value: count(incidents), note: null },
+    { label: "Active incidents", value: count(health.active_incidents), note: "One experiment runs at a time." },
   ];
 }
 
-// How the headline sentence starts, per incident type.
-const HEADLINE_VERBS = {
-  TRAFFIC_SPIKE: "A traffic spike is hitting",
-  DATABASE_THROTTLING: "Database throttling is slowing",
-  LAMBDA_DEGRADATION: "A Lambda slowdown is affecting",
-  DEPENDENCY_FAILURE: "A dependency failure is affecting",
-  CASCADING_FAILURE: "A cascading failure is spreading through",
-};
-
-// The report's opening: a dateline, one headline sentence and a short deck under it.
-export function report(health, incident) {
-  const status = systemStatus(health);
-  const dateline = health.window_start ? `The minute from ${clock(health.window_start)}` : "No recent minute of data";
+// The banner across the top: one line that answers "is anything wrong?", and a few facts under it.
+export function banner(health, incident) {
   if (health.status === "NO_DATA") {
-    return { ...status, dateline,
-      headline: "No telemetry has arrived for more than three minutes.",
-      deck: "The console can't tell whether the system is healthy until data starts arriving again." };
+    return { tone: "none", title: "No data from the pipeline",
+      facts: ["No telemetry for more than 3 minutes", "Current health is unknown"] };
   }
+  const minute = `Minute from ${clock(health.window_start)}`;
   if (!incident) {
     const allHealthy = health.services.every((s) => s.status === "HEALTHY");
-    const errors = health.error_rate === 0 ? "no errors" : `${percent(health.error_rate)} of them failing`;
-    return { ...status, dateline,
-      headline: allHealthy ? "All four services are healthy." : "No incident is active.",
-      deck: `They handled ${count(health.requests_per_min)} requests in the minute, with ${errors} ` +
-        `and a p95 latency of ${latency(health.p95_latency_ms)}.` };
+    return { tone: "ok", title: allHealthy ? "All systems normal" : "No active incident", facts: [minute] };
   }
   const p = incident.prediction;
-  const where = p.affected_services.length ? list(p.affected_services.map(serviceName)) : "the system";
-  const opening = HEADLINE_VERBS[p.incident_type] ?? `${incidentName(p.incident_type)} is affecting`;
-  const severity = incident.diagnosis?.severity
-    ? `Bedrock rates it ${severityName(incident.diagnosis.severity).toLowerCase()} severity.`
-    : "Bedrock's explanation hasn't arrived yet.";
-  return { ...status, dateline,
-    headline: `${opening} ${where}.`,
-    deck: `The model is ${percent(p.confidence)} confident. It started at ${clock(p.started_at)} ` +
-      `and was detected at ${clock(p.detected_at, { seconds: true })}. ${severity}` };
+  const where = p.affected_services.length ? ` in ${list(p.affected_services.map(serviceName))}` : "";
+  const severity = incident.diagnosis?.severity;
+  return { tone: "alarm", title: `${incidentName(p.incident_type)}${where}`,
+    facts: [`${percent(p.confidence)} confident`,
+      severity ? `${severityName(severity)} severity` : "Severity pending",
+      `Started ${clock(p.started_at)}`] };
 }
 
 function services(health) {
@@ -117,6 +98,7 @@ function incidentPanel(incident) {
     // injected severity is ground truth and never fills it.
     severity: severity ? { label: severityName(severity), tone: severity.toLowerCase() } : null,
     confidence: percent(p.confidence),
+    confidenceShare: p.confidence,
     started: clock(p.started_at),
     detected: clock(p.detected_at, { seconds: true }),
     affected: p.affected_services.length ? list(p.affected_services.map(serviceName)) : MISSING,
@@ -198,7 +180,7 @@ export function viewModel(reply) {
   const { health, incident } = reply;
   return {
     status: systemStatus(health),
-    report: report(health, incident),
+    banner: banner(health, incident),
     window: health.window_start ? `Minute starting ${clock(health.window_start)}` : "No recent minute of data",
     generated: `Updated ${clock(reply.generated_at, { seconds: true })}`,
     noData: health.status === "NO_DATA",

@@ -1,13 +1,15 @@
-// Where the console reads from. Two settings change between milestones:
+// Where the console reads from.
 //
-//   now (M7, no API yet)    source: "mock"                          reads mock/<scenario>.json
-//   M7, Jake's mock API     source: "api", apiBaseUrl: "<his URL>"  sends ?scenario=<name>
-//   M8-5, live data         source: "api", scenarios: false         no picker, no ?scenario
+//   M7 (now)      source: "api", scenarios: true    Jake's mock API, ?scenario=<name> picks the state
+//   M8-5, live    source: "api", scenarios: false   live data, no picker
 //
-// For a quick check without editing this file, add ?api=<base URL> to the page's address.
+// Two overrides in the page's address, without editing this file:
+//   ?source=mock      read the local copies in mock/ (works with no network: the demo's fallback)
+//   ?api=<base URL>   read another API
 export const CONFIG = {
-  source: "mock",
-  apiBaseUrl: "",
+  source: "api",
+  // M7-2's read API (also in SSM at /anomalypulse/dashboard/url).
+  apiBaseUrl: "https://ffc8nyi6jl.execute-api.us-east-2.amazonaws.com",
   scenarios: true,
   pollMs: 15000,
   timeoutMs: 8000,
