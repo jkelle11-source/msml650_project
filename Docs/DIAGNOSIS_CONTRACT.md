@@ -1,0 +1,256 @@
+# Diagnosis Contract — Classified Incident → Bedrock → Diagnosis (M6-1)
+
+**Owner:** Josh · **Code:** `AnomalyPulse/genai/` · **Lambda:** `anomalypulse-explain`
+(stack `anomalypulse-genai`, `AnomalyPulse/infra/genai/`) · **Used by:** M8-3 (builds the input, stores the
+reply), M8-4 (feeds it to the dashboard), M9-5 (scores it)
+
+**Status:** documented (M6-1, PR #86). Agreement with M8-3 (Rachel, #30) is pending on the three open
+questions at the end, which carry proposals.
+
+Bedrock is a constrained **explanation generator, not a diagnoser** (plan §10, §20). It is handed the
+classifier's answer and the observed evidence, and writes the diagnosis an engineer reads. It never sees raw
+logs, and never sees ground truth.
+
+---
+
+## Input (version 1)
+
+One JSON object per diagnosis. `genai/contract.py` (`validate_input`) enforces every rule below; the five
+files in `genai/samples/` are valid examples.
+
+```json
+{
+  "contract_version": 1,
+  "incident_id": "inc-20261030T143200Z",
+  "incident_type": "DEPENDENCY_FAILURE",
+  "confidence": 0.93,
+  "started_at": "2026-10-30T14:32:00.000Z",
+  "window_start": "2026-10-30T14:33:00.000Z",
+  "duration_minutes": 2,
+  "affected_services": ["order-service", "payment-service"],
+  "metrics": [
+    {"service": "payment-service", "metric": "p95_latency_ms", "baseline": 110, "current": 2900, "unit": "ms"},
+    {"service": "order-service", "metric": "error_rate_5xx", "baseline": 0.0, "current": 0.167, "unit": "share"}
+  ],
+  "observed_sequence": [
+    {"at": "2026-10-30T14:32:00.000Z", "service": "payment-service", "metric": "p95_latency_ms",
+     "observation": "rose above its baseline"},
+    {"at": "2026-10-30T14:32:40.000Z", "service": "order-service", "metric": "error_rate_5xx",
+     "observation": "rose above its baseline"}
+  ]
+}
+```
+
+| Field | Meaning | From (M8-3) |
+|---|---|---|
+| `incident_id` | The incident's id. Returned with the diagnosis; never sent to Bedrock (nor `contract_version`) | The dashboard contract's `incident_id` |
+| `incident_type` | One of `TRAFFIC_SPIKE`, `DATABASE_THROTTLING`, `LAMBDA_DEGRADATION`, `DEPENDENCY_FAILURE`, `CASCADING_FAILURE`; never `NORMAL` | Classifier reply: the latest window's `label` |
+| `confidence` | 0–1 | That label's probability |
+| `started_at`, `window_start` | The incident's first window; the latest window | `window_start` of those windows |
+| `duration_minutes` | How long the incident has been active | |
+| `affected_services` | Distinct service names, at least one: where the incident shows | `genai.affected.affected_services()`: see below. The same list is the dashboard's `prediction.affected_services` |
+| `metrics` | The evidence: one entry per (service, metric), at least one | Feature windows: see below |
+| `observed_sequence` | Optional. When each listed metric first moved, in time order | See below |
+
+**`metrics`.** `metric` is a feature column without its service prefix, so `order-service`'s
+`p95_latency_ms` is the column `order_p95_latency_ms` (`Docs/FEATURE_MATRIX.md`). `current` is the latest
+window's value; `baseline` is the service before the incident (proposal: the mean of the lookback windows
+before `started_at`), or `null` when there was nothing to measure. Units are fixed per metric:
+
+| Metrics | Unit |
+|---|---|
+| `request_rate` | `rps` (per second) |
+| `p50_latency_ms`, `p95_latency_ms`, `p99_latency_ms`, `lambda_duration_ms_mean`, `lambda_duration_ms_p95`, `db_latency_ms_mean`, `db_latency_ms_p95`, `dependency_latency_ms_mean`, `dependency_latency_ms_p95` | `ms` |
+| `error_rate_5xx`, `error_rate_4xx` | `share` (0–1) |
+| `cold_start_count`, `lambda_throttle_count`, `throttled_requests`, `read_throttle_events`, `write_throttle_events`, `dependency_error_count` | `count/min` |
+| `db_consumed_read_capacity` / `db_consumed_write_capacity` | `RCU/min` / `WCU/min` |
+
+Only the feature matrix's pairs are accepted (`contract.SERVICE_METRICS`): Payment has no table, so no `db_*`
+or throttle metric, and only Order has the three `dependency_*` metrics.
+
+Send the metrics that moved and enough context to show what didn't (Bedrock may only cite what it is sent).
+About 5–10 metrics is plenty.
+
+**`observed_sequence`.** Only what the windows show: the first window in which a metric left its baseline.
+`observation` is `"rose above its baseline"` or `"fell below its baseline"`, nothing else, so no free text
+reaches Bedrock. With one-minute windows, M8-3 can give minute resolution; finer times need the request
+records. Without it, Bedrock makes no ordering claim at all.
+
+**`affected_services`.** The classifier answers with a label and probabilities only, so the services come
+from the windows, by a fixed rule (`genai/affected.py`; decided 2026-11-02, M6-1 review). M8-3 calls
+`affected_services(baseline(lookback_windows), latest_window)` with feature rows, stores the list in the
+incident record's prediction, and sends it here. A service is affected when, in the latest window, one of
+its own signals crosses the severity rubric's `MEDIUM` line (5xx share at least 0.01, p95 at least 2x its
+baseline, any throttle or dependency-error count above zero) or its request rate is at least 1.75x its
+baseline. If none does, it is the one service whose request rate or p95 rose most, so the list is never
+empty. Only Tier-1 columns decide it, never the manifest.
+
+Calibrated on v1's 700 training and validation runs (2026-11-02; the test set was not read). Each run's
+baseline was the mean of its startup minute and the NORMAL minute before its first fault (v1 runs have one),
+and each labeled minute was scored against the faults active in at least half of it:
+
+- **No false alarms:** none of the 980 later NORMAL minutes of the 140 normal runs lists a service. There,
+  5xx shares, throttle counts and dependency errors are always 0, p95 stays under 1.6x its baseline and
+  request rate under 1.7x.
+- **The faulted service is always listed** in every database-throttling (518), dependency-failure (525),
+  Lambda-degradation (542) and cascade (268) minute. A traffic spike's minutes list Product in 707 of 718.
+  The rest are a mild spike's partial first minute, where the fallback names the service that rose most.
+  The fallback was needed in 7 of the 2,571 incident minutes, all traffic spikes.
+- **Extra services are real movement:** a slowed Order's Payment shows 5xx and a doubled p95 (8 minutes),
+  for example. The list says where metrics moved, not which service was injected.
+- **Why 1.75x for traffic:** at 2x, 37 spike minutes don't list Product; at 1.5x, 8 normal minutes list a
+  service.
+
+**Never in the input** (refused by `validate_input`): ground truth, the manifest, `experiment_id`, fault
+parameters, `injector`, `band`, `intensity`, `label`, `error_type`, `db_throttled`. These are Tier-2: the
+point of M9-5 is that Bedrock explains from what a monitor could see.
+
+## Output
+
+`genai.explain.diagnose(input)`, which the Lambda returns:
+
+```json
+{
+  "incident_id": "inc-20261030T143200Z",
+  "diagnosis": {
+    "severity": "HIGH",
+    "summary": "…",
+    "root_cause": "A slow or failing payment dependency is the most likely root cause.",
+    "evidence": ["Payment p95 latency rose 26x, from 110 ms to 2900 ms.", "…"],
+    "recommended_actions": ["Inspect payment-service health and its recent errors.", "…"]
+  },
+  "evidence_metrics": [["payment-service.p95_latency_ms"], ["…"]],
+  "self_check": {"passed": true, "findings": []},
+  "model": {"id": "global.anthropic.claude-sonnet-4-6", "effort": "medium"},
+  "usage": {"input_tokens": 2292, "output_tokens": 1420},
+  "latency_ms": 30651
+}
+```
+
+- **`diagnosis` is exactly the dashboard contract's `diagnosis`** (`Docs/DASHBOARD_CONTRACT.md`): `severity`
+  (`LOW`/`MEDIUM`/`HIGH`, Bedrock's judgment from a fixed rubric in the prompt, which `self_check` recomputes
+  from the input: below), `summary`, `root_cause`,
+  `evidence` (strings), `recommended_actions` (strings, in the order to try them). The dashboard's open
+  question 2 is answered: the fields match, and Bedrock gives a severity. The classifier's `confidence` is
+  not repeated here; it is the dashboard's `prediction.confidence`.
+- **`evidence_metrics[i]`** lists the input metrics evidence bullet *i* rests on. Bedrock's answer is held to
+  a schema built per request (structured outputs) in which a bullet can only cite this input's metrics, so
+  every bullet traces to an input metric by construction. M8-4 can keep it beside the bullets.
+- **`self_check`**: the smoke-level fidelity check below. A diagnosis that fails it is still returned, with
+  `passed: false` and its findings, so M8-3 can store it flagged rather than lose it.
+- **Errors.** A bad input raises `BadInput` (it never reaches Bedrock). A refusal (Bedrock declining; there
+  is no server-side fallback on Bedrock) or an answer cut off at `max_tokens` raises `DiagnosisFailed`.
+  A Bedrock attempt is cut off at 50 s and retried once (as are throttles and 5xx), then raises the SDK's
+  error, so a stalled call fails inside the Lambda's 120 s timeout instead of the Lambda timing out (a
+  throttle whose `retry-after` asks for a longer wait can still outlast it). Invoked as a Lambda, all of these
+  come back as a `FunctionError` with the message.
+
+## The wording rules
+
+In the prompt (`genai/prompt.py`) and checked by `genai/self_check.py`:
+
+1. **Every claim comes from the input**: only its services, metrics and values (or ratios, percent changes
+   and unit conversions of them).
+2. **Ordering is an observed sequence, not causation.** A sentence that orders symptoms says "observed
+   sequence" and is taken from `observed_sequence`. Causal words ("caused", "driven by", "led to",
+   "triggered", "due to"), negated ones included, appear only in `root_cause`, which is worded as *most
+   likely* and connects symptoms only along the stack (Order calls Payment; Product, Cart and Order read
+   their own tables).
+3. **A cascade's faults are concurrent.** `CASCADING_FAILURE` means two or more faults are active at once
+   (plan §3), and the simulator injects each one on its own (`Docs/CASCADE.md`), so its `root_cause` names
+   the faults the evidence shows as concurrent, links none of them causally, and orders them only by the
+   observed sequence. This is the demo's cascade narration (plan §15, Demo Part 4). The first prompt let
+   Sonnet write that "the increased order volume put payment-service under load, ... which in turn produced
+   a flood of dependency errors"; no metric shows Payment's load, and the payment fault was injected.
+4. **Evidence** is 3–6 bullets of observed fact, each with numbers from the metrics it cites only; mechanism
+   belongs in `root_cause`. The severity rubric's thresholds are used, never quoted.
+5. **Recommended actions** (2–5) name parts of the stack to inspect, but state no facts that aren't in the
+   input.
+
+**The severity rubric** (`contract.severity()`; the prompt states the same constants), from the affected
+services' current values: `HIGH` if any 5xx share is at least 0.05 or any p95 latency at least 10x its
+baseline; `MEDIUM` if any 5xx share is at least 0.01, any p95 at least 2x its baseline, or any throttle or
+dependency-error count above zero; `LOW` otherwise.
+
+`self_check` flags:
+
+- **Numbers** not in or derivable from the input (a value, ratio, percent change, difference, share as a
+  percent or as "1 in N", ms as seconds, the confidence, the duration, a gap between sequence steps),
+  rounded no further than written: "2950" must be 2945–2955 and "2.9" 2.85–2.95. In an evidence bullet, the
+  numbers must come from the metrics that bullet cites (or a gap or ratio between two of them), so a real
+  value on the wrong metric is caught. On the five samples a number picked at random from 1 to 1000 passes
+  2–4.5% of the time in the summary and under 3% in a bullet (it was 7–56% with the first version's flat 6%
+  tolerance and no per-bullet check).
+- **Severity** other than the rubric's, and, in the summary, root cause or evidence, any mention of a
+  threshold.
+- **A clock time** not in the input.
+- In the summary, root cause or evidence: **a service** the input doesn't name ("in order to" and "the
+  order of" are words, not order-service); **a claim about a kind of signal** (throttling, cold starts,
+  capacity, errors, latency, traffic, compute time, the database, timeouts, retries) with no metric of that
+  kind in the input (retries are supported by `db_latency_ms`, defined as including the SDK's retries; "the
+  4-minute duration" is the input's own, not compute time); any mention of **a deployment** or release (no
+  metric covers one); **causal wording** outside `root_cause`, and in a cascade's `root_cause` any causal
+  link ("in turn", "produced", "under load"; the noun "root cause" is fine); and **an ordering sentence** without
+  "observed sequence" or with no `observed_sequence` in the input ("the first sign" and "15.0 before" order
+  nothing).
+
+Actions are checked for numbers and times only ("approaching throttling thresholds" there is DynamoDB's
+capacity, not the rubric). It is a dry run for M9-5's evaluation, not that evaluation.
+
+## Running it
+
+```bash
+cd AnomalyPulse
+python3 -m pip install -r genai/requirements.txt                   # once, for local runs (SDK 1.x)
+python -m pytest -q genai                                          # no AWS
+python -m genai.run_samples --profile <your-profile>               # the five samples through Bedrock
+```
+
+**Deploy** (its own stack, never `anomalypulse-shared`):
+
+```bash
+cd AnomalyPulse/infra/genai && sam build && AWS_PROFILE=admin sam deploy    # admin: it creates an IAM role
+aws lambda invoke --function-name anomalypulse-explain --cli-binary-format raw-in-base64-out \
+  --payload file://../../genai/samples/dependency_failure.json reply.json --profile <your-profile>
+```
+
+**Model.** Claude Sonnet 4.6 (`global.anthropic.claude-sonnet-4-6`, a global cross-region inference
+profile; Bedrock through `bedrock-runtime`, us-east-2), adaptive thinking at effort `medium`. The model,
+region and effort are environment variables (`ANOMALYPULSE_BEDROCK_MODEL`, `_REGION`, `_EFFORT`).
+
+**Why this model (2026-11-01).** Of the Claude models, the account can call Opus 4.6 and Sonnet 4.6 on Bedrock
+(3M and 6M tokens per minute, cross-region). Claude 4.7 and later (Opus 4.7, 4.8 and 5.5, Sonnet 5.5, ...) are
+enabled, but their Bedrock quota is 0 tokens per minute and has never been raised (checked 2026-11-02), so calls
+to them fail ("not available for this account"; for Opus 4.8, "Too many tokens per day"). Using one means
+asking AWS Support to raise its quota first. The newer `bedrock-mantle` endpoint answers 404 for every model,
+so the code uses `bedrock-runtime`. Run on the five samples with the first prompt, Opus 4.6 had 7 real
+self-check findings (two diagnoses with 7 bullets, causal wording, a speculated deployment) and Sonnet 4.6
+had 3; the prompt was tightened against those. Sonnet wrote about twice the output tokens (~1,200 a
+diagnosis, thinking included) and was a little slower (median 31 s against 26 s); at list prices the two
+cost about the same per diagnosis. Bedrock's own prices apply (aws.amazon.com/bedrock/pricing). Opus's
+answers to that first prompt are kept in `genai/samples/results/`; the final self-check finds 12 problems in
+them, while Sonnet's answers to the final prompt pass (that folder's README says what each run is).
+
+**SDK 1.x, deliberately.** Python SDK 2.0 and later send API version `2026-10-21`, which Bedrock accepts
+only for Claude 4.7 and later, so `requirements.txt` pins the 1.x release tested (1.17.0). Moving to a
+4.7-or-later model, once its quota is raised, is also the time to move to SDK 2.x.
+
+## Open questions (for M8-3, #30)
+
+Each has a proposal; M8-3 agrees or changes it (M8-3's Definition of Done, carried from M6-1's).
+
+1. **Baseline.** Proposal: the mean of the windows before `started_at` that were classified `NORMAL`, up
+   to the last 5 (`genai.affected.baseline()`), held fixed for the whole incident. A cascade's later minutes
+   then still compare against the pre-cascade state, which is what an engineer wants to see. A metric with
+   nothing to average gets `baseline: null`. (`affected_services` was calibrated with this mean, over the
+   one or two quiet minutes v1's runs have before their fault.)
+2. **Which metrics to send** (about 5–10). Proposal: for each affected service, `request_rate`,
+   `p95_latency_ms` and `error_rate_5xx`, so Bedrock can also say what didn't move; any other metric of
+   that service past the line `affected_services` uses (2x its baseline, 1.75x for request rate, or a count
+   above zero); and the incident type's own signals (throttle counts, `db_latency_ms_p95` and consumed
+   read capacity for database throttling; `lambda_duration_ms_mean` for Lambda degradation; Order's three
+   `dependency_*` for dependency failures). Bedrock can cite only what it is sent.
+3. **When to call.** Proposal: once when the incident is first classified, and again each time its
+   `incident_type` changes (a cascade is first classified as its first fault's type, then as
+   `CASCADING_FAILURE` once two faults overlap). Not every minute: a call costs about 3¢ and takes 6–32 s,
+   and the console shows "Severity pending" until the reply is stored.

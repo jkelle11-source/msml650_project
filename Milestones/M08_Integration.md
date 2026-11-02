@@ -73,11 +73,12 @@
 **Context.** Turn the classifier output into the structured-evidence input Bedrock expects (the contract agreed in M6), invoke Bedrock, and persist the resulting diagnosis to the Incidents store. This is the classify-to-explain hand-off Rachel and Josh specified in M5/M6.
 
 **Deliverables**
-- Transform `{incident_type, confidence, metric deltas, affected services}` into the §10 Bedrock input contract.
+- Transform `{incident_type, confidence, metric deltas, affected services}` into the §10 Bedrock input contract ([`Docs/DIAGNOSIS_CONTRACT.md`](../Docs/DIAGNOSIS_CONTRACT.md); `affected_services` from `genai.affected`).
 - Invoke Bedrock (M6 pipeline) and capture the structured diagnosis.
 - Persist prediction + diagnosis + ground-truth reference to the Incidents DynamoDB table.
 
 **Definition of Done**
+- [ ] Input contract agreed with M6-1 for this seam: the contract's open questions (baseline, which metrics, when to call) answered. Carried from M6-1's Definition of Done (2026-11-02).
 - [ ] Classifier output is transformed into a valid Bedrock input with no manual editing.
 - [ ] Diagnosis is stored against the incident record with a ground-truth reference for comparison.
 - [ ] Round-trip latency captured for §16 end-to-end metrics.

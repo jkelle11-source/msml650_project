@@ -1,0 +1,63 @@
+{
+  "contract_version": 1,
+  "incident_id": "inc-sample-db-throttling",
+  "incident_type": "DATABASE_THROTTLING",
+  "confidence": 0.95,
+  "started_at": "2026-10-30T15:04:00.000Z",
+  "window_start": "2026-10-30T15:07:00.000Z",
+  "duration_minutes": 4,
+  "affected_services": [
+    "product-service"
+  ],
+  "metrics": [
+    {
+      "service": "product-service",
+      "metric": "p95_latency_ms",
+      "baseline": 6,
+      "current": 1586,
+      "unit": "ms"
+    },
+    {
+      "service": "product-service",
+      "metric": "p50_latency_ms",
+      "baseline": 5,
+      "current": 6,
+      "unit": "ms"
+    },
+    {
+      "service": "product-service",
+      "metric": "db_latency_ms_p95",
+      "baseline": 4,
+      "current": 1580,
+      "unit": "ms"
+    },
+    {
+      "service": "product-service",
+      "metric": "read_throttle_events",
+      "baseline": 0,
+      "current": 1400,
+      "unit": "count/min"
+    },
+    {
+      "service": "product-service",
+      "metric": "db_consumed_read_capacity",
+      "baseline": 480,
+      "current": 11900,
+      "unit": "RCU/min"
+    },
+    {
+      "service": "product-service",
+      "metric": "error_rate_5xx",
+      "baseline": 0.0,
+      "current": 0.004,
+      "unit": "share"
+    },
+    {
+      "service": "product-service",
+      "metric": "request_rate",
+      "baseline": 15.0,
+      "current": 15.1,
+      "unit": "rps"
+    }
+  ]
+}

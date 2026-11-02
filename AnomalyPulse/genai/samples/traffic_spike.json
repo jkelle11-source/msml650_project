@@ -1,0 +1,58 @@
+{
+  "contract_version": 1,
+  "incident_id": "inc-sample-traffic-spike",
+  "incident_type": "TRAFFIC_SPIKE",
+  "confidence": 0.97,
+  "started_at": "2026-10-30T14:03:00.000Z",
+  "window_start": "2026-10-30T14:06:00.000Z",
+  "duration_minutes": 4,
+  "affected_services": [
+    "product-service",
+    "cart-service",
+    "order-service"
+  ],
+  "metrics": [
+    {
+      "service": "product-service",
+      "metric": "request_rate",
+      "baseline": 15.0,
+      "current": 45.1,
+      "unit": "rps"
+    },
+    {
+      "service": "product-service",
+      "metric": "p95_latency_ms",
+      "baseline": 24,
+      "current": 31,
+      "unit": "ms"
+    },
+    {
+      "service": "product-service",
+      "metric": "error_rate_5xx",
+      "baseline": 0.0,
+      "current": 0.0,
+      "unit": "share"
+    },
+    {
+      "service": "cart-service",
+      "metric": "request_rate",
+      "baseline": 2.0,
+      "current": 6.0,
+      "unit": "rps"
+    },
+    {
+      "service": "order-service",
+      "metric": "request_rate",
+      "baseline": 2.9,
+      "current": 8.8,
+      "unit": "rps"
+    },
+    {
+      "service": "order-service",
+      "metric": "p95_latency_ms",
+      "baseline": 58,
+      "current": 61,
+      "unit": "ms"
+    }
+  ]
+}

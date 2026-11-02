@@ -1,0 +1,57 @@
+{
+  "incident_id": "inc-sample-db-throttling",
+  "diagnosis": {
+    "severity": "HIGH",
+    "summary": "product-service has been degraded for 4 minutes, with p95 end-to-end latency spiking from 6 ms to 1586 ms, a 264x increase. A 5xx error rate of 0.4% has appeared where none existed before. Request rate is essentially flat at 15.1 rps against a baseline of 15.0 rps.",
+    "root_cause": "DynamoDB read throttling on the product-service table is the most likely root cause, with read capacity consumption rising 24.8x and 1400 read throttle events per minute where there were none at baseline.",
+    "evidence": [
+      "p95 end-to-end latency rose from 6 ms to 1586 ms, a 264x increase, while p50 latency stayed nearly flat at 6 ms versus a baseline of 5 ms, indicating the degradation is confined to the tail of the distribution.",
+      "p95 DynamoDB call latency rose from 4 ms to 1580 ms, a 395x increase, closely tracking the overall p95 latency spike.",
+      "Read throttle events rose from 0 to 1400 per minute, indicating active throttling on the product-service DynamoDB table.",
+      "DynamoDB consumed read capacity rose from 480 RCU/min to 11900 RCU/min, a 24.8x increase.",
+      "The 5xx error rate is now 0.4% (0.004) against a baseline of 0.0, reflecting a small share of requests failing outright.",
+      "Request rate is flat at 15.1 rps versus a baseline of 15.0 rps, showing no traffic surge accompanying the read capacity increase."
+    ],
+    "recommended_actions": [
+      "Increase provisioned read capacity units on the product-service DynamoDB table, or enable on-demand capacity mode, to absorb the current 11900 RCU/min consumption.",
+      "Enable DynamoDB Accelerator (DAX) or add application-level caching in the product-service Lambda to reduce repeated reads hitting the table.",
+      "Inspect the product-service Lambda handler for any recently introduced scan operations or missing key conditions that could explain the 24.8x increase in read capacity consumption without a traffic change.",
+      "Review DynamoDB CloudWatch metrics for hot partition indicators on the product-service table, which can cause localized throttling even when aggregate capacity appears sufficient.",
+      "Set a CloudWatch alarm on read_throttle_events for the product-service table so future throttling is detected before it reaches p95 latency impact."
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "product-service.p95_latency_ms",
+      "product-service.p50_latency_ms"
+    ],
+    [
+      "product-service.db_latency_ms_p95"
+    ],
+    [
+      "product-service.read_throttle_events"
+    ],
+    [
+      "product-service.db_consumed_read_capacity"
+    ],
+    [
+      "product-service.error_rate_5xx"
+    ],
+    [
+      "product-service.request_rate"
+    ]
+  ],
+  "self_check": {
+    "passed": true,
+    "findings": []
+  },
+  "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 2622,
+    "output_tokens": 1224
+  },
+  "latency_ms": 10745
+}
