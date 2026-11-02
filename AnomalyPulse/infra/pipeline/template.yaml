@@ -100,3 +100,105 @@ Resources:
               ArnEquals:
                 aws:SourceArn: !GetAtt TelemetryRule.Arn
   
+  # ---- Forwarder Lambda ---------------------------------------
+  # Turns each subscription filter delivery into PutEvents calls, 100 records
+  # an event (pipeline/forwarder/handler.py). CloudWatch Logs invokes it
+  # asynchronously: a delivery the handler raises on is retried twice, then
+  # sent to the undelivered queue. Like the rule, it gives up after an hour.
+
+  ForwarderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/anomalypulse-pipeline-forwarder
+      RetentionInDays: 90
+  
+  # Only what the forwarder does: PutEvents on the pipeline bus, SendMessage to
+  # the undelivered queue, and logs to its own log group. Not
+  # AWSLambdaBasicExecutionRole, which may write to any log group, the
+  # services' included, and those feed raw/ and this pipeline.
+
+  ForwarderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: anomalypulse-pipeline-forwarder
+      Description: The AnomalyPulse telemetry forwarder runs as this role (M8-1)
+      AssumeRolePolicyDocument: 
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: forwarder-logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt ForwarderLogGroup.Arn
+        - PolicyName: forwarder-put-events
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: events:PutEvents
+                Resource: !GetAtt PipelineBus.Arn
+        - PolicyName: forwarder-on-failure
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt UndeliveredQueue.Arn
+  
+  ForwarderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: anomalypulse-pipeline-forwarder
+      CodeUri: ../../pipeline/forwarder
+      Handler: handler.handler
+      Runtime: python3.13
+      Architectures:
+        - arm64
+      MemorySize: 256
+      Timeout: 30
+      Role: !GetAtt ForwarderRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref ForwarderLogGroup
+      Environment:
+        Variables:
+          BUS_NAME: !Ref PipelineBus
+      EventInvokeConfig:
+        MaximumRetryAttempts: 2
+        MaximumEventAgeInSeconds: 3600
+        DestinationConfig:
+          OnFailure:
+            Type: SQS
+            Destination: !GetAtt UndeliveredQueue.Arn
+  
+  # ---- Alarm ---------------------------------------
+  # In alarm while anything is in the undelivered queue: telemetry the
+  # pipeline lost before the telemetry queue. No action: its state shows in
+  # the CloudWatch console, and step 9's check reads it.
+
+  UndeliveredAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: anomalypulse-telemetry-undelivered
+      AlarmDescription: Telemetry is in anomalypulse-telemetry-undelivered; it never reached the telemetry queue (Docs/PIPELINE.md)
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt UndeliveredQueue.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+        
+  
