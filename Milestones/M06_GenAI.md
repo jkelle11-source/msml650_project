@@ -78,6 +78,18 @@ all five samples' diagnoses pass the self-check (`genai/samples/results/`). Deci
 - Retrieval keyed on the classified incident type, feeding matched runbook content into the Bedrock prompt.
 - Retrieval-quality hook (does the retrieved runbook match the incident type?) for `M9-5`.
 
+**Scope decided 2026-11-02 (Jake): five runbooks for this stack, picked by the classified type, and no Bedrock
+Knowledge Base.**
+- **Why no Knowledge Base.** With five types the pick is a lookup, so a vector store would add a service and a
+  standing cost without changing which runbook is chosen.
+- **What "retrieval quality" means here.** A runbook is wrong exactly when the classification is, so retrieval
+  quality restates classifier accuracy.
+- **Runbooks feed `recommended_actions` only, behind a switch that is off by default** (`ANOMALYPULSE_RUNBOOKS`).
+  Summary, root cause and evidence still come only from the input.
+- **What is measured instead:** a blind comparison of actionability, with and without runbooks, on the samples and
+  then in M9-5. M9-5's comparison decides whether the switch is on for the demo.
+- **Build notes:** [`Handoffs/M6-1_Handoff.md`](../Handoffs/M6-1_Handoff.md), §2–§8.
+
 **Definition of Done**
 - [ ] For a detected incident, the correct runbook is retrieved and its content appears in the diagnosis.
 - [ ] Retrieval quality is measurable (matched vs mismatched runbook) for M9.
