@@ -123,17 +123,15 @@ export function verdict(prediction, truth) {
     return { kind: "match", label: "Same classification", detail: "The model's window class and the run's injected class agree." };
   const active = truth.faults.filter((f) => f.active_now === true && f.injector !== "retry-amplification");
   if (truth.incident_type === "CASCADING_FAILURE" && active.length === 1 && INJECTOR_TYPES[active[0].injector] === prediction.incident_type)
-    return { kind: "partial", label: "Matches active fault", detail: "The run is a cascade, but only its first injected fault is active in this minute. The window labeling policy uses that fault's class until a second overlaps." };
+    return { kind: "partial", label: "Matches active fault", detail: "The run is a cascade, but only one of its injected faults is active in this minute. The window labeling policy uses that fault's class while it is the only one." };
   return { kind: "different", label: "Different classifications", detail: "The model class describes this observed window; the injected class describes the full experiment. Compare the active faults before interpreting the difference." };
 }
 function serviceRows(health, incident) {
   const affected = new Set(incident?.prediction.affected_services ?? []);
   return health.services.map((row) => ({
-    id: row.service, name: serviceName(row.service),
-    state: STATES[row.status], rawStatus: row.status, tone: TONES[row.status],
+    name: serviceName(row.service), state: STATES[row.status], tone: TONES[row.status],
     affected: affected.has(row.service), requests: count(row.requests_per_min),
     errors: percent(row.error_rate), p95: latency(row.p95_latency_ms),
-    success: row.error_rate === null ? null : 1 - row.error_rate,
   }));
 }
 function incidentPanel(incident) {
@@ -142,7 +140,7 @@ function incidentPanel(incident) {
     id: incident.incident_id, classCode: p.incident_type, type: incidentName(p.incident_type),
     confidence: percent(p.confidence), confidenceFraction: p.confidence,
     started: dateTime(p.started_at), detected: dateTime(p.detected_at),
-    affected: list(labels(p.affected_services)), affectedList: labels(p.affected_services),
+    affected: list(labels(p.affected_services)),
     estimator: p.model.estimator, modelJob: p.model.job,
     severity: incident.diagnosis ? { label: severityName(incident.diagnosis.severity), tone: incident.diagnosis.severity.toLowerCase() } : null,
   };
@@ -151,8 +149,8 @@ function diagnosisPanel(d) {
   return d === null ? null : { severity: severityName(d.severity), rawSeverity: d.severity,
     summary: d.summary, rootCause: d.root_cause, evidence: [...d.evidence], actions: [...d.recommended_actions] };
 }
-function faultRow(f, index) {
-  return { id: index + 1, injector: f.injector, name: injectorName(f.injector),
+function faultRow(f) {
+  return { injector: f.injector, name: injectorName(f.injector),
     target: f.target === null ? "No single target" : serviceName(f.target),
     from: dateTime(f.active_from), until: dateTime(f.active_until),
     active: f.active_now, state: f.active_now === null ? "Activity unavailable" : f.active_now ? "Active this minute" : "Not active this minute",
@@ -171,25 +169,30 @@ function comparisonPanel(incident) {
     ? "Alarm occurred before any injected fault began."
     : `Detection latency: ${Number(latencyValue.toFixed(1))} s after first fault activation.`) : null };
 }
-function timeline(incident) {
+function timeline(incident, generatedAt) {
   if (!incident) return [];
   const items = [];
-  const add = (at, kind, label, detail = "", active = false) => { if (at) items.push({ at, kind, label, detail, active, time: dateTime(at) }); };
+  const add = (at, kind, label, detail = "", active = false, planned = false) => { if (at) items.push({ at, kind, label, detail, active, planned, time: dateTime(at) }); };
   const p = incident.prediction;
   add(p.started_at, "incident", "Incident start", "First classified incident window");
   add(p.detected_at, "detection", "ML detection", incidentName(p.incident_type));
+  // A fault time after the reply was generated hasn't happened yet: while a run is going,
+  // its manifest holds only the planned times.
+  const planned = (at) => Date.parse(at) > Date.parse(generatedAt);
   incident.ground_truth?.faults.forEach((f, i) => {
     const name = injectorName(f.injector);
-    add(f.active_from, "fault-start", `${name} activated`, f.target ? serviceName(f.target) : "No single target", f.active_now === true);
-    add(f.active_until, "fault-end", `${name} end / planned end`, `Fault ${i + 1} · ${f.active_now === true ? "active in reported window" : "not active in reported window"}`, f.active_now === true);
+    add(f.active_from, "fault-start", `${name} ${planned(f.active_from) ? "planned start" : "start"}`, f.target ? serviceName(f.target) : "No single target", f.active_now === true, planned(f.active_from));
+    add(f.active_until, "fault-end", `${name} ${planned(f.active_until) ? "planned end" : "end"}`, `Fault ${i + 1} · ${f.active_now === true ? "active in reported window" : "not active in reported window"}`, f.active_now === true, planned(f.active_until));
   });
   return items.sort((a, b) => a.at.localeCompare(b.at) || a.label.localeCompare(b.label));
 }
 function makeReport(health, incident) {
   if (health.status === "NO_DATA") return { headline: "Telemetry unavailable", deck: "No recent window is available. System health cannot be established from the latest response." };
   if (!incident) return { headline: "No active incident", deck: "The latest backend snapshot reports no active incident. Per-service telemetry is shown below." };
-  return { headline: `${incidentName(incident.prediction.incident_type)} detected`,
-    deck: `The model classified this window at ${percent(incident.prediction.confidence)} confidence. ${list(labels(incident.prediction.affected_services))} ${incident.prediction.affected_services.length === 1 ? "is" : "are"} affected.` };
+  const p = incident.prediction;
+  const severity = incident.diagnosis ? `AI severity: ${severityName(incident.diagnosis.severity)}.` : "AI severity pending.";
+  return { headline: `${incidentName(p.incident_type)} detected`,
+    deck: `${percent(p.confidence)} model confidence. ${list(labels(p.affected_services))} ${p.affected_services.length === 1 ? "is" : "are"} affected. ${severity}` };
 }
 export function viewModel(reply) {
   checkReply(reply);
@@ -199,7 +202,7 @@ export function viewModel(reply) {
     window: dateTime(health.window_start), generated: dateTime(reply.generated_at),
     report: makeReport(health, incident), noData: health.status === "NO_DATA",
     kpis: [
-      { label: "System health", value: health.status, tone: TONES[health.status] },
+      { label: "System health", value: STATES[health.status], tone: TONES[health.status] },
       { label: "Requests / min", value: count(health.requests_per_min) },
       { label: "Error rate", value: percent(health.error_rate) },
       { label: "P95 latency", value: latency(health.p95_latency_ms) },
@@ -210,6 +213,6 @@ export function viewModel(reply) {
     diagnosis: incident && diagnosisPanel(incident.diagnosis),
     diagnosisPending: Boolean(incident) && incident.diagnosis === null,
     comparison: incident && comparisonPanel(incident),
-    timeline: timeline(incident),
+    timeline: timeline(incident, reply.generated_at),
   };
 }

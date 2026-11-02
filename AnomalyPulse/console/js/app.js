@@ -2,7 +2,7 @@
 // scenario selection and stale-on-error. No infrastructure-changing controls.
 import { CONFIG, SCENARIOS } from "./config.js";
 import { dashboardUrl, fetchReply, FeedError } from "./feed.js";
-import { render, renderConnection, renderNotice } from "./render.js";
+import { render, renderConnection, renderNoReply, renderNotice } from "./render.js";
 import { initNav, updateTabs } from "./nav.js";
 
 const $ = (id) => document.getElementById(id);
@@ -20,6 +20,9 @@ const state = {
 
 function sourceLabel() {
   if (config.source === "mock") return "LOCAL MOCK";
+  if (config.apiBaseUrl !== CONFIG.apiBaseUrl) {   // ?api=: it could be mock or live, so name it
+    try { return `API · ${new URL(config.apiBaseUrl).host}`; } catch { return "OTHER API"; }
+  }
   return demoEnabled ? "MOCK API" : "LIVE API";
 }
 function clearPolling() { clearTimeout(state.timer); state.timer = null; }
@@ -51,6 +54,7 @@ async function refresh() {
     if (controller.signal.aborted || state.stopped) return;
     const reason = error instanceof FeedError ? error.message : "unexpected request failure";
     renderConnection({ source: sourceLabel(), kind: state.last ? "stale" : "offline", lastSuccess: state.lastSuccess });
+    if (!state.last) renderNoReply();
     const showing = state.last ? `The last successful ${state.lastScenario} snapshot remains visible.` : "No successful snapshot is available.";
     renderNotice(`${showing} Refresh failed (${reason}). The console will retry when visible.`, "error");
   } finally {

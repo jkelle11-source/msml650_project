@@ -1,6 +1,6 @@
 {
   "contract_version": 1,
-  "generated_at": "2026-10-30T14:34:05.000Z",
+  "generated_at": "2026-11-02T04:51:48.991Z",
   "health": {
     "window_start": null,
     "status": "NO_DATA",
@@ -11,31 +11,31 @@
     "services": [
       {
         "service": "product-service",
-        "status": "NO_DATA",
         "requests_per_min": null,
         "error_rate": null,
-        "p95_latency_ms": null
+        "p95_latency_ms": null,
+        "status": "NO_DATA"
       },
       {
         "service": "cart-service",
-        "status": "NO_DATA",
         "requests_per_min": null,
         "error_rate": null,
-        "p95_latency_ms": null
+        "p95_latency_ms": null,
+        "status": "NO_DATA"
       },
       {
         "service": "order-service",
-        "status": "NO_DATA",
         "requests_per_min": null,
         "error_rate": null,
-        "p95_latency_ms": null
+        "p95_latency_ms": null,
+        "status": "NO_DATA"
       },
       {
         "service": "payment-service",
-        "status": "NO_DATA",
         "requests_per_min": null,
         "error_rate": null,
-        "p95_latency_ms": null
+        "p95_latency_ms": null,
+        "status": "NO_DATA"
       }
     ]
   },

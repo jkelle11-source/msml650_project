@@ -8,6 +8,7 @@ import { checkReply, ContractError, verdict, viewModel } from "../js/model.js";
 const fixture = (name) => JSON.parse(readFileSync(new URL(`../mock/${name}.json`, import.meta.url), "utf8"));
 const clone = structuredClone;
 const SERVICE_IDS = ["product-service", "cart-service", "order-service", "payment-service"];
+const STATUS_LABELS = { HEALTHY: "Healthy", DEGRADED: "Degraded", IDLE: "Idle", NO_DATA: "No data" };
 
 test("all six fixture files are present", () => {
   const files = readdirSync(new URL("../mock/", import.meta.url)).filter(x => x.endsWith(".json")).map(x => x.slice(0,-5)).sort();
@@ -29,7 +30,7 @@ for (const { id } of SCENARIOS) {
     assert.deepEqual(data.health.services.map(s => s.service), SERVICE_IDS);
     assert.equal(vm.kpis.length, 5);
     assert.equal(vm.services.length, 4);
-    assert.deepEqual(vm.services.map(s => s.rawStatus), data.health.services.map(s => s.status));
+    assert.deepEqual(vm.services.map(s => s.state), data.health.services.map(s => STATUS_LABELS[s.status]));
     for (const bad of ["undefined", "NaN", "[object Object]", "Infinity"])
       assert.ok(!JSON.stringify(vm).includes(bad), `${id} contains ${bad}`);
   });
@@ -38,7 +39,7 @@ test("healthy: no incident, healthy backend status, empty timeline", () => {
   const vm=viewModel(fixture("healthy"));
   assert.equal(vm.status.raw,"HEALTHY"); assert.equal(vm.incident,null);
   assert.equal(vm.comparison,null);assert.deepEqual(vm.timeline,[]);
-  assert.deepEqual(vm.kpis.map(k=>k.value),["HEALTHY","1,200","0%","170 ms","0"]);
+  assert.deepEqual(vm.kpis.map(k=>k.value),["Healthy","1,200","0%","64 ms","0"]);
 });
 test("diagnosing: AI diagnosis and severity stay pending, never use ground-truth severity", () => {
   const vm=viewModel(fixture("diagnosing"));
@@ -53,7 +54,7 @@ test("incident: full diagnosis, evidence, actions, model identity and ground tru
   assert.equal(vm.incident.affected,"Order and Payment");
   assert.equal(vm.diagnosis.severity,"High");
   assert.equal(vm.diagnosis.evidence.length,2); assert.equal(vm.diagnosis.actions.length,3);
-  assert.equal(vm.comparison.truth.experiment,"exp-20261030T143000Z-3f2a");
+  assert.equal(vm.comparison.truth.experiment,"exp-mock-payment-failure");
   assert.equal(vm.comparison.truth.faults[0].injector,"payment-failure");
   assert.equal(vm.comparison.verdict.kind,"match");
   assert.match(vm.comparison.detection,/69 s/);
@@ -63,12 +64,30 @@ test("cascade_early: model and run classes differ legitimately with one active f
   assert.equal(vm.comparison.prediction.classCode,"TRAFFIC_SPIKE");
   assert.equal(vm.comparison.truth.classCode,"CASCADING_FAILURE");
   assert.equal(vm.comparison.verdict.kind,"partial");
-  assert.deepEqual(vm.comparison.truth.faults.map(f=>f.active),[true,false,false,false]);
-  assert.equal(vm.comparison.truth.faults.length,4);
-  assert.equal(vm.timeline.filter(x=>x.kind==="fault-start").length,4);
-  assert.equal(vm.timeline.filter(x=>x.kind==="fault-end").length,4);
-  assert.equal(vm.timeline.length,10);
+  assert.deepEqual(vm.comparison.truth.faults.map(f=>f.active),[true,false]);
+  assert.equal(vm.comparison.truth.faults.length,2);
+  assert.equal(vm.timeline.filter(x=>x.kind==="fault-start").length,2);
+  assert.equal(vm.timeline.filter(x=>x.kind==="fault-end").length,2);
+  assert.equal(vm.timeline.length,6);
   assert.deepEqual(vm.timeline.map(e=>e.at),[...vm.timeline.map(e=>e.at)].sort());
+});
+test("cascade_early timeline: fault times after generated_at are planned, earlier ones are not", () => {
+  // generated_at 04:51:48.342Z; the spike runs 04:48:55-04:58:55, the payment failure is planned 04:52:00-04:57:00
+  const vm=viewModel(fixture("cascade_early"));
+  assert.deepEqual(vm.timeline.map(e=>[e.time,e.label,e.planned]),[
+    ["2026-11-02 · 04:48:55 UTC","Traffic spike start",false],
+    ["2026-11-02 · 04:49:00 UTC","Incident start",false],
+    ["2026-11-02 · 04:50:04 UTC","ML detection",false],
+    ["2026-11-02 · 04:52:00 UTC","Payment failure planned start",true],
+    ["2026-11-02 · 04:57:00 UTC","Payment failure planned end",true],
+    ["2026-11-02 · 04:58:55 UTC","Traffic spike planned end",true],
+  ]);
+});
+test("a fault that has ended reads as an end, not a planned one", () => {
+  const data=fixture("incident");
+  data.generated_at="2026-11-02T05:00:00.000Z";               // after the fault's 04:53:55 end
+  const end=viewModel(data).timeline.find(e=>e.kind==="fault-end");
+  assert.equal(end.label,"Payment failure end"); assert.equal(end.planned,false);
 });
 test("no_ground_truth: missing injection is not an error or fabricated fault", () => {
   const vm=viewModel(fixture("no_ground_truth"));
@@ -80,7 +99,7 @@ test("no_ground_truth: missing injection is not an error or fabricated fault", (
 test("no_data: never represented as healthy, every null measurement is —", () => {
   const vm=viewModel(fixture("no_data"));
   assert.equal(vm.status.raw,"NO_DATA");assert.equal(vm.noData,true);
-  assert.deepEqual(vm.kpis.map(k=>k.value),["NO_DATA","—","—","—","0"]);
+  assert.deepEqual(vm.kpis.map(k=>k.value),["No data","—","—","—","0"]);
   assert.ok(vm.services.every(s=>s.state==="No data"&&s.requests==="—"&&s.errors==="—"&&s.p95==="—"));
   assert.equal(vm.incident,null);
 });
@@ -132,8 +151,35 @@ test("different classification is neutral, does not claim the model is wrong",()
   assert.equal(v.kind,"different");assert.match(v.detail,/observed window/);
 });
 test("retry amplification does not count as an active second fault",()=>{
-  const data=fixture("cascade_early");data.incident.ground_truth.faults[3].active_now=true;
+  const data=fixture("cascade_early");
+  data.incident.ground_truth.faults.push({injector:"retry-amplification",target:null,
+    active_from:"2026-11-02T04:49:30.000Z",active_until:"2026-11-02T04:56:00.000Z",active_now:true});
   assert.equal(verdict(data.incident.prediction,data.incident.ground_truth).kind,"partial");
+});
+test("a cascade's later single fault matches too, and the text doesn't call it the first",()=>{
+  // The spike has stopped; only the payment failure (DEPENDENCY_FAILURE) is active.
+  const data=fixture("cascade_early");
+  data.incident.ground_truth.faults[0].active_now=false;
+  data.incident.ground_truth.faults[1].active_now=true;
+  data.incident.prediction.incident_type="DEPENDENCY_FAILURE";
+  const v=verdict(data.incident.prediction,data.incident.ground_truth);
+  assert.equal(v.kind,"partial");
+  assert.match(v.detail,/only one of its injected faults is active/);
+  assert.doesNotMatch(v.detail,/first/);
+});
+test("the overview leads with the incident: its name, confidence, affected services and AI severity",()=>{
+  assert.deepEqual(viewModel(fixture("incident")).report,{headline:"Dependency failure detected",
+    deck:"93% model confidence. Order and Payment are affected. AI severity: High."});
+  assert.equal(viewModel(fixture("diagnosing")).report.deck,"93% model confidence. Order and Payment are affected. AI severity pending.");
+  assert.equal(viewModel(fixture("cascade_early")).report.headline,"Traffic spike detected");
+  assert.equal(viewModel(fixture("healthy")).report.headline,"No active incident");
+  assert.equal(viewModel(fixture("no_data")).report.headline,"Telemetry unavailable");
+});
+test("before any reply, the page claims no state: no 'No active incident', no healthy check",()=>{
+  const html=readFileSync(new URL("../index.html",import.meta.url),"utf8");
+  assert.doesNotMatch(html,/No active incident/);
+  assert.doesNotMatch(html,/✓/);
+  assert.match(html,/No reply yet/);
 });
 test("null detection latency does not become zero",()=>{
   const data=fixture("incident");data.incident.comparison.detection_latency_s=null;
@@ -210,6 +256,12 @@ test("pages run overview, incident, diagnosis, ground truth, timeline, with prev
   assert.deepEqual(PAGES.map((p) => p.id), ["overview", "incident", "diagnosis", "verify", "timeline"]);
   assert.deepEqual(neighbours("overview"), { prev: null, next: PAGES[1] });
   assert.deepEqual(neighbours("timeline"), { prev: PAGES[3], next: null });
+});
+
+test("no element id is a page name, so opening #incident doesn't scroll the page past the header", () => {
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
+  for (const { id } of PAGES) assert.ok(!ids.includes(id), `an element has id="${id}"`);
 });
 
 test("tab dots say what each page holds before it is opened", () => {

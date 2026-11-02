@@ -130,6 +130,7 @@ body[data-health="no-data"] .overview-intro{border-bottom:1px solid #614f30}
 .timeline-item:not(:last-child)::before{content:"";position:absolute;top:11px;bottom:-3px;left:6px;border-left:1px solid #355167}.timeline-item:last-child{padding-bottom:0}
 .timeline-dot{width:13px;height:13px;border-radius:50%;border:3px solid var(--cyan);background:var(--surface);z-index:1;margin-top:4px}
 .timeline-fault-start .timeline-dot{border-color:var(--amber)}.timeline-fault-end .timeline-dot{border-color:var(--subtle)}.timeline-active .timeline-dot{border-color:var(--red);background:var(--red)}
+.timeline-planned .timeline-dot{border-style:dashed;background:var(--surface)}.timeline-planned .timeline-main strong{color:var(--muted)}
 .timeline-time{font-size:12px;color:var(--muted);padding-top:1px;overflow-wrap:anywhere}.timeline-main{min-width:0}.timeline-main strong{font-size:13px}.timeline-main .badge{margin-left:9px}.timeline-main p{font-size:12px;margin-top:4px}
 .footer{display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap;padding-top:36px;margin-top:38px;border-top:1px solid var(--border);font-size:10px;color:var(--subtle);letter-spacing:.035em}
 

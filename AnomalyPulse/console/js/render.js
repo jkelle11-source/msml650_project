@@ -22,11 +22,12 @@ function sectionTitle(title, subtitle) {
 function renderHeader(vm) {
   $("window").textContent = vm.window;
   $("generated").textContent = vm.generated;
-  $("system-state").textContent = `BACKEND STATUS / ${vm.status.raw}`;
-  $("system-label").textContent = vm.status.raw;
+  $("system-state").textContent = `BACKEND STATUS / ${vm.status.label.toUpperCase()}`;
+  $("system-label").textContent = vm.status.label.toUpperCase();
   $("system-label").className = `status-indicator status-${vm.status.tone}`;
+  $("page-title").textContent = vm.report.headline;
   $("deck").textContent = vm.report.deck;
-  document.title = `${vm.status.raw} · AnomalyPulse`;
+  document.title = `${vm.status.label} · AnomalyPulse`;
   document.body.dataset.health = vm.status.raw.toLowerCase().replaceAll("_", "-");
 }
 function renderKpis(vm) {
@@ -52,7 +53,7 @@ function renderServices(vm) {
   }));
 }
 function renderIncident(vm) {
-  const host = $("incident");
+  const host = $("incident-panel");
   if (!vm.incident) {
     host.replaceChildren(el("div", `empty-state ${vm.noData ? "empty-unknown" : ""}`,
       el("span", "empty-orbit", vm.noData ? "?" : "✓"),
@@ -81,7 +82,7 @@ function renderIncident(vm) {
       el("strong", "numeric", i.confidence)), progress));
 }
 function renderDiagnosis(vm) {
-  const panel = $("diagnosis");
+  const panel = $("diagnosis-body");
   $("diagnosis-section").hidden = !vm.incident;
   if (!vm.incident) { panel.replaceChildren(); return; }
   if (vm.diagnosisPending) {
@@ -140,8 +141,8 @@ function renderComparison(vm) {
 }
 function renderTimeline(vm) {
   $("timeline-section").hidden = !vm.incident;
-  if (!vm.incident) { $("timeline").replaceChildren(); return; }
-  $("timeline").replaceChildren(...vm.timeline.map((event) => el("li", `timeline-item timeline-${event.kind} ${event.active ? "timeline-active" : ""}`,
+  if (!vm.incident) { $("timeline-list").replaceChildren(); return; }
+  $("timeline-list").replaceChildren(...vm.timeline.map((event) => el("li", `timeline-item timeline-${event.kind} ${event.active ? "timeline-active" : ""} ${event.planned ? "timeline-planned" : ""}`,
     el("span", "timeline-dot"),
     el("time", "timeline-time", event.time),
     el("div", "timeline-main", el("strong", null, event.label),
@@ -157,6 +158,13 @@ export function render(replyOrVm) {
   renderDiagnosis(vm);
   renderComparison(vm);
   renderTimeline(vm);
+}
+// No reply has ever arrived: the console knows nothing, so it claims no state.
+export function renderNoReply() {
+  $("system-state").textContent = "BACKEND STATUS / UNKNOWN";
+  $("system-label").textContent = "NO REPLY";
+  $("system-label").className = "status-indicator status-none";
+  $("deck").textContent = "The read API hasn't answered, so system health is unknown.";
 }
 export function renderConnection({ source, kind, lastSuccess }) {
   $("source-label").textContent = source;
