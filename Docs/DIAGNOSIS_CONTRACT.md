@@ -48,7 +48,7 @@ files in `genai/samples/` are valid examples.
 | `confidence` | 0–1 | That label's probability |
 | `started_at`, `window_start` | The incident's first window; the latest window | `window_start` of those windows |
 | `duration_minutes` | How long the incident has been active | |
-| `affected_services` | Distinct service names | Same as the dashboard's `prediction.affected_services` |
+| `affected_services` | Distinct service names, at least one: where the incident shows | `genai.affected.affected_services()`: see below. The same list is the dashboard's `prediction.affected_services` |
 | `metrics` | The evidence: one entry per (service, metric), at least one | Feature windows: see below |
 | `observed_sequence` | Optional. When each listed metric first moved, in time order | See below |
 
@@ -75,6 +75,31 @@ About 5–10 metrics is plenty.
 `observation` is `"rose above its baseline"` or `"fell below its baseline"`, nothing else, so no free text
 reaches Bedrock. With one-minute windows, M8-3 can give minute resolution; finer times need the request
 records. Without it, Bedrock makes no ordering claim at all.
+
+**`affected_services`.** The classifier answers with a label and probabilities only, so the services come
+from the windows, by a fixed rule (`genai/affected.py`; decided 2026-11-02, M6-1 review). M8-3 calls
+`affected_services(baseline(lookback_windows), latest_window)` with feature rows, stores the list in the
+incident record's prediction, and sends it here. A service is affected when, in the latest window, one of
+its own signals crosses the severity rubric's `MEDIUM` line (5xx share at least 0.01, p95 at least 2x its
+baseline, any throttle or dependency-error count above zero) or its request rate is at least 1.75x its
+baseline. If none does, it is the one service whose request rate or p95 rose most, so the list is never
+empty. Only Tier-1 columns decide it, never the manifest.
+
+Calibrated on v1's 700 training and validation runs (2026-11-02; the test set was not read). Each run's
+baseline was the mean of its startup minute and the NORMAL minute before its first fault (v1 runs have one),
+and each labeled minute was scored against the faults active in at least half of it:
+
+- **No false alarms:** none of the 980 later NORMAL minutes of the 140 normal runs lists a service. There,
+  5xx shares, throttle counts and dependency errors are always 0, p95 stays under 1.6x its baseline and
+  request rate under 1.7x.
+- **The faulted service is always listed** in every database-throttling (518), dependency-failure (525),
+  Lambda-degradation (542) and cascade (268) minute. A traffic spike's minutes list Product in 707 of 718.
+  The rest are a mild spike's partial first minute, where the fallback names the service that rose most.
+  The fallback was needed in 7 of the 2,571 incident minutes, all traffic spikes.
+- **Extra services are real movement:** a slowed Order's Payment shows 5xx and a doubled p95 (8 minutes),
+  for example. The list says where metrics moved, not which service was injected.
+- **Why 1.75x for traffic:** at 2x, 37 spike minutes don't list Product; at 1.5x, 8 normal minutes list a
+  service.
 
 **Never in the input** (refused by `validate_input`): ground truth, the manifest, `experiment_id`, fault
 parameters, `injector`, `band`, `intensity`, `label`, `error_type`, `db_throttled`. These are Tier-2: the

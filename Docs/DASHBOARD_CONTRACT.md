@@ -152,7 +152,7 @@ or in `comparison`, is the point of showing them side by side.
 | `confidence` | 0–1 | The probability the classifier gave `incident_type` |
 | `started_at` | time | `window_start` of the incident's first window |
 | `detected_at` | time | When that first window was classified |
-| `affected_services` | array of service names | The services the incident touches |
+| `affected_services` | array of service names, at least one | The services the incident shows in: those whose own metrics in the latest window crossed a fixed line against their pre-incident baseline. M8-3 computes it with `genai.affected.affected_services()` from the feature windows, never from the manifest, and sends the same list to Bedrock (`Docs/DIAGNOSIS_CONTRACT.md`, "affected_services") |
 | `model` | object | Which model answered: `estimator` and `job`, from the Diagnosis Lambda's reply |
 
 `diagnosis` (the fields follow PROJECT_PLAN §10 and §14; M6-1's output schema has the final say):

@@ -23,7 +23,9 @@ An ML classifier has already decided what kind of incident this is. You are give
 explain it, from the evidence.
 
 The evidence is one-minute telemetry. Each metric has a baseline (the service before the incident; null
-when there was no traffic to measure) and current (the latest one-minute window). Metric names and units:
+when there was no traffic to measure) and current (the latest one-minute window). affected_services are
+the services whose own metrics moved clearly away from their baseline: where the incident shows, not
+what caused it. Metric names and units:
 {_GLOSSARY}
 
 Rules. They are checked automatically, so follow them exactly.

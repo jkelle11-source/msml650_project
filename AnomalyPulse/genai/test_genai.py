@@ -13,7 +13,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from genai import contract, explain, handler, prompt, self_check
+from genai import affected, contract, explain, handler, prompt, self_check
 
 SAMPLES = {f.stem: json.loads(f.read_text()) for f in (Path(__file__).parent / "samples").glob("*.json")}
 DEP = SAMPLES["dependency_failure"]
@@ -425,3 +425,73 @@ def test_a_severity_off_the_rubric_is_flagged():
 def test_shape_limits_match_the_prompt(bullets, actions, problems):
     raw = _with(evidence=[GOOD["evidence"][0]] * bullets, recommended_actions=["Inspect Payment."] * actions)
     assert contract.check_output_shape(raw) == problems
+
+
+# --- affected services ---------------------------------------------------------------------------
+
+# A quiet minute: every service's request rate and p95, no errors or throttles.
+QUIET = {"product_request_rate": 15.0, "product_p95_latency_ms": 6.0, "product_error_rate_5xx": 0.0,
+         "cart_request_rate": 2.0, "cart_p95_latency_ms": 20.0, "cart_error_rate_5xx": 0.0,
+         "order_request_rate": 2.9, "order_p95_latency_ms": 130.0, "order_error_rate_5xx": 0.0,
+         "order_dependency_error_count": 0, "payment_request_rate": 1.0, "payment_p95_latency_ms": 110.0,
+         "payment_error_rate_5xx": 0.0, "product_read_throttle_events": 0}
+
+
+def _minute(**changes):
+    return {**QUIET, **changes}
+
+
+# Cart's 5xx at 0.02 crosses on its own, so the cases that use it never reach the fallback: a
+# service on either side of a line shows whether that line is where the rule draws it.
+@pytest.mark.parametrize("changes, expected", [
+    # 5xx share: 0.01 is the line
+    ({"order_error_rate_5xx": 0.01}, ["order-service"]),
+    ({"order_error_rate_5xx": 0.009, "cart_request_rate": 2.1}, ["cart-service"]),   # none crosses: cart rose most
+    # p95: 2x its baseline is the line (130 ms -> 260 ms)
+    ({"order_p95_latency_ms": 260.0, "cart_error_rate_5xx": 0.02}, ["cart-service", "order-service"]),
+    ({"order_p95_latency_ms": 259.0, "cart_error_rate_5xx": 0.02}, ["cart-service"]),
+    ({"order_p95_latency_ms": 259.0, "product_request_rate": 15.1}, ["order-service"]),   # fallback: 1.99x > 1.01x
+    # request rate: 1.75x (15 -> 26.25 rps)
+    ({"product_request_rate": 26.25, "cart_error_rate_5xx": 0.02}, ["product-service", "cart-service"]),
+    ({"product_request_rate": 26.1, "cart_error_rate_5xx": 0.02}, ["cart-service"]),
+    ({"product_request_rate": 45.0, "cart_request_rate": 6.0, "order_request_rate": 8.7, "payment_request_rate": 3.0},
+     ["product-service", "cart-service", "order-service", "payment-service"]),
+    # any throttle or dependency-error count above zero
+    ({"product_read_throttle_events": 1}, ["product-service"]),
+    ({"order_dependency_error_count": 57, "payment_p95_latency_ms": 2900.0}, ["order-service", "payment-service"]),
+    ({"payment_lambda_throttle_count": 2}, ["payment-service"]),
+])
+def test_affected_services(changes, expected):
+    assert affected.affected_services(QUIET, _minute(**changes)) == expected
+
+
+def test_a_quiet_minute_still_names_one_service():
+    # Nothing moved; ties go to the first service.
+    assert affected.affected_services(QUIET, QUIET) == ["product-service"]
+
+
+def test_columns_a_service_has_no_are_ignored():
+    # Payment has no table: a stray payment_read_throttle_events can't mark it.
+    got = affected.affected_services(QUIET, _minute(payment_read_throttle_events=5, order_p95_latency_ms=400.0))
+    assert got == ["order-service"]
+
+
+def test_empty_cells_are_not_signals():
+    # A service with no requests in a window has empty latency and error columns.
+    current = _minute(cart_request_rate=0.0, cart_p95_latency_ms=None, cart_error_rate_5xx=None,
+                      order_error_rate_5xx=0.2)
+    assert affected.affected_services({**QUIET, "cart_p95_latency_ms": None}, current) == ["order-service"]
+
+
+def test_the_baseline_is_the_mean_of_the_windows_before():
+    windows = [{"window_start": "t0", "order_p95_latency_ms": 120.0, "order_dependency_latency_ms_p95": None},
+               {"window_start": "t1", "order_p95_latency_ms": 140.0, "order_dependency_latency_ms_p95": None}]
+    assert affected.baseline(windows) == {"order_p95_latency_ms": 130.0, "order_dependency_latency_ms_p95": None}
+
+
+@pytest.mark.parametrize("name", sorted(SAMPLES))
+def test_each_samples_affected_services_follow_the_rule(name):
+    sample = SAMPLES[name]
+    base = {f"{m['service'].split('-')[0]}_{m['metric']}": m["baseline"] for m in sample["metrics"]}
+    current = {f"{m['service'].split('-')[0]}_{m['metric']}": m["current"] for m in sample["metrics"]}
+    assert affected.affected_services(base, current) == sample["affected_services"]
