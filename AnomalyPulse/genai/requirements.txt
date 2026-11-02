@@ -1,0 +1,5 @@
+# Runtime dependencies of the explanation Lambda, bundled by the Makefile for arm64 Linux.
+# anthropic[bedrock] provides AnthropicBedrock (Claude on Amazon Bedrock, SigV4 auth).
+# Kept on 1.x: SDK 2.0 and later send API version 2026-10-21, which Bedrock accepts only for
+# Claude 4.7 and later, and the model is Claude Sonnet 4.6. Pinned to the version tested locally.
+anthropic[bedrock]==1.17.0

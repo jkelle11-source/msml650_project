@@ -1,0 +1,64 @@
+{
+  "incident_id": "inc-sample-cascading-failure",
+  "diagnosis": {
+    "severity": "HIGH",
+    "summary": "A traffic surge of roughly 3x across product-service and order-service is overwhelming payment-service, whose p95 latency has risen from 110 ms to 1020 ms. Order-service is experiencing 25% 5xx errors and 150 dependency failures per minute against payment-service, indicating a cascading failure originating from payment-service degradation under load.",
+    "root_cause": "Payment-service latency degradation under a ~3x traffic surge is the most likely root cause, causing downstream dependency timeouts and errors that cascade into order-service failures.",
+    "evidence": [
+      "Product-service request rate rose from 15.0 rps to 44.8 rps, roughly a 3x increase.",
+      "Order-service request rate rose from 2.9 rps to 8.7 rps, also a 3x increase.",
+      "Payment-service p95 latency rose from 110 ms to 1020 ms, a 9.3x increase.",
+      "Order-service dependency error count rose from 0 to 150 per minute, meaning a large share of calls to payment-service are failing or timing out.",
+      "Order-service 5xx error rate rose from 0% to 25%, consistent with payment-service call failures propagating as 500 responses.",
+      "Order-service p95 latency rose from 130 ms to 1030 ms, roughly a 7.9x increase, closely tracking payment-service latency.",
+      "Product-service traffic rose first, followed by payment-service latency about 65 seconds later, and then order-service 5xx errors about 35 seconds after that (observed sequence from correlated timestamps)."
+    ],
+    "recommended_actions": [
+      "Investigate payment-service Lambda concurrency and consider increasing reserved concurrency to handle the current 3x traffic load.",
+      "Add or tighten timeout and circuit-breaker settings on order-service calls to payment-service to fail fast and prevent cascading latency.",
+      "Check payment-service Lambda CloudWatch logs for errors, cold starts, or throttles during the surge window.",
+      "Consider enabling API Gateway throttling or request-rate limiting to cap inbound traffic closer to normal levels until payment-service stabilizes.",
+      "Review Lambda memory and timeout configuration for payment-service to ensure adequate resources under peak load."
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "product-service.request_rate"
+    ],
+    [
+      "order-service.request_rate"
+    ],
+    [
+      "payment-service.p95_latency_ms"
+    ],
+    [
+      "order-service.dependency_error_count"
+    ],
+    [
+      "order-service.error_rate_5xx"
+    ],
+    [
+      "order-service.p95_latency_ms"
+    ],
+    [
+      "product-service.request_rate",
+      "payment-service.p95_latency_ms",
+      "order-service.error_rate_5xx"
+    ]
+  ],
+  "self_check": {
+    "passed": false,
+    "findings": [
+      "evidence has 7 bullets; 1 to 6 expected"
+    ]
+  },
+  "model": {
+    "id": "global.anthropic.claude-opus-4-6-v1",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 2418,
+    "output_tokens": 816
+  },
+  "latency_ms": 32122
+}

@@ -1,0 +1,49 @@
+{
+  "contract_version": 1,
+  "incident_id": "inc-sample-lambda-degradation",
+  "incident_type": "LAMBDA_DEGRADATION",
+  "confidence": 0.98,
+  "started_at": "2026-10-30T16:03:00.000Z",
+  "window_start": "2026-10-30T16:05:00.000Z",
+  "duration_minutes": 3,
+  "affected_services": [
+    "order-service"
+  ],
+  "metrics": [
+    {
+      "service": "order-service",
+      "metric": "lambda_duration_ms_mean",
+      "baseline": 2,
+      "current": 352,
+      "unit": "ms"
+    },
+    {
+      "service": "order-service",
+      "metric": "p50_latency_ms",
+      "baseline": 17,
+      "current": 360,
+      "unit": "ms"
+    },
+    {
+      "service": "order-service",
+      "metric": "p95_latency_ms",
+      "baseline": 24,
+      "current": 375,
+      "unit": "ms"
+    },
+    {
+      "service": "order-service",
+      "metric": "error_rate_5xx",
+      "baseline": 0.0,
+      "current": 0.0,
+      "unit": "share"
+    },
+    {
+      "service": "order-service",
+      "metric": "request_rate",
+      "baseline": 2.9,
+      "current": 2.9,
+      "unit": "rps"
+    }
+  ]
+}

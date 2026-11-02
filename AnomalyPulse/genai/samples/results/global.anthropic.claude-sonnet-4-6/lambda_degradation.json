@@ -1,0 +1,54 @@
+{
+  "incident_id": "inc-sample-lambda-degradation",
+  "diagnosis": {
+    "severity": "HIGH",
+    "summary": "The order-service Lambda handler is running far slower than normal, with mean execution time up 176x and end-to-end latency up sharply across all percentiles. The degradation has persisted for 3 minutes with no error traffic and a flat request rate, indicating a pure performance regression inside the function. No 5xx errors have been observed so far.",
+    "root_cause": "Severe slowdown of the order-service Lambda handler body is the most likely root cause, with mean CPU time rising from 2 ms to 352 ms and end-to-end latency following proportionally, while traffic and error rates remain unchanged.",
+    "evidence": [
+      "Mean Lambda handler duration rose from 2 ms to 352 ms, a 176x increase.",
+      "Median end-to-end latency rose from 17 ms to 360 ms, a 21x increase.",
+      "p95 end-to-end latency rose from 24 ms to 375 ms, a 15.6x increase above baseline.",
+      "Request rate is flat at 2.9 rps against a baseline of 2.9 rps, ruling out a traffic surge as an explanation.",
+      "5xx error rate remains at 0.0, so requests are completing but slowly."
+    ],
+    "recommended_actions": [
+      "Inspect order-service Lambda CloudWatch Logs for the current window to identify any slow operations, unexpected loops, or blocking calls inside the handler.",
+      "Check order-service dependency metrics toward payment-service to determine whether slow outbound calls to payment-service are inflating handler time.",
+      "Review order-service DynamoDB latency metrics to determine whether database calls within the handler are slower than normal.",
+      "Check cold_start_count for order-service to determine whether cold starts are contributing to the elevated handler duration.",
+      "If a recent function deployment or configuration change coincides with the start of the incident, consider rolling it back."
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "order-service.lambda_duration_ms_mean"
+    ],
+    [
+      "order-service.p50_latency_ms"
+    ],
+    [
+      "order-service.p95_latency_ms"
+    ],
+    [
+      "order-service.request_rate"
+    ],
+    [
+      "order-service.error_rate_5xx"
+    ]
+  ],
+  "self_check": {
+    "passed": false,
+    "findings": [
+      "evidence[3]: causal wording 'ruling out'; correlated timestamps are an observed sequence, not proof of cause"
+    ]
+  },
+  "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 2311,
+    "output_tokens": 958
+  },
+  "latency_ms": 9697
+}

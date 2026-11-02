@@ -1,0 +1,57 @@
+{
+  "incident_id": "inc-sample-db-throttling",
+  "diagnosis": {
+    "severity": "HIGH",
+    "summary": "product-service is experiencing severe DATABASE_THROTTLING with p95 end-to-end latency at 1,586 ms against a baseline of 6 ms, a 264x increase. DynamoDB read throttle events stand at 1,400 per minute against a baseline of zero, and the 5xx error rate has risen to 0.4%. The incident has been active for 4 minutes.",
+    "root_cause": "DynamoDB read throttling on the product-service table is the most likely root cause. Consumed read capacity surged 24.8x to 11,900 RCU/min, generating 1,400 read throttle events per minute; the SDK retry behavior on throttled reads is the most likely explanation for why p95 DB latency rose to 1,580 ms and pulled p95 end-to-end latency up to 1,586 ms, while p50 latency remains nearly flat at 6 ms, indicating only a tail of requests is hitting the throttle wall.",
+    "evidence": [
+      "p95 end-to-end latency is 1,586 ms against a baseline of 6 ms, a 264x increase, while p50 latency is 6 ms against a baseline of 5 ms, meaning the degradation is isolated to the tail.",
+      "p95 DynamoDB call latency is 1,580 ms against a baseline of 4 ms, a 395x increase.",
+      "Read throttle events are at 1,400 per minute against a baseline of 0.",
+      "Consumed read capacity is 11,900 RCU/min against a baseline of 480 RCU/min, a 24.8x increase.",
+      "Request rate is flat at 15.1 rps against a baseline of 15.0 rps.",
+      "5xx error rate is 0.4% (0.004) against a baseline of 0.0."
+    ],
+    "recommended_actions": [
+      "Immediately increase provisioned read capacity units on the product-service DynamoDB table, or switch the table to on-demand capacity mode to absorb the current 11,900 RCU/min load.",
+      "Enable or tune DynamoDB auto-scaling on the product-service table so read capacity adjusts automatically to demand spikes.",
+      "Inspect current read access patterns on the product-service table for unexpected Scan operations or unindexed Query calls that could account for the 24.8x spike in consumed read capacity.",
+      "Add a caching layer such as DynamoDB Accelerator (DAX) or an in-Lambda cache in front of the product-service table to reduce read pressure and protect against future throttling.",
+      "Review Lambda concurrency metrics for product-service to confirm no secondary throttling is compounding the DynamoDB issue."
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "product-service.p95_latency_ms",
+      "product-service.p50_latency_ms"
+    ],
+    [
+      "product-service.db_latency_ms_p95"
+    ],
+    [
+      "product-service.read_throttle_events"
+    ],
+    [
+      "product-service.db_consumed_read_capacity"
+    ],
+    [
+      "product-service.request_rate"
+    ],
+    [
+      "product-service.error_rate_5xx"
+    ]
+  ],
+  "self_check": {
+    "passed": true,
+    "findings": []
+  },
+  "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 2460,
+    "output_tokens": 1859
+  },
+  "latency_ms": 14611
+}

@@ -1,0 +1,78 @@
+{
+  "contract_version": 1,
+  "incident_id": "inc-sample-cascading-failure",
+  "incident_type": "CASCADING_FAILURE",
+  "confidence": 0.89,
+  "started_at": "2026-10-30T17:03:00.000Z",
+  "window_start": "2026-10-30T17:06:00.000Z",
+  "duration_minutes": 4,
+  "affected_services": [
+    "product-service",
+    "order-service",
+    "payment-service"
+  ],
+  "metrics": [
+    {
+      "service": "product-service",
+      "metric": "request_rate",
+      "baseline": 15.0,
+      "current": 44.8,
+      "unit": "rps"
+    },
+    {
+      "service": "order-service",
+      "metric": "request_rate",
+      "baseline": 2.9,
+      "current": 8.7,
+      "unit": "rps"
+    },
+    {
+      "service": "payment-service",
+      "metric": "p95_latency_ms",
+      "baseline": 110,
+      "current": 1020,
+      "unit": "ms"
+    },
+    {
+      "service": "order-service",
+      "metric": "dependency_error_count",
+      "baseline": 0,
+      "current": 150,
+      "unit": "count/min"
+    },
+    {
+      "service": "order-service",
+      "metric": "error_rate_5xx",
+      "baseline": 0.0,
+      "current": 0.25,
+      "unit": "share"
+    },
+    {
+      "service": "order-service",
+      "metric": "p95_latency_ms",
+      "baseline": 130,
+      "current": 1030,
+      "unit": "ms"
+    }
+  ],
+  "observed_sequence": [
+    {
+      "at": "2026-10-30T17:03:00.000Z",
+      "service": "product-service",
+      "metric": "request_rate",
+      "observation": "rose above its baseline"
+    },
+    {
+      "at": "2026-10-30T17:04:05.000Z",
+      "service": "payment-service",
+      "metric": "p95_latency_ms",
+      "observation": "rose above its baseline"
+    },
+    {
+      "at": "2026-10-30T17:04:40.000Z",
+      "service": "order-service",
+      "metric": "error_rate_5xx",
+      "observation": "rose above its baseline"
+    }
+  ]
+}
