@@ -201,4 +201,88 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       TreatMissingData: notBreaching
         
+  # ---- Invoke Permissions ---------------------------------------
+  # CloudWatch Logs may invoke the forwarder for the four service log groups
+  # only, one permission each. The shipper's single permission covers
+  # /aws/lambda/anomalypulse-*, which would also take in log groups that
+  # aren't services', the forwarder's own among them.
+
+  ProductInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ForwarderFunction
+      Action: lambda:InvokeFunction
+      Principal: !Sub 'logs.${AWS::Region}.amazonaws.com'
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/anomalypulse-product:*'
+
+  CartInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ForwarderFunction
+      Action: lambda:InvokeFunction
+      Principal: !Sub 'logs.${AWS::Region}.amazonaws.com'
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/anomalypulse-cart:*'
+
+  OrderInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ForwarderFunction
+      Action: lambda:InvokeFunction
+      Principal: !Sub 'logs.${AWS::Region}.amazonaws.com'
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/anomalypulse-order:*'
+
+  PaymentInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ForwarderFunction
+      Action: lambda:InvokeFunction
+      Principal: !Sub 'logs.${AWS::Region}.amazonaws.com'
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/anomalypulse-payment:*'
+
+  # ---- Subscription Filters ---------------------------------------
+  # The second filter on each service log group (a log group allows two; the
+  # shipper's is the first). The shipper's pattern, so the pipeline gets the
+  # same lines raw/ does. The log groups are anomalypulse-shared's, named here
+  # because that stack exports nothing. Each waits for its permission:
+  # CloudWatch Logs checks it may invoke the forwarder when the filter is
+  # created.
+
+  ProductSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn: ProductInvokePermission
+    Properties:
+      FilterName: anomalypulse-pipeline
+      LogGroupName: /aws/lambda/anomalypulse-product
+      DestinationArn: !GetAtt ForwarderFunction.Arn
+      FilterPattern: '{ $.request_id = "*" }'
   
+  CartSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn: CartInvokePermission
+    Properties:
+      FilterName: anomalypulse-pipeline
+      LogGroupName: /aws/lambda/anomalypulse-cart
+      DestinationArn: !GetAtt ForwarderFunction.Arn
+      FilterPattern: '{ $.request_id = "*" }'
+
+  OrderSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn: OrderInvokePermission
+    Properties:
+      FilterName: anomalypulse-pipeline
+      LogGroupName: /aws/lambda/anomalypulse-order
+      DestinationArn: !GetAtt ForwarderFunction.Arn
+      FilterPattern: '{ $.request_id = "*" }'
+
+  PaymentSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn: PaymentInvokePermission
+    Properties:
+      FilterName: anomalypulse-pipeline
+      LogGroupName: /aws/lambda/anomalypulse-payment
+      DestinationArn: !GetAtt ForwarderFunction.Arn
+      FilterPattern: '{ $.request_id = "*" }'
