@@ -168,6 +168,7 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [AnomalyPulse/ml/](AnomalyPulse/ml/) | M5's training and inference: the SageMaker launcher (`python -m ml.launch smoke / train / tune / promote`), the job scripts (`job/`), the pinned library versions (`requirements-image.txt`), and the Diagnosis Lambda (`diagnosis/`: `handler.py` and its `Dockerfile`). |
 | [AnomalyPulse/infra/ml/](AnomalyPulse/infra/ml/) | The `anomalypulse-ml` stack (M5–M8): the versioned model bucket, the training image's ECR copy, the SageMaker training and trainer roles, the Diagnosis Lambda, and its SSM parameters. |
 | [AnomalyPulse/dashboard/](AnomalyPulse/dashboard/) | M7-2's dashboard read API: `builder.py` (every rule of the dashboard contract), `mock_source.py` (the contract's six mock scenarios), `handler.py` (the Lambda: picks the source, reads the clock), and their tests. |
+| [AnomalyPulse/console/](AnomalyPulse/console/) | M7-1's SRE console: static HTML, CSS and JavaScript modules (no build step) that render the dashboard contract, `mock/` (snapshots of the read API's six scenarios, the demo's offline fallback) and its tests. Run from the presenting laptop; see its [README](AnomalyPulse/console/README.md). Kept out of `dashboard/`, which is packaged whole into the read API's Lambda. |
 | [AnomalyPulse/infra/dashboard/](AnomalyPulse/infra/dashboard/) | The `anomalypulse-dashboard` stack (M7-2): the read API's Lambda, its HTTP API (`GET /dashboard`, CORS), role and log group, and the URL's SSM parameter. |
 | [AnomalyPulse/infra/runner/](AnomalyPulse/infra/runner/) | M4's runner host: its own CloudFormation stack (`anomalypulse-runner`: one EC2 instance, reached through Session Manager), `setup.sh` and the tmux helper. |
 
@@ -395,6 +396,13 @@ checks the `incident` mock scenario against the example in
 ```bash
 cd AnomalyPulse/dashboard
 python -m pytest
+```
+
+The SRE console's tests need only Node 20 or later, and reach no network:
+
+```bash
+cd AnomalyPulse/console
+npm test
 ```
 
 The incident simulator is a local package with its own runtime and test

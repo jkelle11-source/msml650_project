@@ -1,0 +1,10 @@
+{
+  "name": "anomalypulse-console",
+  "private": true,
+  "type": "module",
+  "description": "The AnomalyPulse SRE console (M7-1): static HTML, CSS and JavaScript modules, no build step.",
+  "scripts": {
+    "start": "python3 -m http.server 4173 --bind 127.0.0.1",
+    "test": "node --test tests/*.test.js"
+  }
+}
