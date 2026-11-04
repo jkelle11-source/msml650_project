@@ -10,3 +10,9 @@ capabilities = "CAPABILITY_NAMED_IAM"
 
 [default.global.parameters]
 region = "us-east-2"
+
+# The window builder's Makefile reads features/ and simulator/ from the
+# repository, so it runs in its source folder instead of a copy. The Python
+# functions don't support this and build as before.
+[default.build.parameters]
+build_in_source = true

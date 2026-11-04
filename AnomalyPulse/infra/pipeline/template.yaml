@@ -290,6 +290,108 @@ Resources:
             ScalingConfig:
               MaximumConcurrency: 5
   
+  # ---- Window Builder Lambda ---------------------------------------
+  # Once a minute: rebuilds the health numbers of the last 3 minutes, and builds
+  # each of the last 10 minutes' feature windows once its CloudWatch snapshots
+  # are in, announcing the complete ones on the bus (pipeline/window_builder/
+  # handler.py). Packaged by its Makefile, with features/ and the parts of
+  # simulator/ the guard needs. One run at a time, so two runs can't both
+  # announce a window; no retries, because the next minute's run is the retry.
+
+  WindowBuilderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/anomalypulse-pipeline-window-builder
+      RetentionInDays: 90
+  
+  # Only what the builder does: read the record files, the window files and the
+  # metrics extractor's snapshots; write health and windows; announce on the bus;
+  # log to its own log group. ListBucket on the whole bucket lists a minute's
+  # record files, and makes a missing key answer 404 instead of 403: the handler
+  # reads only a 404 as "not there yet".
+
+  WindowBuilderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: anomalypulse-pipeline-window-builder
+      Description: The AnomalyPulse window builder runs as this role (M8-1)
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: window-builder-logs
+          PolicyDocument: 
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt WindowBuilderLogGroup.Arn
+        - PolicyName: window-builder-s3-read
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub 'arn:aws:s3:::${TelemetryBucketName}'
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource:
+                  - !Sub 'arn:aws:s3:::${TelemetryBucketName}/pipeline/records/*'
+                  - !Sub 'arn:aws:s3:::${TelemetryBucketName}/pipeline/windows/*'
+                  - !Sub 'arn:aws:s3:::${TelemetryBucketName}/metrics/*'
+        - PolicyName: window-builder-s3-write
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource:
+                  - !Sub 'arn:aws:s3:::${TelemetryBucketName}/pipeline/health/*'
+                  - !Sub 'arn:aws:s3:::${TelemetryBucketName}/pipeline/windows/*'
+        - PolicyName: window-builder-put-events
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: events:PutEvents
+                Resource: !GetAtt PipelineBus.Arn
+  
+  WindowBuilderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: anomalypulse-pipeline-window-builder
+      CodeUri: ../../pipeline/window_builder
+      Handler: handler.handler
+      Runtime: python3.13
+      Architectures:
+        - arm64
+      MemorySize: 512
+      Timeout: 60
+      ReservedConcurrentExecutions: 1
+      Role: !GetAtt WindowBuilderRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref WindowBuilderLogGroup
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref TelemetryBucketName
+          BUS_NAME: !Ref PipelineBus
+      EventInvokeConfig:
+        MaximumRetryAttempts: 0
+        MaximumEventAgeInSeconds: 60
+      Events:
+        EveryMinute:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+    Metadata:
+      BuildMethod: makefile
+
   # ---- Alarm ---------------------------------------
   # In alarm while anything is in the undelivered queue: telemetry the
   # pipeline lost before the telemetry queue. No action: its state shows in
@@ -329,7 +431,27 @@ Resources:
       EvaluationPeriods: 1
       Threshold: 0
       ComparisonOperator: GreaterThanThreshold
-      TreatMissingData: notBreaching 
+      TreatMissingData: notBreaching
+
+  # In alarm when the window builder has failed 3 runs in a row. One failed run
+  # is retried by the next; three means windows and health have stopped.
+
+  WindowBuilderErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: anomalypulse-pipeline-window-builder-errors
+      AlarmDescription: The window builder has failed 3 runs in a row; windows and health are not being built (Docs/PIPELINE.md)
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WindowBuilderFunction
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
         
   # ---- Invoke Permissions ---------------------------------------
   # CloudWatch Logs may invoke the forwarder for the four service log groups
