@@ -7,6 +7,12 @@ Description: >-
   shipper keeps landing raw/ beside it, and anomalypulse-shared is not
   redeployed until M9-1.
 
+Parameters:
+  TelemetryBucketName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /anomalypulse/telemetry/bucket/name
+    Description: The shared stack's telemetry bucket, read from its SSM parameter.
+
 Resources:
 
   # ---- Event Bus ---------------------------------------
@@ -22,10 +28,29 @@ Resources:
   # The telemetry queue holds every record between the bus and the Aggregator,
   # so a burst waits here instead of being lost; its backlog is the §16 number.
 
+  # A message the Aggregator has received stays hidden for 185 s: six times its
+  # 30 s timeout, as Lambda recommends, plus the 5 s it may wait to fill a
+  # batch. One it fails 5 times moves to the dead-letter queue.
+
   TelemetryQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: anomalypulse-telemetry
+      VisibilityTimeout: 185
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TelemetryDeadLetterQueue.Arn
+        maxReceiveCount: 5
+  
+  # Telemetry that reached the telemetry queue but that the Aggregator failed 5
+  # times: a message it can't read, or a minute it couldn't write. Kept 14
+  # days, longer than the telemetry queue's 4: a message keeps its first
+  # arrival time when it moves here.
+
+  TelemetryDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: anomalypulse-telemetry-dlq
+      MessageRetentionPeriod: 1209600
   
   # Telemetry that never reached the telemetry queue: events the rule couldn't
   # deliver and deliveries the forwarder failed 3 times. Kept 14 days (the most
@@ -179,6 +204,92 @@ Resources:
             Type: SQS
             Destination: !GetAtt UndeliveredQueue.Arn
   
+  # ---- Aggregator Lambda ---------------------------------------
+  # Writes each batch's records to one file per minute under pipeline/records/
+  # (pipeline/aggregator/handler.py) and names the messages to retry
+  # (ReportBatchItemFailures). Up to 100 messages a batch, gathered for up to
+  # 5 s. At most 5 run at once: the services share the account's Lambda
+  # concurrency, and the Aggregator must never take it from them.
+
+  AggregatorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/anomalypulse-pipeline-aggregator
+      RetentionInDays: 90
+  
+  # Only what the Aggregator does: read and delete from the telemetry queue,
+  # write under pipeline/records/ in the telemetry bucket, and log to its own
+  # log group.
+
+  AggregatorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: anomalypulse-pipeline-aggregator
+      Description: The AnomalyPulse telemetry aggregator runs as this role (M8-1)
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: aggregator-logs
+          PolicyDocument: 
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt AggregatorLogGroup.Arn
+        - PolicyName: aggregator-queue-read
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt TelemetryQueue.Arn
+        - PolicyName: aggregator-s3-write
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub 'arn:aws:s3:::${TelemetryBucketName}/pipeline/records/*'
+
+  AggregatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: anomalypulse-pipeline-aggregator
+      CodeUri: ../../pipeline/aggregator
+      Handler: handler.handler
+      Runtime: python3.13
+      Architectures:
+        - arm64
+      MemorySize: 256
+      Timeout: 30
+      Role: !GetAtt AggregatorRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref AggregatorLogGroup
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref TelemetryBucketName
+      Events:
+        TelemetryQueue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt TelemetryQueue.Arn
+            BatchSize: 100
+            MaximumBatchingWindowInSeconds: 5
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+            ScalingConfig:
+              MaximumConcurrency: 5
+  
   # ---- Alarm ---------------------------------------
   # In alarm while anything is in the undelivered queue: telemetry the
   # pipeline lost before the telemetry queue. No action: its state shows in
@@ -200,6 +311,25 @@ Resources:
       Threshold: 0
       ComparisonOperator: GreaterThanThreshold
       TreatMissingData: notBreaching
+  
+  # In alarm while anything is in the telemetry queue's dead-letter queue.
+
+  TelemetryDeadLetterAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: anomalypulse-telemetry-dlq
+      AlarmDescription: Telemetry is in anomalypulse-telemetry-dlq; the Aggregator failed it 5 times (Docs/PIPELINE.md)
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TelemetryDeadLetterQueue.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching 
         
   # ---- Invoke Permissions ---------------------------------------
   # CloudWatch Logs may invoke the forwarder for the four service log groups
