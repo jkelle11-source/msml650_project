@@ -1,27 +1,55 @@
-"""Local unit tests for the window builder (M8-1). No live AWS needed. The
-environment variables are set before import, so the handler can read them when
-the module loads.
+"""Local unit tests for the window builder (M8-1). No live AWS needed: S3 and the
+bus are faked in memory, or stubbed with botocore's Stubber, which checks each
+request against the API model. The environment variables are set before import,
+so the handler can read them when the module loads.
 
 The expected health numbers are worked out by hand, and checked against the
 models' own request features. Each window is checked against build_matrix run
 over a whole stream: building minute W from minutes W-2..W must give the same
-row, as it did on all 1,540 validation windows (2026-11-04)."""
+row, as it did on all 1,540 validation windows (2026-11-04). What a run builds
+is worked out by hand from what the bucket holds and the time."""
+import io
 import json
 import os
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest import mock
 
+import boto3
 import pytest
+from botocore.exceptions import ClientError
+from botocore.stub import ANY, Stubber
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # AnomalyPulse/, for features
 from features.build_matrix import build_matrix, columns  # noqa: E402
 from features.request_features import SERVICES, request_features  # noqa: E402
+from features.windows import request_window  # noqa: E402
 
 os.environ.setdefault("BUCKET_NAME", "test-bucket")
 os.environ.setdefault("BUS_NAME", "test-bus")
 os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-2")
 import handler  # noqa: E402  (must follow the env vars above)
+
+
+def _module(name, path):
+    """Another Lambda's handler.py, loaded under its own name: the files the window builder reads
+    are laid out by the Aggregator's and the metrics extractor's own code, never by the builder's."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(name, Path(__file__).resolve().parents[2] / path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+aggregator = _module("aggregator_handler", "pipeline/aggregator/handler.py")
+extractor = _module("metrics_extractor_handler", "infra/shared/metrics_extractor/handler.py")
+
+
+def _extractor_key(service, stamp):
+    """The key the metrics extractor writes a snapshot stamped `stamp` under."""
+    with mock.patch.object(extractor.s3, "put_object"):
+        return extractor.write_metrics_to_s3("test-bucket", service, {}, now=stamp)
 
 W = "2026-11-04T07:04:00.000Z"
 FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
@@ -267,3 +295,380 @@ def test_which_minutes_of_a_stream_are_complete():
         w = _ts(m, 0)
         complete[m] = handler.is_complete(handler.build_window(*_slice(records, snapshots, w), w))
     assert complete == {0: False, 1: True, 2: True, 3: True, 4: True, 5: False, 6: False, 7: True}
+
+
+# ---- keys: where the other Lambdas put things -------------------------------------
+
+KEY_MINUTES = [datetime(2026, 11, 4, 7, 4, tzinfo=timezone.utc), datetime(2026, 11, 4, 0, 0, tzinfo=timezone.utc),
+               datetime(2026, 11, 4, 23, 59, tzinfo=timezone.utc), datetime(2026, 12, 31, 23, 59, tzinfo=timezone.utc),
+               datetime(2026, 11, 4, 9, 5, tzinfo=timezone.utc)]
+
+
+@pytest.mark.parametrize("w", KEY_MINUTES)
+def test_minute_name_is_the_window_name_of_the_minutes_records(w):
+    name = handler.minute_name(w)
+    assert name == request_window(name[:17] + "00.000Z") == request_window(name[:17] + "59.999Z")
+    assert name.endswith(":00.000Z")
+
+
+@pytest.mark.parametrize("w", KEY_MINUTES)
+def test_records_prefix_is_where_the_aggregator_files_the_minute(w):
+    assert handler.records_prefix(w) == aggregator.minute_prefix(handler.minute_name(w)[:17] + "31.207Z")
+
+
+@pytest.mark.parametrize("w", KEY_MINUTES)
+def test_snapshot_key_is_where_the_extractor_writes_the_minutes_snapshot(w):
+    # Stamped with the window's end: the window starting at w ends at w + 1 minute.
+    assert handler.snapshot_key("order-service", w) == _extractor_key("order-service", w + timedelta(minutes=1))
+
+
+def test_the_new_keys_by_hand():
+    w = datetime(2026, 11, 4, 23, 59, tzinfo=timezone.utc)
+    assert handler.health_key(w) == "pipeline/health/dt=2026-11-04/minute=23-59.json"
+    assert handler.window_key(w) == "pipeline/windows/dt=2026-11-04/minute=23-59.json"
+    assert handler.snapshot_key("cart-service", w) == \
+        "metrics/service=cart-service/dt=2026-11-05/metrics-20261105T000000000000Z.json"
+
+
+# ---- run: one pass over the bucket -----------------------------------------------
+
+UTC = timezone.utc
+
+
+def _at(hour, minute, second=0, day=4):
+    return datetime(2026, 11, day, hour, minute, second, tzinfo=UTC)
+
+
+class FakeS3:
+    """The S3 calls the handler makes, over a dict of key -> body. Missing keys fail as S3
+    fails them (HeadObject 404, GetObject NoSuchKey). `fail` maps (operation, key) to an
+    error code raised instead. Every call, and every event put, goes into `calls` in order."""
+
+    def __init__(self, page_size=1000):
+        self.objects, self.calls, self.fail, self.page_size = {}, [], {}, page_size
+
+    def _call(self, op, key):
+        self.calls.append((op, key))
+        if (op, key) in self.fail:
+            raise ClientError({"Error": {"Code": self.fail[(op, key)], "Message": "test"}}, op)
+
+    def head_object(self, Bucket, Key):
+        assert Bucket == "test-bucket"
+        self._call("head", Key)
+        if Key not in self.objects:
+            raise ClientError({"Error": {"Code": "404", "Message": "Not Found"}}, "HeadObject")
+        return {}
+
+    def get_object(self, Bucket, Key):
+        assert Bucket == "test-bucket"
+        self._call("get", Key)
+        if Key not in self.objects:
+            raise ClientError({"Error": {"Code": "NoSuchKey", "Message": "x"}}, "GetObject")
+        return {"Body": io.BytesIO(self.objects[Key].encode())}
+
+    def put_object(self, Bucket, Key, Body):
+        assert Bucket == "test-bucket"
+        self._call("put", Key)
+        self.objects[Key] = Body
+        return {}
+
+    def get_paginator(self, name):
+        assert name == "list_objects_v2"
+        fake = self
+
+        class Paginator:
+            def paginate(self, Bucket, Prefix):
+                assert Bucket == "test-bucket"
+                fake.calls.append(("list", Prefix))
+                keys = sorted(k for k in fake.objects if k.startswith(Prefix))
+                for i in range(0, max(len(keys), 1), fake.page_size):
+                    chunk = keys[i:i + fake.page_size]
+                    yield {"KeyCount": len(chunk), **({"Contents": [{"Key": k} for k in chunk]} if chunk else {})}
+        return Paginator()
+
+    def puts(self):
+        return [k for op, k in self.calls if op == "put"]
+
+
+class FakeEvents:
+    """put_events, logging each entry into the shared call log. `failed` entries of every call
+    come back with an ErrorCode, as PutEvents reports a partial failure."""
+
+    def __init__(self, calls):
+        self.calls, self.entries, self.failed = calls, [], 0
+
+    def put_events(self, Entries):
+        self.entries += Entries
+        self.calls += [("event", json.loads(e["Detail"])["key"]) for e in Entries]
+        results = [{"EventId": "e"} for _ in Entries]
+        for r in results[:self.failed]:
+            r.clear()
+            r.update(ErrorCode="InternalFailure", ErrorMessage="test")
+        return {"FailedEntryCount": min(self.failed, len(Entries)), "Entries": results}
+
+
+@pytest.fixture
+def bucket():
+    s3 = FakeS3()
+    ev = FakeEvents(s3.calls)
+    with mock.patch.object(handler, "s3", s3), mock.patch.object(handler, "events", ev):
+        yield s3, ev
+
+
+def _load(s3, records, snapshots, snapshots_until):
+    """The bucket as the Aggregator and the metrics extractor leave it: each minute's records
+    split over two files, and the snapshots stamped up to snapshots_until."""
+    by_minute = {}
+    for r in records:
+        by_minute.setdefault(_minute(r["timestamp"]).replace(second=0, microsecond=0), []).append(r)
+    for w, recs in by_minute.items():
+        half = len(recs) // 2
+        for part, chunk in (("a", recs[:half]), ("b", recs[half:])):
+            if chunk:
+                prefix = aggregator.minute_prefix(recs[0]["timestamp"])
+                s3.objects[prefix + f"part-{part}.jsonl"] = "\n".join(json.dumps(r) for r in chunk)
+    for snap in snapshots:
+        stamp = _minute(snap["timestamp"])
+        if stamp <= snapshots_until:
+            s3.objects[_extractor_key(snap["service"], stamp)] = json.dumps(snap)
+
+
+def _built_already(s3, first, last):
+    for m in range(int((last - first).total_seconds() // 60) + 1):
+        s3.objects[handler.window_key(first + timedelta(minutes=m))] = "{}"
+
+
+def _shift(records, snapshots, delta):
+    def move(ts):
+        return (_minute(ts) + delta).strftime(FMT)[:-4] + "Z"
+    return ([dict(r, timestamp=move(r["timestamp"])) for r in records],
+            [dict(s, timestamp=move(s["timestamp"])) for s in snapshots])
+
+
+def _names(*minutes, hour=7, day=4):
+    return [handler.minute_name(_at(hour, m, day=day)) for m in minutes]
+
+
+def _hand_bucket(s3, idle=()):
+    """The design's case at 07:08:10: records for 07:00-07:07, windows 06:58-07:03 built, and
+    snapshots stamped up to 07:05:00 (windows up to 07:04), written by the extractor at 07:07:30."""
+    records, snapshots = _stream(minutes=8, idle=idle)
+    _load(s3, records, snapshots, snapshots_until=_at(7, 5))
+    _built_already(s3, _at(6, 58), _at(7, 3))
+    return records, snapshots
+
+
+def _row(records, snapshots, w):
+    name = handler.minute_name(w)
+    return {"window_start": name, **build_matrix(records, snapshots)[name]}
+
+
+def test_the_hand_case_builds_three_healths_and_window_07_04(bucket):
+    s3, ev = bucket
+    records, snapshots = _hand_bucket(s3)
+
+    result = handler.run(_at(7, 8, 10))
+
+    assert result == {"health": _names(5, 6, 7), "windows": _names(4), "announced": _names(4)}
+    assert s3.puts() == [handler.health_key(_at(7, 5)), handler.health_key(_at(7, 6)),
+                         handler.health_key(_at(7, 7)), handler.window_key(_at(7, 4))]
+    for m in (5, 6, 7):
+        assert json.loads(s3.objects[handler.health_key(_at(7, m))]) == handler.health(records, _names(m)[0])
+    assert json.loads(s3.objects[handler.window_key(_at(7, 4))]) == _row(records, snapshots, _at(7, 4))
+
+
+def test_the_announcement_holds_the_window_in_the_diagnosis_lambdas_input_shape(bucket):
+    s3, ev = bucket
+    records, snapshots = _hand_bucket(s3)
+    handler.run(_at(7, 8, 10))
+
+    assert len(ev.entries) == 1
+    entry = ev.entries[0]
+    assert {k: entry[k] for k in ("EventBusName", "Source", "DetailType")} == {
+        "EventBusName": "test-bus", "Source": "anomalypulse.pipeline", "DetailType": "WindowReady"}
+    assert json.loads(entry["Detail"]) == {"windows": [_row(records, snapshots, _at(7, 4))],
+                                           "key": handler.window_key(_at(7, 4))}
+
+
+def test_the_window_is_announced_before_its_file_is_written(bucket):
+    # The file marks it done: written first, a failed announcement would never be retried.
+    s3, ev = bucket
+    _hand_bucket(s3)
+    handler.run(_at(7, 8, 10))
+    key = handler.window_key(_at(7, 4))
+    assert [op for op, k in s3.calls if k == key] == ["head", "event", "put"]
+
+
+def test_a_second_run_rebuilds_health_but_builds_and_announces_nothing_again(bucket):
+    s3, ev = bucket
+    _hand_bucket(s3)
+    handler.run(_at(7, 8, 10))
+    again = handler.run(_at(7, 8, 40))
+
+    assert again == {"health": _names(5, 6, 7), "windows": [], "announced": []}
+    assert len(ev.entries) == 1
+
+
+def test_the_minute_now_is_in_is_never_built(bucket):
+    s3, ev = bucket
+    _hand_bucket(s3)
+    handler.run(_at(7, 8, 59))
+    assert not [k for k in s3.puts() if "minute=07-08" in k]
+
+
+def test_a_window_waits_until_all_four_snapshots_are_in(bucket):
+    s3, ev = bucket
+    _hand_bucket(s3)
+    payment = _extractor_key("payment-service", _at(7, 5))  # window 07:04's, stamped at its end
+    held = s3.objects.pop(payment)
+
+    assert handler.run(_at(7, 8, 10))["windows"] == []
+    assert ev.entries == []
+
+    s3.objects[payment] = held
+    assert handler.run(_at(7, 9, 10))["windows"] == _names(4)
+
+
+def test_a_window_reads_its_minute_and_the_two_before_it(bucket):
+    s3, ev = bucket
+    _hand_bucket(s3)
+    handler.run(_at(7, 8, 10))
+    listed = {p for op, p in s3.calls if op == "list"}
+    # Window 07:04 reads 07:02-07:04; health reads 07:05-07:07. Nothing else.
+    assert listed == {handler.records_prefix(_at(7, m)) for m in range(2, 8)}
+
+
+@pytest.mark.parametrize("idle", [3, 4])
+def test_an_idle_minute_stays_in_the_history_and_its_window_is_written_not_announced(bucket, idle):
+    # 07:03 idle: window 07:04's _change compares with it (empty), as over the whole stream; without
+    # 07:03's snapshot it would compare with 07:02 instead. 07:04 idle: no request columns at all.
+    s3, ev = bucket
+    records, snapshots = _hand_bucket(s3, idle=(idle,))
+
+    result = handler.run(_at(7, 8, 10))
+
+    assert result["windows"] == _names(4) and result["announced"] == []
+    assert json.loads(s3.objects[handler.window_key(_at(7, 4))]) == _row(records, snapshots, _at(7, 4))
+    assert ev.entries == []
+
+
+def test_across_midnight_a_window_finds_its_snapshot_under_the_next_day(bucket):
+    s3, ev = bucket
+    records, snapshots = _shift(*_stream(minutes=8, idle=()), _at(23, 56) - _at(7, 0))  # 23:56 .. 00:03
+    _load(s3, records, snapshots, snapshots_until=_at(0, 0, day=5))                    # windows up to 23:59
+    _built_already(s3, _at(23, 52), _at(23, 58))
+
+    result = handler.run(_at(0, 2, 40, day=5))
+
+    assert result == {"health": _names(59, hour=23) + _names(0, 1, hour=0, day=5),
+                      "windows": _names(59, hour=23), "announced": _names(59, hour=23)}
+    assert handler.health_key(_at(23, 59)) == "pipeline/health/dt=2026-11-04/minute=23-59.json"
+    assert ("get", "metrics/service=product-service/dt=2026-11-05/metrics-20261105T000000000000Z.json") in s3.calls
+    assert json.loads(s3.objects[handler.window_key(_at(23, 59))]) == _row(records, snapshots, _at(23, 59))
+
+
+def test_record_files_are_read_across_pages(bucket):
+    s3, ev = bucket
+    s3.page_size = 1  # every file on a page of its own
+    records, snapshots = _hand_bucket(s3)
+    handler.run(_at(7, 8, 10))
+    assert json.loads(s3.objects[handler.window_key(_at(7, 4))]) == _row(records, snapshots, _at(7, 4))
+    assert json.loads(s3.objects[handler.health_key(_at(7, 7))]) == handler.health(records, _names(7)[0])
+
+
+# ---- run: failures ----------------------------------------------------------------
+
+@pytest.mark.parametrize("op, code", [("head", "403"), ("head", "AccessDenied"), ("get", "AccessDenied")])
+def test_only_a_missing_key_reads_as_missing(bucket, op, code):
+    # A 403 read as "no window yet" would rebuild and announce the same window every minute.
+    s3, ev = bucket
+    _hand_bucket(s3)
+    key = handler.window_key(_at(7, 4)) if op == "head" else handler.snapshot_key("cart-service", _at(7, 4))
+    s3.fail[(op, key)] = code
+
+    with pytest.raises(RuntimeError, match="window 2026-11-04T07:04:00.000Z"):
+        handler.run(_at(7, 8, 10))
+    assert ev.entries == []
+    assert handler.window_key(_at(7, 4)) not in s3.objects
+    assert all(handler.health_key(_at(7, m)) in s3.objects for m in (5, 6, 7))  # the rest still ran
+
+
+def test_a_failed_announcement_writes_no_file_and_the_next_run_tries_again(bucket):
+    s3, ev = bucket
+    _hand_bucket(s3)
+    ev.failed = 1
+    with pytest.raises(RuntimeError, match="WindowReady"):
+        handler.run(_at(7, 8, 10))
+    assert handler.window_key(_at(7, 4)) not in s3.objects
+
+    ev.failed = 0
+    assert handler.run(_at(7, 9, 10))["announced"] == _names(4)
+    assert handler.window_key(_at(7, 4)) in s3.objects
+
+
+def test_a_failed_window_write_is_announced_again_next_run(bucket):
+    # The one duplicate this order allows; M8-2 tolerates repeats, as every hop delivers at least once.
+    s3, ev = bucket
+    _hand_bucket(s3)
+    s3.fail[("put", handler.window_key(_at(7, 4)))] = "InternalError"
+    with pytest.raises(RuntimeError, match="window 2026-11-04T07:04:00.000Z"):
+        handler.run(_at(7, 8, 10))
+
+    del s3.fail[("put", handler.window_key(_at(7, 4)))]
+    assert handler.run(_at(7, 9, 10))["announced"] == _names(4)
+    assert len(ev.entries) == 2
+    assert handler.window_key(_at(7, 4)) in s3.objects
+
+
+def test_a_failed_health_write_names_its_minute_and_stops_nothing_else(bucket):
+    s3, ev = bucket
+    _hand_bucket(s3)
+    s3.fail[("put", handler.health_key(_at(7, 6)))] = "InternalError"
+
+    with pytest.raises(RuntimeError, match=r"1 failed: health 2026-11-04T07:06:00.000Z"):
+        handler.run(_at(7, 8, 10))
+    assert handler.health_key(_at(7, 5)) in s3.objects and handler.health_key(_at(7, 7)) in s3.objects
+    assert handler.window_key(_at(7, 4)) in s3.objects and len(ev.entries) == 1
+
+
+def test_every_failure_is_reported_together(bucket):
+    s3, ev = bucket
+    _hand_bucket(s3)
+    s3.fail[("put", handler.health_key(_at(7, 6)))] = "InternalError"
+    s3.fail[("head", handler.window_key(_at(7, 4)))] = "403"
+
+    with pytest.raises(RuntimeError) as err:
+        handler.run(_at(7, 8, 10))
+    message = str(err.value)
+    assert message.startswith("2 failed:")
+    assert "health 2026-11-04T07:06:00.000Z" in message and "window 2026-11-04T07:04:00.000Z" in message
+
+
+# ---- the AWS requests themselves ---------------------------------------------------
+
+def test_the_announcement_matches_the_putevents_api_model(bucket):
+    s3, _ = bucket
+    _hand_bucket(s3)
+    client = boto3.client("events", region_name="us-east-2")
+    stubber = Stubber(client)
+    stubber.add_response("put_events", {"FailedEntryCount": 0, "Entries": [{"EventId": "e"}]}, {"Entries": ANY})
+    with mock.patch.object(handler, "events", client), stubber:
+        handler.run(_at(7, 8, 10))
+    stubber.assert_no_pending_responses()
+
+
+def test_an_announcement_is_far_under_eventbridges_limit(bucket):
+    s3, ev = bucket
+    _hand_bucket(s3)
+    handler.run(_at(7, 8, 10))
+    assert len(ev.entries[0]["Detail"].encode("utf-8")) < 32 * 1024  # PutEvents allows 256 KB per call
+
+
+def test_the_handler_runs_at_the_current_time_in_utc():
+    with mock.patch.object(handler, "run", return_value={"health": []}) as run:
+        before = datetime.now(UTC)
+        assert handler.handler({}, None) == {"health": []}
+        after = datetime.now(UTC)
+    (now,), _ = run.call_args
+    assert now.tzinfo is not None and now.utcoffset() == timedelta(0)
+    assert before <= now <= after
