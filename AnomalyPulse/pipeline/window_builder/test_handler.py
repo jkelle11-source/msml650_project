@@ -12,6 +12,8 @@ import io
 import json
 import os
 import sys
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
@@ -342,10 +344,14 @@ def _at(hour, minute, second=0, day=4):
 class FakeS3:
     """The S3 calls the handler makes, over a dict of key -> body. Missing keys fail as S3
     fails them (HeadObject 404, GetObject NoSuchKey). `fail` maps (operation, key) to an
-    error code raised instead. Every call, and every event put, goes into `calls` in order."""
+    error code raised instead. Every call, and every event put, goes into `calls` in order.
+    GetObject can be called from several threads at once: `delay` maps a key to the seconds
+    its read takes, and `most_in_flight` is the most reads that were ever under way together."""
 
     def __init__(self, page_size=1000):
         self.objects, self.calls, self.fail, self.page_size = {}, [], {}, page_size
+        self.delay, self.in_flight, self.most_in_flight = {}, 0, 0
+        self._lock = threading.Lock()
 
     def _call(self, op, key):
         self.calls.append((op, key))
@@ -361,10 +367,18 @@ class FakeS3:
 
     def get_object(self, Bucket, Key):
         assert Bucket == "test-bucket"
-        self._call("get", Key)
-        if Key not in self.objects:
-            raise ClientError({"Error": {"Code": "NoSuchKey", "Message": "x"}}, "GetObject")
-        return {"Body": io.BytesIO(self.objects[Key].encode())}
+        with self._lock:
+            self.in_flight += 1
+            self.most_in_flight = max(self.most_in_flight, self.in_flight)
+        try:
+            time.sleep(self.delay.get(Key, 0))
+            self._call("get", Key)
+            if Key not in self.objects:
+                raise ClientError({"Error": {"Code": "NoSuchKey", "Message": "x"}}, "GetObject")
+            return {"Body": io.BytesIO(self.objects[Key].encode())}
+        finally:
+            with self._lock:
+                self.in_flight -= 1
 
     def put_object(self, Bucket, Key, Body):
         assert Bucket == "test-bucket"
@@ -469,9 +483,9 @@ def test_the_hand_case_builds_three_healths_and_window_07_04(bucket):
 
     result = handler.run(_at(7, 8, 10))
 
-    assert result == {"health": _names(5, 6, 7), "windows": _names(4), "announced": _names(4)}
-    assert s3.puts() == [handler.health_key(_at(7, 5)), handler.health_key(_at(7, 6)),
-                         handler.health_key(_at(7, 7)), handler.window_key(_at(7, 4))]
+    assert result == {"health": _names(7, 6, 5), "windows": _names(4), "announced": _names(4)}
+    assert s3.puts() == [handler.health_key(_at(7, 7)), handler.health_key(_at(7, 6)),
+                         handler.health_key(_at(7, 5)), handler.window_key(_at(7, 4))]
     for m in (5, 6, 7):
         assert json.loads(s3.objects[handler.health_key(_at(7, m))]) == handler.health(records, _names(m)[0])
     assert json.loads(s3.objects[handler.window_key(_at(7, 4))]) == _row(records, snapshots, _at(7, 4))
@@ -505,8 +519,18 @@ def test_a_second_run_rebuilds_health_but_builds_and_announces_nothing_again(buc
     handler.run(_at(7, 8, 10))
     again = handler.run(_at(7, 8, 40))
 
-    assert again == {"health": _names(5, 6, 7), "windows": [], "announced": []}
+    assert again == {"health": _names(7, 6, 5), "windows": [], "announced": []}
     assert len(ev.entries) == 1
+
+
+def test_the_newest_health_is_written_before_the_older_minutes_are_read(bucket):
+    # The dashboard shows the newest, and it is due about 14 s into a run: it must not wait
+    # for two more minutes of files.
+    s3, ev = bucket
+    _hand_bucket(s3)
+    handler.run(_at(7, 8, 10))
+    before = s3.calls[:s3.calls.index(("put", handler.health_key(_at(7, 7))))]
+    assert [p for op, p in before if op == "list"] == [handler.records_prefix(_at(7, 7))]
 
 
 def test_the_minute_now_is_in_is_never_built(bucket):
@@ -560,7 +584,7 @@ def test_across_midnight_a_window_finds_its_snapshot_under_the_next_day(bucket):
 
     result = handler.run(_at(0, 2, 40, day=5))
 
-    assert result == {"health": _names(59, hour=23) + _names(0, 1, hour=0, day=5),
+    assert result == {"health": _names(1, 0, hour=0, day=5) + _names(59, hour=23),
                       "windows": _names(59, hour=23), "announced": _names(59, hour=23)}
     assert handler.health_key(_at(23, 59)) == "pipeline/health/dt=2026-11-04/minute=23-59.json"
     assert ("get", "metrics/service=product-service/dt=2026-11-05/metrics-20261105T000000000000Z.json") in s3.calls
@@ -574,6 +598,57 @@ def test_record_files_are_read_across_pages(bucket):
     handler.run(_at(7, 8, 10))
     assert json.loads(s3.objects[handler.window_key(_at(7, 4))]) == _row(records, snapshots, _at(7, 4))
     assert json.loads(s3.objects[handler.health_key(_at(7, 7))]) == handler.health(records, _names(7)[0])
+
+
+# ---- reading a minute's files at once ---------------------------------------------
+
+def test_a_minutes_files_are_read_readers_at_a_time(bucket):
+    # 20 files that each take 0.1 s: one at a time is 2 s; READERS at once, two rounds.
+    s3, ev = bucket
+    prefix = handler.records_prefix(_at(7, 4))
+    for i in range(20):
+        key = prefix + f"part-{i:02d}.jsonl"
+        s3.objects[key] = json.dumps(_rec("cart-service", f"r{i}", 30.0, 200))
+        s3.delay[key] = 0.1
+
+    records = handler._read_records(prefix)
+
+    assert [r["request_id"] for r in records] == [f"r{i}" for i in range(20)]
+    assert s3.most_in_flight == handler.READERS == 16
+
+
+def test_files_come_back_in_key_order_whichever_finishes_first(bucket):
+    # part-a is the slowest, so it finishes last; its copy of r1 must still be the one kept.
+    s3, ev = bucket
+    prefix = handler.records_prefix(_at(7, 4))
+    first = _rec("order-service", "r1", 212.4, 200)
+    s3.objects[prefix + "part-a.jsonl"] = json.dumps(first)
+    s3.objects[prefix + "part-b.jsonl"] = json.dumps(_rec("cart-service", "r2", 30.0, 200))
+    s3.objects[prefix + "part-c.jsonl"] = json.dumps(dict(first, latency_ms=999.0))  # a repeat
+    s3.delay[prefix + "part-a.jsonl"] = 0.3
+
+    records = handler._read_records(prefix)
+
+    assert [(r["request_id"], r["latency_ms"]) for r in records] == [("r1", 212.4), ("r2", 30.0), ("r1", 999.0)]
+    assert [r["latency_ms"] for r in handler.dedupe(records)] == [212.4, 30.0]
+
+
+def test_a_record_file_that_fails_fails_its_minute_and_stops_nothing_else(bucket):
+    # The read fails on another thread; it must still reach run(), never read as an empty file.
+    s3, ev = bucket
+    _hand_bucket(s3)
+    s3.fail[("get", handler.records_prefix(_at(7, 7)) + "part-a.jsonl")] = "InternalError"
+
+    with pytest.raises(RuntimeError, match=r"^1 failed: health 2026-11-04T07:07:00.000Z"):
+        handler.run(_at(7, 8, 10))
+    assert handler.health_key(_at(7, 7)) not in s3.objects
+    assert handler.health_key(_at(7, 6)) in s3.objects and handler.health_key(_at(7, 5)) in s3.objects
+    assert handler.window_key(_at(7, 4)) in s3.objects and len(ev.entries) == 1
+
+
+def test_the_s3_client_has_a_connection_for_every_reader():
+    # boto3 keeps 10 by default: readers past the 10th would wait for one.
+    assert handler.s3.meta.config.max_pool_connections >= handler.READERS
 
 
 # ---- run: failures ----------------------------------------------------------------

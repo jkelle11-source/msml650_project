@@ -9,16 +9,24 @@ It decides what to build from what is in the bucket, not from the clock, so a la
 missed or doubled run builds the same thing."""
 import json, os, boto3
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from features.build_matrix import build_matrix
 from features.request_features import SERVICES, percentile
 from features import windows
 
+# Record files read at once. A minute is one file per Aggregator run: about 27 at normal
+# traffic (2026-11-04), hundreds in a spike. Read one at a time, a spike would make the
+# newest health late enough for the dashboard to say NO_DATA.
+READERS = 16
+
 BUCKET = os.environ["BUCKET_NAME"]
 BUS_NAME = os.environ["BUS_NAME"]
-s3 = boto3.client("s3")
+# A connection for every reader: boto3 keeps 10 by default, and a reader without one waits.
+s3 = boto3.client("s3", config = Config(max_pool_connections = READERS))
 events = boto3.client("events")
 
 def minute_name(w: datetime) -> str:
@@ -61,21 +69,26 @@ def _numbers(recs: list[dict]) -> dict:
             "error_rate": error_rate,
             "p95_latency_ms": p95_latency_ms}
     
+def _read_file(key: str) -> list[dict]:
+    """The records in one of the Aggregator's files: one JSON record per line."""
+    raw_obj = s3.get_object(Bucket = BUCKET, Key = key)["Body"].read().decode()
+    return [json.loads(obj) for obj in raw_obj.split("\n") if obj.strip()]
+
 def _read_records(prefix: str) -> list[dict]:
-    """Every record in the files under prefix. The Aggregator writes one file per minute per
-    run, one JSON record per line, so a minute is usually several files."""
-    records = []
-
+    """Every record in the files under prefix, file by file in key order. The Aggregator writes
+    one file per minute per run, so a minute is usually several files; READERS are read at once."""
     # A listing comes back in pages of up to 1,000 files; a minute with no files has no "Contents".
-    for page in s3.get_paginator("list_objects_v2").paginate(Bucket = BUCKET,
-                                                             Prefix = prefix):
+    keys = [item["Key"]
+            for page in s3.get_paginator("list_objects_v2").paginate(Bucket = BUCKET, Prefix = prefix)
+            for item in page.get("Contents", [])]
+    if not keys:
+        return []
 
-        for item in page.get("Contents", []):
-            raw_obj = s3.get_object(Bucket = BUCKET, Key = item["Key"])["Body"].read().decode()
-            split_obj = raw_obj.split("\n")
-            records.extend(json.loads(obj) for obj in split_obj if obj.strip())
-            
-    return records
+    # map hands the files back in key order, whichever finishes first, so dedupe keeps the
+    # same copy of a repeat on every run. A file that fails raises here, as a loop would.
+    with ThreadPoolExecutor(max_workers = READERS) as pool:
+        files = list(pool.map(_read_file, keys))
+    return [r for records in files for r in records]
 
 def _exists(key: str) -> bool:
     """True if the object is there. Only a 404 means it isn't; any other error (a 403 above all)
@@ -165,7 +178,9 @@ def run(now: datetime) -> dict:
     # Health: the last 3 minutes, rebuilt every run. The newest is then never more than
     # 2 minutes old, whatever second the schedule runs at (the dashboard says NO_DATA after
     # 3), and records still in flight on the first pass are counted on the next.
-    for k in range(3, 0, -1):
+    # Newest first: it is the one the dashboard shows, and it is due before the one before
+    # it turns 3 minutes old, about 14 s into a run that starts at :46 (2026-11-04).
+    for k in range(1, 4):
         
         try:
             w = current - timedelta(minutes = k)
