@@ -15,21 +15,24 @@ import sys
 import threading
 import time
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 from unittest import mock
 
 import boto3
 import pytest
 from botocore.exceptions import ClientError
+from boto3.dynamodb.types import TypeSerializer
 from botocore.stub import ANY, Stubber
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # AnomalyPulse/, for features
 from features.build_matrix import build_matrix, columns  # noqa: E402
-from features.request_features import SERVICES, request_features  # noqa: E402
+from features.request_features import SERVICES  # noqa: E402
 from features.windows import request_window  # noqa: E402
 
 os.environ.setdefault("BUCKET_NAME", "test-bucket")
 os.environ.setdefault("BUS_NAME", "test-bus")
+os.environ.setdefault("TABLE_NAME", "test-table")
 os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-2")
 import handler  # noqa: E402  (must follow the env vars above)
 
@@ -146,47 +149,100 @@ def test_dedupe_leaves_its_input_alone():
 
 
 # ---- health ----------------------------------------------------------------------
+# health() returns the dashboard builder's input (dashboard/builder.py): the window's name, the
+# system p95, and 3 of the features' columns for each service. The builder works out the system
+# requests and 5xx share from the service columns itself.
+
+dashboard = _module("dashboard_builder", "dashboard/builder.py")
+
+HEALTH_KEYS = {"window_start", "system_p95_latency_ms"} | {
+    f"{p}_{c}" for p in ("product", "cart", "order", "payment")
+    for c in ("request_rate", "error_rate_5xx", "p95_latency_ms")}
+
 
 def test_health_of_the_hand_case():
     h = handler.health(HAND, W)
 
-    assert set(h) == {"window_start", "requests_per_min", "error_rate", "p95_latency_ms", "services"}
+    assert set(h) == HEALTH_KEYS  # only what the dashboard reads: 14 keys
     assert h["window_start"] == W
-    # Product, Cart and Order: p1, p2, p3, c1. Sorted [10, 20, 30, 40]: p95 = 30 + 0.85 * 10.
-    assert h["requests_per_min"] == 4
-    assert h["error_rate"] == pytest.approx(0.25)
-    assert h["p95_latency_ms"] == pytest.approx(38.5)
-    assert [s["service"] for s in h["services"]] == list(SERVICES)
-    by = {s["service"]: s for s in h["services"]}
-    assert all(set(s) == {"service", "requests_per_min", "error_rate", "p95_latency_ms"} for s in h["services"])
-    assert by["product-service"] == {"service": "product-service", "requests_per_min": 3,
-                                     "error_rate": pytest.approx(1 / 3), "p95_latency_ms": pytest.approx(29.0)}
-    assert by["cart-service"] == {"service": "cart-service", "requests_per_min": 1,
-                                  "error_rate": pytest.approx(0.0), "p95_latency_ms": pytest.approx(40.0)}
-    assert by["order-service"] == {"service": "order-service", "requests_per_min": 0,
-                                   "error_rate": None, "p95_latency_ms": None}
-    assert by["payment-service"] == {"service": "payment-service", "requests_per_min": 2,
-                                     "error_rate": pytest.approx(0.5), "p95_latency_ms": pytest.approx(290.0)}
+    # Product p1, p2, p3 (p1's repeat dropped, p9 is 07:05's). Sorted [10, 20, 30]: p95 = 20 + 0.9 * 10.
+    assert h["product_request_rate"] == pytest.approx(3 / 60)
+    assert h["product_error_rate_5xx"] == pytest.approx(1 / 3)
+    assert h["product_p95_latency_ms"] == pytest.approx(29.0)
+    assert h["cart_request_rate"] == pytest.approx(1 / 60)
+    assert h["cart_error_rate_5xx"] == pytest.approx(0.0)
+    assert h["cart_p95_latency_ms"] == pytest.approx(40.0)
+    # Order had no requests: what request_features gives a quiet service.
+    assert (h["order_request_rate"], h["order_error_rate_5xx"], h["order_p95_latency_ms"]) == (0.0, None, None)
+    # Payment [100, 300]: p95 = 100 + 0.95 * 200.
+    assert h["payment_request_rate"] == pytest.approx(2 / 60)
+    assert h["payment_error_rate_5xx"] == pytest.approx(0.5)
+    assert h["payment_p95_latency_ms"] == pytest.approx(290.0)
+    # Product, Cart and Order's records, sorted [10, 20, 30, 40]: p95 = 30 + 0.85 * 10.
+    assert h["system_p95_latency_ms"] == pytest.approx(38.5)
 
 
-def test_health_counts_requests_as_whole_numbers():
-    h = handler.health(HAND, W)
-    assert type(h["requests_per_min"]) is int
-    assert all(type(s["requests_per_min"]) is int for s in h["services"])
+def test_the_system_p95_comes_from_the_records_not_from_the_services_p95s():
+    # Percentiles don't combine (Docs/DASHBOARD_CONTRACT.md): from Product's 29.0 and Cart's 40.0,
+    # their p95 is 39.45, their max 40.0 and their mean 34.5; the records' own p95 is 38.5.
+    assert handler.health(HAND, W)["system_p95_latency_ms"] == pytest.approx(38.5)
 
 
-def test_health_of_an_idle_minute_lists_every_service_with_no_numbers():
+def test_the_dashboard_reads_the_hand_case_as_the_contract_says():
+    # The numbers the old health file held, now worked out by the dashboard's own builder.
+    now = datetime(2026, 11, 4, 7, 5, 10, tzinfo=timezone.utc)
+    shown = dashboard.build_dashboard(handler.health(HAND, W), None, None, now)["health"]
+
+    assert shown == {
+        "window_start": W, "status": "HEALTHY", "active_incidents": 0,
+        "requests_per_min": 4, "error_rate": pytest.approx(0.25), "p95_latency_ms": pytest.approx(38.5),
+        "services": [
+            {"service": "product-service", "status": "HEALTHY", "requests_per_min": 3,
+             "error_rate": pytest.approx(1 / 3), "p95_latency_ms": pytest.approx(29.0)},
+            {"service": "cart-service", "status": "HEALTHY", "requests_per_min": 1,
+             "error_rate": pytest.approx(0.0), "p95_latency_ms": pytest.approx(40.0)},
+            {"service": "order-service", "status": "IDLE", "requests_per_min": 0,
+             "error_rate": None, "p95_latency_ms": None},
+            {"service": "payment-service", "status": "HEALTHY", "requests_per_min": 2,
+             "error_rate": pytest.approx(0.5), "p95_latency_ms": pytest.approx(290.0)}]}
+
+
+def test_the_dashboard_counts_a_busy_minute_exactly():
+    # 23:36 on 2026-11-04: Product 874, Cart 145, Order 180, Payment 82. Each rate is n / 60, and the
+    # builder's round(rate * 60) must give n back: the system count is 874 + 145 + 180 = 1,199.
+    counts = {"product-service": 874, "cart-service": 145, "order-service": 180, "payment-service": 82}
+    recs = [_rec(s, f"{s}-{i}", 20.0, 200, _ts(4, i % 60)) for s, n in counts.items() for i in range(n)]
+    now = datetime(2026, 11, 4, 7, 5, 10, tzinfo=timezone.utc)
+    shown = dashboard.build_dashboard(handler.health(recs, W), None, None, now)["health"]
+
+    assert shown["requests_per_min"] == 1199
+    assert [s["requests_per_min"] for s in shown["services"]] == [874, 145, 180, 82]
+    assert all(type(s["requests_per_min"]) is int for s in shown["services"])
+
+
+def test_health_of_an_idle_minute():
+    # request_features has no row for a minute with no records; health still gives every column.
     h = handler.health([], W)
-    assert (h["requests_per_min"], h["error_rate"], h["p95_latency_ms"]) == (0, None, None)
-    assert h["services"] == [{"service": s, "requests_per_min": 0, "error_rate": None, "p95_latency_ms": None}
-                             for s in SERVICES]
+    assert h == {"window_start": W, "system_p95_latency_ms": None,
+                 **{f"{p}_request_rate": 0.0 for p in ("product", "cart", "order", "payment")},
+                 **{f"{p}_error_rate_5xx": None for p in ("product", "cart", "order", "payment")},
+                 **{f"{p}_p95_latency_ms": None for p in ("product", "cart", "order", "payment")}}
 
 
-def test_payment_is_left_out_of_the_system_numbers():
-    # Payment is reached only through Order: counting both would count each checkout twice.
+def test_the_dashboard_shows_an_idle_minute_as_idle_not_as_no_data():
+    now = datetime(2026, 11, 4, 7, 5, 10, tzinfo=timezone.utc)
+    shown = dashboard.build_dashboard(handler.health([], W), None, None, now)["health"]
+    assert (shown["status"], shown["requests_per_min"], shown["error_rate"], shown["p95_latency_ms"]) == \
+        ("HEALTHY", 0, None, None)
+    assert [s["status"] for s in shown["services"]] == ["IDLE"] * 4
+
+
+def test_payment_is_left_out_of_the_system_p95():
+    # Payment is reached only through Order: its latency is already inside Order's.
     h = handler.health([_rec("payment-service", "y1", 100, 500)], W)
-    assert (h["requests_per_min"], h["error_rate"], h["p95_latency_ms"]) == (0, None, None)
-    assert h["services"][3]["requests_per_min"] == 1
+    assert h["system_p95_latency_ms"] is None
+    assert h["payment_request_rate"] == pytest.approx(1 / 60)
+    assert h["payment_error_rate_5xx"] == pytest.approx(1.0)
 
 
 @pytest.mark.parametrize("statuses, expected", [
@@ -197,9 +253,7 @@ def test_payment_is_left_out_of_the_system_numbers():
 ])
 def test_error_rate_is_the_share_of_5xx(statuses, expected):
     recs = [_rec("cart-service", f"c{i}", 10, s) for i, s in enumerate(statuses)]
-    h = handler.health(recs, W)
-    assert h["error_rate"] == pytest.approx(expected)
-    assert h["services"][1]["error_rate"] == pytest.approx(expected)
+    assert handler.health(recs, W)["cart_error_rate_5xx"] == pytest.approx(expected)
 
 
 def test_health_counts_only_its_own_minute():
@@ -208,8 +262,14 @@ def test_health_counts_only_its_own_minute():
             _rec("cart-service", "c", 30, 200, "2026-11-04T07:04:59.999Z"),   # last instant of 07:04
             _rec("cart-service", "d", 40, 200, "2026-11-04T07:05:00.000Z")]   # 07:05
     h = handler.health(recs, W)
-    assert h["services"][1]["requests_per_min"] == 2
-    assert h["requests_per_min"] == 2
+    assert h["cart_request_rate"] == pytest.approx(2 / 60)
+    assert h["cart_p95_latency_ms"] == pytest.approx(29.5)  # [20, 30]: 20 + 0.95 * 10
+
+
+def test_health_of_a_minute_whose_records_are_all_another_minutes():
+    # Records were read, but none is this minute's: as idle, never an error.
+    h = handler.health([_rec("cart-service", "d", 40, 200, "2026-11-04T07:05:00.000Z")], W)
+    assert h == handler.health([], W)
 
 
 def test_health_drops_repeats_itself():
@@ -218,18 +278,25 @@ def test_health_drops_repeats_itself():
     assert twice == once
 
 
-def test_health_agrees_with_the_models_request_features():
-    # The dashboard's per-service numbers must be the features' own: same percentile, same 5xx rule.
-    records, _ = _stream()
-    for m in (0, 3, 7):
+def test_health_columns_are_the_full_windows_own():
+    # The dashboard and the models describe a busy minute with the same numbers: health's columns
+    # equal the 106-column window's, built over the whole stream.
+    records, snapshots = _stream()
+    matrix = build_matrix(records, snapshots)
+    for m in (0, 1, 3, 4, 6, 7):
         w = _ts(m, 0)
         h = handler.health(records, w)
-        feats = request_features(handler.dedupe(records))[w]
-        for item, svc in zip(h["services"], SERVICES):
-            p = svc.replace("-service", "")
-            assert item["requests_per_min"] == pytest.approx(feats[f"{p}_request_rate"] * 60)
-            assert item["error_rate"] == pytest.approx(feats[f"{p}_error_rate_5xx"])
-            assert item["p95_latency_ms"] == pytest.approx(feats[f"{p}_p95_latency_ms"])
+        for col in HEALTH_KEYS - {"window_start", "system_p95_latency_ms"}:
+            assert h[col] == matrix[w][col], (w, col)
+
+
+def test_an_idle_minutes_request_rate_is_0_where_the_full_window_has_none():
+    # The one difference: the window leaves an idle minute's request columns empty, and the
+    # dashboard's builder would fail on round(None * 60). Health says 0 requests.
+    records, snapshots = _stream(idle=(5,))
+    w = _ts(5, 0)
+    assert build_matrix(records, snapshots)[w]["cart_request_rate"] is None
+    assert handler.health(records, w)["cart_request_rate"] == 0.0
 
 
 def test_health_is_json():
@@ -421,11 +488,59 @@ class FakeEvents:
         return {"FailedEntryCount": min(self.failed, len(Entries)), "Entries": results}
 
 
+class FakeTable:
+    """put_item on the Incidents table, logging ("item", window_start) into the shared call log.
+    It refuses what DynamoDB refuses: values boto3 can't serialize (floats), and a write whose
+    condition doesn't hold on the stored item, which raises ConditionalCheckFailedException.
+    `fail` is an error code every write raises instead. `writes` counts accepted writes."""
+
+    def __init__(self, calls):
+        self.calls, self.items, self.writes, self.fail = calls, {}, 0, None
+
+    @staticmethod
+    def _holds(cond, stored):
+        """The condition, as DynamoDB evaluates it: a comparison with a missing attribute is false."""
+        kind, values = type(cond).__name__, cond.get_expression()["values"]
+        if kind == "Or":
+            return FakeTable._holds(values[0], stored) or FakeTable._holds(values[1], stored)
+        if kind == "And":
+            return FakeTable._holds(values[0], stored) and FakeTable._holds(values[1], stored)
+        if kind == "Not":
+            return not FakeTable._holds(values[0], stored)
+        name = values[0].name
+        if kind == "AttributeNotExists":
+            return stored is None or name not in stored
+        if kind == "AttributeExists":
+            return stored is not None and name in stored
+        if stored is None or name not in stored:
+            return False
+        compare = {"Equals": "__eq__", "NotEquals": "__ne__", "LessThan": "__lt__",
+                   "LessThanEquals": "__le__", "GreaterThan": "__gt__", "GreaterThanEquals": "__ge__"}[kind]
+        return getattr(stored[name], compare)(values[1])
+
+    def put_item(self, Item, ConditionExpression=None):
+        serialize = TypeSerializer().serialize
+        for value in Item.values():
+            serialize(value)  # floats raise TypeError here, as in boto3
+        key = (Item["pk"], Item["sk"])
+        self.calls.append(("item", Item.get("window_start")))
+        if self.fail:
+            raise ClientError({"Error": {"Code": self.fail, "Message": "test"}}, "PutItem")
+        if ConditionExpression is not None and not self._holds(ConditionExpression, self.items.get(key)):
+            raise ClientError({"Error": {"Code": "ConditionalCheckFailedException",
+                                         "Message": "The conditional request failed"}}, "PutItem")
+        self.items[key] = dict(Item)
+        self.writes += 1
+        return {}
+
+
 @pytest.fixture
 def bucket():
     s3 = FakeS3()
     ev = FakeEvents(s3.calls)
-    with mock.patch.object(handler, "s3", s3), mock.patch.object(handler, "events", ev):
+    s3.table = FakeTable(s3.calls)
+    with mock.patch.object(handler, "s3", s3), mock.patch.object(handler, "events", ev), \
+            mock.patch.object(handler, "table", s3.table):
         yield s3, ev
 
 
@@ -651,6 +766,88 @@ def test_the_s3_client_has_a_connection_for_every_reader():
     assert handler.s3.meta.config.max_pool_connections >= handler.READERS
 
 
+# ---- run: the health item ---------------------------------------------------------
+
+def _item(s3):
+    return s3.table.items.get(("HEALTH", "LATEST"))
+
+
+def test_the_newest_minutes_health_becomes_the_item(bucket):
+    s3, ev = bucket
+    records, _ = _hand_bucket(s3)
+    handler.run(_at(7, 8, 10))
+
+    item = _item(s3)
+    assert set(s3.table.items) == {("HEALTH", "LATEST")}
+    assert item["window_start"] == "2026-11-04T07:07:00.000Z"
+    # 07:07 has 4 + 7 % 3 = 5 requests per service: 5 / 60, as a Decimal from the float's text.
+    assert item["product_request_rate"] == Decimal("0.08333333333333333")
+    # The same numbers as the minute's health file, every float stored as a Decimal.
+    expected = handler.health(records, "2026-11-04T07:07:00.000Z")
+    assert set(item) == {"pk", "sk"} | set(expected)
+    for k, v in expected.items():
+        assert type(item[k]) is not float
+        assert (item[k] is None) if v is None else (float(item[k]) == v if isinstance(v, float) else item[k] == v)
+
+
+def test_only_the_newest_minute_is_written_to_the_item(bucket):
+    s3, ev = bucket
+    _hand_bucket(s3)
+    handler.run(_at(7, 8, 10))
+    assert [w for op, w in s3.calls if op == "item"] == ["2026-11-04T07:07:00.000Z"]
+
+
+def test_the_item_is_written_after_its_health_file_and_before_the_older_minutes_are_read(bucket):
+    s3, ev = bucket
+    _hand_bucket(s3)
+    handler.run(_at(7, 8, 10))
+    at = s3.calls.index(("item", "2026-11-04T07:07:00.000Z"))
+    assert s3.calls.index(("put", handler.health_key(_at(7, 7)))) < at
+    assert s3.calls.index(("list", handler.records_prefix(_at(7, 6)))) > at
+
+
+def test_the_item_moves_forward_with_each_run(bucket):
+    s3, ev = bucket
+    _hand_bucket(s3)
+    handler.run(_at(7, 8, 10))
+    handler.run(_at(7, 9, 10))
+    assert _item(s3)["window_start"] == "2026-11-04T07:08:00.000Z"
+    assert s3.table.writes == 2
+
+
+def test_an_older_minute_never_replaces_a_newer_one_and_is_not_an_error(bucket):
+    # A run that is behind (a replay, a manual invoke) must not take the dashboard back in time.
+    s3, ev = bucket
+    _hand_bucket(s3)
+    handler.run(_at(7, 9, 10))
+    result = handler.run(_at(7, 6, 10))  # raises nothing: a refused write is not a failure
+
+    assert _item(s3)["window_start"] == "2026-11-04T07:08:00.000Z"
+    assert s3.table.writes == 1
+    assert result["health"] == _names(5, 4, 3)
+
+
+def test_the_same_minute_can_be_written_again(bucket):
+    # <=, not <: a rerun of the newest minute refreshes it, records that came late included.
+    s3, ev = bucket
+    _hand_bucket(s3)
+    handler.run(_at(7, 8, 10))
+    handler.run(_at(7, 8, 40))
+    assert s3.table.writes == 2
+
+
+@pytest.mark.parametrize("code", ["AccessDeniedException", "ProvisionedThroughputExceededException"])
+def test_any_other_item_failure_fails_the_newest_health_and_stops_nothing_else(bucket, code):
+    s3, ev = bucket
+    _hand_bucket(s3)
+    s3.table.fail = code
+
+    with pytest.raises(RuntimeError, match=rf"^1 failed: health 2026-11-04T07:07:00.000Z: .*{code}"):
+        handler.run(_at(7, 8, 10))
+    assert all(handler.health_key(_at(7, m)) in s3.objects for m in (5, 6, 7))
+    assert handler.window_key(_at(7, 4)) in s3.objects and len(ev.entries) == 1
+
+
 # ---- run: failures ----------------------------------------------------------------
 
 @pytest.mark.parametrize("op, code", [("head", "403"), ("head", "AccessDenied"), ("get", "AccessDenied")])
@@ -730,6 +927,45 @@ def test_the_announcement_matches_the_putevents_api_model(bucket):
     with mock.patch.object(handler, "events", client), stubber:
         handler.run(_at(7, 8, 10))
     stubber.assert_no_pending_responses()
+
+
+def test_the_item_matches_the_putitem_api_model():
+    # The real boto3 table, its client stubbed. The stub sees the item before boto3 types it, so
+    # the numbers are the hand case's as Decimals, each from its float's own text, and None stays
+    # None; boto3 then types the request and checks it against the PutItem model.
+    table = boto3.resource("dynamodb", region_name="us-east-2").Table("test-table")
+    stubber = Stubber(table.meta.client)
+    D = Decimal
+    stubber.add_response("put_item", {}, {
+        "TableName": "test-table",
+        "Item": {"pk": "HEALTH", "sk": "LATEST", "window_start": W, "system_p95_latency_ms": D("38.5"),
+                 "product_request_rate": D("0.05"), "product_error_rate_5xx": D("0.3333333333333333"),
+                 "product_p95_latency_ms": D("29.0"),
+                 "cart_request_rate": D("0.016666666666666666"), "cart_error_rate_5xx": D("0.0"),
+                 "cart_p95_latency_ms": D("40.0"),
+                 "order_request_rate": D("0.0"), "order_error_rate_5xx": None, "order_p95_latency_ms": None,
+                 "payment_request_rate": D("0.03333333333333333"), "payment_error_rate_5xx": D("0.5"),
+                 "payment_p95_latency_ms": D("290.0")},
+        "ConditionExpression": ANY})
+    with mock.patch.object(handler, "table", table), stubber:
+        handler._put_health_report(handler.health(HAND, W))
+    stubber.assert_no_pending_responses()
+
+
+def test_the_items_condition_is_what_dynamodb_is_sent():
+    # The condition object, as boto3 writes it into the request.
+    from boto3.dynamodb.conditions import ConditionExpressionBuilder
+    table = mock.Mock()
+    with mock.patch.object(handler, "table", table):
+        handler._put_health_report(handler.health(HAND, W))
+    built = ConditionExpressionBuilder().build_expression(table.put_item.call_args.kwargs["ConditionExpression"])
+    names, values = built.attribute_name_placeholders, built.attribute_value_placeholders
+    expression = built.condition_expression
+    for placeholder, name in names.items():
+        expression = expression.replace(placeholder, name)
+    for placeholder, value in values.items():
+        expression = expression.replace(placeholder, repr(value))
+    assert expression == f"(attribute_not_exists(window_start) OR window_start <= {W!r})"
 
 
 def test_an_announcement_is_far_under_eventbridges_limit(bucket):

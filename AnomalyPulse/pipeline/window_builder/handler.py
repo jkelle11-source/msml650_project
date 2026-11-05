@@ -10,12 +10,14 @@ missed or doubled run builds the same thing."""
 import json, os, boto3
 
 from concurrent.futures import ThreadPoolExecutor
+from decimal import Decimal
 from datetime import datetime, timedelta, timezone
 from botocore.config import Config
 from botocore.exceptions import ClientError
+from boto3.dynamodb.conditions import Attr
 
 from features.build_matrix import build_matrix
-from features.request_features import SERVICES, percentile
+from features.request_features import SERVICES, percentile, request_features
 from features import windows
 
 # Record files read at once. A minute is one file per Aggregator run: about 27 at normal
@@ -23,10 +25,17 @@ from features import windows
 # newest health late enough for the dashboard to say NO_DATA.
 READERS = 16
 
+# The services whose records make the system p95. Payment is reached only through Order, so
+# its latency is already inside Order's, and counting its records would count each checkout
+# twice (Docs/DASHBOARD_CONTRACT.md); it still has its own columns.
+LATENCY_SERVICES = ("product-service", "cart-service", "order-service")
+
 BUCKET = os.environ["BUCKET_NAME"]
 BUS_NAME = os.environ["BUS_NAME"]
+TABLE_NAME = os.environ["TABLE_NAME"]
 # A connection for every reader: boto3 keeps 10 by default, and a reader without one waits.
 s3 = boto3.client("s3", config = Config(max_pool_connections = READERS))
+table = boto3.resource("dynamodb").Table(TABLE_NAME)
 events = boto3.client("events")
 
 def minute_name(w: datetime) -> str:
@@ -55,19 +64,6 @@ def snapshot_key(service: str, w: datetime) -> str:
     the window's end, and its date folder is the stamp's, so 23:59's is filed under the next day."""
     stamp = w + timedelta(minutes=1)
     return f"metrics/service={service}/dt={stamp:%Y-%m-%d}/metrics-{stamp:%Y%m%dT%H%M%S%fZ}.json"
-
-def _numbers(recs: list[dict]) -> dict:
-    """{"requests_per_min", "error_rate", "p95_latency_ms"} of these records; the last two None if there are none."""
-    requests_per_min = len(recs)
-    
-    error_rate = sum(1 for r in recs if 500 <= r["status_code"] <= 599 
-                     ) / requests_per_min if requests_per_min else None
-    
-    p95_latency_ms = percentile([r["latency_ms"] for r in recs], 95)
-    
-    return {"requests_per_min": requests_per_min,
-            "error_rate": error_rate,
-            "p95_latency_ms": p95_latency_ms}
     
 def _read_file(key: str) -> list[dict]:
     """The records in one of the Aggregator's files: one JSON record per line."""
@@ -124,6 +120,23 @@ def _announce(window: dict, key: str) -> None:
         codes = sorted({e["ErrorCode"] for e in response["Entries"] if "ErrorCode" in e})
         raise RuntimeError(f"PutEvents: the WindowReady event failed {codes}")
 
+def _put_health_report(report: dict) -> None:
+    """The newest minute's health as the Incidents table's one health item (pk HEALTH, sk LATEST),
+    which the dashboard's read API gets. Never over a newer minute: that write is refused, quietly."""
+    # DynamoDB takes no floats, and Decimal(0.05) is the float's exact binary value, past
+    # DynamoDB's 38 digits: each float goes in as a Decimal of its own text, Decimal("0.05").
+    parsed = json.loads(json.dumps(report), parse_float = Decimal)
+    item = {"pk": "HEALTH", "sk": "LATEST", **parsed}
+    cond = (Attr("window_start").not_exists() 
+            | Attr("window_start").lte(report["window_start"]))
+    try:
+        table.put_item(Item = item, ConditionExpression = cond)
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            return
+        else:
+            raise
+
 def dedupe(records: list[dict]) -> list[dict]:
     """The records without repeats: the first of each (service, request_id), in their order."""
     seen = set()
@@ -144,15 +157,28 @@ def health(records: list[dict], window_start: str) -> dict:
     # Only the minute's own records: a file could hold another minute's.
     filtered = [r for r in no_dupes
                 if windows.request_window(r["timestamp"]) == window_start]
-
-    # Payment is reached only through Order, so counting it would count each checkout
-    # twice (Docs/DASHBOARD_CONTRACT.md); it still gets its own entry below.
-    system_dict = _numbers([r for r in filtered if r["service"] != "payment-service"])
     
-    service_dict = [{"service": s, **_numbers([r for r in filtered if r["service"] == s])}
-                    for s in SERVICES]
+    window = request_features(filtered).get(window_start, {})
     
-    return {"window_start": window_start, **system_dict, "services": service_dict}
+    # From the requests themselves: percentiles don't combine, so no mix of the
+    # services' p95s gives the system's (Docs/DASHBOARD_CONTRACT.md).
+    system_p95_latency_ms = percentile([r["latency_ms"] for r in filtered
+                                        if r["service"] in LATENCY_SERVICES], 95)
+    
+    return {"window_start": window_start,
+            "system_p95_latency_ms": system_p95_latency_ms,
+            "product_request_rate": window.get("product_request_rate", 0.0),
+            "product_error_rate_5xx": window.get("product_error_rate_5xx"),
+            "product_p95_latency_ms": window.get("product_p95_latency_ms"),
+            "cart_request_rate": window.get("cart_request_rate", 0.0),
+            "cart_error_rate_5xx": window.get("cart_error_rate_5xx"),
+            "cart_p95_latency_ms": window.get("cart_p95_latency_ms"),
+            "order_request_rate": window.get("order_request_rate", 0.0),
+            "order_error_rate_5xx": window.get("order_error_rate_5xx"),
+            "order_p95_latency_ms": window.get("order_p95_latency_ms"),
+            "payment_request_rate": window.get("payment_request_rate", 0.0),
+            "payment_error_rate_5xx": window.get("payment_error_rate_5xx"),
+            "payment_p95_latency_ms": window.get("payment_p95_latency_ms")}
 
 def build_window(records: list[dict], snapshots: list[dict], window_start: str) -> dict | None:
     """{"window_start": W, <the 106 columns>} from the records and snapshots of W-2..W; None if W has neither."""
@@ -191,6 +217,9 @@ def run(now: datetime) -> dict:
             s3.put_object(Bucket = BUCKET,
                         Key = health_key(w),
                         Body = json.dumps(health_report))
+            
+            if k == 1:
+                _put_health_report(health_report)
             
             built["health"].append(minute_name(w))
             

@@ -308,7 +308,8 @@ Resources:
   # metrics extractor's snapshots; write health and windows; announce on the bus;
   # log to its own log group. ListBucket on the whole bucket lists a minute's
   # record files, and makes a missing key answer 404 instead of 403: the handler
-  # reads only a 404 as "not there yet".
+  # reads only a 404 as "not there yet". In the Incidents table, it may write
+  # the health item and nothing else.
 
   WindowBuilderRole:
     Type: AWS::IAM::Role
@@ -361,6 +362,19 @@ Resources:
               - Effect: Allow
                 Action: events:PutEvents
                 Resource: !GetAtt PipelineBus.Arn
+        - PolicyName: window-builder-health-item
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:PutItem
+                Resource: !GetAtt IncidentsTable.Arn
+                Condition:
+                  ForAllValues:StringEquals:
+                    dynamodb:LeadingKeys:
+                      - HEALTH
+                  'Null':
+                    dynamodb:LeadingKeys: 'false'
   
   WindowBuilderFunction:
     Type: AWS::Serverless::Function
@@ -381,6 +395,7 @@ Resources:
         Variables:
           BUCKET_NAME: !Ref TelemetryBucketName
           BUS_NAME: !Ref PipelineBus
+          TABLE_NAME: !Ref IncidentsTable
       EventInvokeConfig:
         MaximumRetryAttempts: 0
         MaximumEventAgeInSeconds: 60
@@ -391,6 +406,43 @@ Resources:
             Schedule: rate(1 minute)
     Metadata:
       BuildMethod: makefile
+  
+  # ---- Incidents Table ---------------------------------------
+  # The live incidents, and the newest minute's health, for the dashboard's
+  # read API. Generic string keys, so each writer picks its own layout without
+  # a new table: the window builder keeps one item, pk HEALTH / sk LATEST, and
+  # incidents are M8-2's and M8-3's to lay out (Docs/PIPELINE.md). Kept if the
+  # stack is deleted or the table replaced: it will hold the diagnoses M9
+  # compares with ground truth.
+
+  IncidentsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: anomalypulse-incidents
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+  
+  # Where the others find it: the Diagnosis Lambda (M8-2), the diagnosis step
+  # (M8-3) and the dashboard's read API (M8-5).
+
+  IncidentsTableNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /anomalypulse/tables/incidents/name
+      Type: String
+      Value: !Ref IncidentsTable
+      Description: The AnomalyPulse Incidents table (M8-1)
 
   # ---- Alarm ---------------------------------------
   # In alarm while anything is in the undelivered queue: telemetry the
