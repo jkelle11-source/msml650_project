@@ -1,0 +1,58 @@
+{
+  "incident_id": "inc-sample-db-throttling",
+  "diagnosis": {
+    "severity": "HIGH",
+    "summary": "product-service is experiencing severe tail latency over the past 4 minutes, with p95 end-to-end latency at 1586 ms against a baseline of 6 ms. Read throttle events on the Products table have risen from 0 to 1400 per minute, while the p50 latency remains near baseline. A small 5xx error rate of 0.4% is also present.",
+    "root_cause": "DynamoDB read throttling on the Products table is the most likely root cause, with consumed read capacity far above what the provisioned table can sustain and 1400 read throttle events per minute forcing SDK retries that inflate tail latency.",
+    "evidence": [
+      "p95 end-to-end latency rose from 6 ms to 1586 ms, a 264x increase, while p50 latency moved only from 5 ms to 6 ms, showing the impact is concentrated in the tail.",
+      "p95 DynamoDB call latency rose from 4 ms to 1580 ms, a 395x increase, matching the shape of the end-to-end tail latency spike.",
+      "Read throttle events on the Products table rose from 0 to 1400 per minute.",
+      "Consumed read capacity rose from 480 RCU/min to 11900 RCU/min, a 24.8x increase.",
+      "Request rate is flat at 15.1 rps against a baseline of 15.0 rps, showing no traffic surge accompanies the throttling.",
+      "5xx error rate stands at 0.4%, up from 0.0% at baseline, indicating a small share of requests is exhausting all retry attempts."
+    ],
+    "recommended_actions": [
+      "Raise the Products table provisioned read capacity or switch it to on-demand mode immediately to relieve the active throttling.",
+      "Check db_consumed_read_capacity against the table's provisioned limit to confirm headroom; the current 11900 RCU/min is roughly 198 RCU/s, which can be compared directly to the provisioned read capacity units per second.",
+      "Investigate whether GET /products full-table scans account for the elevated read consumption; paginating the scan or caching the product list in the Lambda function between invocations would reduce per-request RCU cost.",
+      "After raising capacity, recheck read_throttle_events and db_latency_ms_p95 to confirm throttling has subsided.",
+      "Do not reduce SDK retry attempts while throttling is active, as doing so would convert the current tail latency into additional 5xx errors."
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "product-service.p95_latency_ms",
+      "product-service.p50_latency_ms"
+    ],
+    [
+      "product-service.db_latency_ms_p95"
+    ],
+    [
+      "product-service.read_throttle_events"
+    ],
+    [
+      "product-service.db_consumed_read_capacity"
+    ],
+    [
+      "product-service.request_rate"
+    ],
+    [
+      "product-service.error_rate_5xx"
+    ]
+  ],
+  "runbook": "database_throttling",
+  "self_check": {
+    "passed": true,
+    "findings": []
+  },
+  "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 3162,
+    "output_tokens": 1127
+  },
+  "latency_ms": 10492
+}

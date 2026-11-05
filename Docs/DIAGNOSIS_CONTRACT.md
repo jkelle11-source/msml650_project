@@ -1,4 +1,4 @@
-# Diagnosis Contract — Classified Incident → Bedrock → Diagnosis (M6-1)
+# Diagnosis Contract — Classified Incident → Bedrock → Diagnosis (M6-1, runbooks M6-2)
 
 **Owner:** Josh · **Code:** `AnomalyPulse/genai/` · **Lambda:** `anomalypulse-explain`
 (stack `anomalypulse-genai`, `AnomalyPulse/infra/genai/`) · **Used by:** M8-3 (builds the input, stores the
@@ -120,6 +120,7 @@ point of M9-5 is that Bedrock explains from what a monitor could see.
     "recommended_actions": ["Inspect payment-service health and its recent errors.", "…"]
   },
   "evidence_metrics": [["payment-service.p95_latency_ms"], ["…"]],
+  "runbook": null,
   "self_check": {"passed": true, "findings": []},
   "model": {"id": "global.anthropic.claude-sonnet-4-6", "effort": "medium"},
   "usage": {"input_tokens": 2292, "output_tokens": 1420},
@@ -136,6 +137,9 @@ point of M9-5 is that Bedrock explains from what a monitor could see.
 - **`evidence_metrics[i]`** lists the input metrics evidence bullet *i* rests on. Bedrock's answer is held to
   a schema built per request (structured outputs) in which a bullet can only cite this input's metrics, so
   every bullet traces to an input metric by construction. M8-4 can keep it beside the bullets.
+- **`runbook`** (M6-2): the name of the runbook the diagnosis was given (`"dependency_failure"`), or `null`
+  when runbooks are off, the default. It sits beside `diagnosis`, not in it, so the dashboard contract is
+  unchanged. See "Runbooks (M6-2)" below.
 - **`self_check`**: the smoke-level fidelity check below. A diagnosis that fails it is still returned, with
   `passed: false` and its findings, so M8-3 can store it flagged rather than lose it.
 - **Errors.** A bad input raises `BadInput` (it never reaches Bedrock). A refusal (Bedrock declining; there
@@ -195,7 +199,34 @@ dependency-error count above zero; `LOW` otherwise.
   nothing).
 
 Actions are checked for numbers and times only ("approaching throttling thresholds" there is DynamoDB's
-capacity, not the rubric). It is a dry run for M9-5's evaluation, not that evaluation.
+capacity, not the rubric). With a runbook, the numbers the runbook writes are allowed in actions too, held to
+the precision they are written in; a runbook number in the summary, root cause or evidence is still "not in
+or derivable from the input". It is a dry run for M9-5's evaluation, not that evaluation.
+
+## Runbooks (M6-2)
+
+A runbook per incident type (`genai/runbooks/<type>.md`), picked by the classified type
+(`genai.runbooks.runbook_for`), written for an on-call engineer on this stack: what to check, with the
+contract's metric names, and what to do. Scope decided 2026-11-02: five runbooks and no Bedrock Knowledge Base
+(with five types the pick is a lookup).
+
+- **Off by default:** `ANOMALYPULSE_RUNBOOKS` (`on`/`off`, `off` in `infra/genai/template.yaml`), or
+  `diagnose(..., runbooks=True)`. With it off, the request is byte-for-byte the M6-1 request; a test holds it
+  to a fixture saved before M6-2 changed any code (`genai/test_data/`).
+- **In the user turn only,** after the evidence, under "Runbook for this incident type. Use it only for
+  recommended_actions …" (`prompt.RUNBOOK_INTRO`). `SYSTEM_PROMPT` is unchanged, so summary, root cause and
+  evidence still come only from the input, and M9-5's evidence-fidelity and hallucination scores mean the same
+  either way.
+- **Their numbers are stack facts** (verified against `infra/shared/template.yaml` and the handlers;
+  `Handoffs/M6-1_Handoff.md` §4): 1,000 concurrent Lambda executions; the Products table's 200 RCU and 5 WCU;
+  7 SDK attempts on a DynamoDB call; 1,769 MB, a 10 s timeout and Python 3.13 for the functions; the 2 s
+  connect and 6 s read timeouts on Order's call to Payment. A test pins this set: a new number is a deliberate
+  change, because the self-check allows it in every action of that type.
+- **No simulator or Tier-2 words** (a test scans for them), and no causal claims: checks and actions only.
+- **Retrieval quality** ("does the retrieved runbook match the incident type?") equals the classifier's
+  accuracy (M9-2), since the runbook is picked by the classified type: report it that way. What M6-2 measures
+  instead is whether the actions get better, by a blind comparison with and without runbooks (M06), repeated
+  in M9-5 on the test set, which decides whether the switch is on for the demo.
 
 ## Running it
 
@@ -204,6 +235,7 @@ cd AnomalyPulse
 python3 -m pip install -r genai/requirements.txt                   # once, for local runs (SDK 1.x)
 python -m pytest -q genai                                          # no AWS
 python -m genai.run_samples --profile <your-profile>               # the five samples through Bedrock
+python -m genai.run_samples --profile <your-profile> --runbooks on # the same, with runbooks (M6-2)
 ```
 
 **Deploy** (its own stack, never `anomalypulse-shared`):

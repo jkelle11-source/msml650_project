@@ -5,9 +5,11 @@
     python -m genai.run_samples --profile <your-profile> --only dependency_failure
     python -m genai.run_samples --profile <your-profile> \\
         --model <model id> --model <another model id>                         # compare models
+    python -m genai.run_samples --profile <your-profile> --runbooks on        # M6-2: with runbooks
 
 Each call costs a little (a few thousand tokens). Results are written to
-genai/samples/results/<model>/<sample>.json; with more than one --model, a
+genai/samples/results/<model>/<sample>.json, or <model>+runbooks/ with
+--runbooks on, so the two runs sit side by side; with more than one --model, a
 table compares the models at the end.
 """
 import argparse
@@ -32,20 +34,23 @@ def _print_result(name, evidence, result):
         print(f"      - {bullet}  [{', '.join(refs)}]")
     for n, action in enumerate(d["recommended_actions"], 1):
         print(f"      {n}. {action}")
+    if result.get("runbook"):
+        print(f"      (runbook: {result['runbook']})")
     for finding in check["findings"]:
         print(f"      ! {finding}")
 
 
-def _run_model(explain, model, names):
+def _run_model(explain, model, names, runbooks=False):
     """{sample: result or None} for one model; prints each diagnosis."""
-    out_dir = RESULTS / model
+    label = model + ("+runbooks" if runbooks else "")
+    out_dir = RESULTS / label
     out_dir.mkdir(parents=True, exist_ok=True)
     results = {}
-    print(f"===== {model}")
+    print(f"===== {label}")
     for name in names:
         evidence = json.loads((SAMPLES / f"{name}.json").read_text())
         try:
-            result = explain.diagnose(evidence, model=model)
+            result = explain.diagnose(evidence, model=model, runbooks=runbooks)
         except Exception as e:
             print(f"ERROR {name}: {type(e).__name__}: {e}")
             results[name] = None
@@ -85,6 +90,8 @@ def main(argv=None) -> int:
     p.add_argument("--profile", required=True, help="AWS profile allowed to call Bedrock")
     p.add_argument("--only", action="append", help="sample name (repeatable); default: all")
     p.add_argument("--model", action="append", help="Bedrock model id (repeatable); default: explain.MODEL_ID")
+    p.add_argument("--runbooks", choices=("on", "off"), default="off",
+                   help="give each diagnosis its incident type's runbook (M6-2); default: off")
     args = p.parse_args(argv)
 
     # The Bedrock client reads the standard AWS chain, so the profile goes in before it's created.
@@ -93,7 +100,8 @@ def main(argv=None) -> int:
 
     names = args.only or sorted(f.stem for f in SAMPLES.glob("*.json"))
     models = args.model or [explain.MODEL_ID]
-    by_model = {model: _run_model(explain, model, names) for model in models}
+    runbooks = args.runbooks == "on"
+    by_model = {model: _run_model(explain, model, names, runbooks) for model in models}
     if len(models) > 1:
         _compare(by_model, names)
 

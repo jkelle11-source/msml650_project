@@ -1,0 +1,55 @@
+{
+  "incident_id": "inc-sample-lambda-degradation",
+  "diagnosis": {
+    "severity": "HIGH",
+    "summary": "The order-service Lambda handler is running far above its normal execution time, with mean handler duration up 176x and end-to-end latency up roughly 15x to 21x at the median and 95th percentile. Request rate is flat and no 5xx errors are recorded, so the degradation is limited to slowness rather than failures so far. The condition has persisted for 3 minutes.",
+    "root_cause": "A slowdown inside the order-service Lambda handler body is the most likely root cause, as the handler's mean CPU time rose 176x from its baseline while request rate and error rate are unchanged.",
+    "evidence": [
+      "order-service lambda_duration_ms_mean rose from 2 ms at baseline to 352 ms currently, a 176x increase.",
+      "order-service p50_latency_ms rose from 17 ms to 360 ms, approximately a 21x increase.",
+      "order-service p95_latency_ms rose from 24 ms to 375 ms, approximately a 15.6x increase above baseline.",
+      "order-service request_rate is flat at 2.9 rps against a baseline of 2.9 rps.",
+      "order-service error_rate_5xx remains at 0.0, with no 5xx responses recorded in the current window."
+    ],
+    "recommended_actions": [
+      "Check CloudWatch Logs for the anomalypulse-order Lambda function for slow code paths or unexpected blocking operations in the handler body, focusing on the window starting at 2026-10-30T16:03:00Z.",
+      "Review any recent changes to the anomalypulse-order function's code, layers, or configuration that align with the start of the slowdown, and roll back if a change is identified.",
+      "Check order-service cold_start_count to determine whether new execution environments are contributing to the elevated handler duration.",
+      "After any change, recheck lambda_duration_ms_mean and p95_latency_ms to confirm the handler duration has returned toward its 2 ms baseline.",
+      "Monitor error_rate_5xx closely: if handler duration continues to climb toward the 10 s function timeout, request failures will follow."
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "order-service.lambda_duration_ms_mean"
+    ],
+    [
+      "order-service.p50_latency_ms"
+    ],
+    [
+      "order-service.p95_latency_ms"
+    ],
+    [
+      "order-service.request_rate"
+    ],
+    [
+      "order-service.error_rate_5xx"
+    ]
+  ],
+  "runbook": "lambda_degradation",
+  "self_check": {
+    "passed": false,
+    "findings": [
+      "summary: the number 15 is not in or derivable from the input"
+    ]
+  },
+  "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 2975,
+    "output_tokens": 903
+  },
+  "latency_ms": 8121
+}

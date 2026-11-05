@@ -1,7 +1,7 @@
 """Structured evidence -> Bedrock -> diagnosis (M6-1).
 
-    diagnose(evidence) -> {"diagnosis": ..., "evidence_metrics": ..., "self_check": ..., "model": ...,
-                           "usage": ..., "latency_ms": ...}
+    diagnose(evidence) -> {"diagnosis": ..., "evidence_metrics": ..., "runbook": ..., "self_check": ...,
+                           "model": ..., "usage": ..., "latency_ms": ...}
 
 `diagnosis` is in the dashboard contract's shape (evidence as plain strings);
 `evidence_metrics[i]` lists the input metrics evidence bullet i rests on, so M8-4
@@ -17,7 +17,7 @@ import json
 import os
 import time
 
-from genai import contract, prompt, self_check
+from genai import contract, prompt, runbooks, self_check
 
 # Claude Sonnet 4.6, chosen over Opus 4.6 on the five samples (2026-11-01: fewer self-check
 # findings). Claude 4.7 and later have a Bedrock quota of 0 tokens per minute in this account
@@ -36,6 +36,9 @@ MAX_TOKENS = 16000
 # still outlast the Lambda.
 TIMEOUT_S = 50
 MAX_RETRIES = 1
+# M6-2: the runbook for the classified type goes into the user turn, for recommended_actions only.
+# Off by default; M9-5's blind comparison of actions decides whether it is turned on.
+RUNBOOKS = os.environ.get("ANOMALYPULSE_RUNBOOKS", "off") == "on"
 
 _client = None
 
@@ -54,25 +57,37 @@ def client():
     return _client
 
 
-def request(evidence: dict, model: str | None = None) -> dict:
+def _runbook(evidence: dict, use: bool | None):
+    """(name, text) of the incident type's runbook when runbooks are on, else (None, None).
+    `use` overrides the ANOMALYPULSE_RUNBOOKS switch."""
+    if not (RUNBOOKS if use is None else use):
+        return None, None
+    return runbooks.runbook_for(evidence["incident_type"])
+
+
+def request(evidence: dict, model: str | None = None, runbooks: bool | None = None) -> dict:
     """The Messages request for one diagnosis. Pure, so tests can check it without Bedrock."""
+    _, runbook = _runbook(evidence, runbooks)
     return {
         "model": model or MODEL_ID,
         "max_tokens": MAX_TOKENS,
         "thinking": {"type": "adaptive"},
         "system": prompt.SYSTEM_PROMPT,
-        "messages": [{"role": "user", "content": prompt.user_message(evidence)}],
+        "messages": [{"role": "user", "content": prompt.user_message(evidence, runbook)}],
         "output_config": {"effort": EFFORT,
                           "format": {"type": "json_schema", "schema": contract.output_schema(evidence)}},
     }
 
 
-def diagnose(evidence: dict, *, bedrock=None, model: str | None = None) -> dict:
-    """Validate the input, ask Bedrock, check the answer. Raises BadInput or DiagnosisFailed."""
+def diagnose(evidence: dict, *, bedrock=None, model: str | None = None,
+             runbooks: bool | None = None) -> dict:
+    """Validate the input, ask Bedrock, check the answer. Raises BadInput or DiagnosisFailed.
+    `runbooks` overrides the ANOMALYPULSE_RUNBOOKS switch."""
     contract.validate_input(evidence)
     model = model or MODEL_ID
+    runbook_name, runbook_text = _runbook(evidence, runbooks)
     started = time.perf_counter()
-    response = (bedrock or client()).messages.create(**request(evidence, model))
+    response = (bedrock or client()).messages.create(**request(evidence, model, runbooks))
     latency_ms = round((time.perf_counter() - started) * 1000)
 
     if response.stop_reason == "refusal":
@@ -85,7 +100,7 @@ def diagnose(evidence: dict, *, bedrock=None, model: str | None = None) -> dict:
         raise DiagnosisFailed(f"no text in the answer (stop_reason {response.stop_reason})")
     raw = json.loads(text)
 
-    findings = contract.check_output_shape(raw) + self_check.check(evidence, raw)
+    findings = contract.check_output_shape(raw) + self_check.check(evidence, raw, runbook=runbook_text)
     return {
         "incident_id": evidence["incident_id"],
         "diagnosis": {
@@ -96,6 +111,8 @@ def diagnose(evidence: dict, *, bedrock=None, model: str | None = None) -> dict:
             "recommended_actions": raw["recommended_actions"],
         },
         "evidence_metrics": [item["metrics"] for item in raw["evidence"]],
+        # Beside diagnosis, not in it, so the dashboard contract is unchanged. None when off.
+        "runbook": runbook_name,
         "self_check": {"passed": not findings, "findings": findings},
         "model": {"id": model, "effort": EFFORT},
         "usage": {"input_tokens": response.usage.input_tokens,

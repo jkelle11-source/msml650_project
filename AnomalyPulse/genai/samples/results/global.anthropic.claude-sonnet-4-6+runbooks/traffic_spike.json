@@ -1,0 +1,57 @@
+{
+  "incident_id": "inc-sample-traffic-spike",
+  "diagnosis": {
+    "severity": "LOW",
+    "summary": "Request rates across product-service, cart-service, and order-service have all risen approximately 3x above their baselines over the past 4 minutes. Latency on both product-service and order-service has moved only marginally, and no 5xx errors have been recorded. The stack appears to be absorbing the increased load without degradation.",
+    "root_cause": "A broad traffic spike affecting all three services simultaneously is the most likely root cause.",
+    "evidence": [
+      "product-service request_rate rose from 15.0 rps to 45.1 rps, a 3x increase.",
+      "cart-service request_rate rose from 2.0 rps to 6.0 rps, also a 3x increase.",
+      "order-service request_rate rose from 2.9 rps to 8.8 rps, approximately a 3x increase.",
+      "product-service p95 latency moved from 24 ms to 31 ms, a 29% increase, remaining well within normal range.",
+      "product-service error_rate_5xx is 0.0 at both baseline and current, with no errors observed.",
+      "order-service p95 latency moved from 58 ms to 61 ms, a 5% increase, with no meaningful degradation."
+    ],
+    "recommended_actions": [
+      "Monitor lambda_throttle_count on all three services; the shared account concurrency limit could become a constraint if request rates continue to rise.",
+      "Watch product-service db_consumed_read_capacity and read_throttle_events, as GET /products scans the Products table and reads grow with traffic.",
+      "If latency and error rates remain near baseline, continue monitoring without making changes, as the stack is currently absorbing the load.",
+      "If throttling appears or latency climbs, set rate and burst limits on the API Gateway stage to protect the stack while the source of the traffic is identified.",
+      "If product-service reads approach the provisioned capacity of the Products table, raise its provisioned read capacity or switch it to on-demand mode."
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "product-service.request_rate"
+    ],
+    [
+      "cart-service.request_rate"
+    ],
+    [
+      "order-service.request_rate"
+    ],
+    [
+      "product-service.p95_latency_ms"
+    ],
+    [
+      "product-service.error_rate_5xx"
+    ],
+    [
+      "order-service.p95_latency_ms"
+    ]
+  ],
+  "runbook": "traffic_spike",
+  "self_check": {
+    "passed": true,
+    "findings": []
+  },
+  "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 3065,
+    "output_tokens": 1017
+  },
+  "latency_ms": 8901
+}

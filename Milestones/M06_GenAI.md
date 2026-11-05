@@ -90,7 +90,26 @@ Knowledge Base.**
   then in M9-5. M9-5's comparison decides whether the switch is on for the demo.
 - **Build notes:** [`Handoffs/M6-1_Handoff.md`](../Handoffs/M6-1_Handoff.md), §2–§8.
 
+The runbooks are in `AnomalyPulse/genai/runbooks/`, one per type, and the contract's "Runbooks (M6-2)" section
+says how they reach the prompt. Results, 2026-11-03 and 2026-11-04:
+- **Both runs pass four of five samples on the self-check.** Each run has one finding, both in the
+  Lambda-degradation summary and neither from a runbook: off, "followed at roughly the same scale" (an ordering
+  word); on, "roughly 15x" for 15.6x. They are recorded, not rerun.
+- **The blind actionability comparison is a tie, 19/20 each**
+  (`genai/samples/results/blind/`). Without runbooks, one list watched two on-demand tables for "provisioned
+  limits". With runbooks, one list was marked unsafe, with no reason given, probably for "roll back if a change
+  is identified" in step 2. Four 0/1 criteria are too coarse to separate two reasonable lists, so M9-5 needs
+  finer scores.
+- **The scorer was not fully blind.** No one outside the GenAI work was free in time, so it was scored by the
+  person who scoped M6-2. The with-runbook lists also name stack facts more often, which can give them away.
+- **The switch stays off.** M9-5's comparison decides whether it is on for the demo.
+
 **Definition of Done**
-- [ ] For a detected incident, the correct runbook is retrieved and its content appears in the diagnosis.
-- [ ] Retrieval quality is measurable (matched vs mismatched runbook) for M9.
-- [ ] Clearly gated as stretch — core M6 does not depend on it.
+- [x] For a detected incident, the correct runbook is retrieved and its content appears in the diagnosis.
+  *The runbook is picked by the classified type and named in the reply's `runbook` field; its numbers appear
+  in `recommended_actions` (for example "order-service's 6 s read timeout" in the dependency-failure run).*
+- [x] Retrieval quality is measurable (matched vs mismatched runbook) for M9. *With the pick keyed on the
+  type, it equals classifier accuracy (M9-2); actionability with and without runbooks is measured instead, as
+  above.*
+- [x] Clearly gated as stretch — core M6 does not depend on it. *`ANOMALYPULSE_RUNBOOKS` is off by default, and
+  with it off the Bedrock request is byte-for-byte M6-1's, held to a saved fixture.*
