@@ -1,0 +1,636 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  AnomalyPulse live telemetry pipeline (M8-1) - a second subscription filter on
+  each service log group feeds a forwarder Lambda, then an EventBridge bus, an
+  SQS queue and the Aggregator (Docs/PIPELINE.md). A stack of its own: the
+  shipper keeps landing raw/ beside it, and anomalypulse-shared is not
+  redeployed until M9-1.
+
+Parameters:
+  TelemetryBucketName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /anomalypulse/telemetry/bucket/name
+    Description: The shared stack's telemetry bucket, read from its SSM parameter.
+
+Resources:
+
+  # ---- Event Bus ---------------------------------------
+  # The forwarder puts telemetry on it. The window builder announces each
+  # complete window on it too (WindowReady), and M8-2 adds its own rule for those.
+
+  PipelineBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: anomalypulse-pipeline
+  
+  # ---- Queues ---------------------------------------
+  # The telemetry queue holds every record between the bus and the Aggregator,
+  # so a burst waits here instead of being lost; its backlog is the §16 number.
+
+  # A message the Aggregator has received stays hidden for 185 s: six times its
+  # 30 s timeout, as Lambda recommends, plus the 5 s it may wait to fill a
+  # batch. One it fails 5 times moves to the dead-letter queue.
+
+  TelemetryQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: anomalypulse-telemetry
+      VisibilityTimeout: 185
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TelemetryDeadLetterQueue.Arn
+        maxReceiveCount: 5
+  
+  # Telemetry that reached the telemetry queue but that the Aggregator failed 5
+  # times: a message it can't read, or a minute it couldn't write. Kept 14
+  # days, longer than the telemetry queue's 4: a message keeps its first
+  # arrival time when it moves here.
+
+  TelemetryDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: anomalypulse-telemetry-dlq
+      MessageRetentionPeriod: 1209600
+  
+  # Telemetry that never reached the telemetry queue: events the rule couldn't
+  # deliver and deliveries the forwarder failed 3 times. Kept 14 days (the most
+  # SQS allows) to be read and sent again. Its alarm comes with the forwarder.
+
+  UndeliveredQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: anomalypulse-telemetry-undelivered
+      MessageRetentionPeriod: 1209600
+  
+  # ---- Routing ---------------------------------------
+  # EventBridge retries a failed delivery for an hour, not its default 24: a
+  # record that late can't help any live window, and in the undelivered queue
+  # it's seen. Errors it can't retry (a missing permission, a missing queue)
+  # go there at once.
+
+  TelemetryRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: anomalypulse-telemetry-to-queue
+      EventBusName: !Ref PipelineBus
+      EventPattern:
+        source:
+          - anomalypulse.telemetry
+        detail-type:
+          - TelemetryRecords
+      Targets:
+        - Id: telemetry-queue
+          Arn: !GetAtt TelemetryQueue.Arn
+          RetryPolicy:
+            MaximumEventAgeInSeconds: 3600
+          DeadLetterConfig:
+            Arn: !GetAtt UndeliveredQueue.Arn
+  
+  # ---- Queue Policies ---------------------------------------
+  # EventBridge may send to each queue only on behalf of our rule
+  # (aws:SourceArn), so no other rule, in this account or another, can fill
+  # them.
+
+  TelemetryQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref TelemetryQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: 
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt TelemetryQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt TelemetryRule.Arn
+  
+  UndeliveredQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref UndeliveredQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt UndeliveredQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt TelemetryRule.Arn
+  
+  # ---- Forwarder Lambda ---------------------------------------
+  # Turns each subscription filter delivery into PutEvents calls, 100 records
+  # an event (pipeline/forwarder/handler.py). CloudWatch Logs invokes it
+  # asynchronously: a delivery the handler raises on is retried twice, then
+  # sent to the undelivered queue. Like the rule, it gives up after an hour.
+
+  ForwarderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/anomalypulse-pipeline-forwarder
+      RetentionInDays: 90
+  
+  # Only what the forwarder does: PutEvents on the pipeline bus, SendMessage to
+  # the undelivered queue, and logs to its own log group. Not
+  # AWSLambdaBasicExecutionRole, which may write to any log group, the
+  # services' included, and those feed raw/ and this pipeline.
+
+  ForwarderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: anomalypulse-pipeline-forwarder
+      Description: The AnomalyPulse telemetry forwarder runs as this role (M8-1)
+      AssumeRolePolicyDocument: 
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: forwarder-logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt ForwarderLogGroup.Arn
+        - PolicyName: forwarder-put-events
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: events:PutEvents
+                Resource: !GetAtt PipelineBus.Arn
+                Condition:
+                  ForAllValues:StringEquals:
+                    events:source:
+                      - anomalypulse.telemetry
+                    events:detail-type:
+                      - TelemetryRecords
+                  'Null':
+                    events:source: 'false'
+                    events:detail-type: 'false'
+        - PolicyName: forwarder-on-failure
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt UndeliveredQueue.Arn
+  
+  ForwarderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: anomalypulse-pipeline-forwarder
+      CodeUri: ../../pipeline/forwarder
+      Handler: handler.handler
+      Runtime: python3.13
+      Architectures:
+        - arm64
+      MemorySize: 256
+      Timeout: 30
+      Role: !GetAtt ForwarderRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref ForwarderLogGroup
+      Environment:
+        Variables:
+          BUS_NAME: !Ref PipelineBus
+      EventInvokeConfig:
+        MaximumRetryAttempts: 2
+        MaximumEventAgeInSeconds: 3600
+        DestinationConfig:
+          OnFailure:
+            Type: SQS
+            Destination: !GetAtt UndeliveredQueue.Arn
+  
+  # ---- Aggregator Lambda ---------------------------------------
+  # Writes each batch's records to one file per minute under pipeline/records/
+  # (pipeline/aggregator/handler.py) and names the messages to retry
+  # (ReportBatchItemFailures). Up to 100 messages a batch, gathered for up to
+  # 5 s. At most 5 run at once: the services share the account's Lambda
+  # concurrency, and the Aggregator must never take it from them.
+
+  AggregatorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/anomalypulse-pipeline-aggregator
+      RetentionInDays: 90
+  
+  # Only what the Aggregator does: read and delete from the telemetry queue,
+  # write under pipeline/records/ in the telemetry bucket, and log to its own
+  # log group.
+
+  AggregatorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: anomalypulse-pipeline-aggregator
+      Description: The AnomalyPulse telemetry aggregator runs as this role (M8-1)
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: aggregator-logs
+          PolicyDocument: 
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt AggregatorLogGroup.Arn
+        - PolicyName: aggregator-queue-read
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt TelemetryQueue.Arn
+        - PolicyName: aggregator-s3-write
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub 'arn:aws:s3:::${TelemetryBucketName}/pipeline/records/*'
+
+  AggregatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: anomalypulse-pipeline-aggregator
+      CodeUri: ../../pipeline/aggregator
+      Handler: handler.handler
+      Runtime: python3.13
+      Architectures:
+        - arm64
+      MemorySize: 256
+      Timeout: 30
+      Role: !GetAtt AggregatorRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref AggregatorLogGroup
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref TelemetryBucketName
+      Events:
+        TelemetryQueue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt TelemetryQueue.Arn
+            BatchSize: 100
+            MaximumBatchingWindowInSeconds: 5
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+            ScalingConfig:
+              MaximumConcurrency: 5
+            Enabled: true
+  
+  # ---- Window Builder Lambda ---------------------------------------
+  # Once a minute: rebuilds the health numbers of the last 3 minutes, and builds
+  # each of the last 10 minutes' feature windows once its CloudWatch snapshots
+  # are in, announcing the complete ones on the bus (pipeline/window_builder/
+  # handler.py). Packaged by its Makefile, with features/ and the parts of
+  # simulator/ the guard needs. One run at a time, so two runs can't both
+  # announce a window; no retries, because the next minute's run is the retry.
+
+  WindowBuilderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/anomalypulse-pipeline-window-builder
+      RetentionInDays: 90
+  
+  # Only what the builder does: read the record files, the window files and the
+  # metrics extractor's snapshots; write health and windows; announce on the bus;
+  # log to its own log group. ListBucket on the whole bucket lists a minute's
+  # record files, and makes a missing key answer 404 instead of 403: the handler
+  # reads only a 404 as "not there yet". In the Incidents table, it may write
+  # the health item and nothing else.
+
+  WindowBuilderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: anomalypulse-pipeline-window-builder
+      Description: The AnomalyPulse window builder runs as this role (M8-1)
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: window-builder-logs
+          PolicyDocument: 
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt WindowBuilderLogGroup.Arn
+        - PolicyName: window-builder-s3-read
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub 'arn:aws:s3:::${TelemetryBucketName}'
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource:
+                  - !Sub 'arn:aws:s3:::${TelemetryBucketName}/pipeline/records/*'
+                  - !Sub 'arn:aws:s3:::${TelemetryBucketName}/pipeline/windows/*'
+                  - !Sub 'arn:aws:s3:::${TelemetryBucketName}/metrics/*'
+        - PolicyName: window-builder-s3-write
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource:
+                  - !Sub 'arn:aws:s3:::${TelemetryBucketName}/pipeline/health/*'
+                  - !Sub 'arn:aws:s3:::${TelemetryBucketName}/pipeline/windows/*'
+        - PolicyName: window-builder-put-events
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: events:PutEvents
+                Resource: !GetAtt PipelineBus.Arn
+                Condition:
+                  ForAllValues:StringEquals:
+                    events:source:
+                      - anomalypulse.pipeline
+                    events:detail-type:
+                      - WindowReady
+                  'Null':
+                    events:source: 'false'
+                    events:detail-type: 'false'
+        - PolicyName: window-builder-health-item
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:PutItem
+                Resource: !GetAtt IncidentsTable.Arn
+                Condition:
+                  ForAllValues:StringEquals:
+                    dynamodb:LeadingKeys:
+                      - HEALTH
+                  'Null':
+                    dynamodb:LeadingKeys: 'false'
+  
+  WindowBuilderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: anomalypulse-pipeline-window-builder
+      CodeUri: ../../pipeline/window_builder
+      Handler: handler.handler
+      Runtime: python3.13
+      Architectures:
+        - arm64
+      MemorySize: 512
+      Timeout: 60
+      ReservedConcurrentExecutions: 1
+      Role: !GetAtt WindowBuilderRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref WindowBuilderLogGroup
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref TelemetryBucketName
+          BUS_NAME: !Ref PipelineBus
+          TABLE_NAME: !Ref IncidentsTable
+      EventInvokeConfig:
+        MaximumRetryAttempts: 0
+        MaximumEventAgeInSeconds: 60
+      Events:
+        EveryMinute:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+    Metadata:
+      BuildMethod: makefile
+  
+  # ---- Incidents Table ---------------------------------------
+  # The live incidents, and the newest minute's health, for the dashboard's
+  # read API. Generic string keys, so each writer picks its own layout without
+  # a new table: the window builder keeps one item, pk HEALTH / sk LATEST, and
+  # incidents are M8-2's and M8-3's to lay out (Docs/PIPELINE.md). Kept if the
+  # stack is deleted or the table replaced: it will hold the diagnoses M9
+  # compares with ground truth.
+
+  IncidentsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: anomalypulse-incidents
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+  
+  # Where the others find it: the Diagnosis Lambda (M8-2), the diagnosis step
+  # (M8-3) and the dashboard's read API (M8-5).
+
+  IncidentsTableNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /anomalypulse/tables/incidents/name
+      Type: String
+      Value: !Ref IncidentsTable
+      Description: The AnomalyPulse Incidents table (M8-1)
+
+  # ---- Alarm ---------------------------------------
+  # In alarm while anything is in the undelivered queue: telemetry the
+  # pipeline lost before the telemetry queue. No action: its state shows in
+  # the CloudWatch console (Docs/PIPELINE.md, "Alarms").
+
+  UndeliveredAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: anomalypulse-telemetry-undelivered
+      AlarmDescription: Telemetry is in anomalypulse-telemetry-undelivered; it never reached the telemetry queue (Docs/PIPELINE.md)
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt UndeliveredQueue.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+  
+  # In alarm while anything is in the telemetry queue's dead-letter queue.
+
+  TelemetryDeadLetterAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: anomalypulse-telemetry-dlq
+      AlarmDescription: Telemetry is in anomalypulse-telemetry-dlq; the Aggregator failed it 5 times (Docs/PIPELINE.md)
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TelemetryDeadLetterQueue.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+  
+  # In alarm while a message has waited over 2 minutes in the telemetry queue:
+  # telemetry is late. The window builder builds a minute's window once its
+  # snapshots are in, and rebuilds its health for the last time, about 3 3/4
+  # minutes after it starts, so a minute's last records have about 165 s: past
+  # 120, windows and health built meanwhile may be missing records
+  # (Docs/PIPELINE.md). One failed batch sets it off: it waits out the queue's
+  # 185-second visibility timeout before it is tried again.
+
+  TelemetryLateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: anomalypulse-telemetry-late
+      AlarmDescription: Telemetry has waited over 2 minutes in anomalypulse-telemetry; windows and health built meanwhile may be missing records (Docs/PIPELINE.md)
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TelemetryQueue.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 120
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  # In alarm when the window builder has failed 3 runs in a row. One failed run
+  # is retried by the next; three means windows and health have stopped.
+
+  WindowBuilderErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: anomalypulse-pipeline-window-builder-errors
+      AlarmDescription: The window builder has failed 3 runs in a row; windows and health are not being built (Docs/PIPELINE.md)
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WindowBuilderFunction
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+        
+  # ---- Invoke Permissions ---------------------------------------
+  # CloudWatch Logs may invoke the forwarder for the four service log groups
+  # only, one permission each. The shipper's single permission covers
+  # /aws/lambda/anomalypulse-*, which would also take in log groups that
+  # aren't services', the forwarder's own among them.
+
+  ProductInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ForwarderFunction
+      Action: lambda:InvokeFunction
+      Principal: !Sub 'logs.${AWS::Region}.amazonaws.com'
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/anomalypulse-product:*'
+
+  CartInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ForwarderFunction
+      Action: lambda:InvokeFunction
+      Principal: !Sub 'logs.${AWS::Region}.amazonaws.com'
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/anomalypulse-cart:*'
+
+  OrderInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ForwarderFunction
+      Action: lambda:InvokeFunction
+      Principal: !Sub 'logs.${AWS::Region}.amazonaws.com'
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/anomalypulse-order:*'
+
+  PaymentInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ForwarderFunction
+      Action: lambda:InvokeFunction
+      Principal: !Sub 'logs.${AWS::Region}.amazonaws.com'
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/anomalypulse-payment:*'
+
+  # ---- Subscription Filters ---------------------------------------
+  # The second filter on each service log group (a log group allows two; the
+  # shipper's is the first). The shipper's pattern, so the pipeline gets the
+  # same lines raw/ does. The log groups are anomalypulse-shared's, named here
+  # because that stack exports nothing. Each waits for its permission:
+  # CloudWatch Logs checks it may invoke the forwarder when the filter is
+  # created.
+
+  ProductSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn: ProductInvokePermission
+    Properties:
+      FilterName: anomalypulse-pipeline
+      LogGroupName: /aws/lambda/anomalypulse-product
+      DestinationArn: !GetAtt ForwarderFunction.Arn
+      FilterPattern: '{ $.request_id = "*" }'
+  
+  CartSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn: CartInvokePermission
+    Properties:
+      FilterName: anomalypulse-pipeline
+      LogGroupName: /aws/lambda/anomalypulse-cart
+      DestinationArn: !GetAtt ForwarderFunction.Arn
+      FilterPattern: '{ $.request_id = "*" }'
+
+  OrderSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn: OrderInvokePermission
+    Properties:
+      FilterName: anomalypulse-pipeline
+      LogGroupName: /aws/lambda/anomalypulse-order
+      DestinationArn: !GetAtt ForwarderFunction.Arn
+      FilterPattern: '{ $.request_id = "*" }'
+
+  PaymentSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn: PaymentInvokePermission
+    Properties:
+      FilterName: anomalypulse-pipeline
+      LogGroupName: /aws/lambda/anomalypulse-payment
+      DestinationArn: !GetAtt ForwarderFunction.Arn
+      FilterPattern: '{ $.request_id = "*" }'

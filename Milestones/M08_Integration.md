@@ -37,10 +37,36 @@
 - Writes to S3 (raw) and the Incidents DynamoDB table.
 - End-to-end least-privilege IAM across the whole flow.
 
+**Decided (2026-11-01; [`Docs/PIPELINE.md`](../Docs/PIPELINE.md)):** a second subscription filter on each service
+log group feeds a forwarder Lambda, then EventBridge, SQS and the Aggregator, so every record passes through the
+queue. Each minute is built twice: a health summary from the request records just after the minute ends, for
+the dashboard, and the full 106-column window about 2¾ minutes after it ends, once the metrics extractor's
+CloudWatch snapshot lands, for the models. The window is `features.build_matrix`'s, unchanged: with no labels
+live, its temporal columns look back over every earlier minute, which changes 2 of 885 validation answers (one
+classifier window, one detector window). A window builder Lambda, run every minute after the Aggregator has
+filed the records, builds both and announces each complete window on the bus (WindowReady), and M8-2
+subscribes. The newest health is also an item in the Incidents table, for the dashboard.
+
 **Definition of Done**
-- [ ] Telemetry flows automatically from a service request to a materialized feature window without manual steps.
-- [ ] SQS absorbs a burst without loss (backlog observable for §16 metrics).
-- [ ] IAM verified least-privilege at each hop.
+- [x] Telemetry flows automatically from a service request to a materialized feature window without manual steps.
+- [x] SQS absorbs a burst without loss (backlog observable for §16 metrics).
+- [x] IAM verified least-privilege at each hop.
+
+**Done (2026-11-04 and 05; [`Docs/PIPELINE.md`](../Docs/PIPELINE.md), "Load tests" and "IAM at each hop"):**
+
+- **Items 1 and 2.** Every record reached `pipeline/records/`, in a normal run, a 10× burst and a run with the
+  Aggregator paused for 8½ minutes. Each was checked record by record against the shipper's `raw/` copy, and every
+  complete window was built and announced. The backlog is the queue's `ApproximateAgeOfOldestMessage`, alarmed
+  past 120 s (`anomalypulse-telemetry-late`).
+- **Item 3.** Each role allows only what its Lambda's code calls, and each Lambda can be invoked only by its one
+  caller. The checks:
+  - Access Analyzer found nothing on any of the deployed policies.
+  - IAM's policy simulator answered 46 of 46 allowed and denied cases as expected.
+  - Every service each role is granted has been used.
+  - A live run after the last change had no errors.
+
+  The review added one restriction: each sender may put only its own events on the bus. The window builder's
+  bucket-wide `ListBucket` is accepted, and the shipper's broad grants are left for after M9-1.
 
 ---
 
@@ -56,6 +82,14 @@
 - Diagnosis Lambda path: window → anomaly detector → (if anomalous) classifier → `{incident_type, confidence}`.
 - Live Tier-1-only feature vector construction (guard still enforced on the live path).
 - Detection-latency instrumentation on the live path for §16.
+
+**What live windows do (measured 2026-11-01, [`Docs/PIPELINE.md`](../Docs/PIPELINE.md)):** on validation,
+live-built windows change the classifier's answer once (a cascade's first minute after DB throttling's surge
+reads `DATABASE_THROTTLING`) and the detector's once (the first NORMAL minute after idle time). The live path
+also scores minutes training never did. The detector flags every minute whose look-back still holds a fault,
+for about 3 minutes past a fault's end, and the first full minute after idle time. The classifier names an
+incident in fewer of them (78 of 112 first recovery minutes, 24 of 56 second, 2 of 138 third). How flagged
+minutes open and close an incident is M8-2's and M8-3's call.
 
 **Definition of Done**
 - [ ] A live traffic spike is detected and classified end-to-end (MVP loop through the live path).

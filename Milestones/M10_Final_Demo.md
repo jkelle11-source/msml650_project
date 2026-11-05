@@ -36,6 +36,8 @@
 - Clean stack deploy + seed data; verified healthy baseline (§15 Part 1 numbers).
 - Cost guardrails (capacity caps, teardown, budget alarms) for live injection.
 - A step-by-step live-injection runbook + a rollback/reset path between takes.
+- Takes timed for the live path: start the traffic at least 6 minutes before the healthy segment, and allow about 6 minutes after an injected fault ends before calling the system healthy again. Until then the detector still flags minutes whose look-back holds the fault or the idle time before the traffic ([`Docs/PIPELINE.md`](../Docs/PIPELINE.md), "On the minutes only the live path scores").
+- After a fresh deploy of the pipeline stack, check that the window builder's runs start between about :20 and :50 of each minute, since a new schedule rule picks a new second. Later, the console shows `NO_DATA` for a moment every minute; earlier, its newest minute misses its last requests ([`Docs/PIPELINE.md`](../Docs/PIPELINE.md), "When a minute's window is ready", which has the check and the fix).
 
 **Definition of Done**
 - [ ] Fresh deploy reaches a healthy baseline matching the §15 Part-1 dashboard.

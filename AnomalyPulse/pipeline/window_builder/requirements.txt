@@ -1,0 +1,5 @@
+# Runtime dependencies for the window builder, installed into its package by the
+# Makefile (boto3 ships in the Lambda runtime). simulator/manifest.py imports
+# jsonschema, and the Feature/Label Boundary guard imports simulator/. Pinned to
+# the version its tests run with.
+jsonschema==4.26.0

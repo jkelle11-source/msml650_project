@@ -157,6 +157,7 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [Docs/M5-3_REPORT.md](Docs/M5-3_REPORT.md) | Incident classification (M5-3): Model 0 (the threshold baseline), logistic regression, XGBoost and Random Forest on validation, the cascade margin and time to recognize a cascade, the wrong windows, and the selected model. |
 | [Docs/DIAGNOSIS_CONTRACT.md](Docs/DIAGNOSIS_CONTRACT.md) | The diagnosis contract (M6-1): what Bedrock is given (the classified incident as structured evidence, how `affected_services` is decided) and what it gives back, the wording rules, the severity rubric, the self-check, and the model choice. |
 | [Docs/DASHBOARD_CONTRACT.md](Docs/DASHBOARD_CONTRACT.md) | The dashboard data contract (M7-2): the JSON object the SRE console reads, what every field means, the mock scenarios, and where each value comes from in M8. |
+| [Docs/PIPELINE.md](Docs/PIPELINE.md) | The live telemetry pipeline (M8-1): the path from a service's log line to a one-minute window, what it writes (health, windows, the WindowReady event, the Incidents table's health item), when each window is ready, what late telemetry does, its alarms and load tests, the IAM at each hop, and what live windows do differently from training's, measured on validation. |
 | [Docs/Summary.md](Docs/Summary.md) | Short project summary draft. |
 | [Milestones/](Milestones/) | The ten milestone specs (M1–M10), each with issues and Definition of Done. |
 | [Handoffs/](Handoffs/) | Onboarding and handoff docs — [M1-1_Handoff.md](Handoffs/M1-1_Handoff.md) (stack + team conventions), [M2-1_Handoff.md](Handoffs/M2-1_Handoff.md) (how to emit telemetry), [M3-1_Handoff.md](Handoffs/M3-1_Handoff.md) (how to write an injector), [M5-1_Handoff.md](Handoffs/M5-1_Handoff.md) (how to train, package and promote a model) and [M6-1_Handoff.md](Handoffs/M6-1_Handoff.md) (the diagnosis pipeline after review, and how to build M6-2's runbooks). |
@@ -173,6 +174,8 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [AnomalyPulse/dashboard/](AnomalyPulse/dashboard/) | M7-2's dashboard read API: `builder.py` (every rule of the dashboard contract), `mock_source.py` (the contract's six mock scenarios), `handler.py` (the Lambda: picks the source, reads the clock), and their tests. |
 | [AnomalyPulse/console/](AnomalyPulse/console/) | M7-1's SRE console: static HTML, CSS and JavaScript modules (no build step) that render the dashboard contract, `mock/` (snapshots of the read API's six scenarios, the demo's offline fallback) and its tests. Run from the presenting laptop; see its [README](AnomalyPulse/console/README.md). Kept out of `dashboard/`, which is packaged whole into the read API's Lambda. |
 | [AnomalyPulse/infra/dashboard/](AnomalyPulse/infra/dashboard/) | The `anomalypulse-dashboard` stack (M7-2): the read API's Lambda, its HTTP API (`GET /dashboard`, CORS), role and log group, and the URL's SSM parameter. |
+| [AnomalyPulse/pipeline/](AnomalyPulse/pipeline/) | M8-1's live telemetry pipeline, one folder per Lambda, each with `handler.py` and its tests: `forwarder/` (CloudWatch Logs → the pipeline bus), `aggregator/` (the telemetry queue → `pipeline/records/`) and `window_builder/` (every minute: health, the 106-column windows, WindowReady; its `Makefile` packages `features/` and the parts of `simulator/` the guard needs). See [Docs/PIPELINE.md](Docs/PIPELINE.md). |
+| [AnomalyPulse/infra/pipeline/](AnomalyPulse/infra/pipeline/) | The `anomalypulse-pipeline` stack (M8-1): the second subscription filter on each service log group, the three Lambdas, the bus and its rule, the telemetry, dead-letter and undelivered queues, the Incidents table and its SSM parameter, and the alarms. |
 | [AnomalyPulse/infra/runner/](AnomalyPulse/infra/runner/) | M4's runner host: its own CloudFormation stack (`anomalypulse-runner`: one EC2 instance, reached through Session Manager), `setup.sh` and the tmux helper. |
 
 ---
@@ -202,6 +205,7 @@ aws ssm get-parameter --name <path> --query Parameter.Value --output text --prof
 | `/anomalypulse/simulator/role-arn` | Simulator role ARN | The `role_arn` of your `sim` AWS profile ([M3-1 handoff](Handoffs/M3-1_Handoff.md) §4) |
 | `/anomalypulse/dashboard/url` | The dashboard read API's URL (`https://…/dashboard`), published by the `anomalypulse-dashboard` stack | The SRE console (M7-1) and M8 |
 | `/anomalypulse/genai/explain-function` | The explanation Lambda's name (`anomalypulse-explain`), published by the `anomalypulse-genai` stack | M8-3, which invokes it with each classified incident |
+| `/anomalypulse/tables/incidents/name` | The Incidents table's name (`anomalypulse-incidents`), published by the `anomalypulse-pipeline` stack | M8-2 and M8-3, which write incidents to it, and M8-5, which reads them and the health item |
 
 The Lambda functions, tables, and IAM roles now live in the same shared template,
 so functions reference each other directly (via `!Ref`/`!GetAtt`) rather than
@@ -222,6 +226,7 @@ service Lambdas. All tables are on-demand (`PAY_PER_REQUEST`).
 | `anomalypulse-orders` | `order_id` (S) | — | `GET /orders/{id}` by key. |
 | `anomalypulse-experiments` | `pk` (S) | — | Simulator only. Holds the one experiment lock item (`pk = "LOCK"`). |
 | `anomalypulse-fault-config` | `service` (S) | `fault_id` (S) | One item per injected fault, written by the simulator and queried by each service for its own partition. TTL on `expires_at`. |
+| `anomalypulse-incidents` | `pk` (S) | `sk` (S) | The `anomalypulse-pipeline` stack's, kept if the stack is deleted. The window builder's health item (`pk = "HEALTH"`, `sk = "LATEST"`), and the incidents M8-2 and M8-3 write, in a layout of their choosing ([Docs/PIPELINE.md](Docs/PIPELINE.md)). |
 
 > **M3 note:** the DynamoDB-throttling incident needs a table in `PROVISIONED`
 > mode with low capacity to produce *real* throttling. On-demand is correct for
@@ -294,6 +299,11 @@ in the same bucket and never expire: they are the ground truth.
 Objects under `raw/` expire after 90 days. The `service=…/dt=…` key segments are
 Hive-style partitions for later batch aggregation (M4). Handlers never write to S3
 directly. Full detail: [Docs/TELEMETRY_CONTRACT.md](Docs/TELEMETRY_CONTRACT.md).
+
+The live pipeline (M8-1) writes under `pipeline/` (each minute's records, health and
+feature window) and reads `metrics/` ([Docs/PIPELINE.md](Docs/PIPELINE.md), "What it
+writes"). Nothing under `pipeline/` expires: the bucket's lifecycle rules, in the
+shared stack, cover `raw/` and `metrics/` only.
 
 ---
 
@@ -396,6 +406,26 @@ aws lambda invoke --function-name anomalypulse-explain --cli-binary-format raw-i
   --payload file://AnomalyPulse/genai/samples/dependency_failure.json reply.json --profile dev
 ```
 
+### The pipeline stack
+
+The live telemetry pipeline (M8-1) is its own stack, `anomalypulse-pipeline`. It reads
+the bucket's name from SSM and adds a second subscription filter to each service log
+group, but never updates the shared stack:
+
+```bash
+cd AnomalyPulse/infra/pipeline
+sam build
+AWS_PROFILE=admin sam deploy
+```
+
+`admin`, because the stack creates IAM roles. `sam build` builds in the source folders
+(`build_in_source` in `samconfig.toml`), because the window builder's `Makefile`
+packages the repository's `features/` and the parts of `simulator/` the Feature/Label
+Boundary guard needs, with `jsonschema` as arm64 Linux wheels. The Incidents table's
+name is `/anomalypulse/tables/incidents/name`. After a deploy that creates the window
+builder's schedule rule, such as a new stack, check which second its runs start at
+([Docs/PIPELINE.md](Docs/PIPELINE.md), "When a minute's window is ready").
+
 ## Running the tests
 
 Each service has unit tests next to its handler. Test-only dependencies live in
@@ -454,6 +484,17 @@ dependencies. No test reaches AWS or needs credentials:
 
 ```bash
 cd AnomalyPulse/simulator
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+The pipeline's three Lambdas have their own tests, which reach no AWS: S3, the bus and
+the Incidents table are faked or stubbed. Run each folder on its own. All three test
+files are named `test_handler.py`, so one pytest run over `pipeline/` stops on the
+name clash before running any:
+
+```bash
+cd AnomalyPulse/pipeline/<lambda>   # forwarder | aggregator | window_builder
 pip install -r requirements-dev.txt
 python -m pytest
 ```

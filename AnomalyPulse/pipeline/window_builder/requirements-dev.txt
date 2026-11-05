@@ -1,0 +1,7 @@
+# Test-only dependencies for the window builder (NOT deployed to Lambda; boto3
+# ships in the Lambda runtime). The tests import features/ from the repository,
+# which imports simulator/ (the Feature/Label Boundary guard), which needs
+# jsonschema. pytest is the shared test runner.
+pytest
+boto3
+jsonschema

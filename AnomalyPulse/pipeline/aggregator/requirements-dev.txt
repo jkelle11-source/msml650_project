@@ -1,0 +1,6 @@
+# Test-only dependencies for the telemetry aggregator (NOT deployed to Lambda;
+# boto3 ships in the Lambda runtime). Tests mock or stub the S3 client -- no
+# live AWS or credentials needed. pytest is the shared test runner. The tests
+# also import features/windows.py, which uses only the standard library.
+pytest
+boto3

@@ -1,0 +1,5 @@
+# Test-only dependencies for the telemetry forwarder (NOT deployed to Lambda;
+# boto3 ships in the Lambda runtime). Tests mock or stub the events client --
+# no live AWS or credentials needed. pytest is the shared test runner.
+pytest
+boto3
