@@ -209,7 +209,7 @@ which the example rounds to 0.167. The numbers are illustrative; none comes from
 
 | Section | Now (M7) | Live (M8) | Who |
 |---|---|---|---|
-| `health` | the mock scenario | The aggregator's latest one-minute window. The system-wide p95 is a value the aggregator adds, computed from the raw request records | M8-1 (Jake) |
+| `health` | the mock scenario | The Incidents table's health item (`pk = "HEALTH"`, `sk = "LATEST"`), which the pipeline's window builder rewrites every minute with the newest minute, in `builder.py`'s input shape. The system-wide p95 is computed from the request records themselves. Its numbers come back from DynamoDB as `Decimal`s ([`PIPELINE.md`](PIPELINE.md), "What it writes") | M8-1 (Jake) |
 | `prediction` | the mock scenario | The Diagnosis Lambda's reply, stored in the Incidents table | M8-2 (Melisa), M8-3 (Rachel) |
 | `diagnosis` | the mock scenario | Bedrock's output, stored in the Incidents table | M8-3 (Rachel), M8-4 (Josh) |
 | `ground_truth`, `comparison` | the mock scenario | The manifest of the experiment running in that minute, read from the shared bucket (read only) | Jake |
