@@ -16,8 +16,8 @@ Parameters:
 Resources:
 
   # ---- Event Bus ---------------------------------------
-  # The forwarder puts telemetry on it. From step 6 the Aggregator announces
-  # each window on it too, and M8-2 adds its own rule for those.
+  # The forwarder puts telemetry on it. The window builder announces each
+  # complete window on it too (WindowReady), and M8-2 adds its own rule for those.
 
   PipelineBus:
     Type: AWS::Events::EventBus
@@ -466,7 +466,7 @@ Resources:
   # ---- Alarm ---------------------------------------
   # In alarm while anything is in the undelivered queue: telemetry the
   # pipeline lost before the telemetry queue. No action: its state shows in
-  # the CloudWatch console, and step 9's check reads it.
+  # the CloudWatch console (Docs/PIPELINE.md, "Alarms").
 
   UndeliveredAlarm:
     Type: AWS::CloudWatch::Alarm

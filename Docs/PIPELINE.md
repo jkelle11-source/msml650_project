@@ -46,7 +46,7 @@ service Lambda  print(json)
 | Telemetry queue | `anomalypulse-telemetry` | Holds each event until the Aggregator has filed it: 4 days at most. A message the Aggregator fails comes back after 185 s (6 × its 30 s timeout, plus its 5 s batching window); after 5 failures it goes to `anomalypulse-telemetry-dlq`, kept 14 days |
 | Undelivered queue | `anomalypulse-telemetry-undelivered` | Telemetry that never reached the telemetry queue, kept 14 days |
 | Aggregator Lambda | `anomalypulse-pipeline-aggregator` | Reads up to 100 messages at a time, waiting up to 5 s to fill a batch, at most 5 at once. Writes one file per minute per run, records unchanged and not deduplicated, and reports only the messages it failed |
-| Window builder Lambda | `anomalypulse-pipeline-window-builder` | Runs every minute (at about :45), one run at a time, never retried: the next run is the retry. Rebuilds the health of the last 3 minutes, newest first, and builds each of the last 10 minutes' windows once that minute's 4 snapshots are in |
+| Window builder Lambda | `anomalypulse-pipeline-window-builder` | Runs every minute (at about :45, which matters: see "When a minute's window is ready"), one run at a time, never retried: the next run is the retry. Rebuilds the health of the last 3 minutes, newest first, and builds each of the last 10 minutes' windows once that minute's 4 snapshots are in |
 | Incidents table | `anomalypulse-incidents` (SSM `/anomalypulse/tables/incidents/name`) | The newest minute's health for the dashboard, and the incidents M8-2 and M8-3 write |
 
 ## What it writes
@@ -57,7 +57,7 @@ service Lambda  print(json)
 | `pipeline/health/dt=YYYY-MM-DD/minute=HH-MM.json` | Window builder | The minute's health (below). Rewritten by each of the next two runs, so records still on their way are counted |
 | `pipeline/windows/dt=YYYY-MM-DD/minute=HH-MM.json` | Window builder | `{"window_start", <the 106 columns>}`. Written once: the file marks the minute done |
 | Incidents table, `pk = "HEALTH"`, `sk = "LATEST"` | Window builder | The newest minute's health: what the dashboard read API reads |
-| Bus event, `Source` `anomalypulse.pipeline`, `DetailType` `WindowReady` | Window builder | `{"windows": [<the window>], "key": "<its file>"}`, the Diagnosis Lambda's input shape. Only for a window with no empty value, and sent before its file is written, so a failed send is retried by the next run. A failed file write after a sent event means the next run sends it again: M8-2 must accept a repeat |
+| Bus event, `Source` `anomalypulse.pipeline`, `DetailType` `WindowReady` | Window builder | Its `detail` is `{"windows": [<the window>], "key": "<its file>"}`, the Diagnosis Lambda's input shape. A rule's Lambda target receives the whole event, with that under `detail`, so M8-2's target passes it on with `InputPath: $.detail`. Only for a window with no empty value, and sent before its file is written, so a failed send is retried by the next run. A failed file write after a sent event means the next run sends it again. M8-2 must accept a repeat, and windows out of order: after a gap, one run announces several, and EventBridge keeps no order |
 
 **Health** is the input `AnomalyPulse/dashboard/builder.py` takes, 14 keys: `window_start`,
 `system_p95_latency_ms`, and for `product`, `cart`, `order` and `payment` the features' own `_request_rate` (per
@@ -97,6 +97,32 @@ latency in [`DETECTION.md`](DETECTION.md), which stops the clock at that window'
 and the run writes the next one within 1 s when idle and 3.3 s at 10× traffic (measured: the health item was at
 most 167 s old). A run that fails leaves no newer minute, so the dashboard shows `NO_DATA` for about 45 s until
 the next run: correct, since the pipeline has stopped for that long.
+
+**Both depend on the second the runs start at, and a new rule picks a new one.** EventBridge counts a
+`rate(1 minute)` rule's minutes from when the rule was created, so the runs start at about :45 only because
+that is when this rule was created. A run starting at second s has two deadlines:
+
+- **The newest health must be written within 60 − s seconds,** before the one before it turns 3 minutes old. At
+  :45 that leaves 15 s, against 3.3 s at 10× traffic. Past about :55, the dashboard would show `NO_DATA` for a
+  moment every minute.
+- **The newest minute's last records must have landed when the run reads them.** They can wait 13 s in the queue
+  alone. Before about :20, the health item would miss them: the next two runs count them in the minute's health
+  file, but the item has moved on to the next minute by then.
+
+So the runs should start between about :20 and :50. Any deploy that creates the rule draws a new second: a new
+stack, as M10 plans, or a template change that replaces the rule. After one, read the runs' start times (macOS
+`date`; the last 10 minutes):
+
+```bash
+AWS_PROFILE=dev AWS_REGION=us-east-2 aws logs filter-log-events \
+  --log-group-name /aws/lambda/anomalypulse-pipeline-window-builder \
+  --filter-pattern START --start-time $(( ($(date +%s) - 600) * 1000 )) \
+  --query 'events[].timestamp' --output text | tr '\t' '\n' | while read t; do date -u -r $((t / 1000)) +%H:%M:%S; done
+# 22:37:45, 22:38:45, ... (2026-11-05)
+```
+
+Outside :20–:50, rename the window builder's schedule event (`EveryMinute` in the template) and deploy again:
+CloudFormation replaces the rule, which draws a new second.
 
 ## When telemetry is late (measured 2026-11-05)
 
@@ -171,9 +197,12 @@ and those feed `raw/` and this pipeline.
 | Aggregator | `ReceiveMessage`, `DeleteMessage` and `GetQueueAttributes` on the telemetry queue: Lambda's queue reader uses the Aggregator's role. `PutObject` under `pipeline/records/` | Lambda's queue reader. No resource policy is needed |
 | Window builder | `ListBucket` on the bucket. `GetObject` under `pipeline/records/`, `pipeline/windows/` and `metrics/`. `PutObject` under `pipeline/health/` and `pipeline/windows/`. `PutItem` on the Incidents table, for `pk = "HEALTH"` only. `PutEvents` on the pipeline bus, for `anomalypulse.pipeline` / `WindowReady` events only | Its schedule rule only |
 
-Both the telemetry queue and the undelivered queue (the rule's dead-letter queue) accept messages only from
-EventBridge, for the telemetry rule (`aws:SourceArn`). The Aggregator's DLQ has no policy: SQS moves failed
-messages into it itself. The bus has no resource policy, since within one account the role policies decide.
+The policies of the telemetry queue and the undelivered queue (the rule's dead-letter queue) let EventBridge send
+to them only for the telemetry rule (`aws:SourceArn`), so no other rule, in this account or another, can fill
+them. They don't stop a role in this account that has its own `sqs:SendMessage` grant: of this stack's roles,
+only the forwarder's has one, for the undelivered queue, its on-failure destination. The Aggregator's DLQ has no
+policy: SQS moves failed messages into it itself. The bus has no resource policy, since within one account the
+role policies decide.
 
 **The event locks.** One `PutEvents` call carries up to 10 entries, so EventBridge checks `events:source` and
 `events:detail-type` as lists, with one value per entry:
