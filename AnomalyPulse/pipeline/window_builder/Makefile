@@ -17,6 +17,6 @@ build-WindowBuilderFunction:
 	   $(ROOT)/simulator/control_plane.py $(ARTIFACTS_DIR)/simulator/
 	rsync -a --exclude '__pycache__' --exclude 'test_*' $(ROOT)/simulator/injectors $(ARTIFACTS_DIR)/simulator/
 	cp $(ROOT)/infra/shared/field_catalog.json $(ARTIFACTS_DIR)/infra/shared/
-	python3 -m pip install --quiet --target $(ARTIFACTS_DIR) --platform manylinux2014_aarch64 \
+	python3 -m pip install --quiet --no-compile --target $(ARTIFACTS_DIR) --platform manylinux2014_aarch64 \
 	   --implementation cp --python-version 3.13 --only-binary=:all: -r requirements.txt
 	rm -rf $(ARTIFACTS_DIR)/bin

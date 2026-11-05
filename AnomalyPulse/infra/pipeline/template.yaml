@@ -171,6 +171,15 @@ Resources:
               - Effect: Allow
                 Action: events:PutEvents
                 Resource: !GetAtt PipelineBus.Arn
+                Condition:
+                  ForAllValues:StringEquals:
+                    events:source:
+                      - anomalypulse.telemetry
+                    events:detail-type:
+                      - TelemetryRecords
+                  'Null':
+                    events:source: 'false'
+                    events:detail-type: 'false'
         - PolicyName: forwarder-on-failure
           PolicyDocument:
             Version: '2012-10-17'
@@ -363,6 +372,15 @@ Resources:
               - Effect: Allow
                 Action: events:PutEvents
                 Resource: !GetAtt PipelineBus.Arn
+                Condition:
+                  ForAllValues:StringEquals:
+                    events:source:
+                      - anomalypulse.pipeline
+                    events:detail-type:
+                      - WindowReady
+                  'Null':
+                    events:source: 'false'
+                    events:detail-type: 'false'
         - PolicyName: window-builder-health-item
           PolicyDocument:
             Version: '2012-10-17'
