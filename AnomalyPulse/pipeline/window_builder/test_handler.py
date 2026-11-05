@@ -668,6 +668,38 @@ def test_a_window_waits_until_all_four_snapshots_are_in(bucket):
     assert handler.run(_at(7, 9, 10))["windows"] == _names(4)
 
 
+@pytest.mark.parametrize("now, built", [(_at(7, 14, 10), True), (_at(7, 15, 10), False)])
+def test_a_late_window_is_waited_for_10_minutes_and_no_longer(bucket, now, built):
+    # Window 07:04's payment snapshot lands only after 07:14 starts. At 07:14:10, 07:04 is 10 minutes
+    # back, the oldest a run looks at, so it is built; at 07:15:10 it is 11 back, and never built.
+    s3, ev = bucket
+    _hand_bucket(s3)
+    payment = _extractor_key("payment-service", _at(7, 5))
+    held = s3.objects.pop(payment)
+    assert handler.run(_at(7, 8, 10))["windows"] == []
+
+    s3.objects[payment] = held
+    result = handler.run(now)
+
+    assert result["windows"] == result["announced"] == (_names(4) if built else [])
+    assert (handler.window_key(_at(7, 4)) in s3.objects) is built
+
+
+def test_windows_ready_in_the_same_run_are_announced_oldest_first(bucket):
+    # After a gap (here, 07:04's and 07:05's snapshots both in by 07:09:10), M8-2 hears the
+    # older window first. EventBridge keeps no order, but the builder sends them in order.
+    s3, ev = bucket
+    records, snapshots = _stream(minutes=8, idle=())
+    _load(s3, records, snapshots, snapshots_until=_at(7, 6))  # windows up to 07:05
+    _built_already(s3, _at(6, 59), _at(7, 3))
+
+    result = handler.run(_at(7, 9, 10))
+
+    assert result["windows"] == result["announced"] == _names(4, 5)
+    assert [json.loads(e["Detail"])["key"] for e in ev.entries] == \
+        [handler.window_key(_at(7, 4)), handler.window_key(_at(7, 5))]
+
+
 def test_a_window_reads_its_minute_and_the_two_before_it(bucket):
     s3, ev = bucket
     _hand_bucket(s3)
