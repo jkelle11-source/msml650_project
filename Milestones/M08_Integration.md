@@ -50,13 +50,23 @@ subscribes. The newest health is also an item in the Incidents table, for the da
 **Definition of Done**
 - [x] Telemetry flows automatically from a service request to a materialized feature window without manual steps.
 - [x] SQS absorbs a burst without loss (backlog observable for §16 metrics).
-- [ ] IAM verified least-privilege at each hop.
+- [x] IAM verified least-privilege at each hop.
 
-**Done (2026-11-04 and 05; [`Docs/PIPELINE.md`](../Docs/PIPELINE.md), "Load tests"):** items 1 and 2. Every
-record of a normal run, a 10× burst and a run with the Aggregator paused for 8½ minutes reached
-`pipeline/records/`, checked record by record against the shipper's `raw/` copy, and every complete window was
-built and announced. The backlog is the queue's `ApproximateAgeOfOldestMessage`, alarmed past 120 s
-(`anomalypulse-telemetry-late`). Item 3 is the IAM review at the end of M8-1.
+**Done (2026-11-04 and 05; [`Docs/PIPELINE.md`](../Docs/PIPELINE.md), "Load tests" and "IAM at each hop"):**
+
+- **Items 1 and 2.** Every record reached `pipeline/records/`, in a normal run, a 10× burst and a run with the
+  Aggregator paused for 8½ minutes. Each was checked record by record against the shipper's `raw/` copy, and every
+  complete window was built and announced. The backlog is the queue's `ApproximateAgeOfOldestMessage`, alarmed
+  past 120 s (`anomalypulse-telemetry-late`).
+- **Item 3.** Each role allows only what its Lambda's code calls, and each Lambda can be invoked only by its one
+  caller. The checks:
+  - Access Analyzer found nothing on any of the deployed policies.
+  - IAM's policy simulator answered 46 of 46 allowed and denied cases as expected.
+  - Every service each role is granted has been used.
+  - A live run after the last change had no errors.
+
+  The review added one restriction: each sender may put only its own events on the bus. The window builder's
+  bucket-wide `ListBucket` is accepted, and the shipper's broad grants are left for after M9-1.
 
 ---
 

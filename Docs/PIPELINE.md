@@ -6,8 +6,8 @@
 
 How a service's telemetry reaches the models while the system runs: each minute becomes a window built the way
 M4 built the training set, a few minutes after the requests it describes. This document holds the design
-decisions, what the pipeline writes and where, what happens when telemetry is late, the load tests, and what
-live windows do differently from training's. The IAM review at each hop is added at the end of M8-1.
+decisions, what the pipeline writes and where, what happens when telemetry is late, the load tests, the IAM at
+each hop, and what live windows do differently from training's.
 
 ---
 
@@ -157,6 +157,76 @@ pipeline alongside.
 **With the Aggregator paused**, the queue held 148 messages, the oldest waiting up to 397 s, and the late alarm
 went off. Once the reader was back on, the backlog drained in about 45 s, in 4 Aggregator runs: the queue absorbed
 the backlog without losing a record.
+
+## IAM at each hop (checked 2026-11-05)
+
+Each Lambda's role allows what its code calls, on the resources it uses, and nothing else, and each Lambda can
+be invoked only by its one caller. Every role trusts only Lambda, has no AWS managed policy, and logs only to its
+own log group. None uses `AWSLambdaBasicExecutionRole`, which may write to any log group, the services' included,
+and those feed `raw/` and this pipeline.
+
+| Lambda | Its role may | Invoked by |
+|---|---|---|
+| Forwarder | `PutEvents` on the pipeline bus, for `anomalypulse.telemetry` / `TelemetryRecords` events only. `SendMessage` to the undelivered queue, its on-failure destination | CloudWatch Logs, for the 4 service log groups only, each named, in this account |
+| Aggregator | `ReceiveMessage`, `DeleteMessage` and `GetQueueAttributes` on the telemetry queue: Lambda's queue reader uses the Aggregator's role. `PutObject` under `pipeline/records/` | Lambda's queue reader. No resource policy is needed |
+| Window builder | `ListBucket` on the bucket. `GetObject` under `pipeline/records/`, `pipeline/windows/` and `metrics/`. `PutObject` under `pipeline/health/` and `pipeline/windows/`. `PutItem` on the Incidents table, for `pk = "HEALTH"` only. `PutEvents` on the pipeline bus, for `anomalypulse.pipeline` / `WindowReady` events only | Its schedule rule only |
+
+Both the telemetry queue and the undelivered queue (the rule's dead-letter queue) accept messages only from
+EventBridge, for the telemetry rule (`aws:SourceArn`). The Aggregator's DLQ has no policy: SQS moves failed
+messages into it itself. The bus has no resource policy, since within one account the role policies decide.
+
+**The event locks.** One `PutEvents` call carries up to 10 entries, so EventBridge checks `events:source` and
+`events:detail-type` as lists, with one value per entry:
+
+- `ForAllValues:StringEquals` makes every entry match, so one wrong entry refuses the whole call.
+- `Null: false` requires both keys, because `ForAllValues` is true of an empty list.
+
+With the locks, the forwarder can't put a WindowReady event, so it can't make the Diagnosis Lambda score a
+made-up window. The window builder can't put telemetry. A new event type on this bus needs its sender's
+condition widened.
+
+**The health item.** The same pattern, on `dynamodb:LeadingKeys`: the window builder can write the `HEALTH`
+item, and no incident. The writers of incidents (M8-2, M8-3) get their own roles, with their own `pk`.
+
+**Accepted: `ListBucket` on the whole bucket.** Without it, S3 answers a missing key with 403 instead of 404, and
+the window builder reads only a 404 as "not there yet". It lists key names, never contents:
+
+- The names show experiment IDs, and that each experiment has a labels file under `datasets/v1/tier2/labels/`.
+  They don't show what any label says.
+- The role can't read `raw/`, `experiments/` or `datasets/`.
+- Narrowing it would mean replacing the reads of windows and snapshots with listings, which takes more S3 calls.
+
+**How it was checked:**
+
+- **Access Analyzer** (`validate-policy`): no findings on the 11 role policies, the 3 trust policies or the 2 queue
+  policies, as deployed.
+- **IAM's policy simulator**, on the deployed roles. It asked 46 questions: every action the code calls must be
+  allowed, and each neighbouring action must be denied. The denied actions it checked:
+  - the Aggregator writing `raw/` or `pipeline/health/`;
+  - the window builder reading `raw/`, `experiments/` or the label files;
+  - the window builder writing `raw/`, `metrics/` or `experiments/`, deleting a window, or writing an `INCIDENT`
+    item or an item with no key;
+  - either sender putting the other's events, or a call mixing one good entry with a bad one.
+
+  Before the event locks, 2 of the then 41 checks failed: the forwarder could put pipeline events, and the window
+  builder telemetry events. After the locks, 46 of 46 passed.
+- **IAM's last-accessed report:** each role has used every service it is granted: events, logs and sqs for the
+  forwarder; logs, s3 and sqs for the Aggregator; dynamodb, events, logs and s3 for the window builder.
+- **Live,** after the locks (2026-11-05 21:37, 3 minutes at 20 rps):
+  - neither Lambda had an error or an `AccessDenied`;
+  - every record reached `pipeline/records/`, equal to `raw/`;
+  - the complete windows were announced;
+  - the undelivered queue and the DLQ stayed empty.
+
+The simulator sends no request. So the allowed cases were also seen working live. The denied cases can only be
+checked in the simulator, since only Lambda can assume these roles.
+
+**After M9-1, outside this stack:** the shipper (`anomalypulse-shared`, frozen until M9-1) has two broad grants:
+
+- it may be invoked from any `/aws/lambda/anomalypulse-*` log group;
+- it uses `AWSLambdaBasicExecutionRole`.
+
+Narrow both: name the 4 service log groups, and let it log only to its own.
 
 ## Live windows and training windows (measured 2026-11-01)
 
