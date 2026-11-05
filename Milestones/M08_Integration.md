@@ -40,15 +40,23 @@
 **Decided (2026-11-01; [`Docs/PIPELINE.md`](../Docs/PIPELINE.md)):** a second subscription filter on each service
 log group feeds a forwarder Lambda, then EventBridge, SQS and the Aggregator, so every record passes through the
 queue. Each minute is built twice: a health summary from the request records just after the minute ends, for
-the dashboard, and the full 106-column window about 2 minutes later, once the metrics extractor's CloudWatch
-snapshot lands, for the models. The window is `features.build_matrix`'s, unchanged: with no labels live, its
-temporal columns look back over every earlier minute, which changes 2 of 885 validation answers (one
-classifier window, one detector window). The Aggregator announces each window on the bus, and M8-2 subscribes.
+the dashboard, and the full 106-column window about 2¾ minutes after it ends, once the metrics extractor's
+CloudWatch snapshot lands, for the models. The window is `features.build_matrix`'s, unchanged: with no labels
+live, its temporal columns look back over every earlier minute, which changes 2 of 885 validation answers (one
+classifier window, one detector window). A window builder Lambda, run every minute after the Aggregator has
+filed the records, builds both and announces each complete window on the bus (WindowReady), and M8-2
+subscribes. The newest health is also an item in the Incidents table, for the dashboard.
 
 **Definition of Done**
-- [ ] Telemetry flows automatically from a service request to a materialized feature window without manual steps.
-- [ ] SQS absorbs a burst without loss (backlog observable for §16 metrics).
+- [x] Telemetry flows automatically from a service request to a materialized feature window without manual steps.
+- [x] SQS absorbs a burst without loss (backlog observable for §16 metrics).
 - [ ] IAM verified least-privilege at each hop.
+
+**Done (2026-11-04 and 05; [`Docs/PIPELINE.md`](../Docs/PIPELINE.md), "Load tests"):** items 1 and 2. Every
+record of a normal run, a 10× burst and a run with the Aggregator paused for 8½ minutes reached
+`pipeline/records/`, checked record by record against the shipper's `raw/` copy, and every complete window was
+built and announced. The backlog is the queue's `ApproximateAgeOfOldestMessage`, alarmed past 120 s
+(`anomalypulse-telemetry-late`). Item 3 is the IAM review at the end of M8-1.
 
 ---
 

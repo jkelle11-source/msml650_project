@@ -1,24 +1,26 @@
 # The Live Telemetry Pipeline (M8-1)
 
-**Owner:** Jake · **Stack:** `anomalypulse-pipeline` (being built in M8-1) · **Used by:** M8-2 (the windows the
-Diagnosis Lambda scores), the dashboard read API (`health`, M8-5), M9 (SQS backlog, live detection latency)
+**Owner:** Jake · **Stack:** `anomalypulse-pipeline` ([`AnomalyPulse/infra/pipeline/`](../AnomalyPulse/infra/pipeline/))
+· **Used by:** M8-2 (the windows the Diagnosis Lambda scores), M8-3 (the Incidents table), the dashboard read API
+(`health`, M8-5), M9 (SQS backlog, live detection latency)
 
 How a service's telemetry reaches the models while the system runs: each minute becomes a window built the way
 M4 built the training set, a few minutes after the requests it describes. This document holds the design
-decisions and what live windows do differently from training's. The stack, its IAM and the burst test are added
-as M8-1 builds them.
+decisions, what the pipeline writes and where, what happens when telemetry is late, the load tests, and what
+live windows do differently from training's. The IAM review at each hop is added at the end of M8-1.
 
 ---
 
-## The path (decided 2026-11-01)
+## The path (decided 2026-11-01, built 2026-11-02 to 11-05)
 
 ```text
 service Lambda  print(json)
   → CloudWatch Logs  /aws/lambda/anomalypulse-<svc>
-  → second subscription filter  { $.request_id = "*" }        (the shipper's is the first)
-  → forwarder Lambda → EventBridge bus → SQS telemetry queue → Aggregator
-  → pipeline/ in the telemetry bucket, and the Incidents table
-  → a "window ready" event on the bus → M8-2's rule → Diagnosis Lambda
+  → second subscription filter  anomalypulse-pipeline  { $.request_id = "*" }   (the shipper's is the first)
+  → forwarder Lambda → EventBridge bus anomalypulse-pipeline → SQS queue anomalypulse-telemetry
+  → Aggregator Lambda → pipeline/records/ in the telemetry bucket
+  → window builder Lambda, every minute → pipeline/health/, pipeline/windows/, the Incidents table's health item
+  → a WindowReady event on the bus → M8-2's rule → Diagnosis Lambda
 ```
 
 - **Beside the shipper, never instead of it.** A log group allows two subscription filters and the shipper uses
@@ -30,30 +32,135 @@ service Lambda  print(json)
   and `raw/` keys carry no minute, so each run would list the whole day's files.
 - **A filter can't send to EventBridge or SQS** (only to Lambda, Kinesis, Firehose or OpenSearch), hence the
   forwarder.
-- **Every hop delivers at least once,** so the Aggregator drops duplicates by `(service, request_id)`, as the M4
-  export does.
-- **M8-2 listens for "window ready" events** on the bus rather than being called by the Aggregator: it adds a
+- **Every hop delivers at least once,** so the window builder drops duplicates by `(service, request_id)`, as the
+  M4 export does. (In the load tests below, no record arrived twice.)
+- **M8-2 listens for WindowReady events** on the bus rather than being called by the window builder: it adds a
   rule, and no M8-1 code changes.
 
-## When a minute's window is ready (decided 2026-11-01)
+## The parts
+
+| Part | Name | What it does |
+|---|---|---|
+| Forwarder Lambda | `anomalypulse-pipeline-forwarder` | Turns each batch CloudWatch Logs sends into bus events of up to 100 records, 10 events per PutEvents call, and fails the batch if any event is refused. Lambda retries a failed batch twice, then puts it in the undelivered queue |
+| Bus and rule | `anomalypulse-pipeline`, `anomalypulse-telemetry-to-queue` | Routes the forwarder's events to the queue. The rule retries delivery for 1 hour (not the default 24), then puts the event in the undelivered queue |
+| Telemetry queue | `anomalypulse-telemetry` | Holds each event until the Aggregator has filed it: 4 days at most. A message the Aggregator fails comes back after 185 s (6 × its 30 s timeout, plus its 5 s batching window); after 5 failures it goes to `anomalypulse-telemetry-dlq`, kept 14 days |
+| Undelivered queue | `anomalypulse-telemetry-undelivered` | Telemetry that never reached the telemetry queue, kept 14 days |
+| Aggregator Lambda | `anomalypulse-pipeline-aggregator` | Reads up to 100 messages at a time, waiting up to 5 s to fill a batch, at most 5 at once. Writes one file per minute per run, records unchanged and not deduplicated, and reports only the messages it failed |
+| Window builder Lambda | `anomalypulse-pipeline-window-builder` | Runs every minute (at about :45), one run at a time, never retried: the next run is the retry. Rebuilds the health of the last 3 minutes, newest first, and builds each of the last 10 minutes' windows once that minute's 4 snapshots are in |
+| Incidents table | `anomalypulse-incidents` (SSM `/anomalypulse/tables/incidents/name`) | The newest minute's health for the dashboard, and the incidents M8-2 and M8-3 write |
+
+## What it writes
+
+| Where | Written by | What |
+|---|---|---|
+| `pipeline/records/dt=YYYY-MM-DD/minute=HH-MM/part-<run id>.jsonl` | Aggregator | The minute's records, one JSON record per line, exactly as the services printed them. A minute is several files, and a record can repeat |
+| `pipeline/health/dt=YYYY-MM-DD/minute=HH-MM.json` | Window builder | The minute's health (below). Rewritten by each of the next two runs, so records still on their way are counted |
+| `pipeline/windows/dt=YYYY-MM-DD/minute=HH-MM.json` | Window builder | `{"window_start", <the 106 columns>}`. Written once: the file marks the minute done |
+| Incidents table, `pk = "HEALTH"`, `sk = "LATEST"` | Window builder | The newest minute's health: what the dashboard read API reads |
+| Bus event, `Source` `anomalypulse.pipeline`, `DetailType` `WindowReady` | Window builder | `{"windows": [<the window>], "key": "<its file>"}`, the Diagnosis Lambda's input shape. Only for a window with no empty value, and sent before its file is written, so a failed send is retried by the next run. A failed file write after a sent event means the next run sends it again: M8-2 must accept a repeat |
+
+**Health** is the input `AnomalyPulse/dashboard/builder.py` takes, 14 keys: `window_start`,
+`system_p95_latency_ms`, and for `product`, `cart`, `order` and `payment` the features' own `_request_rate` (per
+second), `_error_rate_5xx` and `_p95_latency_ms`. A service with no requests has `0.0`, `null`, `null`. The system
+p95 is the 95th percentile of Product's, Cart's and Order's requests themselves (Payment is reached only through
+Order). On a busy minute, health's columns equal the full window's.
+
+**The health item, for M8-5.** Its numbers come back from DynamoDB as `Decimal`s, which `build_dashboard` takes
+as they are (checked on the live item, 2026-11-05) but `json.dumps` can't write: the live source converts them
+before replying. A write never replaces a newer minute, and the window builder's role can write no item whose
+`pk` isn't `HEALTH`.
+
+**The Incidents table, for M8-2, M8-3 and M8-5.** Keys `pk` and `sk`, both strings, so each writer lays out its own
+items; the `HEALTH` partition is the window builder's. How incidents are laid out is M8-2's and M8-3's call. One
+layout that works: `pk = "INCIDENT"`, `sk = started_at`. UTC ISO times sort in time order, so a Query on
+`INCIDENT`, newest first with a limit of 1, returns the latest incident. A date in `pk` would leave the newest
+incident out of the query just after midnight. The table is on-demand and kept if the stack is deleted or the
+table replaced.
+
+## When a minute's window is ready (decided 2026-11-01, measured 2026-11-04 and 05)
 
 A window named T covers [T, T + 1 min). It is built in two stages:
 
 | Stage | Ready | Holds | Read by |
 |---|---|---|---|
-| Health summary | Just after the minute ends (about T + 1 min) | Requests, 5xx rate and p95 latency, for the system and each service, from the request records alone | The dashboard's `health` |
-| Full window | About 2 minutes after it ends (T + 3 min) | All 106 columns of `features.build_matrix`, CloudWatch columns included | The models (M8-2) |
+| Health | About T + 1¾ min, rebuilt at T + 2¾ and T + 3¾ | Requests, 5xx rate and p95 latency for each service, and the system p95, from the request records alone | The dashboard's `health` |
+| Full window | About T + 3¾ min, once the minute's snapshots are in | All 106 columns of `features.build_matrix`, CloudWatch columns included | The models (M8-2) |
 
 The Diagnosis Lambda refuses a window with any empty value, and a minute's CloudWatch columns exist only once
 the metrics extractor writes its snapshot, which waits 2 minutes for CloudWatch to settle
 (`METRICS_LAG_MINUTES`). Holding the dashboard's numbers back for it too would trip the contract's `NO_DATA`
-rule, which fires when the latest window is more than 3 minutes old. So a live detection comes about 2 minutes
-after the end of the first flagged window: later than the offline detection latency in
-[`DETECTION.md`](DETECTION.md), which stops the clock at that window's end.
+rule, which fires when the latest window is more than 3 minutes old. So a live detection comes about 2¾ minutes
+after the end of the first flagged window, plus the Diagnosis Lambda's own time: later than the offline detection
+latency in [`DETECTION.md`](DETECTION.md), which stops the clock at that window's end.
+
+**Health stays inside the dashboard's 3 minutes.** Just before a run, the newest health is about 2¾ minutes old,
+and the run writes the next one within 1 s when idle and 3.3 s at 10× traffic (measured: the health item was at
+most 167 s old). A run that fails leaves no newer minute, so the dashboard shows `NO_DATA` for about 45 s until
+the next run: correct, since the pipeline has stopped for that long.
+
+## When telemetry is late (measured 2026-11-05)
+
+**The window builder assumes a minute's records are in about 3¾ minutes after it starts,** when it rebuilds that
+minute's health for the last time and builds its window: a minute's last records have about 165 s. Normally the
+oldest message in the queue has waited at most 13 s (12 s at 10× traffic). Records are late only when the
+Aggregator falls behind or fails: a message it fails waits out the queue's 185 s before it is tried again.
+
+**What late records do** (the pause test below):
+
+- **Health undercounts, for good.** The minutes whose records came after their last rebuild say 0 requests in
+  the test, and the dashboard shows the system healthy and idle, not `NO_DATA`.
+- **Windows are built without them, for good.** A window with no records has empty columns and isn't announced.
+  A window with some of its records can have no empty value, and is then announced with wrong numbers.
+
+**The signal is the alarm `anomalypulse-telemetry-late`:** the queue's oldest message has waited over 120 s. In the
+test it went off about 2¼ minutes after the age passed 120 s, since SQS reports to CloudWatch a minute or two
+late. While it is in alarm, and for the minutes just before it, treat windows, announcements and health as
+possibly missing records.
+
+**Not done:** holding windows back until their records are in. An SQS standard queue keeps no order and its age
+metric arrives late, so the window builder has no exact way to know. **Open question for M8-5 (Linu):** the
+console can't tell "idle" from "telemetry stuck"; showing the late alarm would be a contract change.
+
+## Alarms
+
+None has an action: each one's state shows in the CloudWatch console.
+
+| Alarm | In alarm while |
+|---|---|
+| `anomalypulse-telemetry-undelivered` | Anything is in the undelivered queue: telemetry lost before the telemetry queue |
+| `anomalypulse-telemetry-dlq` | Anything is in `anomalypulse-telemetry-dlq`: the Aggregator failed it 5 times |
+| `anomalypulse-telemetry-late` | The telemetry queue's oldest message has waited over 120 s (above) |
+| `anomalypulse-pipeline-window-builder-errors` | The window builder has failed 3 runs in a row: windows and health have stopped |
+
+## Load tests (2026-11-04 and 05)
+
+**How.** The simulator's own baseline traffic (`simulator.workload`, the plan's endpoint mix) from a script, with no
+experiment record and the experiment lock checked free. The shipper's separate copy in `raw/` (the same log
+groups, its own subscription filter) is the reference: every record in it must be in `pipeline/records/`,
+matched by `(service, request_id)`, minute by minute. The client's own count can't be: an order leaves an Order and
+a Payment record, and a request refused before a service runs leaves none. Health was recomputed from `raw/`,
+and the windows compared with one `build_matrix` over the whole run.
+
+| Run | Traffic | Records | Result |
+|---|---|---|---|
+| Normal (2026-11-04 22:40) | 5 min at 20 rps | 6,191 | None missing, extra or repeated. Health and windows match; 5 complete windows, 5 announced |
+| 10× burst (2026-11-05 18:41) | 3 min at 20 rps, 3 min at 198.6 rps, 3 min at 20 rps: 43,077 requests | 45,256 | None missing, extra or repeated. Health and windows match; 9 complete windows, 9 announced, none refused |
+| Aggregator paused (2026-11-05 19:32) | 3 min at 20 rps, with the Aggregator's queue reader off for 8½ min | 3,797 | None missing, extra or repeated; every message received once. The paused minutes' health and windows are wrong, as above |
+
+**At 10× traffic**, about 170 messages a minute reached the queue, against 40 at 20 rps: each message carried
+more records. None ever waited to be read; at most 22 were being processed at once, and the oldest had waited 12 s. The Aggregator ran
+38 to 44 times a minute, 0.11 s each, at most 3 of its 5 at once. The window builder's longest run took 10.6 s of
+its 60 s. No Lambda, the services' included, had an error or a throttle, and the account peaked at 18 concurrent
+executions of its 1,000. The queue's drain has a wide margin, so M9-1's spikes, up to 12×, can run with the
+pipeline alongside.
+
+**With the Aggregator paused**, the queue held 148 messages, the oldest waiting up to 397 s, and the late alarm
+went off. Once the reader was back on, the backlog drained in about 45 s, in 4 Aggregator runs: the queue absorbed
+the backlog without losing a record.
 
 ## Live windows and training windows (measured 2026-11-01)
 
-The Aggregator builds each window with `build_matrix`, as M4 did, with two differences the live path forces:
+The window builder builds each window with `build_matrix`, as M4 did, with two differences the live path forces:
 
 - **No labels,** so the temporal columns (`_roll_mean_3`, `_roll_std_3`, `_change`) look back over every earlier
   minute. Training's looked back over the run's labeled windows and its startup minute only
@@ -122,5 +229,5 @@ look-back still holds a fault.
 - **M9:** recovery and startup minutes are not labeled windows, so test-set metrics built from M4's features
   never score them. A metric taken from live windows would.
 - **M10:** start the traffic at least 6 minutes before the healthy segment, and allow about 6 minutes after an
-  injected fault ends before calling the system healthy again: the minutes above, plus the 2 minutes before a
-  full window is ready.
+  injected fault ends before calling the system healthy again: the minutes above, plus the almost 3 minutes
+  after a minute ends before its full window is ready.
