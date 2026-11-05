@@ -42,10 +42,10 @@ The package format, promoting a model, calling the Lambda and the cost hook are 
 [`Docs/ML_INFERENCE.md`](../Docs/ML_INFERENCE.md).
 
 **Definition of Done**
-- [ ] A trivial model trains in SageMaker and its artifact lands versioned in S3.
-- [ ] Diagnosis Lambda loads that artifact and returns a prediction for a sample window.
-- [ ] No persistent SageMaker endpoint exists in the runtime path (verified in the cost story).
-- [ ] Training is re-runnable from the registered dataset without manual steps.
+- [x] A trivial model trains in SageMaker and its artifact lands versioned in S3.
+- [x] Diagnosis Lambda loads that artifact and returns a prediction for a sample window.
+- [x] No persistent SageMaker endpoint exists in the runtime path (verified in the cost story).
+- [x] Training is re-runnable from the registered dataset without manual steps.
 
 ---
 
@@ -67,10 +67,10 @@ The detectors, the Isolation Forest's cut-off, the healthy/fault-start split of 
 validation results are in [`Docs/DETECTION.md`](../Docs/DETECTION.md).
 
 **Definition of Done**
-- [ ] Both detectors train through SageMaker and produce loadable artifacts.
-- [ ] Validation metrics reported for both, with the cost of going unsupervised quantified.
-- [ ] Detection latency reported and understood as window-dominated (~1 min) per §16.
-- [ ] Features confirmed Tier-1-only (M4-5 guard green).
+- [x] Both detectors train through SageMaker and produce loadable artifacts.
+- [x] Validation metrics reported for both, with the cost of going unsupervised quantified.
+- [x] Detection latency reported and understood as window-dominated (~1 min) per §16.
+- [x] Features confirmed Tier-1-only (M4-5 guard green).
 
 ---
 
@@ -95,8 +95,8 @@ macro-F1 (0.9923 against the tuned XGBoost's 0.9871), and every difference betwe
 first minute. M9 reports every classifier on the test set, and the choice is not revisited on test numbers.
 
 **Definition of Done**
-- [ ] Threshold baseline implemented and its metrics recorded as the floor.
-- [ ] XGBoost + at least one other classifier trained; all reported against the baseline on validation data.
-- [ ] The cascade margin over baseline is called out (evidence of genuine multivariate learning where no single metric fires).
-- [ ] Selected model artifact loads and predicts in the Diagnosis Lambda (hand-off to M8 confirmed).
-- [ ] Features confirmed Tier-1-only (M4-5 guard green).
+- [x] Threshold baseline implemented and its metrics recorded as the floor.
+- [x] XGBoost + at least one other classifier trained; all reported against the baseline on validation data.
+- [x] The cascade margin over baseline is called out (evidence of genuine multivariate learning where no single metric fires).
+- [x] Selected model artifact loads and predicts in the Diagnosis Lambda (hand-off to M8 confirmed).
+- [x] Features confirmed Tier-1-only (M4-5 guard green).

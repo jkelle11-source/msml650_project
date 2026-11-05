@@ -155,11 +155,12 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [Docs/ML_INFERENCE.md](Docs/ML_INFERENCE.md) | Model packages and the Diagnosis Lambda (M5-1): the package format, promoting a model, calling the Lambda, cold starts, and the cost-per-inference hook for M9. |
 | [Docs/DETECTION.md](Docs/DETECTION.md) | Anomaly detection (M5-2): the Isolation Forest and the supervised binary detector, the forest's cut-off, healthy vs fault-start false alarms, and the validation results. |
 | [Docs/M5-3_REPORT.md](Docs/M5-3_REPORT.md) | Incident classification (M5-3): Model 0 (the threshold baseline), logistic regression, XGBoost and Random Forest on validation, the cascade margin and time to recognize a cascade, the wrong windows, and the selected model. |
+| [Docs/DIAGNOSIS_CONTRACT.md](Docs/DIAGNOSIS_CONTRACT.md) | The diagnosis contract (M6-1): what Bedrock is given (the classified incident as structured evidence, how `affected_services` is decided) and what it gives back, the wording rules, the severity rubric, the self-check, and the model choice. |
 | [Docs/DASHBOARD_CONTRACT.md](Docs/DASHBOARD_CONTRACT.md) | The dashboard data contract (M7-2): the JSON object the SRE console reads, what every field means, the mock scenarios, and where each value comes from in M8. |
 | [Docs/PIPELINE.md](Docs/PIPELINE.md) | The live telemetry pipeline (M8-1): the path from a service's log line to a one-minute window, what it writes (health, windows, the WindowReady event, the Incidents table's health item), when each window is ready, what late telemetry does, its alarms and load tests, the IAM at each hop, and what live windows do differently from training's, measured on validation. |
 | [Docs/Summary.md](Docs/Summary.md) | Short project summary draft. |
 | [Milestones/](Milestones/) | The ten milestone specs (M1–M10), each with issues and Definition of Done. |
-| [Handoffs/](Handoffs/) | Onboarding and handoff docs — [M1-1_Handoff.md](Handoffs/M1-1_Handoff.md) (stack + team conventions), [M2-1_Handoff.md](Handoffs/M2-1_Handoff.md) (how to emit telemetry), [M3-1_Handoff.md](Handoffs/M3-1_Handoff.md) (how to write an injector) and [M5-1_Handoff.md](Handoffs/M5-1_Handoff.md) (how to train, package and promote a model). |
+| [Handoffs/](Handoffs/) | Onboarding and handoff docs — [M1-1_Handoff.md](Handoffs/M1-1_Handoff.md) (stack + team conventions), [M2-1_Handoff.md](Handoffs/M2-1_Handoff.md) (how to emit telemetry), [M3-1_Handoff.md](Handoffs/M3-1_Handoff.md) (how to write an injector), [M5-1_Handoff.md](Handoffs/M5-1_Handoff.md) (how to train, package and promote a model) and [M6-1_Handoff.md](Handoffs/M6-1_Handoff.md) (the diagnosis pipeline after review, and how to build M6-2's runbooks). |
 | [AnomalyPulse/infra/shared/](AnomalyPulse/infra/shared/) | The SAM stack — `template.yaml` defines the four Lambdas, their API routes, DynamoDB tables, per-service IAM roles, the telemetry layer, the S3 landing bucket, the log groups + subscription filters, and the SSM parameters. Also holds `field_catalog.json` (the full field registry incl. Tier-2) and `shipper/` (the CloudWatch Logs → S3 shipper Lambda). |
 | [AnomalyPulse/layers/telemetry/](AnomalyPulse/layers/telemetry/) | The `anomalypulse-telemetry` Lambda layer — the frozen `telemetry_schema.json` + `schema_validator.py`, plus `fault_config.py` (the reader each handler uses to pick up injected faults, M3), attached to every function and imported by service handlers and tests. |
 | [AnomalyPulse/services/](AnomalyPulse/services/) | The service code: one folder per service (`product/`, `cart/`, `order/`, `payment/`), each with `handler.py` and `test_handler.py`. |
@@ -168,7 +169,10 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [AnomalyPulse/features/](AnomalyPulse/features/) | M4-5's feature matrix (`python -m features`): the per-window Tier-1 features, the Feature/Label Boundary guard, and the join to the labels. |
 | [AnomalyPulse/ml/](AnomalyPulse/ml/) | M5's training and inference: the SageMaker launcher (`python -m ml.launch smoke / train / tune / promote`), the job scripts (`job/`), the pinned library versions (`requirements-image.txt`), and the Diagnosis Lambda (`diagnosis/`: `handler.py` and its `Dockerfile`). |
 | [AnomalyPulse/infra/ml/](AnomalyPulse/infra/ml/) | The `anomalypulse-ml` stack (M5–M8): the versioned model bucket, the training image's ECR copy, the SageMaker training and trainer roles, the Diagnosis Lambda, and its SSM parameters. |
+| [AnomalyPulse/genai/](AnomalyPulse/genai/) | M6-1's explanation layer: `contract.py` (the input contract and the severity rubric), `prompt.py`, `explain.py` (the Bedrock call), `self_check.py` (the smoke-level fidelity check), `affected.py` (which services an incident affects, for M8-3), `handler.py` (the `anomalypulse-explain` Lambda), `samples/` (one input per incident type and each model's saved diagnoses), `run_samples.py` and the tests. |
+| [AnomalyPulse/infra/genai/](AnomalyPulse/infra/genai/) | The `anomalypulse-genai` stack (M6-1): the explanation Lambda, its role (`bedrock:InvokeModel` on Claude models only) and log group, and the function name's SSM parameter. |
 | [AnomalyPulse/dashboard/](AnomalyPulse/dashboard/) | M7-2's dashboard read API: `builder.py` (every rule of the dashboard contract), `mock_source.py` (the contract's six mock scenarios), `handler.py` (the Lambda: picks the source, reads the clock), and their tests. |
+| [AnomalyPulse/console/](AnomalyPulse/console/) | M7-1's SRE console: static HTML, CSS and JavaScript modules (no build step) that render the dashboard contract, `mock/` (snapshots of the read API's six scenarios, the demo's offline fallback) and its tests. Run from the presenting laptop; see its [README](AnomalyPulse/console/README.md). Kept out of `dashboard/`, which is packaged whole into the read API's Lambda. |
 | [AnomalyPulse/infra/dashboard/](AnomalyPulse/infra/dashboard/) | The `anomalypulse-dashboard` stack (M7-2): the read API's Lambda, its HTTP API (`GET /dashboard`, CORS), role and log group, and the URL's SSM parameter. |
 | [AnomalyPulse/infra/runner/](AnomalyPulse/infra/runner/) | M4's runner host: its own CloudFormation stack (`anomalypulse-runner`: one EC2 instance, reached through Session Manager), `setup.sh` and the tmux helper. |
 
@@ -198,6 +202,7 @@ aws ssm get-parameter --name <path> --query Parameter.Value --output text --prof
 | `/anomalypulse/tables/fault-config/name` | Fault-config table name | The simulator's fault control plane |
 | `/anomalypulse/simulator/role-arn` | Simulator role ARN | The `role_arn` of your `sim` AWS profile ([M3-1 handoff](Handoffs/M3-1_Handoff.md) §4) |
 | `/anomalypulse/dashboard/url` | The dashboard read API's URL (`https://…/dashboard`), published by the `anomalypulse-dashboard` stack | The SRE console (M7-1) and M8 |
+| `/anomalypulse/genai/explain-function` | The explanation Lambda's name (`anomalypulse-explain`), published by the `anomalypulse-genai` stack | M8-3, which invokes it with each classified incident |
 
 The Lambda functions, tables, and IAM roles now live in the same shared template,
 so functions reference each other directly (via `!Ref`/`!GetAtt`) rather than
@@ -323,6 +328,12 @@ These keep five people's code compatible. Full detail in
   services' `data`/`error` envelope; its errors are `{ "error": "…" }`. The SRE
   console renders only from it. Full contract:
   [Docs/DASHBOARD_CONTRACT.md](Docs/DASHBOARD_CONTRACT.md).
+- **Diagnosis (Bedrock)** — M8-3 invokes `anomalypulse-explain` directly with one
+  classified incident as structured evidence (Tier-1 only: ground-truth fields are
+  refused before Bedrock), and stores the reply, whose `diagnosis` is the dashboard
+  contract's `diagnosis`. Any ordering of symptoms is worded as an observed sequence,
+  never as causation. Full contract:
+  [Docs/DIAGNOSIS_CONTRACT.md](Docs/DIAGNOSIS_CONTRACT.md).
 
 ---
 
@@ -363,6 +374,29 @@ Its URL is the stack's `DashboardUrl` output and `/anomalypulse/dashboard/url`.
 The function serves the contract's mock scenarios (`DASHBOARD_SOURCE: mock`)
 until M8-5 switches it to live data.
 
+### The explanation stack
+
+The explanation Lambda (M6-1) is its own stack, `anomalypulse-genai`, which reads
+nothing from the shared stack:
+
+```bash
+cd AnomalyPulse/infra/genai
+sam build
+AWS_PROFILE=admin sam deploy
+```
+
+`admin`, because the stack creates an IAM role. `sam build` runs the folder's
+`Makefile`, which bundles `anthropic[bedrock]` as arm64 Linux wheels (pinned to 1.x:
+2.x sends an API version Bedrock accepts only for Claude 4.7 and later). The
+function calls Claude Sonnet 4.6 through a global cross-region inference profile;
+the model, region and effort are environment variables in the template. Its name is
+`/anomalypulse/genai/explain-function`. Check it with one sample:
+
+```bash
+aws lambda invoke --function-name anomalypulse-explain --cli-binary-format raw-in-base64-out \
+  --payload file://AnomalyPulse/genai/samples/dependency_failure.json reply.json --profile dev
+```
+
 ## Running the tests
 
 Each service has unit tests next to its handler. Test-only dependencies live in
@@ -396,6 +430,24 @@ checks the `incident` mock scenario against the example in
 ```bash
 cd AnomalyPulse/dashboard
 python -m pytest
+```
+
+The explanation layer's tests run from `AnomalyPulse/` (the package is `genai`)
+and reach no AWS: Bedrock is faked. `run_samples` does call Bedrock, five times,
+for about 15¢:
+
+```bash
+cd AnomalyPulse
+pip install -r genai/requirements.txt pytest
+python -m pytest -q genai
+python -m genai.run_samples --profile dev     # the five samples through Bedrock
+```
+
+The SRE console's tests need only Node 20 or later, and reach no network:
+
+```bash
+cd AnomalyPulse/console
+npm test
 ```
 
 The incident simulator is a local package with its own runtime and test

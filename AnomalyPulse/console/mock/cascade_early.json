@@ -1,0 +1,98 @@
+{
+  "contract_version": 1,
+  "generated_at": "2026-11-02T04:51:48.342Z",
+  "health": {
+    "window_start": "2026-11-02T04:50:00.000Z",
+    "status": "INCIDENT",
+    "requests_per_min": 3600,
+    "error_rate": 0.0075,
+    "p95_latency_ms": 210.0,
+    "active_incidents": 1,
+    "services": [
+      {
+        "service": "product-service",
+        "requests_per_min": 2700,
+        "error_rate": 0.01,
+        "p95_latency_ms": 180.0,
+        "status": "DEGRADED"
+      },
+      {
+        "service": "cart-service",
+        "requests_per_min": 360,
+        "error_rate": 0.0,
+        "p95_latency_ms": 150.0,
+        "status": "DEGRADED"
+      },
+      {
+        "service": "order-service",
+        "requests_per_min": 540,
+        "error_rate": 0.0,
+        "p95_latency_ms": 420.0,
+        "status": "DEGRADED"
+      },
+      {
+        "service": "payment-service",
+        "requests_per_min": 180,
+        "error_rate": 0.0,
+        "p95_latency_ms": 300.0,
+        "status": "HEALTHY"
+      }
+    ]
+  },
+  "incident": {
+    "incident_id": "inc-mock-cascade",
+    "prediction": {
+      "incident_type": "TRAFFIC_SPIKE",
+      "confidence": 0.88,
+      "started_at": "2026-11-02T04:49:00.000Z",
+      "detected_at": "2026-11-02T04:50:04.000Z",
+      "affected_services": [
+        "product-service",
+        "cart-service",
+        "order-service"
+      ],
+      "model": {
+        "estimator": "logistic_regression",
+        "job": "anomalypulse-hpo-261028173159-003-28af89d1"
+      }
+    },
+    "diagnosis": {
+      "severity": "MEDIUM",
+      "summary": "Requests to Product, Cart and Order rose to about three times baseline, and Product p95 latency rose from 41 ms to 180 ms (observed sequence from correlated timestamps).",
+      "root_cause": "Traffic surge beyond the baseline load",
+      "evidence": [
+        "Product requests rose from 900 to 2,700 a minute.",
+        "Product p95 latency rose 4.4x."
+      ],
+      "recommended_actions": [
+        "Check the traffic source",
+        "Review Lambda concurrency limits",
+        "Watch downstream services for errors"
+      ]
+    },
+    "ground_truth": {
+      "experiment_id": "exp-mock-cascade",
+      "incident_type": "CASCADING_FAILURE",
+      "severity": "HIGH",
+      "faults": [
+        {
+          "injector": "traffic-spike",
+          "target": null,
+          "active_from": "2026-11-02T04:48:55.000Z",
+          "active_until": "2026-11-02T04:58:55.000Z",
+          "active_now": true
+        },
+        {
+          "injector": "payment-failure",
+          "target": "payment-service",
+          "active_from": "2026-11-02T04:52:00.000Z",
+          "active_until": "2026-11-02T04:57:00.000Z",
+          "active_now": false
+        }
+      ]
+    },
+    "comparison": {
+      "detection_latency_s": 69.0
+    }
+  }
+}

@@ -36,11 +36,32 @@
 - A Diagnosis Lambda integration stub (or module) so M8 can wire classifier → Bedrock → incident store.
 - A lightweight self-check that flags obviously unsupported claims (dry run before the formal M9 eval).
 
+The pipeline is in `AnomalyPulse/genai/` and the contract in
+[`Docs/DIAGNOSIS_CONTRACT.md`](../Docs/DIAGNOSIS_CONTRACT.md): the `anomalypulse-explain` Lambda, in a stack of
+its own (`anomalypulse-genai`), which M8-3 invokes with each classified incident (PR #86). On the final prompt
+all five samples' diagnoses pass the self-check (`genai/samples/results/`). Decisions:
+- **Claude Sonnet 4.6 on Bedrock** (a global cross-region profile, adaptive thinking at effort `medium`), over
+  Opus 4.6: fewer self-check findings on the five samples, at about the same cost (2026-11-01). Claude 4.7 and
+  later have a Bedrock quota of 0 tokens per minute in this account, and the SDK stays on 1.x for 4.6.
+- **The answer is held to a schema built per request** (structured outputs), so each evidence bullet cites only
+  that input's metrics.
+- **Severity comes from a fixed rubric**, stated in the prompt and recomputed by the self-check (2026-11-02).
+- **A cascade's root cause names its faults as concurrent and links none causally** (2026-11-02). The simulator
+  injects each fault on its own, and the demo narrates a cascade as an observed sequence (plan §15).
+- **`affected_services` comes from the feature windows by a fixed rule** (`genai/affected.py`, 2026-11-02),
+  calibrated on `v1`. It lists no service in any of 980 NORMAL minutes. It lists the faulted service in every
+  database-throttling, Lambda-degradation, dependency-failure and cascade minute, and Product in 707 of 718
+  traffic-spike minutes. It is also the dashboard's `prediction.affected_services`.
+- **The self-check holds each bullet's numbers to the metrics it cites, and every number to the precision it is
+  written in** (2026-11-02). On the samples a random number passes it 2–4.5% of the time.
+
 **Definition of Done**
-- [ ] For a set of sample inputs (one per incident type), Bedrock produces a well-formed report matching the template.
-- [ ] No output claim references a service/metric/value absent from its input (smoke-checked).
-- [ ] Ordering claims are phrased as observed sequences, not causation.
-- [ ] Input contract agreed and documented with Rachel (`M5-3`) for the M8 seam.
+- [x] For a set of sample inputs (one per incident type), Bedrock produces a well-formed report matching the template.
+- [x] No output claim references a service/metric/value absent from its input (smoke-checked).
+- [x] Ordering claims are phrased as observed sequences, not causation.
+- [ ] Input contract agreed and documented with Rachel (`M5-3`) for the M8 seam. *Documented; the agreement
+  moved to `M8-3` (#30, 2026-11-02), whose Definition of Done now carries it. The contract's three open
+  questions are posted there for Rachel, with proposals.*
 
 ---
 
@@ -56,6 +77,18 @@
 - A small knowledge base: troubleshooting guides, runbooks, known failure modes, remediation procedures (§11).
 - Retrieval keyed on the classified incident type, feeding matched runbook content into the Bedrock prompt.
 - Retrieval-quality hook (does the retrieved runbook match the incident type?) for `M9-5`.
+
+**Scope decided 2026-11-02 (Jake): five runbooks for this stack, picked by the classified type, and no Bedrock
+Knowledge Base.**
+- **Why no Knowledge Base.** With five types the pick is a lookup, so a vector store would add a service and a
+  standing cost without changing which runbook is chosen.
+- **What "retrieval quality" means here.** A runbook is wrong exactly when the classification is, so retrieval
+  quality restates classifier accuracy.
+- **Runbooks feed `recommended_actions` only, behind a switch that is off by default** (`ANOMALYPULSE_RUNBOOKS`).
+  Summary, root cause and evidence still come only from the input.
+- **What is measured instead:** a blind comparison of actionability, with and without runbooks, on the samples and
+  then in M9-5. M9-5's comparison decides whether the switch is on for the demo.
+- **Build notes:** [`Handoffs/M6-1_Handoff.md`](../Handoffs/M6-1_Handoff.md), §2–§8.
 
 **Definition of Done**
 - [ ] For a detected incident, the correct runbook is retrieved and its content appears in the diagnosis.
