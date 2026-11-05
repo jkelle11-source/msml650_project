@@ -289,6 +289,7 @@ Resources:
               - ReportBatchItemFailures
             ScalingConfig:
               MaximumConcurrency: 5
+            Enabled: true
   
   # ---- Window Builder Lambda ---------------------------------------
   # Once a minute: rebuilds the health numbers of the last 3 minutes, and builds
@@ -482,6 +483,31 @@ Resources:
       Period: 60
       EvaluationPeriods: 1
       Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+  
+  # In alarm while a message has waited over 2 minutes in the telemetry queue:
+  # telemetry is late. The window builder builds a minute's window once its
+  # snapshots are in, and rebuilds its health for the last time, about 3 3/4
+  # minutes after it starts, so a minute's last records have about 165 s: past
+  # 120, windows and health built meanwhile may be missing records
+  # (Docs/PIPELINE.md). One failed batch sets it off: it waits out the queue's
+  # 185-second visibility timeout before it is tried again.
+
+  TelemetryLateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: anomalypulse-telemetry-late
+      AlarmDescription: Telemetry has waited over 2 minutes in anomalypulse-telemetry; windows and health built meanwhile may be missing records (Docs/PIPELINE.md)
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TelemetryQueue.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 120
       ComparisonOperator: GreaterThanThreshold
       TreatMissingData: notBreaching
 
