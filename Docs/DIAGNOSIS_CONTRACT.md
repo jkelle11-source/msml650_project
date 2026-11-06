@@ -181,11 +181,15 @@ dependency-error count above zero; `LOW` otherwise.
 - **Numbers** not in or derivable from the input (a value, ratio, percent change, difference, share as a
   percent or as "1 in N", ms as seconds, rps per minute, a per-minute count or capacity per second, the
   confidence, the duration, a gap between sequence steps), rounded no further than written: "2950" must be
-  2945–2955 and "2.9" 2.85–2.95. "p95" and "the 95th percentile" are names, not values. In an evidence bullet, the
+  2945–2955 and "2.9" 2.85–2.95. "p95" and "the 95th percentile" are names, not values. A hedge or bound
+  before a number says it may be cut off instead of rounded, so it gets one written unit on the side the
+  word gives: "roughly 15x" is 14–16, "more than 15x" 15–16, "nearly 15x" 14–15, and the second number of a
+  range ("roughly 15x to 21x") takes the first's word. In an evidence bullet, the
   numbers must come from the metrics that bullet cites (or a gap or ratio between two of them), so a real
   value on the wrong metric is caught. On the five samples a number picked at random from 1 to 1000 passes
   2–4.5% of the time in the summary and under 3% in a bullet (it was 7–56% with the first version's flat 6%
-  tolerance and no per-bullet check).
+  tolerance and no per-bullet check). Hedged, it passes 4–9.5% of the time after "roughly" and 2.6–6.6% after
+  a bound: a wrong number behind "roughly" is about twice as likely to slip through (2026-11-06).
 - **Severity** other than the rubric's, and, in the summary, root cause or evidence, any mention of a
   threshold.
 - **A clock time** not in the input.
@@ -198,7 +202,8 @@ dependency-error count above zero; `LOW` otherwise.
   **causal wording** outside `root_cause`, and in a cascade's `root_cause` any causal
   link ("in turn", "produced", "under load"; the noun "root cause" is fine); and **an ordering sentence** without
   "observed sequence" or with no `observed_sequence` in the input ("the first sign" and "15.0 before" order
-  nothing).
+  nothing, nor does "followed at roughly the same scale", two metrics moving together; a bare "latency has
+  followed" still orders).
 
 Actions are checked for numbers and times only ("approaching throttling thresholds" there is DynamoDB's
 capacity, not the rubric). With a runbook, the numbers the runbook writes are allowed in actions too, held to

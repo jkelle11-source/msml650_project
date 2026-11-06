@@ -8,9 +8,12 @@ the field and what is wrong. It checks:
   current value, or a ratio, percent change, difference, percent of a share, or
   ms in seconds derived from them; the confidence; the duration; the gap
   between two observed_sequence steps), rounded no further than it is written
-  ("2950" must be 2945-2955, "2.9" 2.85-2.95). An evidence bullet's numbers
-  must come from the metrics it cites, so a real value put on the wrong metric
-  is caught;
+  ("2950" must be 2945-2955, "2.9" 2.85-2.95). A hedge or bound before a
+  number says it may be cut off rather than rounded, so its window is one
+  written unit on the side the word gives: "roughly 15" is 14-16, "more than
+  15" 15-16, "nearly 15" 14-15 (the second number of a range takes the first's
+  word). An evidence bullet's numbers must come from the metrics it cites, so a
+  real value put on the wrong metric is caught;
 - severity: it must be the rubric's (contract.severity()), and no claim may
   mention a threshold;
 - services: every service named must be in the input;
@@ -25,7 +28,8 @@ the field and what is wrong. It checks:
   root_cause either, whose faults are concurrent ("in turn", "produced", "put
   payment-service under load" are links the evidence can't show);
 - ordering: a sentence that orders symptoms must say "observed sequence", and
-  needs an observed_sequence in the input.
+  needs an observed_sequence in the input ("followed at the same scale" is two
+  metrics moving together, not an order).
 
 recommended_actions are checked for numbers and times only: they say what to
 look at, which may be a component or service with no metric in the input
@@ -102,7 +106,24 @@ _CLOCK = re.compile(r"\b(\d{1,2}):(\d{2})(?::(\d{2}))?\b")
 # closes a comparison ("15.1 rps against 15.0 before").
 _BASELINE_PHRASES = re.compile(r"\b(before|prior to|since) (the|this) incident( began| started)?\b|"
                                r"\bbefore(?=\s*(?:[.,;:)]|$))", re.IGNORECASE)
+# "Followed" meaning "moved with", not "came after": "end-to-end latency at both p50 and p95 followed at
+# roughly the same scale" (Sonnet 4.6, Lambda-degradation sample, 2026-11-03). A bare "latency has
+# followed" still orders.
+_TRACKING_PHRASES = re.compile(r"\bfollowed (at|in) (roughly |about |nearly |much )?(the same|a similar) "
+                               r"(scale|rate|pace|magnitude|proportion)\b|\bfollowed in (lock)?step\b",
+                               re.IGNORECASE)
 _SENTENCES = re.compile(r"(?<=[.!?])\s+")
+
+# Words before a number that say it may be cut off rather than rounded, and which way: "roughly 15x"
+# and "more than 15x" for 15.6x (Sonnet 4.6, Lambda-degradation sample, 2026-11-03 and 2026-11-05).
+# Matched against the text just before the number.
+_LOOSENERS = (
+    ("either", re.compile(r"(\b(roughly|about|around|approximately|close to)\s+|~\s*)$", re.IGNORECASE)),
+    ("up", re.compile(r"\b(more than|over|above|exceeding|at least|upwards of|in excess of)\s+$", re.IGNORECASE)),
+    ("down", re.compile(r"\b(nearly|almost|under|below|less than|at most|up to)\s+$", re.IGNORECASE)),
+)
+# Between the two numbers of a range ("15x to 21x", "17–24 ms"): the second takes the first's word.
+_RANGE_GAP = re.compile(r"^\s*[a-z%]{0,3}\s*(to|-|–)\s*$", re.IGNORECASE)
 
 
 def _forms(values, unit) -> set[float]:
@@ -172,9 +193,11 @@ def _input_clocks(evidence: dict) -> set[str]:
     return clocks
 
 
-def _matches(raw: str, allowed) -> bool:
+def _matches(raw: str, allowed, loosened: str | None = None) -> bool:
     """Whether a number as written rounds from an allowed value: within half a unit of its last
-    significant digit ("2.9" +/-0.05, "2950" +/-5, "26" +/-0.5, "2900" +/-50)."""
+    significant digit ("2.9" +/-0.05, "2950" +/-5, "26" +/-0.5, "2900" +/-50). A loosened number
+    may be cut off instead, so its window is one unit on its word's side: "either" (roughly 15:
+    14-16), "up" (more than 15: 15-16) or "down" (nearly 15: 14-15)."""
     digits = raw.replace(",", "").lstrip("-")
     if "." in digits:
         half_unit = 0.5 * 10 ** -len(digits.split(".")[1])
@@ -182,8 +205,26 @@ def _matches(raw: str, allowed) -> bool:
         zeros = len(digits) - len(digits.rstrip("0"))
         half_unit = 0.5 * 10 ** zeros if digits.rstrip("0") else 0.5
     number = float(digits) * (-1 if raw.startswith("-") else 1)
+    below, above = {None: (half_unit, half_unit), "either": (2 * half_unit, 2 * half_unit),
+                    "up": (0, 2 * half_unit), "down": (2 * half_unit, 0)}[loosened]
     # The margin only absorbs float error (2.95 - 2.9 is 0.0500000000000003).
-    return any(abs(number - v) <= half_unit * (1 + 1e-9) for v in allowed)
+    margin = half_unit * 1e-9
+    return any(number - below - margin <= v <= number + above + margin for v in allowed)
+
+
+def _numbers(text: str) -> list[tuple[str, str | None]]:
+    """(number as written, the side its hedge or bound loosens it to, or None) for each value in a
+    text, after times and names ("p95", "5xx") are taken out."""
+    clean = _NOT_VALUES.sub(" ", _CLOCK.sub(" ", text))
+    out, previous = [], None
+    for match in _NUMBER.finditer(clean):
+        before = clean[max(0, match.start() - 40):match.start()]
+        loosened = next((side for side, words in _LOOSENERS if words.search(before)), None)
+        if loosened is None and previous and _RANGE_GAP.match(clean[previous[0]:match.start()]):
+            loosened = previous[1]
+        out.append((match.group(0), loosened))
+        previous = (match.end(), loosened)
+    return out
 
 
 # A numbered list's markers ("1. Check ...") are not values.
@@ -234,10 +275,10 @@ def check(evidence: dict, diagnosis: dict, runbook: str | None = None) -> list[s
         for clock in _CLOCK.finditer(text):
             if clock.group(0) not in clocks:
                 findings.append(f"{field}: the time {clock.group(0)} is not in the input")
-        for raw in _NUMBER.findall(_NOT_VALUES.sub(" ", _CLOCK.sub(" ", text))):
-            if own is not None and _matches(raw, own):
+        for raw, loosened in _numbers(text):
+            if own is not None and _matches(raw, own, loosened):
                 continue
-            if not _matches(raw, anywhere if is_claim else in_actions):
+            if not _matches(raw, anywhere if is_claim else in_actions, loosened):
                 findings.append(f"{field}: the number {raw} is not in or derivable from the input")
             elif own is not None:
                 findings.append(f"{field}: the number {raw} is not from the metrics it cites")
@@ -266,7 +307,7 @@ def check(evidence: dict, diagnosis: dict, runbook: str | None = None) -> list[s
                 findings.append(f"root_cause: a cascade's faults are concurrent, but it links them causally "
                                 f"({link.group(0)!r})")
         for sentence in _SENTENCES.split(text):
-            ordered = ORDERING.search(_BASELINE_PHRASES.sub(" ", sentence))
+            ordered = ORDERING.search(_TRACKING_PHRASES.sub(" ", _BASELINE_PHRASES.sub(" ", sentence)))
             if ordered and "observed sequence" not in sentence.lower():
                 findings.append(f"{field}: orders symptoms without saying 'observed sequence': "
                                 f"{sentence.strip()!r}")

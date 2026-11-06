@@ -269,6 +269,63 @@ def test_a_number_is_held_to_the_precision_it_is_written_in(written, ok):
     assert (self_check.check(DEP, claim) == []) is ok
 
 
+LAM = SAMPLES["lambda_degradation"]   # p95 375 / 24 = 15.6x, p50 360 / 17 = 21.2x; no observed_sequence
+
+
+def _lambda_summary(text, bullet=("Mean handler duration rose from 2 ms to 352 ms.", "lambda_duration_ms_mean")):
+    """Findings on the Lambda-degradation sample for a summary and one evidence bullet (its statement
+    and the order-service metric it cites), the rest of the diagnosis faithful."""
+    return self_check.check(LAM, {
+        "severity": contract.severity(LAM), "summary": text,
+        "root_cause": "A slowdown inside the order-service handler is the most likely root cause.",
+        "evidence": [{"statement": bullet[0], "metrics": [f"order-service.{bullet[1]}"]}],
+        "recommended_actions": ["Inspect the handler's logs.", "Profile the handler."]})
+
+
+@pytest.mark.parametrize("summary, flagged", [
+    ("End-to-end p95 latency rose 15.6x.", []),
+    ("End-to-end p95 latency rose 15x.", ["15"]),                 # 15.6 rounds to 16
+    ("End-to-end p95 latency rose roughly 15x.", []),             # Sonnet 4.6, 2026-11-03: cut off, not rounded
+    ("End-to-end p95 latency rose more than 15x.", []),           # Sonnet 4.6, 2026-11-05: 15.6 is above 15
+    ("End-to-end p95 latency rose nearly 15x.", ["15"]),          # "nearly" is below 15, and 15.6 is above
+    ("End-to-end p50 latency rose more than 21.2x.", ["21.2"]),   # 21.18 is below 21.2, though "21.2x" passes
+    ("End-to-end latency rose roughly 15x to 22x.", []),          # the range's second number takes "roughly"
+    ("End-to-end latency rose 15x to 22x.", ["15", "22"]),        # 22 doesn't round from 21.2 either
+])
+def test_a_hedge_or_bound_loosens_a_number_on_its_side(summary, flagged):
+    findings = _lambda_summary(summary)
+    assert [f.split("the number ")[1].split(" ")[0] for f in findings if "the number" in f] == flagged
+
+
+def test_a_hedged_number_in_a_bullet_still_comes_from_the_metrics_it_cites():
+    bullet = "p95 latency rose roughly 15x."
+    assert _lambda_summary("Handler duration rose 176x.", (bullet, "p95_latency_ms")) == []
+    assert _lambda_summary("Handler duration rose 176x.", (bullet, "p50_latency_ms")) == [
+        "evidence[0]: the number 15 is not from the metrics it cites"]   # p50 rose 21.2x
+
+
+def test_a_hedge_does_not_excuse_a_wrong_number():
+    # Sonnet 4.6 with the cascade runbook (2026-11-05) wrote 95 seconds for the 35 s from 17:04:05 to
+    # 17:04:40. "About 95" is 94-96, and no gap in the input is.
+    cascade = SAMPLES["cascading_failure"]
+    for written, flagged in (("95", True), ("about 95", True), ("35", False), ("about 35", False)):
+        text = f"Order 5xx rose {written} seconds after Payment latency (observed sequence)."
+        number = written.split()[-1]
+        assert any(f"the number {number} " in f for f in self_check.check(cascade, _with(summary=text))) is flagged
+
+
+def test_followed_at_the_same_scale_orders_nothing():
+    def ordering(text):
+        return [f for f in _lambda_summary(text) if "observed sequence" in f or "ordering" in f]
+    # Sonnet 4.6, runbooks off (2026-11-03): the two moving together.
+    assert ordering("Mean handler duration rose from 2 ms to 352 ms (176x), and end-to-end latency at both "
+                    "p50 and p95 followed at roughly the same scale.") == []
+    assert ordering("End-to-end latency followed in step.") == []
+    # Sonnet 4.6, runbooks on (2026-11-05): "has followed" reads as "rose afterwards", and this input
+    # has no observed_sequence to order anything.
+    assert ordering("End-to-end latency has followed, with p50 rising from 17 ms to 360 ms.") != []
+
+
 def test_derived_numbers_are_accepted():
     # ratio, percent of a share, ms as seconds, confidence, the sequence gap
     text = ("Payment p95 rose about 26x to 2.9 s; Order 5xx is 16.7%; confidence 93%. "

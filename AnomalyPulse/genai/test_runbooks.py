@@ -217,8 +217,13 @@ def test_a_per_minute_count_may_be_written_per_second():
     # Sonnet with the throttling runbook (2026-11-03): 11,900 / 60 = 198.3.
     action = _diagnosis(THR, actions=["The current 11900 RCU/min is roughly 198 RCU/s.", "Watch p95."])
     assert _flags(THR, action, None, "198") == []
-    wrong = _diagnosis(THR, actions=["The current 11900 RCU/min is roughly 240 RCU/s.", "Watch p95."])
+    # Plain, so the hedge rule stays out of it: "roughly 240" is 230-250, and 250 is the 0.4% 5xx share
+    # written as "1 in 250".
+    wrong = _diagnosis(THR, actions=["The current 11900 RCU/min is 240 RCU/s.", "Watch p95."])
     assert _flags(THR, wrong, None, "240")
+    # A hedge doesn't excuse a clearly wrong one: "roughly 220" is 210-230, and nothing allowed is.
+    wrong = _diagnosis(THR, actions=["The current 11900 RCU/min is roughly 220 RCU/s.", "Watch p95."])
+    assert _flags(THR, wrong, None, "220")
 
 
 def test_a_tables_capacity_mode_is_no_claim_but_may_be_an_action():

@@ -38,10 +38,8 @@
   ],
   "runbook": "lambda_degradation",
   "self_check": {
-    "passed": false,
-    "findings": [
-      "summary: the number 15 is not in or derivable from the input"
-    ]
+    "passed": true,
+    "findings": []
   },
   "model": {
     "id": "global.anthropic.claude-sonnet-4-6",
