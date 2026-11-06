@@ -56,7 +56,7 @@ service Lambda  print(json)
 | `pipeline/records/dt=YYYY-MM-DD/minute=HH-MM/part-<run id>.jsonl` | Aggregator | The minute's records, one JSON record per line, exactly as the services printed them. A minute is several files, and a record can repeat |
 | `pipeline/health/dt=YYYY-MM-DD/minute=HH-MM.json` | Window builder | The minute's health (below). Rewritten by each of the next two runs, so records still on their way are counted |
 | `pipeline/windows/dt=YYYY-MM-DD/minute=HH-MM.json` | Window builder | `{"window_start", <the 106 columns>}`. Written once: the file marks the minute done |
-| Incidents table, `pk = "HEALTH"`, `sk = "LATEST"` | Window builder | The newest minute's health: what the dashboard read API reads |
+| Incidents table, `pk = "HEALTH"`, `sk = "LATEST"` | Window builder | The newest minute's health, and `telemetry_late`: whether the late alarm was on at the run. What the dashboard read API reads |
 | Bus event, `Source` `anomalypulse.pipeline`, `DetailType` `WindowReady` | Window builder | Its `detail` is `{"windows": [<the window>], "key": "<its file>"}`, the Diagnosis Lambda's input shape. A rule's Lambda target receives the whole event, with that under `detail`, so M8-2's target passes it on with `InputPath: $.detail`. Only for a window with no empty value, and sent before its file is written, so a failed send is retried by the next run. A failed file write after a sent event means the next run sends it again. M8-2 must accept a repeat, and windows out of order: after a gap, one run announces several, and EventBridge keeps no order |
 
 **Health** is the input `AnomalyPulse/dashboard/builder.py` takes, 14 keys: `window_start`,
@@ -68,7 +68,9 @@ Order). On a busy minute, health's columns equal the full window's.
 **The health item, for M8-5.** Its numbers come back from DynamoDB as `Decimal`s, which `build_dashboard` takes
 as they are (checked on the live item, 2026-11-05) but `json.dumps` can't write: the live source converts them
 before replying. A write never replaces a newer minute, and the window builder's role can write no item whose
-`pk` isn't `HEALTH`.
+`pk` isn't `HEALTH`. Beside the 14 keys, the item holds `telemetry_late` (true or false), and `build_dashboard`
+answers `NO_DATA` while it is true ("When telemetry is late"). The minute's health file leaves it out: it is the
+pipeline's state at the run, not the minute's.
 
 **The Incidents table, for M8-2, M8-3 and M8-5.** Keys `pk` and `sk`, both strings, so each writer lays out its own
 items; the `HEALTH` partition is the window builder's. How incidents are laid out is M8-2's and M8-3's call. One
@@ -116,7 +118,7 @@ stack, as M10 plans, or a template change that replaces the rule. After one, rea
 ```bash
 AWS_PROFILE=dev AWS_REGION=us-east-2 aws logs filter-log-events \
   --log-group-name /aws/lambda/anomalypulse-pipeline-window-builder \
-  --filter-pattern START --start-time $(( ($(date +%s) - 600) * 1000 )) \
+  --filter-pattern '"START RequestId"' --start-time $(( ($(date +%s) - 600) * 1000 )) \
   --query 'events[].timestamp' --output text | tr '\t' '\n' | while read t; do date -u -r $((t / 1000)) +%H:%M:%S; done
 # 22:37:45, 22:38:45, ... (2026-11-05)
 ```
@@ -134,7 +136,8 @@ Aggregator falls behind or fails: a message it fails waits out the queue's 185 s
 **What late records do** (the pause test below):
 
 - **Health undercounts, for good.** The minutes whose records came after their last rebuild say 0 requests in
-  the test, and the dashboard shows the system healthy and idle, not `NO_DATA`.
+  the test. The dashboard shows them as healthy and idle until the late alarm goes off, then `NO_DATA` until it
+  clears (below).
 - **Windows are built without them, for good.** A window with no records has empty columns and isn't announced.
   A window with some of its records can have no empty value, and is then announced with wrong numbers.
 
@@ -143,19 +146,33 @@ test it went off about 2¼ minutes after the age passed 120 s, since SQS reports
 late. While it is in alarm, and for the minutes just before it, treat windows, announcements and health as
 possibly missing records.
 
+**Decided (2026-11-05, with Linu): the dashboard shows `NO_DATA` while the alarm is on.** Before, the console
+couldn't tell idle from stuck. Now each run reads the alarm's state and puts it in the health item as
+`telemetry_late`, and `build_dashboard` treats a late minute as it treats a stale one, since its numbers may be
+missing records. The console needed no change: the reply's shape is the same, and `NO_DATA` already means
+"don't trust these numbers". Checked live (2026-11-06 00:36): with the alarm forced into `ALARM`, a run wrote
+`telemetry_late = true` and `build_dashboard` answered `NO_DATA` for the item; once the alarm cleared by itself,
+72 s later, the next run wrote `false`.
+
+The alarm runs behind the queue at both ends. Over the pause test's times, the paused minutes still show as idle
+from the 19:36:45 run to the 19:39:45 one, the first after the alarm went off at 19:39:23. `NO_DATA` then lasts
+until the 19:45:45 run, about 3 minutes past the drain, since the alarm clears late too. A status of its own
+would have told the viewer more, at the cost of a console change, for a case no load test hit at normal or 10×
+traffic.
+
 **Not done:** holding windows back until their records are in. An SQS standard queue keeps no order and its age
-metric arrives late, so the window builder has no exact way to know. **Open question for M8-5 (Linu):** the
-console can't tell "idle" from "telemetry stuck"; showing the late alarm would be a contract change.
+metric arrives late, so the window builder has no exact way to know.
 
 ## Alarms
 
-None has an action: each one's state shows in the CloudWatch console.
+None has an action: each one's state shows in the CloudWatch console. The late alarm's state also reaches the
+dashboard, as `NO_DATA`.
 
 | Alarm | In alarm while |
 |---|---|
 | `anomalypulse-telemetry-undelivered` | Anything is in the undelivered queue: telemetry lost before the telemetry queue |
 | `anomalypulse-telemetry-dlq` | Anything is in `anomalypulse-telemetry-dlq`: the Aggregator failed it 5 times |
-| `anomalypulse-telemetry-late` | The telemetry queue's oldest message has waited over 120 s (above) |
+| `anomalypulse-telemetry-late` | The telemetry queue's oldest message has waited over 120 s (above). The dashboard shows `NO_DATA` meanwhile |
 | `anomalypulse-pipeline-window-builder-errors` | The window builder has failed 3 runs in a row: windows and health have stopped |
 
 ## Load tests (2026-11-04 and 05)
@@ -195,7 +212,7 @@ and those feed `raw/` and this pipeline.
 |---|---|---|
 | Forwarder | `PutEvents` on the pipeline bus, for `anomalypulse.telemetry` / `TelemetryRecords` events only. `SendMessage` to the undelivered queue, its on-failure destination | CloudWatch Logs, for the 4 service log groups only, each named, in this account |
 | Aggregator | `ReceiveMessage`, `DeleteMessage` and `GetQueueAttributes` on the telemetry queue: Lambda's queue reader uses the Aggregator's role. `PutObject` under `pipeline/records/` | Lambda's queue reader. No resource policy is needed |
-| Window builder | `ListBucket` on the bucket. `GetObject` under `pipeline/records/`, `pipeline/windows/` and `metrics/`. `PutObject` under `pipeline/health/` and `pipeline/windows/`. `PutItem` on the Incidents table, for `pk = "HEALTH"` only. `PutEvents` on the pipeline bus, for `anomalypulse.pipeline` / `WindowReady` events only | Its schedule rule only |
+| Window builder | `ListBucket` on the bucket. `GetObject` under `pipeline/records/`, `pipeline/windows/` and `metrics/`. `PutObject` under `pipeline/health/` and `pipeline/windows/`. `PutItem` on the Incidents table, for `pk = "HEALTH"` only. `PutEvents` on the pipeline bus, for `anomalypulse.pipeline` / `WindowReady` events only. `DescribeAlarms` on the late alarm only | Its schedule rule only |
 
 The policies of the telemetry queue and the undelivered queue (the rule's dead-letter queue) let EventBridge send
 to them only for the telemetry rule (`aws:SourceArn`), so no other rule, in this account or another, can fill
