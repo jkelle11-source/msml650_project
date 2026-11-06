@@ -73,3 +73,44 @@ def test_repeats_and_stragglers_are_ignored():
     opened, _ = run([minute(1, True, "TRAFFIC_SPIKE", 0.9), minute(2, True, "TRAFFIC_SPIKE", 0.9)])
     again, changes = run([minute(2, True, "TRAFFIC_SPIKE", 0.9), minute(1, False)], opened)
     assert changes == [[], []] and again == opened
+
+
+def test_a_quiet_minute_delivered_twice_counts_once():
+    # EventBridge delivers at least once: the repeat of 14:02 must not be a second quiet minute.
+    state, changes = run([minute(1, True, "TRAFFIC_SPIKE", 0.9), minute(2, False), minute(2, False)])
+    assert changes == [["opened"], [], []] and state["status"] == "OPEN" and state["quiet"] == 1
+    state, changes = run([minute(3, False)], state)
+    assert changes == [["closed"]] and state["ended_at"] == "2026-11-06T14:02:00.000Z"
+
+
+def test_a_straggler_after_the_close_opens_nothing():
+    # Closed at 14:03; 14:05 is applied; 14:04 then arrives late and is ignored, though it counts.
+    closed, _ = run([minute(1, True, "TRAFFIC_SPIKE", 0.9), minute(2, False), minute(3, False),
+                     minute(5, False)])
+    state, changes = run([minute(4, True, "TRAFFIC_SPIKE", 0.9)], closed)
+    assert changes == [[]] and state == closed and state["last_window"] == "2026-11-06T14:05:00.000Z"
+
+
+def test_a_type_named_only_as_the_fault_lets_go_doesnt_replace_its_type():
+    # Validation's dependency failures: 5 minutes DEPENDENCY_FAILURE, then one LAMBDA_DEGRADATION.
+    state, changes = run([minute(m, True, "DEPENDENCY_FAILURE", c) for m, c in
+                          [(1, 0.9), (2, 0.95), (3, 1.0), (4, 1.0), (5, 0.97)]]
+                         + [minute(6, True, "LAMBDA_DEGRADATION", 0.84), minute(7, False), minute(8, False)])
+    assert changes == [["opened"], [], [], [], [], [], [], ["closed"]]
+    assert (state["incident_type"], state["confidence"]) == ("DEPENDENCY_FAILURE", 0.97)
+    assert state["ended_at"] == "2026-11-06T14:07:00.000Z"      # the LAMBDA minute still counted
+
+
+def test_a_cascade_becomes_cascading_once_it_has_as_many_minutes():
+    # 3 minutes of the first fault, then CASCADING_FAILURE: a tie at 3-3 goes to the newer type.
+    state, changes = run([minute(m, True, "DATABASE_THROTTLING", 0.9) for m in (1, 2, 3)]
+                         + [minute(m, True, "CASCADING_FAILURE", c) for m, c in [(4, 0.8), (5, 0.9), (6, 0.99)]])
+    assert changes == [["opened"], [], [], [], [], ["type_changed"]]
+    assert (state["incident_type"], state["confidence"]) == ("CASCADING_FAILURE", 0.99)
+
+
+def test_the_confidence_is_the_reported_types_latest():
+    state, _ = run([minute(1, True, "LAMBDA_DEGRADATION", 0.9), minute(2, True, "LAMBDA_DEGRADATION", 0.95),
+                    minute(3, True, "TRAFFIC_SPIKE", 0.6)])
+    assert (state["incident_type"], state["confidence"]) == ("LAMBDA_DEGRADATION", 0.95)
+    assert state["tally"]["TRAFFIC_SPIKE"] == {"minutes": 1, "last": "2026-11-06T14:03:00.000Z", "confidence": 0.6}

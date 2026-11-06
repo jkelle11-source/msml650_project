@@ -194,6 +194,22 @@ def test_each_window_writes_one_metric_line(live, capsys):
     assert (spike["incident_type"], spike["Incident"], lines[1]["Incident"]) == ("TRAFFIC_SPIKE", 1, 0)
 
 
+def test_a_direct_call_writes_no_metric_line(live, capsys):
+    # A direct call's windows can be days old: their latency must not reach SinceWindowEndSeconds.
+    reply = live.handler({"windows": [window(CENTRES["TRAFFIC_SPIKE"])]}, None)
+    assert reply["predictions"][0]["incident_type"] == "TRAFFIC_SPIKE"
+    assert capsys.readouterr().out == ""
+
+
+def test_a_metric_line_leaves_out_an_empty_value(live):
+    now = datetime(2026, 11, 6, 14, 15, 47, tzinfo=timezone.utc)
+    [p] = live.detect_then_classify([window(CENTRES["NORMAL"])], None, None, clock=lambda: now)["predictions"]
+    line = live.metric_line(p, None, 1.5)
+    names = {m["Name"] for m in line["_aws"]["CloudWatchMetrics"][0]["Metrics"]}
+    assert names == {"SinceWindowEndSeconds", "InferenceMs", "Anomalous", "Incident"}
+    assert "SinceAnnouncedSeconds" not in line and line["SinceWindowEndSeconds"] == 227.0
+
+
 # ---- The Tier-1 guard on the live path ------------------------------------------------------
 
 @pytest.mark.parametrize("leak", ["product_db_throttled", "order_error_type_count", "label", "experiment_id"])
@@ -222,6 +238,33 @@ def test_the_lambdas_list_is_the_guards():
     from features import guard
     names = json.loads((HERE / "forbidden_names.json").read_text())["names"]
     assert names == sorted(guard.forbidden_names()), "run: python ml/diagnosis/write_forbidden_names.py"
+
+
+def test_the_lambdas_rule_is_the_guards(live):
+    # Whole words, any case, never a substring: "labels", "seeds", "targeted" hold a forbidden name
+    # only as part of a word, so they pass; the guard and the Lambda must agree name by name.
+    pytest.importorskip("boto3")
+    sys.path.insert(0, str(ROOT))
+    from features import guard
+    names = ["product_db_throttled", "Product_DB_Throttled", "order_error_type_count", "label",
+             "cart_experiment_id_x", "product_labels", "cart_seeds", "order_targeted_count",
+             "product_throttled_requests", "cart_read_throttle_events", "payment_phases"]
+
+    def guard_refuses(name):
+        try:
+            guard.check_columns([name])
+        except guard.BoundaryViolation:
+            return True
+        return False
+    assert live.tier2_columns(names, live.FORBIDDEN) == sorted(n for n in names if guard_refuses(n)) == [
+        "Product_DB_Throttled", "cart_experiment_id_x", "label", "order_error_type_count", "product_db_throttled"]
+
+
+def test_an_empty_forbidden_list_is_refused(live, tmp_path):
+    path = tmp_path / "forbidden_names.json"
+    path.write_text(json.dumps({"names": []}))
+    with pytest.raises(live.BadModel, match="lists no forbidden names"):
+        live.forbidden_names(path)
 
 
 def test_every_real_feature_column_passes_the_lambdas_guard(live):

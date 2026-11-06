@@ -15,12 +15,16 @@ live path scores"):
   112 first recovery minutes, 24 of 56 second ones and 2 of 138 third ones, and calls both
   after-idle minutes NORMAL.
 - **Opens** on the first minute that counts. started_at is that window's window_start.
-- **Stays open** through minutes that count, taking the latest minute's type and confidence:
-  a cascade is first classified as its first fault's type, then CASCADING_FAILURE.
+- **Stays open** through minutes that count. Its incident_type is the type with the most counted
+  minutes so far (a tie goes to the type counted most recently), and its confidence is that
+  type's latest. A cascade is first classified as its first fault's type, and becomes
+  CASCADING_FAILURE once that has as many minutes. A type the classifier names only in a fault's
+  last minute or two, as it lets go, doesn't replace the fault's type: taking each minute's type
+  instead closed 21 of validation's 112 incidents with another type (Docs/LIVE_DIAGNOSIS.md).
 - **Closes** after CLOSE_AFTER minutes in a row that don't count, or when the next window
-  comes CLOSE_AFTER or more minutes after the last one (the window builder announces no window
-  with an empty value, so idle traffic leaves gaps). ended_at is the end of the last minute that
-  counted.
+  comes more than CLOSE_AFTER minutes after the last minute that counted (the window builder
+  announces no window with an empty value, so idle traffic leaves gaps). ended_at is the end of
+  the last minute that counted.
 - **Repeats and stragglers:** EventBridge may deliver a window twice and out of order. A window
   not newer than the last one applied is ignored, so apply a batch in window_start order.
 
@@ -45,11 +49,18 @@ def counts(prediction):
     return bool(prediction.get("anomalous")) and prediction.get("incident_type") is not None
 
 
+def _reported(tally):
+    """The type with the most counted minutes; a tie goes to the type counted most recently."""
+    return max(tally, key=lambda typ: (tally[typ]["minutes"], _t(tally[typ]["last"])))
+
+
 def step(state, prediction):
     """(new state, changes) after one window's prediction. `state` is None before the first
     incident, or the dict this returns; a closed incident's state is kept so the next window can
     be checked against last_window. `changes` lists what happened, in order: usually nothing or
-    one change, but a gap can close one incident and the same window open the next."""
+    one change, but a gap can close one incident and the same window open the next.
+    state["tally"] holds, per type, its counted minutes, the last of them and its latest
+    confidence."""
     at = _t(prediction["window_start"])
     if state and at <= _t(state["last_window"]):
         return state, []
@@ -62,15 +73,20 @@ def step(state, prediction):
         changes.append("closed")
 
     if counts(prediction):
+        minute = {"last": prediction["window_start"], "confidence": prediction["confidence"]}
         if not is_open:
             return ({"status": "OPEN", "started_at": prediction["window_start"],
                      "last_window": prediction["window_start"], "last_counted": prediction["window_start"],
                      "incident_type": prediction["incident_type"], "confidence": prediction["confidence"],
+                     "tally": {prediction["incident_type"]: {"minutes": 1, **minute}},
                      "quiet": 0, "ended_at": None}, changes + ["opened"])
-        changed = prediction["incident_type"] != state["incident_type"]
+        before = state["tally"].get(prediction["incident_type"], {"minutes": 0})
+        tally = {**state["tally"], prediction["incident_type"]: {"minutes": before["minutes"] + 1, **minute}}
+        reported = _reported(tally)
+        changed = reported != state["incident_type"]
         return ({**state, "last_window": prediction["window_start"], "last_counted": prediction["window_start"],
-                 "incident_type": prediction["incident_type"], "confidence": prediction["confidence"],
-                 "quiet": 0}, ["type_changed"] if changed else [])
+                 "incident_type": reported, "confidence": tally[reported]["confidence"],
+                 "tally": tally, "quiet": 0}, ["type_changed"] if changed else [])
 
     if not is_open:
         return {**(state or {"status": "CLOSED"}), "last_window": prediction["window_start"]}, changes

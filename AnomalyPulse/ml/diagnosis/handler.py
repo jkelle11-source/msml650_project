@@ -202,8 +202,9 @@ def model_info(meta, pointer):
             "job": (pointer or {}).get("job"), "version_id": (pointer or {}).get("version_id")}
 
 def classify_only(windows):
-    """The M5-1 reply: the classifier's prediction for every window. Served while no detector is
-    configured, and to direct calls such as M9-4's batches."""
+    """The M5-1 reply: the classifier's prediction for every window. Served only while no
+    detector is configured (neither ANOMALYPULSE_DETECTOR_POINTER nor ANOMALYPULSE_DETECTOR_DIR
+    set); the deployed Lambda has one, so its direct calls get detect_then_classify's reply."""
     start = time.perf_counter()
     vectors = [build_vector(window, MODEL["columns"]) for window in windows]
     rows = PIPELINE.predict_proba(vectors)
@@ -227,6 +228,10 @@ def detect_then_classify(windows, announced_at, key, clock = None):
     detector alone keeps flagging after a fault ends, and both of its after-idle flags
     (Docs/PIPELINE.md, "On the minutes only the live path scores"). confidence is that label's
     probability. Every window is answered, so M8-3 sees the quiet minutes that close an incident.
+
+    Direct calls ({"windows": [...]}) take this path too. Only a WindowReady event's windows
+    (announced_at set) write the latency metric lines: a direct call's windows can be days old,
+    and their latency would swamp the live path's in SinceWindowEndSeconds.
     """
     start = time.perf_counter()
     vectors = [build_vector(window, MODEL["columns"]) for window in windows]
@@ -254,8 +259,9 @@ def detect_then_classify(windows, announced_at, key, clock = None):
                             "latency": latency(window["window_start"], announced_at, diagnosed_at)})
 
     inference_ms = (classified - start) * 1000
-    for prediction in predictions:
-        print(json.dumps(metric_line(prediction, key, round(inference_ms, 3))))
+    if announced_at is not None:
+        for prediction in predictions:
+            print(json.dumps(metric_line(prediction, key, round(inference_ms, 3))))
     return {"model": model_info(MODEL, POINTER),
             "detector": {**model_info(DETECTOR_MODEL, DETECTOR_POINTER),
                          "threshold": DETECTOR_MODEL["threshold"]},
