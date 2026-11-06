@@ -68,8 +68,13 @@ def health_status(window: dict | None, incident: dict | None, now: datetime) -> 
     start = datetime.fromisoformat(window["window_start"])
     if now > start + STALE_AFTER:
         return "NO_DATA"
-    
-    elif incident is not None:
+
+    # Telemetry is late (the pipeline's late alarm): the minute may be missing records, so
+    # its numbers can't be trusted either. A window without the flag (the mock's) isn't late.
+    if window.get("telemetry_late"):
+        return "NO_DATA"
+
+    if incident is not None:
         return "INCIDENT"
     
     else:

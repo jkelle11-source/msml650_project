@@ -136,6 +136,20 @@ def test_no_window_is_no_data_even_during_an_incident():
     assert builder.health_status(None, INCIDENT, at(14, 35)) == "NO_DATA"
 
 
+def test_late_telemetry_is_no_data_even_in_a_fresh_window_during_an_incident():
+    # The pipeline's late alarm is on: the minute may be missing records still in the queue.
+    late = {**WINDOW, "telemetry_late": True}
+    assert builder.health_status(late, None, at(14, 35)) == "NO_DATA"
+    assert builder.health_status(late, INCIDENT, at(14, 35)) == "NO_DATA"
+
+
+def test_telemetry_not_late_or_not_said_changes_nothing():
+    # The window builder writes False when the alarm is OK; the mock's windows don't carry the flag.
+    for window in ({**WINDOW, "telemetry_late": False}, WINDOW):
+        assert builder.health_status(window, None, at(14, 35)) == "HEALTHY"
+        assert builder.health_status(window, INCIDENT, at(14, 35)) == "INCIDENT"
+
+
 def test_health_status_refuses_an_empty_window():
     # As in service_rows: None is no window; {} is a window missing its columns.
     with pytest.raises(KeyError, match="window_start"):
@@ -343,6 +357,23 @@ def test_a_stale_window_shows_no_numbers_but_keeps_the_incident():
     assert builder.build_dashboard(BUSY, DETECTED, CASCADE, at(14, 36, 1)) == {
         "contract_version": 1,
         "generated_at": "2026-10-30T14:36:01.000Z",
+        "health": {"window_start": None, "status": "NO_DATA",
+                   "requests_per_min": None, "error_rate": None, "p95_latency_ms": None,
+                   "active_incidents": 1, "services": no_data_services()},
+        "incident": {
+            "incident_id": "inc-20261030T143200Z",
+            "prediction": DETECTED["prediction"],
+            "diagnosis": None,
+            "ground_truth": {"experiment_id": "exp-20261030T143055Z-3f9a", "incident_type": "CASCADING_FAILURE",
+                             "severity": "HIGH", "faults": cascade_faults(None, None)},
+            "comparison": {"detection_latency_s": 69.0}}}
+
+
+def test_late_telemetry_shows_no_numbers_but_keeps_the_incident():
+    # 1 min 5 s old, so fresh by age, but the late alarm is on: the same reply as a stale window.
+    assert builder.build_dashboard({**BUSY, "telemetry_late": True}, DETECTED, CASCADE, at(14, 34, 5)) == {
+        "contract_version": 1,
+        "generated_at": "2026-10-30T14:34:05.000Z",
         "health": {"window_start": None, "status": "NO_DATA",
                    "requests_per_min": None, "error_rate": None, "p95_latency_ms": None,
                    "active_incidents": 1, "services": no_data_services()},
