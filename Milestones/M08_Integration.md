@@ -91,6 +91,15 @@ for about 3 minutes past a fault's end, and the first full minute after idle tim
 incident in fewer of them (78 of 112 first recovery minutes, 24 of 56 second, 2 of 138 third). How flagged
 minutes open and close an incident is M8-2's and M8-3's call.
 
+**Decided (2026-11-06; [`Docs/LIVE_DIAGNOSIS.md`](../Docs/LIVE_DIAGNOSIS.md)):** a rule on the pipeline bus sends
+each WindowReady event to the Diagnosis Lambda. It runs M5-2's Isolation Forest (promoted as `anomaly_iforest`),
+then the classifier on the windows the forest flags, and a window gets an `incident_type` only when both agree.
+The reply goes back on the bus as the Lambda's success destination, for M8-3. An event that fails three times, or
+that EventBridge can't deliver, goes to an alarmed failure queue. The Lambda keeps no state: `incident.py` is the
+open/close rule proposed for M8-3. It opens on the first minute with a type, closes after 2 minutes without one,
+and reports the type with the most minutes. On validation's live-built windows, every fault run opened exactly one
+incident, of its own type (112 of 112), and no healthy run opened one.
+
 **Definition of Done**
 - [ ] A live traffic spike is detected and classified end-to-end (MVP loop through the live path).
 - [ ] Full taxonomy classifies correctly on a live run of each injector.

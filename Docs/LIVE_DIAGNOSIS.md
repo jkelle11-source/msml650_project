@@ -20,7 +20,8 @@ window builder  → WindowReady event on bus anomalypulse-pipeline          (M8-
       window → Tier-1 guard → detector (anomaly_iforest)
              → if anomalous: classifier (incident_type) → incident_type, confidence
   → on success: the reply goes back to the pipeline bus as a Lambda destination event   (M8-3 subscribes)
-  → on failure (3 tries): the event goes to the anomalypulse-diagnosis-failed queue (alarmed)
+  → on failure (3 tries), or if EventBridge can't deliver it within the hour:
+      the event goes to the anomalypulse-diagnosis-failed queue (alarmed)
 ```
 
 - **Two pointers, one cold start.** The Lambda loads the classifier from `ANOMALYPULSE_MODEL_POINTER`
@@ -30,8 +31,11 @@ window builder  → WindowReady event on bus anomalypulse-pipeline          (M8-
   feeds both models.
 - **The classifier runs only on flagged windows,** as the issue asks. A window the detector clears comes back
   `NORMAL` with no probabilities.
-- **No detector configured means M5-1's reply, unchanged.** That keeps direct batch calls (M9-4) and the M5-2
-  test working as before.
+- **Direct calls get the same answer.** A direct `{"windows": [...]}` call to the deployed Lambda goes
+  detector → classifier too, and gets the reply below, but writes no latency metric line: its windows can be
+  days old, and their latency would swamp the live path's. Only with no detector configured (`ANOMALYPULSE_DETECTOR_POINTER`
+  and `ANOMALYPULSE_DETECTOR_DIR` unset, as in the M5-2 test) does the Lambda answer as M5-1 built it, the
+  classifier alone ([`ML_INFERENCE.md`](ML_INFERENCE.md)).
 - **The Lambda keeps no state.** A repeated or out-of-order window gets the same answer each time. Grouping minutes
   into incidents is `incident.py`'s rule (below), which M8-3 runs against what it stores.
 
@@ -50,8 +54,8 @@ To a WindowReady event, or a direct `{"windows": [...]}`:
    "label": "TRAFFIC_SPIKE",
    "probabilities": {"CASCADING_FAILURE": 1e-06, "…": "…", "TRAFFIC_SPIKE": 0.97},
    "incident_type": "TRAFFIC_SPIKE", "confidence": 0.97,
-   "latency": {"window_end": "2026-11-06T14:12:00.000Z", "announced_at": "2026-11-06T14:15:46.000Z",
-               "diagnosed_at": "2026-11-06T14:15:47.250Z", "since_window_end_s": 227.25, "since_announced_s": 1.25}
+   "latency": {"window_end": "2026-11-06T14:12:00.000Z", "announced_at": "2026-11-06T14:14:46.000Z",
+               "diagnosed_at": "2026-11-06T14:14:47.250Z", "since_window_end_s": 167.25, "since_announced_s": 1.25}
  }],
  "inference_ms": 1.9, "detect_ms": 1.2, "classify_ms": 0.6}
 ```
@@ -70,7 +74,9 @@ second ones and 2 of 138 third ones, and calls both after-idle minutes NORMAL. A
 detector clears is `null` too: the detector comes first, as the issue says.
 
 **Errors** are M5-1's (`BadWindow`, `BadModel`). Live, an event that fails is retried twice by Lambda, then put in
-`anomalypulse-diagnosis-failed` (kept 14 days), and the alarm `anomalypulse-diagnosis-failed` goes off.
+`anomalypulse-diagnosis-failed` (kept 14 days), and the alarm `anomalypulse-diagnosis-failed` goes off. An event
+EventBridge can't hand to the Lambda at all (a missing permission, throttling) lands in the same queue after an
+hour of retries: it is the rule's dead-letter queue, so no window is dropped unseen.
 
 ## The Tier-1 guard on the live path
 
@@ -93,14 +99,14 @@ so the guard doesn't apply to it.
 
 ## Detection latency (plan §16)
 
-Each window's reply holds `latency`, and each window also writes one log line in CloudWatch's embedded metric
-format. Lambda turns that line into metrics in the namespace `AnomalyPulse/Diagnosis` (dimension `Function`), with
-no API call and no extra permission:
+Each window's reply holds `latency`, and each window of a WindowReady event also writes one log line in
+CloudWatch's embedded metric format (a direct call writes none, above). Lambda turns that line into metrics in the
+namespace `AnomalyPulse/Diagnosis` (dimension `Function`), with no API call and no extra permission:
 
 | Metric | What it measures |
 |---|---|
 | `SinceWindowEndSeconds` | From the end of the window's minute to its diagnosis: the live path's share of detection latency. Expect about 2¾ min (the window waits for the minute's CloudWatch snapshot, [`PIPELINE.md`](PIPELINE.md)), plus the call |
-| `SinceAnnouncedSeconds` | From the WindowReady event to the diagnosis: EventBridge, the async queue and the Lambda (cold starts included). Absent on direct calls |
+| `SinceAnnouncedSeconds` | From the WindowReady event to the diagnosis: EventBridge, the async queue and the Lambda (cold starts included) |
 | `InferenceMs` | Building the vectors, the detector and the classifier |
 | `Anomalous`, `Incident` | 1 or 0 for the window: flagged by the detector; given an `incident_type` |
 
@@ -132,8 +138,10 @@ that M8-3 calls on each reply's predictions, in `window_start` order, with the s
 
 - **A minute counts** when it has an `incident_type` (detector and classifier agree).
 - **Opens** on the first minute that counts; `started_at` is that minute.
-- **Stays open** through minutes that count, taking the latest type and confidence. A cascade goes
-  `DATABASE_THROTTLING`, then `CASCADING_FAILURE`, and that is reported as `type_changed`.
+- **Stays open** through minutes that count. Its `incident_type` is the type with the most counted minutes so
+  far, a tie going to the type counted most recently, and its `confidence` is that type's latest. A cascade
+  goes `DATABASE_THROTTLING`, then `CASCADING_FAILURE` once that has as many minutes, reported as
+  `type_changed`. A type the classifier names only as a fault lets go doesn't replace the fault's (below).
 - **Closes** after `CLOSE_AFTER` (2) minutes in a row that don't count, or when the next window comes more than 2
   minutes after the last minute that counted. Gaps happen: the window builder announces no window with an empty
   value, so idle traffic leaves holes. `ended_at` is the end of the last minute that counted.
@@ -142,9 +150,28 @@ that M8-3 calls on each reply's predictions, in `window_start` order, with the s
 - `changes` lists `opened`, `type_changed` and `closed`. The first two are the moments
   [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md)'s open question 3 proposes calling Bedrock on.
 
-On PIPELINE.md's numbers, an incident then ends about 1–2 minutes after its fault does (the classifier's recovery
-tail), and a quiet minute inside a fault doesn't split it in two. `CLOSE_AFTER` is the one setting. Raise it if
-live runs show incidents splitting.
+**On validation (measured 2026-11-06, PR #93's review).** `v1`'s 140 validation runs (slots 561–700) were rebuilt
+as the live stream, as [`PIPELINE.md`](PIPELINE.md) measured them ("How it was measured"), in the order they ran
+(slot 608 was re-run after slot 700). Their 1,400 complete windows went through this Lambda's code with the
+promoted classifier and M5-2's forest, then through `incident.py` in window order:
+
+- **Every fault run opened exactly one incident** (112 of 112), and none split in two. No incident opened on a
+  NORMAL run, or anywhere away from a fault.
+- **It opens in the fault's first minute or the next** (its `started_at` is within 50 s of the fault's start,
+  the median by type within 14 s) and **ends 1–2 minutes after the fault does** (`ended_at` a median 25–92 s after the fault's end by
+  type, at most 160 s): the classifier's recovery tail.
+- **Its type at the close is the run's own in 112 of 112**, with 13 `type_changed`, all cascades becoming
+  `CASCADING_FAILURE`: 125 Bedrock calls on the contract's proposal (one per `opened` and `type_changed`).
+  Taking each minute's type instead, as this rule first did, closed 21 incidents with another type: the
+  classifier often names one more minute as the fault lets go, and differently (13 of 21 dependency failures
+  ended as `LAMBDA_DEGRADATION`, 7 of 14 cascades as another type). That made 36 `type_changed`, 23 of them
+  after the fault had ended, each a Bedrock call explaining the wrong type.
+- **Per window,** 502 of the 510 fault windows M4 labeled get their run's type. The other 8 are each their
+  run's first labeled fault minute: 7 the classifier calls NORMAL, and slot 668's first cascade minute reads
+  `DATABASE_THROTTLING` (PIPELINE.md's one changed classifier answer). Of 375 NORMAL-labeled windows, 2 get a
+  type: both are fault-start minutes, with the fault active for under half the minute.
+
+`CLOSE_AFTER` is the one setting. Raise it if live runs show incidents splitting.
 
 **For M8-3.** Subscribe with a rule on `anomalypulse-pipeline` matching source `lambda`, detail-type
 `Lambda Function Invocation Result - Success`, and `detail.requestContext.functionArn` (prefix
@@ -167,7 +194,8 @@ python -m ml.launch promote anomalypulse-train-iforest-20261031T224214Z
 #    a pointer that isn't there.
 cd infra/ml && sam build && AWS_PROFILE=admin sam deploy
 
-# 3. A direct call: the reply now has "detector", and each prediction "incident_type".
+# 3. A direct call: the reply now has "detector", and each prediction "incident_type". It writes no
+#    metric line (only WindowReady events do).
 aws lambda invoke --function-name anomalypulse-diagnosis --cli-binary-format raw-in-base64-out \
   --payload file://event.json reply.json --profile dev
 ```
@@ -181,24 +209,32 @@ that the destination events are allowed through: the function's `DestinationDeli
 ## Definition of Done: how to check each item live
 
 Start traffic at least 6 minutes before the fault (M10's note in [`PIPELINE.md`](PIPELINE.md)), so the first
-windows aren't after-idle ones. The `start-incident` default `--baseline 300` comes close. Then read the second
-Logs Insights query above for the run's minutes.
+windows aren't after-idle ones: pass `--baseline 360` (the default is 300). A cascade's baseline is its spec's
+`baseline_s` (300 in `example.json`), so run it right after another run, whose recovery traffic covers the rest.
+Then read the second Logs Insights query above for the run's minutes, and run `incident.py` over them in
+`window_start` order.
 
 1. **A live traffic spike is detected and classified end-to-end.**
+
    ```bash
-   caffeinate -is python -m simulator start-incident --type traffic-spike --intensity 0.7 --band 6 8 --duration 300
+   caffeinate -is python -m simulator start-incident --type traffic-spike --intensity 0.7 --band 6 8 --duration 300 --baseline 360
    ```
+
    Pass: the fault's minutes come back `incident_type: TRAFFIC_SPIKE`, with `SinceWindowEndSeconds` around 165–180 s.
-2. **Full taxonomy on a live run of each injector.** One run each. The bands are v1's validation bands:
+2. **Full taxonomy on a live run of each injector.** One run each, a NORMAL run included. The bands are `v1`'s
+   training bands, which its validation runs used too; the test bands stay unseen until M9-1:
+
    ```bash
-   caffeinate -is python -m simulator start-incident --type db-throttling --intensity 0.7 --band 3.5 4.5 --duration 300
-   caffeinate -is python -m simulator start-incident --type lambda-degradation --intensity 0.7 --band 800 1100 --duration 300 --target order-service
-   caffeinate -is python -m simulator start-incident --type payment-failure --intensity 0.7 --band 500 1500 --duration 300
+   caffeinate -is python -m simulator start-incident --type noop --duration 300 --baseline 360
+   caffeinate -is python -m simulator start-incident --type db-throttling --intensity 0.7 --band 3.5 4.5 --duration 300 --baseline 360
+   caffeinate -is python -m simulator start-incident --type lambda-degradation --intensity 0.7 --band 800 1100 --duration 300 --target order-service --baseline 360
+   caffeinate -is python -m simulator start-incident --type payment-failure --intensity 0.7 --band 500 1500 --duration 300 --baseline 360
    caffeinate -is python -m simulator start-cascade --spec simulator/cascades/example.json
    ```
-   Pass: `DATABASE_THROTTLING`, `LAMBDA_DEGRADATION`, `DEPENDENCY_FAILURE`, then `CASCADING_FAILURE` once the
-   cascade's faults overlap (its first minutes may read as the first fault's type). Check the `noop` minutes too:
-   none of them should carry an `incident_type`.
+
+   Pass: the `noop` run's minutes carry no `incident_type` and open no incident. Each fault run opens one
+   incident, which closes as `DATABASE_THROTTLING`, `LAMBDA_DEGRADATION`, `DEPENDENCY_FAILURE` and
+   `CASCADING_FAILURE` (the cascade's first minutes may read as its first fault's type).
 3. **Live features confirmed Tier-1-only.** `python -m pytest -q ml/diagnosis` passes; the Lambda starts (the
    guard checked both models' columns); and no live call is refused as `forbidden columns` (the failure queue stays
    empty).

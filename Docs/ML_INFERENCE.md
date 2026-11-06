@@ -116,8 +116,9 @@ reads only `uri` and `version_id`.
 
 ## Calling the Lambda
 
-`anomalypulse-diagnosis` (us-east-2): an arm64 container image with 1024 MB and a 60 s timeout. It has no
-API or trigger yet (M8 wires it in), so it is invoked directly:
+`anomalypulse-diagnosis` (us-east-2): an arm64 container image with 1024 MB and a 60 s timeout. Live, M8-2's
+rule invokes it with each WindowReady event ([`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md)). It can also be
+invoked directly:
 
 ```bash
 aws lambda invoke --function-name anomalypulse-diagnosis --cli-binary-format raw-in-base64-out \
@@ -129,7 +130,10 @@ aws lambda invoke --function-name anomalypulse-diagnosis --cli-binary-format raw
 `columns`, each an int or a float. One window is about 4.5 KB, so a call can carry about 1,300 windows
 before Lambda's 6 MB request limit.
 
-**Reply** for the validation window of slot 561 at 11:11 (probabilities rounded here):
+**Reply** with no detector configured, M5-1's, for the validation window of slot 561 at 11:11 (probabilities
+rounded here). Since M8-2 the deployed Lambda has a detector, so a direct call gets
+[`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md)'s reply instead: a window the detector clears comes back `"NORMAL"`
+with no probabilities.
 
 ```json
 {"model": {"task": "incident_type", "estimator": "logistic_regression",
