@@ -40,7 +40,8 @@ The pipeline is in `AnomalyPulse/genai/` and the contract in
 [`Docs/DIAGNOSIS_CONTRACT.md`](../Docs/DIAGNOSIS_CONTRACT.md): the `anomalypulse-explain` Lambda, in a stack of
 its own (`anomalypulse-genai`), which M8-3 invokes with each classified incident (PR #86). On the final prompt
 all five samples' diagnoses passed the self-check on 2026-11-02 (`genai/samples/results/` as merged in
-`45b9d24`). M6-2 reran them on the same prompt on 2026-11-03, and four passed (M6-2, below). Decisions:
+`45b9d24`). M6-2 reran them on the same prompt on 2026-11-03, and four passed (M6-2, below), five with the
+self-check of 2026-11-06. Decisions:
 - **Claude Sonnet 4.6 on Bedrock** (a global cross-region profile, adaptive thinking at effort `medium`), over
   Opus 4.6: fewer self-check findings on the five samples, at about the same cost (2026-11-01). Claude 4.7 and
   later have a Bedrock quota of 0 tokens per minute in this account, and the SDK stays on 1.x for 4.6.
@@ -55,6 +56,12 @@ all five samples' diagnoses passed the self-check on 2026-11-02 (`genai/samples/
   traffic-spike minutes. It is also the dashboard's `prediction.affected_services`.
 - **The self-check holds each bullet's numbers to the metrics it cites, and every number to the precision it is
   written in** (2026-11-02). On the samples a random number passes it 2–4.5% of the time.
+- **A hedged number may be cut off instead of rounded** (2026-11-06): "roughly 15x", "more than 15x" for 15.6x,
+  one written unit on the side the word gives. And "followed at roughly the same scale" orders nothing. These
+  were the only false positives among the findings on 24 distinct answers (the 20 saved, and 4 more from the
+  M6-2 review's live runs): the change clears four findings and adds none, so 16 pass instead of 13. On
+  Sonnet's answers to the final prompt, 4 of 9 findings were false positives. The hedge rule doubles the chance
+  that a wrong number behind "roughly" passes (4–9.5%).
 
 **Definition of Done**
 - [x] For a set of sample inputs (one per incident type), Bedrock produces a well-formed report matching the template.
@@ -96,7 +103,9 @@ says how they reach the prompt. Results, 2026-11-03 and 2026-11-04:
 - **Self-check: off passes four of five samples, on three.** Both have one finding in the Lambda-degradation
   summary, neither from a runbook: off, "followed at roughly the same scale" (an ordering word); on, "roughly
   15x" for 15.6x. They are recorded, not rerun. The on run's database-throttling root cause is also flagged,
-  since the review, for "the provisioned table": a runbook fact in a claim.
+  since the review, for "the provisioned table": a runbook fact in a claim. The two Lambda-degradation
+  findings were false positives, which the self-check accepts since 2026-11-06 (M6-1, above), so recomputed
+  now off passes five and on four.
 - **The blind actionability comparison is a tie, 19/20 each**
   (`genai/samples/results/blind/`). Without runbooks, one list watched two on-demand tables for "provisioned
   limits". With runbooks, one list was marked unsafe for "roll back if a change is identified" in step 2, a

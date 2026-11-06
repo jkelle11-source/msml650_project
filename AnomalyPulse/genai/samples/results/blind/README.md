@@ -46,7 +46,8 @@ The sheet as scored, with the criteria and the stack facts the scorer was given,
 - **Each run also had a self-check finding in the Lambda-degradation summary**, neither from a runbook (off:
   "followed at roughly the same scale", an ordering word; on: "roughly 15x" for 15.6x). They were recorded
   rather than rerun. Since the review, the on run's database-throttling root cause is flagged too, for "the
-  provisioned table", a runbook fact.
+  provisioned table", a runbook fact. Both Lambda-degradation findings were false positives, which the
+  self-check accepts since 2026-11-06.
 - **The review changed the runbooks after this comparison** (2026-11-05): the conditional rollback above, and
   corrections to stack facts (timeouts, cold starts, throttled calls, the scan). These lists come from the
   first runbooks, so M9-5's comparison is the one that tests the runbooks as merged.
