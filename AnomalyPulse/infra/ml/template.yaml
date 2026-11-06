@@ -334,10 +334,14 @@ Resources:
                 Resource: !Sub '${ModelBucket.Arn}/training/*'
         # M8-2: Lambda sends each answer to a WindowReady event to the pipeline bus (the
         # function's on-success destination, below), where M8-3 adds its own rule; an event it
-        # failed goes to the failure queue. Lambda makes these calls as this role. The same
-        # locks as the pipeline's senders (Docs/PIPELINE.md, "The event locks"): only Lambda's
-        # success events, so this role can't put a WindowReady and make the Lambda score a
-        # window it made up.
+        # failed goes to the failure queue. Lambda makes these calls as this role. The pipeline
+        # senders' lock (Docs/PIPELINE.md, "The event locks"): only Lambda's success events, so
+        # this role can't put a WindowReady and make the Lambda score a window it made up.
+        # Without their 'Null' lines, though: when the destination is created, Lambda checks
+        # this role's PutEvents with no source or detail-type, and the 'Null' lines refused that
+        # check (deploy of 2026-11-06, CREATE_FAILED on the EventInvokeConfig). They add nothing:
+        # EventBridge fails any entry without a Source and DetailType, so every event that lands
+        # carries both keys, and ForAllValues holds each to these values.
         - PolicyName: diagnosis-destinations
           PolicyDocument:
             Version: '2012-10-17'
@@ -351,9 +355,6 @@ Resources:
                       - lambda
                     events:detail-type:
                       - Lambda Function Invocation Result - Success
-                  'Null':
-                    events:source: 'false'
-                    events:detail-type: 'false'
               - Effect: Allow
                 Action: sqs:SendMessage
                 Resource: !GetAtt DiagnosisFailureQueue.Arn

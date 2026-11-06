@@ -200,11 +200,19 @@ aws lambda invoke --function-name anomalypulse-diagnosis --cli-binary-format raw
   --payload file://event.json reply.json --profile dev
 ```
 
-**Check after the first live window.** Lambda puts the destination events as the function's role, and the role
-may put only `lambda` / `Lambda Function Invocation Result - Success` events (the pipeline's event locks). Check
-that the destination events are allowed through: the function's `DestinationDeliveryFailures` metric (namespace
-`AWS/Lambda`) must stay at 0. If it doesn't, the condition keys don't match what Lambda sends. Remove the
-`Condition` block in `diagnosis-destinations` and tell Jake, so the IAM review records it.
+**The role's event lock.** Lambda puts the destination events as the function's role, and the role may put only
+`lambda` / `Lambda Function Invocation Result - Success` events: the pipeline's event locks
+([`PIPELINE.md`](PIPELINE.md), "The event locks"), without their `'Null'` lines. When the destination is
+created, Lambda checks the role's `PutEvents` with no source or detail-type, and those lines refused the check:
+the first deploy (2026-11-06) failed with `CREATE_FAILED` on `DiagnosisFunctionEventInvokeConfig`, "The function
+execution role does not have permissions to call PutEvents", and rolled back. The lines add nothing here:
+EventBridge fails any entry without a `Source` and `DetailType`, so every event that lands carries both, and
+`ForAllValues` holds each to the allowed value.
+
+**Check after the first live window** that the destination events get through: the function's
+`DestinationDeliveryFailures` metric (namespace `AWS/Lambda`) must stay at 0. If it doesn't, the lock's values
+don't match what Lambda sends. Remove the `Condition` block in `diagnosis-destinations` and tell Jake, so the IAM
+review records it.
 
 ## Definition of Done: how to check each item live
 
