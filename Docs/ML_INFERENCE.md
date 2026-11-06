@@ -78,9 +78,10 @@ has every pinned library. Write the same two files, with your model's own `task`
   `model.json`; the Lambda never picks one. `handler.detect(pipeline, meta, vectors)` returns each window's
   `(score, anomalous)`. With `threshold` set to the model's `offset_`, it flags exactly what `predict` flags.
   M5-2's forest sets it from validation's healthy windows ([`DETECTION.md`](DETECTION.md)).
-- **Serving more than one model is M8-2's.** The Lambda loads one model at startup, the one its
-  `ANOMALYPULSE_MODEL_POINTER` names, and refuses a detector there. M8-2 adds the detector's pointer, its
-  read permission in the stack, and the window → detector → classifier path that uses `detect`.
+- **Serving more than one model is M8-2's, and built** ([`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md)). The
+  classifier still comes from `ANOMALYPULSE_MODEL_POINTER`, which refuses a detector. A detector named by
+  `ANOMALYPULSE_DETECTOR_POINTER` (`/anomalypulse/ml/models/anomaly_iforest`) turns on the window → detector →
+  classifier path. Without one, the reply below is unchanged.
 
 ## Promoting a model
 

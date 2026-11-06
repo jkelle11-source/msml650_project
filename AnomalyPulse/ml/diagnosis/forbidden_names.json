@@ -1,0 +1,32 @@
+{
+    "source": "features.guard.forbidden_names()",
+    "names": [
+     "active_from",
+     "active_until",
+     "added_latency_ms",
+     "band",
+     "db_throttled",
+     "ended_at",
+     "error_type",
+     "experiment_id",
+     "fault_id",
+     "fault_injection_params",
+     "incident_type",
+     "injector",
+     "intensity",
+     "label",
+     "label_from",
+     "load_ratio",
+     "multiplier",
+     "observed",
+     "params",
+     "phase",
+     "retries_per_failure",
+     "seed",
+     "severity",
+     "slot",
+     "started_at",
+     "target",
+     "timeout_ms"
+    ]
+   }
