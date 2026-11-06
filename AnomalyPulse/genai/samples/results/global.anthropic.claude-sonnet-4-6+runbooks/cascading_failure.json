@@ -1,0 +1,54 @@
+{
+  "incident_id": "inc-sample-cascading-failure",
+  "diagnosis": {
+    "severity": "HIGH",
+    "summary": "Three services are affected by two concurrent faults lasting 4 minutes. Order-service is returning a 25% 5xx error rate with a p95 latency of 1030 ms, up from 130 ms baseline, while 150 dependency errors per minute are being recorded against payment-service. Request rates to both product-service and order-service are running approximately 3x their baselines, and payment-service p95 latency has risen from 110 ms to 1020 ms.",
+    "root_cause": "A traffic surge across product-service and order-service, and a payment-service latency degradation, active at the same time, are the most likely concurrent root causes. Product-service request_rate rose first at 17:03:00, payment-service p95_latency_ms rose about 65 seconds later at 17:04:05, and order-service error_rate_5xx rose about 35 seconds after that at 17:04:40 (observed sequence from correlated timestamps).",
+    "evidence": [
+      "Product-service request_rate rose from 15.0 rps to 44.8 rps, approximately 3x its baseline; order-service request_rate rose from 2.9 rps to 8.7 rps, also approximately 3x its baseline.",
+      "Payment-service p95 latency rose from 110 ms to 1020 ms, approximately 9.3x its baseline.",
+      "Order-service recorded 150 dependency errors per minute against payment-service, up from a baseline of 0.",
+      "Order-service error_rate_5xx rose from 0.0 to 0.25, meaning 25% of requests are now receiving 5xx responses.",
+      "Order-service p95 latency rose from 130 ms to 1030 ms, approximately 7.9x its baseline."
+    ],
+    "recommended_actions": [
+      "Investigate payment-service Lambda logs and concurrency configuration immediately to address its p95 latency spike from 110 ms to 1020 ms, as this is directly reflected in order-service 5xx errors and dependency error counts.",
+      "Apply rate and burst limits on the API Gateway stage to protect the stack while the traffic surge, which has pushed product-service to 44.8 rps and order-service to 8.7 rps, is ongoing.",
+      "Check lambda_throttle_count on all services to determine whether the traffic surge is exhausting shared Lambda concurrency across the account.",
+      "After stabilizing payment-service, recheck order-service error_rate_5xx and dependency_error_count to confirm errors are clearing before making further changes.",
+      "Record the onset times from the observed sequence when filing the incident so each fault's timeline remains distinct and no signal is attributed to another."
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "product-service.request_rate",
+      "order-service.request_rate"
+    ],
+    [
+      "payment-service.p95_latency_ms"
+    ],
+    [
+      "order-service.dependency_error_count"
+    ],
+    [
+      "order-service.error_rate_5xx"
+    ],
+    [
+      "order-service.p95_latency_ms"
+    ]
+  ],
+  "runbook": "cascading_failure",
+  "self_check": {
+    "passed": true,
+    "findings": []
+  },
+  "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 3236,
+    "output_tokens": 1613
+  },
+  "latency_ms": 14730
+}

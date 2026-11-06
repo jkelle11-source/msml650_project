@@ -1,4 +1,4 @@
-# Diagnosis Contract — Classified Incident → Bedrock → Diagnosis (M6-1)
+# Diagnosis Contract — Classified Incident → Bedrock → Diagnosis (M6-1, runbooks M6-2)
 
 **Owner:** Josh · **Code:** `AnomalyPulse/genai/` · **Lambda:** `anomalypulse-explain`
 (stack `anomalypulse-genai`, `AnomalyPulse/infra/genai/`) · **Used by:** M8-3 (builds the input, stores the
@@ -120,6 +120,7 @@ point of M9-5 is that Bedrock explains from what a monitor could see.
     "recommended_actions": ["Inspect payment-service health and its recent errors.", "…"]
   },
   "evidence_metrics": [["payment-service.p95_latency_ms"], ["…"]],
+  "runbook": null,
   "self_check": {"passed": true, "findings": []},
   "model": {"id": "global.anthropic.claude-sonnet-4-6", "effort": "medium"},
   "usage": {"input_tokens": 2292, "output_tokens": 1420},
@@ -136,6 +137,9 @@ point of M9-5 is that Bedrock explains from what a monitor could see.
 - **`evidence_metrics[i]`** lists the input metrics evidence bullet *i* rests on. Bedrock's answer is held to
   a schema built per request (structured outputs) in which a bullet can only cite this input's metrics, so
   every bullet traces to an input metric by construction. M8-4 can keep it beside the bullets.
+- **`runbook`** (M6-2): the name of the runbook the diagnosis was given (`"dependency_failure"`), or `null`
+  when runbooks are off, the default. It sits beside `diagnosis`, not in it, so the dashboard contract is
+  unchanged. See "Runbooks (M6-2)" below.
 - **`self_check`**: the smoke-level fidelity check below. A diagnosis that fails it is still returned, with
   `passed: false` and its findings, so M8-3 can store it flagged rather than lose it.
 - **Errors.** A bad input raises `BadInput` (it never reaches Bedrock). A refusal (Bedrock declining; there
@@ -175,8 +179,9 @@ dependency-error count above zero; `LOW` otherwise.
 `self_check` flags:
 
 - **Numbers** not in or derivable from the input (a value, ratio, percent change, difference, share as a
-  percent or as "1 in N", ms as seconds, the confidence, the duration, a gap between sequence steps),
-  rounded no further than written: "2950" must be 2945–2955 and "2.9" 2.85–2.95. In an evidence bullet, the
+  percent or as "1 in N", ms as seconds, rps per minute, a per-minute count or capacity per second, the
+  confidence, the duration, a gap between sequence steps), rounded no further than written: "2950" must be
+  2945–2955 and "2.9" 2.85–2.95. "p95" and "the 95th percentile" are names, not values. In an evidence bullet, the
   numbers must come from the metrics that bullet cites (or a gap or ratio between two of them), so a real
   value on the wrong metric is caught. On the five samples a number picked at random from 1 to 1000 passes
   2–4.5% of the time in the summary and under 3% in a bullet (it was 7–56% with the first version's flat 6%
@@ -188,14 +193,51 @@ dependency-error count above zero; `LOW` otherwise.
   order of" are words, not order-service); **a claim about a kind of signal** (throttling, cold starts,
   capacity, errors, latency, traffic, compute time, the database, timeouts, retries) with no metric of that
   kind in the input (retries are supported by `db_latency_ms`, defined as including the SDK's retries; "the
-  4-minute duration" is the input's own, not compute time); any mention of **a deployment** or release (no
-  metric covers one); **causal wording** outside `root_cause`, and in a cascade's `root_cause` any causal
+  4-minute duration" is the input's own, not compute time); any mention of **a deployment** or release, or
+  of **how a table's capacity is set** ("provisioned", "on-demand": no metric covers either);
+  **causal wording** outside `root_cause`, and in a cascade's `root_cause` any causal
   link ("in turn", "produced", "under load"; the noun "root cause" is fine); and **an ordering sentence** without
   "observed sequence" or with no `observed_sequence` in the input ("the first sign" and "15.0 before" order
   nothing).
 
 Actions are checked for numbers and times only ("approaching throttling thresholds" there is DynamoDB's
-capacity, not the rubric). It is a dry run for M9-5's evaluation, not that evaluation.
+capacity, not the rubric). With a runbook, the numbers the runbook writes are allowed in actions too, held to
+the precision they are written in; a runbook number in the summary, root cause or evidence is still "not in
+or derivable from the input". It is a dry run for M9-5's evaluation, not that evaluation.
+
+## Runbooks (M6-2)
+
+A runbook per incident type (`genai/runbooks/<type>.md`), picked by the classified type
+(`genai.runbooks.runbook_for`), written for an on-call engineer on this stack: what to check, with the
+contract's metric names, and what to do. Scope decided 2026-11-02: five runbooks and no Bedrock Knowledge Base
+(with five types the pick is a lookup).
+
+- **Off by default:** `ANOMALYPULSE_RUNBOOKS` (`on`/`off`, `off` in `infra/genai/template.yaml`), or
+  `diagnose(..., runbooks=True)`. With it off, the request is byte-for-byte the M6-1 request; a test holds it
+  to a fixture saved before M6-2 changed any code (`genai/test_data/`).
+- **In the user turn only,** after the evidence, under "Runbook for this incident type. Use it only for
+  recommended_actions …" (`prompt.RUNBOOK_INTRO`), which also tells Bedrock to state nothing in the summary,
+  root cause or evidence that only the runbook says. `SYSTEM_PROMPT` is unchanged.
+- **Runbook facts can still reach a claim.** The prompt asks Bedrock to keep them out, but the self-check
+  enforces that only for a runbook's numbers and for a table's capacity mode. Before the review added that
+  sentence to the intro, two of seven with-runbook answers had a runbook fact in a claim: "the provisioned
+  table" in a throttling root cause (2026-11-03), and "no requests have yet reached the Lambda timeout" in an
+  evidence bullet (2026-11-05). After it, one of seven did: a throttling evidence bullet reading the 5xx share
+  as requests "exhausting all retry attempts". So M9-5 scores a runbook-only fact in a summary, root cause or
+  evidence bullet as unsupported, the same as any other fact the input doesn't hold. Only then do its
+  evidence-fidelity and hallucination scores mean the same with the switch on or off.
+- **Their numbers are stack facts** (verified against `infra/shared/template.yaml` and the handlers;
+  `Handoffs/M6-1_Handoff.md` §4): 1,000 concurrent Lambda executions; the Products table's 200 RCU and 5 WCU,
+  and DynamoDB's 5 minutes of saved burst capacity; 7 SDK attempts on a DynamoDB call; 1,769 MB, a 10 s
+  timeout and Python 3.13 for the functions; the 2 s connect and 6 s read timeouts on Order's call to Payment.
+  A test pins this set: a new number is a deliberate change, because the self-check allows it in every action
+  of that type.
+- **No simulator or Tier-2 words** (a test scans for them), and no causal claims: checks and actions only (a
+  test runs the self-check's own causal and cascade-link patterns over every runbook).
+- **Retrieval quality** ("does the retrieved runbook match the incident type?") equals the classifier's
+  accuracy (M9-2), since the runbook is picked by the classified type: report it that way. What M6-2 measures
+  instead is whether the actions get better, by a blind comparison with and without runbooks (M06), repeated
+  in M9-5 on the test set, which decides whether the switch is on for the demo.
 
 ## Running it
 
@@ -204,6 +246,7 @@ cd AnomalyPulse
 python3 -m pip install -r genai/requirements.txt                   # once, for local runs (SDK 1.x)
 python -m pytest -q genai                                          # no AWS
 python -m genai.run_samples --profile <your-profile>               # the five samples through Bedrock
+python -m genai.run_samples --profile <your-profile> --runbooks on # the same, with runbooks (M6-2)
 ```
 
 **Deploy** (its own stack, never `anomalypulse-shared`):

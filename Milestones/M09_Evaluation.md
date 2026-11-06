@@ -127,6 +127,16 @@
 - **Completeness:** does the diagnosis cover the salient evidence?
 - If RAG (`M6-2`) shipped: **retrieval quality** (retrieved runbook matches incident type).
 
+**From `M6-2`** (shipped as five runbooks behind `ANOMALYPULSE_RUNBOOKS`, off by default; M06):
+- **Retrieval quality equals classifier accuracy** (`M9-2`): the runbook is picked by the classified type.
+  Report it that way, not as a number of its own.
+- **Actionability with and without runbooks**, blind and shuffled, on the same test-set incidents: for each
+  incident pick the better list (ties allowed), and score each list 0/1 on Correct and Safe. This comparison
+  decides whether the switch is on for the demo. On the five samples it was a tie, too coarse on four 0/1
+  criteria to separate them.
+- **With runbooks on, a runbook-only fact in a summary, root cause or evidence bullet is unsupported**, like
+  any fact the input doesn't hold. The self-check catches runbook numbers and capacity modes only.
+
 **Definition of Done**
 - [ ] Evidence fidelity and hallucination rate computed over test-set diagnoses.
 - [ ] Actionability scored against a written rubric by ≥1 human rater.

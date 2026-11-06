@@ -2,21 +2,21 @@
   "incident_id": "inc-sample-lambda-degradation",
   "diagnosis": {
     "severity": "HIGH",
-    "summary": "The order-service Lambda function is executing far more slowly than normal, with mean handler duration rising from 2 ms to 352 ms. End-to-end latency has risen in parallel, with p95 now at 375 ms against a baseline of 24 ms. Request rate and 5xx error rate are both unchanged.",
-    "root_cause": "Severe slowdown inside the order-service Lambda handler is the most likely root cause, with execution time inflated 176x while traffic and error rates remain stable.",
+    "summary": "order-service is experiencing severe Lambda execution slowdown that has persisted for 3 minutes. Mean handler duration rose from 2 ms to 352 ms (176x), and end-to-end latency at both p50 and p95 followed at roughly the same scale. No errors have been recorded and request rate is unchanged.",
+    "root_cause": "A sharp increase in Lambda handler execution time within order-service is the most likely root cause, with handler CPU time rising 176x from baseline while traffic and error rates remained stable.",
     "evidence": [
-      "Mean Lambda handler duration in order-service rose from 2 ms to 352 ms, a 176x increase.",
-      "Median end-to-end latency rose from 17 ms to 360 ms, a 21x increase.",
-      "p95 end-to-end latency rose from 24 ms to 375 ms, a 15.6x increase against baseline.",
-      "Request rate is flat at 2.9 rps, identical to the baseline of 2.9 rps.",
-      "5xx error rate remains at 0.0, unchanged from baseline."
+      "order-service mean Lambda handler duration rose 176x, from 2 ms at baseline to 352 ms currently.",
+      "order-service p50 end-to-end latency rose approximately 21x, from 17 ms at baseline to 360 ms currently.",
+      "order-service p95 end-to-end latency rose approximately 15.6x, from 24 ms at baseline to 375 ms currently.",
+      "order-service request rate is flat at 2.9 rps against a baseline of 2.9 rps.",
+      "order-service 5xx error rate remains at 0.0, unchanged from baseline."
     ],
     "recommended_actions": [
-      "Review order-service Lambda CloudWatch logs for the incident window starting 2026-10-30T16:03:00Z for slow operations, timeouts, or unexpected execution paths inside the handler.",
-      "Check DynamoDB latency metrics for the order-service table to determine whether database call time is contributing to the elevated handler duration.",
-      "Inspect dependency latency metrics for order-service calls to payment-service to assess whether the payment integration is adding to handler execution time.",
-      "Review Lambda concurrency and memory utilisation for order-service to identify resource contention that may be slowing execution.",
-      "If a recent deployment or configuration change to order-service coincided with 16:03 UTC, consider rolling it back while the investigation continues."
+      "Inspect order-service Lambda CloudWatch Logs for the current window starting 2026-10-30T16:03:00Z to identify any slow operations, timeouts, or unexpected code paths inside the handler.",
+      "Check DynamoDB metrics for the order-service table (db_latency_ms_mean, db_latency_ms_p95, throttled_requests) to determine whether database calls are contributing to the handler slowdown.",
+      "Review dependency_latency_ms_mean and dependency_error_count for order-service to assess whether calls to payment-service are slower than baseline.",
+      "Check cold_start_count for order-service to determine whether Lambda cold starts are contributing to the elevated execution time.",
+      "If handler slowdown persists, consider increasing Lambda memory allocation or investigating any recently deployed code changes to order-service."
     ]
   },
   "evidence_metrics": [
@@ -36,9 +36,12 @@
       "order-service.error_rate_5xx"
     ]
   ],
+  "runbook": null,
   "self_check": {
-    "passed": true,
-    "findings": []
+    "passed": false,
+    "findings": [
+      "summary: orders symptoms without saying 'observed sequence': 'Mean handler duration rose from 2 ms to 352 ms (176x), and end-to-end latency at both p50 and p95 followed at roughly the same scale.'"
+    ]
   },
   "model": {
     "id": "global.anthropic.claude-sonnet-4-6",
@@ -46,7 +49,7 @@
   },
   "usage": {
     "input_tokens": 2473,
-    "output_tokens": 1168
+    "output_tokens": 994
   },
-  "latency_ms": 14229
+  "latency_ms": 9774
 }

@@ -1,0 +1,52 @@
+{
+  "incident_id": "inc-sample-lambda-degradation",
+  "diagnosis": {
+    "severity": "HIGH",
+    "summary": "The order-service Lambda handler execution time has risen from a baseline of 2 ms to 352 ms mean, a 176x increase, over the past 3 minutes. End-to-end latency has followed, with p50 rising from 17 ms to 360 ms and p95 from 24 ms to 375 ms (15.6x baseline). The 5xx error rate remains at 0.0 and request rate is flat at 2.9 rps.",
+    "root_cause": "Elevated CPU execution time inside the order-service Lambda handler is the most likely root cause, as the handler duration and end-to-end latency rose by nearly identical amounts while request rate and error rate show no change.",
+    "evidence": [
+      "order-service lambda_duration_ms_mean rose from a baseline of 2 ms to 352 ms, a 176x increase.",
+      "order-service p50_latency_ms rose from 17 ms to 360 ms (a 21x increase) and p95_latency_ms rose from 24 ms to 375 ms (a 15.6x increase), tracking the handler duration increase closely.",
+      "order-service request_rate is flat at 2.9 rps against a baseline of 2.9 rps, unchanged across the incident window.",
+      "order-service error_rate_5xx remains at 0.0, with no failed responses recorded during the incident."
+    ],
+    "recommended_actions": [
+      "Inspect CloudWatch Logs for the anomalypulse-order Lambda function at /aws/lambda/anomalypulse-order for slow code paths that correlate with the onset of the incident at 2026-10-30T16:03:00Z.",
+      "Check the CloudWatch Duration and Errors metrics for anomalypulse-order to identify any invocations approaching or hitting the 10 s timeout, which would not appear in error_rate_5xx or the latency percentiles.",
+      "Review any recent changes to the order-service Lambda function code, layers, or configuration; roll back only if logs confirm the slow path is in code or configuration that change touched.",
+      "After any change, recheck lambda_duration_ms_mean and p95_latency_ms to confirm the handler execution time has returned toward the 2 ms baseline.",
+      "If the slow path is identified and fixed but duration remains elevated, check the CloudWatch cold_start_count metric to rule out unrelated start-up overhead affecting the measurement window."
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "order-service.lambda_duration_ms_mean"
+    ],
+    [
+      "order-service.p50_latency_ms",
+      "order-service.p95_latency_ms"
+    ],
+    [
+      "order-service.request_rate"
+    ],
+    [
+      "order-service.error_rate_5xx"
+    ]
+  ],
+  "runbook": "lambda_degradation",
+  "self_check": {
+    "passed": false,
+    "findings": [
+      "summary: orders symptoms without saying 'observed sequence': 'End-to-end latency has followed, with p50 rising from 17 ms to 360 ms and p95 from 24 ms to 375 ms (15.6x baseline).'"
+    ]
+  },
+  "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 3122,
+    "output_tokens": 979
+  },
+  "latency_ms": 10625
+}

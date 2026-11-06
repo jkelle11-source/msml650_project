@@ -18,7 +18,8 @@ the field and what is wrong. It checks:
 - metric families: a claim about throttling, cold starts, capacity, errors,
   latency, traffic, compute time, the database, timeouts or retries needs a
   metric of that kind in the input (retries: db_latency_ms, which includes the
-  SDK's retries); deployments have no metric, so any claim of one is unsupported;
+  SDK's retries); deployments and how a table's capacity is set (provisioned or
+  on-demand) have no metric, so any claim about either is unsupported;
 - causation: no causal verbs ("caused", "led to", "due to", ...) outside
   root_cause, which is worded as most likely; and none in a cascade's
   root_cause either, whose faults are concurrent ("in turn", "produced", "put
@@ -28,7 +29,9 @@ the field and what is wrong. It checks:
 
 recommended_actions are checked for numbers and times only: they say what to
 look at, which may be a component or service with no metric in the input
-("inspect DynamoDB capacity", "check the payment-service call").
+("inspect DynamoDB capacity", "check the payment-service call"). With a runbook
+(M6-2), the numbers the runbook writes are allowed in recommended_actions too,
+and nowhere else: summary, root cause and evidence still come only from the input.
 """
 import re
 from datetime import datetime
@@ -65,6 +68,8 @@ FAMILIES = {
     r"\bretr(y|ies|ied|ying)\b": ("db_latency_ms_mean", "db_latency_ms_p95"),
     # No metric says anything about deployments or releases.
     r"\bdeploy|\brollout\b|\brelease\b": (),
+    # Nor how a table's capacity is set: a runbook says it (M6-2), the input never does.
+    r"\bprovisioned\b|\bon-demand\b|\bpay[- ]per[- ]request\b": (),
 }
 
 # "Ruling out X" is a causal claim in the negative, whatever noun follows ("as the cause",
@@ -85,9 +90,10 @@ ORDERING = re.compile(r"\b(after|before|later|earlier|followed|preceded|subseque
                       r"\b(rose|moved|changed|began|started|appeared|came|happened|occurred|spiked|jumped) "
                       r"first\b|\bfirst to\b", re.IGNORECASE)
 _NUMBER = re.compile(r"(?<![\w.])-?\d+(?:,\d{3})*(?:\.\d+)?")
-# Tokens whose digits are names, not values: p95, 5xx, 4xx, 2xx, timestamps, ids, status codes
-# ("HTTP 503", "500 responses", "status 502").
-_NOT_VALUES = re.compile(r"\bp\d{2}\b|\b\dxx\b|\d{4}-\d\d-\d\dT[\d:.]+Z?|\b[a-z]+-\d+\b|\bHTTP ?\d+\b|"
+# Tokens whose digits are names, not values: p95 and "the 95th percentile", 5xx, 4xx, 2xx,
+# timestamps, ids, status codes ("HTTP 503", "500 responses", "status 502").
+_NOT_VALUES = re.compile(r"\bp\d{2}\b|\b\d{2}th percentiles?\b|\b\dxx\b|\d{4}-\d\d-\d\dT[\d:.]+Z?|"
+                         r"\b[a-z]+-\d+\b|\bHTTP ?\d+\b|"
                          r"\bstatus( code)? [1-5]\d\d\b|\b[1-5]\d\d (responses?|errors?|status)\b",
                          re.IGNORECASE)
 # Clock times ("14:32", "17:04:05"): checked against the input's times, then not read as numbers.
@@ -101,7 +107,8 @@ _SENTENCES = re.compile(r"(?<=[.!?])\s+")
 
 def _forms(values, unit) -> set[float]:
     """Values as they may be written: as is, a share as a percent or "1 in N", ms as seconds,
-    rps per minute."""
+    rps per minute, and a per-minute count or capacity per second ("11,900 RCU/min is 198 RCU/s",
+    the unit DynamoDB provisions capacity in)."""
     out = set()
     for v in values:
         out.add(float(v))
@@ -113,6 +120,8 @@ def _forms(values, unit) -> set[float]:
             out.add(v / 1000)
         if unit == "rps":
             out.add(v * 60)
+        if unit.endswith("/min"):
+            out.add(v / 60)
     return out
 
 
@@ -177,6 +186,19 @@ def _matches(raw: str, allowed) -> bool:
     return any(abs(number - v) <= half_unit * (1 + 1e-9) for v in allowed)
 
 
+# A numbered list's markers ("1. Check ...") are not values.
+_LIST_MARKERS = re.compile(r"^\s*\d+\.\s", re.MULTILINE)
+
+
+def _runbook_numbers(runbook: str | None) -> set[float]:
+    """The values a runbook writes ("1,769 MB", "7 attempts", "a 6 s read timeout"), parsed the way
+    a diagnosis's numbers are, so the written-precision rule applies to them too."""
+    if not runbook:
+        return set()
+    text = _NOT_VALUES.sub(" ", _CLOCK.sub(" ", _LIST_MARKERS.sub(" ", runbook)))
+    return {float(raw.replace(",", "")) for raw in _NUMBER.findall(text)}
+
+
 def _texts(diagnosis: dict):
     """(field, text, is_claim, cited refs or None) for every string in the diagnosis."""
     yield "summary", diagnosis.get("summary", ""), True, None
@@ -187,12 +209,14 @@ def _texts(diagnosis: dict):
         yield f"recommended_actions[{i}]", action, False, None
 
 
-def check(evidence: dict, diagnosis: dict) -> list[str]:
-    """Findings for a raw diagnosis (evidence items with `statement` and `metrics`). Empty means none."""
+def check(evidence: dict, diagnosis: dict, runbook: str | None = None) -> list[str]:
+    """Findings for a raw diagnosis (evidence items with `statement` and `metrics`). Empty means none.
+    `runbook` is the text the diagnosis was given, if any: its numbers are allowed in actions."""
     findings = []
     by_ref = {metric_ref(m["service"], m["metric"]): m for m in evidence["metrics"]}
     general = _general_numbers(evidence)
     anywhere = general.union(*(_metric_numbers(m) for m in evidence["metrics"]))
+    in_actions = anywhere | _runbook_numbers(runbook)
     services = set(evidence["affected_services"]) | {m["service"] for m in evidence["metrics"]}
     present = {m["metric"] for m in evidence["metrics"]}
     has_sequence = bool(evidence.get("observed_sequence"))
@@ -213,7 +237,7 @@ def check(evidence: dict, diagnosis: dict) -> list[str]:
         for raw in _NUMBER.findall(_NOT_VALUES.sub(" ", _CLOCK.sub(" ", text))):
             if own is not None and _matches(raw, own):
                 continue
-            if not _matches(raw, anywhere):
+            if not _matches(raw, anywhere if is_claim else in_actions):
                 findings.append(f"{field}: the number {raw} is not in or derivable from the input")
             elif own is not None:
                 findings.append(f"{field}: the number {raw} is not from the metrics it cites")

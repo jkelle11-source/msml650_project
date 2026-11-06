@@ -72,6 +72,9 @@ Resources:
           ANOMALYPULSE_BEDROCK_MODEL: global.anthropic.claude-sonnet-4-6
           ANOMALYPULSE_BEDROCK_REGION: us-east-2
           ANOMALYPULSE_BEDROCK_EFFORT: medium
+          # M6-2: the incident type's runbook in the prompt, for recommended_actions only. Off
+          # until M9-5's blind comparison of actions says otherwise.
+          ANOMALYPULSE_RUNBOOKS: 'off'
 
   # ---- SSM Parameters ---------------------------------------
   # For M8-3, which invokes the function by name.

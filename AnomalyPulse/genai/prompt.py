@@ -78,8 +78,22 @@ Rules. They are checked automatically, so follow them exactly.
 _NOT_SENT = ("incident_id", "contract_version")
 
 
-def user_message(evidence: dict) -> str:
-    """The request's user turn: the evidence, as sorted JSON so equal inputs give equal prompts."""
+# M6-2: what goes after the evidence when a runbook is used. It lives in the user turn, never in
+# SYSTEM_PROMPT, so a request without a runbook is byte-for-byte the M6-1 request. Its last sentence
+# came from the review: the first with-runbook run put "the provisioned table" in a root cause.
+RUNBOOK_INTRO = ("Runbook for this incident type. Use it only for recommended_actions: what to check and "
+                 "what to do, in this stack.\nsummary, root_cause and evidence still come only from the "
+                 "evidence above. State nothing there that only the runbook says, such as how a table's "
+                 "capacity is set, a timeout, a limit or a retry count: none of it was measured in this "
+                 "incident.")
+
+
+def user_message(evidence: dict, runbook: str | None = None) -> str:
+    """The request's user turn: the evidence, as sorted JSON so equal inputs give equal prompts, and
+    the runbook's text after it when one is given."""
     sent = {k: v for k, v in evidence.items() if k not in _NOT_SENT}
-    return ("Write the diagnosis for this incident. Evidence:\n\n"
-            + json.dumps(sent, indent=2, sort_keys=True))
+    message = ("Write the diagnosis for this incident. Evidence:\n\n"
+               + json.dumps(sent, indent=2, sort_keys=True))
+    if runbook is not None:
+        message += f"\n\n{RUNBOOK_INTRO}\n\n{runbook}"
+    return message

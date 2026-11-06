@@ -1,0 +1,58 @@
+{
+  "incident_id": "inc-sample-cascading-failure",
+  "diagnosis": {
+    "severity": "HIGH",
+    "summary": "Two concurrent faults are active: request rates to product-service and order-service have roughly tripled from their baselines, and payment-service p95 latency has risen from 110 ms to 1020 ms. Order-service is returning 5xx errors on 25% of requests and its p95 latency has risen from 130 ms to 1030 ms. The incident has been running for 4 minutes.",
+    "root_cause": "A traffic surge across product-service and order-service, active at the same time as a payment-service p95 latency degradation, are the most likely concurrent root causes.",
+    "evidence": [
+      "Product-service request rate rose from 15.0 rps to 44.8 rps, nearly a 3x increase from baseline.",
+      "Order-service request rate rose from 2.9 rps to 8.7 rps, also approximately 3x its baseline.",
+      "Payment-service p95 latency rose from 110 ms to 1020 ms, a 9.3x increase from baseline.",
+      "Order-service dependency error count rose from 0 to 150 per minute, where none were observed before.",
+      "Order-service 5xx error rate rose from 0.0 to 0.25, meaning 25% of requests are now failing.",
+      "Order-service p95 latency rose from 130 ms to 1030 ms, a 7.9x increase from baseline; payment-service p95 latency rose about 65 seconds before order-service errors appeared (observed sequence from correlated timestamps)."
+    ],
+    "recommended_actions": [
+      "Investigate payment-service Lambda logs and concurrency metrics immediately to identify what is holding p95 latency at 1020 ms, as order-service errors are tracking that degradation.",
+      "Check lambda_throttle_count on all services, since both product-service and order-service are running at roughly 3x their baseline request rates and all Lambda functions share account-level concurrency.",
+      "Apply or tighten API Gateway rate and burst limits on the affected stage to cap the traffic surge while the payment-service fault is being worked.",
+      "After stabilising payment-service, recheck order-service error_rate_5xx and dependency_error_count to confirm recovery before making further changes.",
+      "Record the onset times from the observed sequence when communicating with other teams: product-service traffic rose first at 17:03:00, payment-service latency rose at 17:04:05, and order-service errors appeared at 17:04:40."
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "product-service.request_rate"
+    ],
+    [
+      "order-service.request_rate"
+    ],
+    [
+      "payment-service.p95_latency_ms"
+    ],
+    [
+      "order-service.dependency_error_count"
+    ],
+    [
+      "order-service.error_rate_5xx"
+    ],
+    [
+      "order-service.p95_latency_ms",
+      "payment-service.p95_latency_ms"
+    ]
+  ],
+  "runbook": "cascading_failure",
+  "self_check": {
+    "passed": true,
+    "findings": []
+  },
+  "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 3275,
+    "output_tokens": 1531
+  },
+  "latency_ms": 15145
+}
