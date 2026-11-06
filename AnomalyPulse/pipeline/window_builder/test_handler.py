@@ -33,6 +33,7 @@ from features.windows import request_window  # noqa: E402
 os.environ.setdefault("BUCKET_NAME", "test-bucket")
 os.environ.setdefault("BUS_NAME", "test-bus")
 os.environ.setdefault("TABLE_NAME", "test-table")
+os.environ.setdefault("LATE_ALARM_NAME", "test-late-alarm")
 os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-2")
 import handler  # noqa: E402  (must follow the env vars above)
 
@@ -534,13 +535,31 @@ class FakeTable:
         return {}
 
 
+class FakeCloudWatch:
+    """describe_alarms over one alarm, logging ("alarm", names) into the shared call log. `state` is
+    the alarm's StateValue; `exists` False answers as CloudWatch does for an unknown name (no alarms);
+    `fail` is an error code raised instead."""
+
+    def __init__(self, calls):
+        self.calls, self.state, self.exists, self.fail = calls, "OK", True, None
+
+    def describe_alarms(self, AlarmNames):
+        self.calls.append(("alarm", tuple(AlarmNames)))
+        if self.fail:
+            raise ClientError({"Error": {"Code": self.fail, "Message": "test"}}, "DescribeAlarms")
+        found = self.exists and AlarmNames == ["test-late-alarm"]
+        return {"MetricAlarms": [{"AlarmName": "test-late-alarm", "StateValue": self.state}] if found else [],
+                "CompositeAlarms": []}
+
+
 @pytest.fixture
 def bucket():
     s3 = FakeS3()
     ev = FakeEvents(s3.calls)
     s3.table = FakeTable(s3.calls)
+    s3.cloudwatch = FakeCloudWatch(s3.calls)
     with mock.patch.object(handler, "s3", s3), mock.patch.object(handler, "events", ev), \
-            mock.patch.object(handler, "table", s3.table):
+            mock.patch.object(handler, "table", s3.table), mock.patch.object(handler, "cloudwatch", s3.cloudwatch):
         yield s3, ev
 
 
@@ -814,9 +833,11 @@ def test_the_newest_minutes_health_becomes_the_item(bucket):
     assert item["window_start"] == "2026-11-04T07:07:00.000Z"
     # 07:07 has 4 + 7 % 3 = 5 requests per service: 5 / 60, as a Decimal from the float's text.
     assert item["product_request_rate"] == Decimal("0.08333333333333333")
-    # The same numbers as the minute's health file, every float stored as a Decimal.
+    # The same numbers as the minute's health file, every float stored as a Decimal, and whether
+    # telemetry is late (the fake alarm is OK).
     expected = handler.health(records, "2026-11-04T07:07:00.000Z")
-    assert set(item) == {"pk", "sk"} | set(expected)
+    assert set(item) == {"pk", "sk", "telemetry_late"} | set(expected)
+    assert item["telemetry_late"] is False
     for k, v in expected.items():
         assert type(item[k]) is not float
         assert (item[k] is None) if v is None else (float(item[k]) == v if isinstance(v, float) else item[k] == v)
@@ -878,6 +899,90 @@ def test_any_other_item_failure_fails_the_newest_health_and_stops_nothing_else(b
         handler.run(_at(7, 8, 10))
     assert all(handler.health_key(_at(7, m)) in s3.objects for m in (5, 6, 7))
     assert handler.window_key(_at(7, 4)) in s3.objects and len(ev.entries) == 1
+
+
+# ---- run: whether telemetry is late -------------------------------------------------
+
+@pytest.mark.parametrize("state, late", [("OK", False), ("ALARM", True), ("INSUFFICIENT_DATA", False)])
+def test_the_item_says_whether_telemetry_is_late(bucket, state, late):
+    # Only ALARM is late: the alarm counts missing data as fine, so INSUFFICIENT_DATA means only
+    # that it is brand new.
+    s3, ev = bucket
+    s3.cloudwatch.state = state
+    _hand_bucket(s3)
+    handler.run(_at(7, 8, 10))
+    assert _item(s3)["telemetry_late"] is late
+
+
+def test_the_late_alarm_is_read_by_name_once_a_run_just_before_the_item(bucket):
+    # By name: the role may read that alarm only. Just before the item, so the newest health waits
+    # for nothing else; the older minutes and the windows never read it.
+    s3, ev = bucket
+    _hand_bucket(s3)
+    handler.run(_at(7, 8, 10))
+    reads = [i for i, call in enumerate(s3.calls) if call[0] == "alarm"]
+    assert [s3.calls[i] for i in reads] == [("alarm", ("test-late-alarm",))]
+    assert s3.calls[reads[0] - 1] == ("put", handler.health_key(_at(7, 7)))
+    assert s3.calls[reads[0] + 1] == ("item", "2026-11-04T07:07:00.000Z")
+
+
+def test_the_minutes_health_file_does_not_say_whether_telemetry_is_late(bucket):
+    # Lateness is the pipeline's state at the run, not the minute's: the file is the minute's health alone.
+    s3, ev = bucket
+    s3.cloudwatch.state = "ALARM"
+    records, _ = _hand_bucket(s3)
+    handler.run(_at(7, 8, 10))
+    stored = json.loads(s3.objects[handler.health_key(_at(7, 7))])
+    assert stored == handler.health(records, "2026-11-04T07:07:00.000Z")
+    assert "telemetry_late" not in stored
+
+
+def test_the_item_goes_back_to_not_late_when_the_alarm_clears(bucket):
+    s3, ev = bucket
+    _hand_bucket(s3)
+    s3.cloudwatch.state = "ALARM"
+    handler.run(_at(7, 8, 10))
+    assert _item(s3)["telemetry_late"] is True
+
+    s3.cloudwatch.state = "OK"
+    handler.run(_at(7, 9, 10))
+    assert (_item(s3)["window_start"], _item(s3)["telemetry_late"]) == ("2026-11-04T07:08:00.000Z", False)
+
+
+@pytest.mark.parametrize("problem", ["AccessDenied", "missing"])
+def test_an_alarm_that_cant_be_read_fails_the_newest_health_and_stops_nothing_else(bucket, problem):
+    # The item isn't written: the dashboard then says NO_DATA once the item is 3 minutes old, which is
+    # right, since nothing can say whether its numbers are whole. A missing alarm is a deploy mistake,
+    # never "not late".
+    s3, ev = bucket
+    _hand_bucket(s3)
+    if problem == "missing":
+        s3.cloudwatch.exists = False
+    else:
+        s3.cloudwatch.fail = problem
+
+    with pytest.raises(RuntimeError, match=r"^1 failed: health 2026-11-04T07:07:00.000Z: .*"
+                                           + ("AccessDenied" if problem != "missing" else "no alarm named test-late-alarm")):
+        handler.run(_at(7, 8, 10))
+    assert _item(s3) is None
+    assert all(handler.health_key(_at(7, m)) in s3.objects for m in (5, 6, 7))
+    assert handler.window_key(_at(7, 4)) in s3.objects and len(ev.entries) == 1
+
+
+def test_the_dashboard_shows_no_data_from_the_item_while_telemetry_is_late(bucket):
+    # The item as DynamoDB holds it (Decimals, the flag), read by the dashboard's own builder.
+    s3, ev = bucket
+    _hand_bucket(s3)
+    now = datetime(2026, 11, 4, 7, 8, 20, tzinfo=UTC)
+
+    handler.run(_at(7, 8, 10))
+    assert dashboard.build_dashboard(_item(s3), None, None, now)["health"]["status"] == "HEALTHY"
+
+    s3.cloudwatch.state = "ALARM"
+    handler.run(_at(7, 8, 15))
+    shown = dashboard.build_dashboard(_item(s3), None, None, now)["health"]
+    assert (shown["status"], shown["window_start"], shown["requests_per_min"]) == ("NO_DATA", None, None)
+    assert [s["status"] for s in shown["services"]] == ["NO_DATA"] * 4
 
 
 # ---- run: failures ----------------------------------------------------------------
@@ -981,6 +1086,20 @@ def test_the_item_matches_the_putitem_api_model():
         "ConditionExpression": ANY})
     with mock.patch.object(handler, "table", table), stubber:
         handler._put_health_report(handler.health(HAND, W))
+    stubber.assert_no_pending_responses()
+
+
+@pytest.mark.parametrize("state, late", [("ALARM", True), ("OK", False)])
+def test_the_alarm_read_matches_the_describealarms_api_model(state, late):
+    # The real client, stubbed: the request names the alarm and nothing else, and the reply is
+    # read where CloudWatch puts a metric alarm's state.
+    client = boto3.client("cloudwatch", region_name="us-east-2")
+    stubber = Stubber(client)
+    stubber.add_response("describe_alarms",
+                         {"MetricAlarms": [{"AlarmName": "test-late-alarm", "StateValue": state}], "CompositeAlarms": []},
+                         {"AlarmNames": ["test-late-alarm"]})
+    with mock.patch.object(handler, "cloudwatch", client), stubber:
+        assert handler._telemetry_late() is late
     stubber.assert_no_pending_responses()
 
 

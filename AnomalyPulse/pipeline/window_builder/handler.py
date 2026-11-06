@@ -4,6 +4,8 @@ turns the Aggregator's per-minute record files into what the rest of the system 
 - each minute's health numbers for the dashboard, under pipeline/health/
 - each minute's 106-column feature window, built by build_matrix as training's were,
   under pipeline/windows/, and announced on the bus (WindowReady) when no cell is empty
+- the newest minute's health as the Incidents table's health item, with whether telemetry
+  is late (the late alarm's state), for the dashboard's read API
 
 It decides what to build from what is in the bucket, not from the clock, so a late,
 missed or doubled run builds the same thing."""
@@ -33,10 +35,14 @@ LATENCY_SERVICES = ("product-service", "cart-service", "order-service")
 BUCKET = os.environ["BUCKET_NAME"]
 BUS_NAME = os.environ["BUS_NAME"]
 TABLE_NAME = os.environ["TABLE_NAME"]
+# In alarm while the telemetry queue's oldest message has waited over 120 s (Docs/PIPELINE.md,
+# "When telemetry is late"). The dashboard shows NO_DATA while it is (Docs/DASHBOARD_CONTRACT.md).
+LATE_ALARM_NAME = os.environ["LATE_ALARM_NAME"]
 # A connection for every reader: boto3 keeps 10 by default, and a reader without one waits.
 s3 = boto3.client("s3", config = Config(max_pool_connections = READERS))
 table = boto3.resource("dynamodb").Table(TABLE_NAME)
 events = boto3.client("events")
+cloudwatch = boto3.client("cloudwatch")
 
 def minute_name(w: datetime) -> str:
     """'2026-11-04T07:04:00.000Z': the features' name for the window that starts at w."""
@@ -137,6 +143,15 @@ def _put_health_report(report: dict) -> None:
         else:
             raise
 
+def _telemetry_late() -> bool:
+    """True while the late alarm is in ALARM: the newest minutes may be missing records still in the
+    queue. OK and INSUFFICIENT_DATA are not late: the alarm counts missing data as fine, so only a
+    brand-new alarm has no state yet. The alarm is asked for by name, since the role may read no other."""
+    alarms = cloudwatch.describe_alarms(AlarmNames = [LATE_ALARM_NAME])["MetricAlarms"]
+    if not alarms:
+        raise RuntimeError(f"no alarm named {LATE_ALARM_NAME}")
+    return alarms[0]["StateValue"] == "ALARM"
+
 def dedupe(records: list[dict]) -> list[dict]:
     """The records without repeats: the first of each (service, request_id), in their order."""
     seen = set()
@@ -219,7 +234,9 @@ def run(now: datetime) -> dict:
                         Body = json.dumps(health_report))
             
             if k == 1:
-                _put_health_report(health_report)
+                # Only the item says whether telemetry is late: that is the pipeline's state now,
+                # not the minute's, so the minute's file leaves it out.
+                _put_health_report({**health_report, "telemetry_late": _telemetry_late()})
             
             built["health"].append(minute_name(w))
             

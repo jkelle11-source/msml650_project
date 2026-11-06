@@ -113,7 +113,7 @@ The `incident` scenario: a payment failure, diagnosed. The numbers are illustrat
 | Field | Type | `null` means | Meaning |
 |---|---|---|---|
 | `window_start` | time | `NO_DATA` | The minute every number below describes |
-| `status` | `HEALTHY`, `INCIDENT`, `NO_DATA` | never `null` | `NO_DATA` when the latest window started more than 3 minutes before `generated_at`: the pipeline has stopped, and the console must not say healthy. Otherwise `INCIDENT` when `incident` isn't `null`, else `HEALTHY` |
+| `status` | `HEALTHY`, `INCIDENT`, `NO_DATA` | never `null` | `NO_DATA` when the latest window started more than 3 minutes before `generated_at`, or while telemetry is late (the pipeline's late alarm is on, decided 2026-11-05): the pipeline has stopped or fallen behind, its numbers may be missing requests, and the console must not say healthy. Otherwise `INCIDENT` when `incident` isn't `null`, else `HEALTHY` |
 | `requests_per_min` | int | `NO_DATA` | Requests to Product, Cart and Order in the minute. Not Payment's: Payment is reached only through Order, so adding them would count each checkout twice |
 | `error_rate` | 0–1 | no requests, or `NO_DATA` | Share of those requests that returned 5xx |
 | `p95_latency_ms` | number | no requests, or `NO_DATA` | 95th percentile of end-to-end latency over all those requests. It is not computed from the services' own p95s: percentiles don't combine |
@@ -209,7 +209,7 @@ which the example rounds to 0.167. The numbers are illustrative; none comes from
 
 | Section | Now (M7) | Live (M8) | Who |
 |---|---|---|---|
-| `health` | the mock scenario | The Incidents table's health item (`pk = "HEALTH"`, `sk = "LATEST"`), which the pipeline's window builder rewrites every minute with the newest minute, in `builder.py`'s input shape. The system-wide p95 is computed from the request records themselves. Its numbers come back from DynamoDB as `Decimal`s ([`PIPELINE.md`](PIPELINE.md), "What it writes") | M8-1 (Jake) |
+| `health` | the mock scenario | The Incidents table's health item (`pk = "HEALTH"`, `sk = "LATEST"`), which the pipeline's window builder rewrites every minute with the newest minute, in `builder.py`'s input shape. The system-wide p95 is computed from the request records themselves. The item's `telemetry_late` says whether the pipeline's late alarm is on. Its numbers come back from DynamoDB as `Decimal`s ([`PIPELINE.md`](PIPELINE.md), "What it writes") | M8-1 (Jake) |
 | `prediction` | the mock scenario | The Diagnosis Lambda's reply, stored in the Incidents table | M8-2 (Melisa), M8-3 (Rachel) |
 | `diagnosis` | the mock scenario | Bedrock's output, stored in the Incidents table | M8-3 (Rachel), M8-4 (Josh) |
 | `ground_truth`, `comparison` | the mock scenario | The manifest of the experiment running in that minute, read from the shared bucket (read only) | Jake |

@@ -193,7 +193,7 @@ function timeline(incident, generatedAt) {
   return items.sort((a, b) => a.at.localeCompare(b.at) || a.label.localeCompare(b.label));
 }
 function makeReport(health, incident) {
-  if (health.status === "NO_DATA") return { headline: "Telemetry unavailable", deck: "No recent window is available. System health cannot be established from the latest response." };
+  if (health.status === "NO_DATA") return { headline: "Telemetry unavailable", deck: "No recent, complete window is available. System health cannot be established from the latest response." };
   if (!incident) return { headline: "No active incident", deck: "The latest backend snapshot reports no active incident. Per-service telemetry is shown below." };
   const p = incident.prediction;
   const severity = incident.diagnosis ? `AI severity: ${severityName(incident.diagnosis.severity)}.` : "AI severity pending.";

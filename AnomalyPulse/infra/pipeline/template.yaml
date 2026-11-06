@@ -316,10 +316,10 @@ Resources:
   
   # Only what the builder does: read the record files, the window files and the
   # metrics extractor's snapshots; write health and windows; announce on the bus;
-  # log to its own log group. ListBucket on the whole bucket lists a minute's
-  # record files, and makes a missing key answer 404 instead of 403: the handler
-  # reads only a 404 as "not there yet". In the Incidents table, it may write
-  # the health item and nothing else.
+  # read the late alarm's state; log to its own log group. ListBucket on the
+  # whole bucket lists a minute's record files, and makes a missing key answer
+  # 404 instead of 403: the handler reads only a 404 as "not there yet". In the
+  # Incidents table, it may write the health item and nothing else.
 
   WindowBuilderRole:
     Type: AWS::IAM::Role
@@ -394,6 +394,13 @@ Resources:
                       - HEALTH
                   'Null':
                     dynamodb:LeadingKeys: 'false'
+        - PolicyName: window-builder-late-alarm
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: cloudwatch:DescribeAlarms
+                Resource: !GetAtt TelemetryLateAlarm.Arn
   
   WindowBuilderFunction:
     Type: AWS::Serverless::Function
@@ -415,6 +422,7 @@ Resources:
           BUCKET_NAME: !Ref TelemetryBucketName
           BUS_NAME: !Ref PipelineBus
           TABLE_NAME: !Ref IncidentsTable
+          LATE_ALARM_NAME: !Ref TelemetryLateAlarm
       EventInvokeConfig:
         MaximumRetryAttempts: 0
         MaximumEventAgeInSeconds: 60
@@ -510,7 +518,9 @@ Resources:
   # minutes after it starts, so a minute's last records have about 165 s: past
   # 120, windows and health built meanwhile may be missing records
   # (Docs/PIPELINE.md). One failed batch sets it off: it waits out the queue's
-  # 185-second visibility timeout before it is tried again.
+  # 185-second visibility timeout before it is tried again. The window builder
+  # copies its state into the health item, and the dashboard shows NO_DATA
+  # while it is in alarm.
 
   TelemetryLateAlarm:
     Type: AWS::CloudWatch::Alarm
