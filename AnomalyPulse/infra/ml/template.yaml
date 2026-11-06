@@ -403,7 +403,9 @@ Resources:
   # pipeline bus as a WindowReady event; this rule hands the whole event to the Diagnosis
   # Lambda, which reads the window from `detail` and the announcement time from `time` (the
   # live latency it reports). No InputPath, or `time` would be lost. The bus is the pipeline
-  # stack's, named here, so that stack is deployed first.
+  # stack's, named here, so that stack is deployed first. An event EventBridge can't hand to
+  # the Lambda within the hour (a missing permission, throttling) goes to the failure queue,
+  # as one the Lambda failed does, rather than being dropped unseen.
 
   WindowReadyRule:
     Type: AWS::Events::Rule
@@ -421,6 +423,8 @@ Resources:
           Arn: !GetAtt DiagnosisFunction.Arn
           RetryPolicy:
             MaximumEventAgeInSeconds: 3600
+          DeadLetterConfig:
+            Arn: !GetAtt DiagnosisFailureQueue.Arn
 
   # Only this rule may invoke the Lambda through EventBridge.
   WindowReadyPermission:
@@ -432,13 +436,34 @@ Resources:
       SourceArn: !GetAtt WindowReadyRule.Arn
 
   # A WindowReady event the Lambda failed 3 times: a refused window (BadWindow) or a failed
-  # start (BadModel, a missing pointer). Kept 14 days, the most SQS allows; the event is in the
-  # message, so it can be read and sent again.
+  # start (BadModel, a missing pointer); or one EventBridge couldn't deliver (the rule's
+  # dead-letter queue). Kept 14 days, the most SQS allows; the event is in the message, so it
+  # can be read and sent again.
   DiagnosisFailureQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: anomalypulse-diagnosis-failed
       MessageRetentionPeriod: 1209600
+
+  # EventBridge may send to the failure queue only on behalf of the WindowReady rule
+  # (aws:SourceArn), as the pipeline's queue policies do. The Lambda's own sends need no entry
+  # here: they are its role's (diagnosis-destinations), in this account.
+  DiagnosisFailureQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref DiagnosisFailureQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt DiagnosisFailureQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt WindowReadyRule.Arn
 
   # In alarm while any live window is in the failure queue: windows that were never diagnosed.
   # No action: its state shows in the CloudWatch console, as the pipeline's alarms do.
