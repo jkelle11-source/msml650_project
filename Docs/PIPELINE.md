@@ -267,6 +267,17 @@ the window builder reads only a 404 as "not there yet". It lists key names, neve
 The simulator sends no request. So the allowed cases were also seen working live. The denied cases can only be
 checked in the simulator, since only Lambda can assume these roles.
 
+**The late-alarm read (added 2026-11-06), which the simulator can't check.** Asked about `DescribeAlarms` on the
+late alarm and on the DLQ alarm, it gave one answer, not two: `implicitDeny` on a placeholder ARN ending
+`${ResourceType}/${ResourcePath}`, neither of the two it was given. It never matched them; alarm ARNs end
+`:alarm:<name>`, with a colon. So the grant is checked by what it does instead:
+
+- **Allowed, seen live.** The role's only CloudWatch grant names the late alarm's ARN, and every run since the
+  deploy has read that alarm; in the live check one read `ALARM`. So `DescribeAlarms` is checked against the named
+  alarm's ARN.
+- **Every other alarm refused.** No policy of the role names another alarm, and it has no managed policies, so IAM
+  refuses the rest by default.
+
 **After M9-1, outside this stack:** the shipper (`anomalypulse-shared`, frozen until M9-1) has two broad grants:
 
 - it may be invoked from any `/aws/lambda/anomalypulse-*` log group;
