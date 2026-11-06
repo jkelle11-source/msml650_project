@@ -58,9 +58,10 @@ self-check of 2026-11-06. Decisions:
   written in** (2026-11-02). On the samples a random number passes it 2–4.5% of the time.
 - **A hedged number may be cut off instead of rounded** (2026-11-06): "roughly 15x", "more than 15x" for 15.6x,
   one written unit on the side the word gives. And "followed at roughly the same scale" orders nothing. These
-  were the only false positives among the findings on the 20 saved answers and the M6-2 review's 9 live ones;
-  the change clears four findings and adds none. The hedge rule doubles the chance that a wrong number behind
-  "roughly" passes (4–9.5%).
+  were the only false positives among the findings on 24 distinct answers (the 20 saved, and 4 more from the
+  M6-2 review's live runs): the change clears four findings and adds none, so 16 pass instead of 13. On
+  Sonnet's answers to the final prompt, 4 of 9 findings were false positives. The hedge rule doubles the chance
+  that a wrong number behind "roughly" passes (4–9.5%).
 
 **Definition of Done**
 - [x] For a set of sample inputs (one per incident type), Bedrock produces a well-formed report matching the template.
