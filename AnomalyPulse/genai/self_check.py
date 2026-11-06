@@ -18,7 +18,8 @@ the field and what is wrong. It checks:
 - metric families: a claim about throttling, cold starts, capacity, errors,
   latency, traffic, compute time, the database, timeouts or retries needs a
   metric of that kind in the input (retries: db_latency_ms, which includes the
-  SDK's retries); deployments have no metric, so any claim of one is unsupported;
+  SDK's retries); deployments and how a table's capacity is set (provisioned or
+  on-demand) have no metric, so any claim about either is unsupported;
 - causation: no causal verbs ("caused", "led to", "due to", ...) outside
   root_cause, which is worded as most likely; and none in a cascade's
   root_cause either, whose faults are concurrent ("in turn", "produced", "put
@@ -67,6 +68,8 @@ FAMILIES = {
     r"\bretr(y|ies|ied|ying)\b": ("db_latency_ms_mean", "db_latency_ms_p95"),
     # No metric says anything about deployments or releases.
     r"\bdeploy|\brollout\b|\brelease\b": (),
+    # Nor how a table's capacity is set: a runbook says it (M6-2), the input never does.
+    r"\bprovisioned\b|\bon-demand\b|\bpay[- ]per[- ]request\b": (),
 }
 
 # "Ruling out X" is a causal claim in the negative, whatever noun follows ("as the cause",

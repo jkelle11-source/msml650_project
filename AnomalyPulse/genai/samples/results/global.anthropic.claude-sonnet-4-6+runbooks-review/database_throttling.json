@@ -1,0 +1,55 @@
+{
+  "incident_id": "inc-sample-db-throttling",
+  "diagnosis": {
+    "severity": "HIGH",
+    "summary": "product-service is experiencing severe tail latency over the past 4 minutes, with p95 end-to-end latency at 1586 ms against a baseline of 6 ms. DynamoDB read throttling on the Products table is active, with 1400 read throttle events per minute recorded against a baseline of zero. The p50 latency and request rate remain near baseline, indicating the problem is concentrated at the tail.",
+    "root_cause": "DynamoDB read throttling on the Products table is the most likely root cause, with read capacity consumed rising sharply and throttle events accumulating while request rate stays flat.",
+    "evidence": [
+      "read_throttle_events jumped from 0 to 1400 count/min, confirming active DynamoDB read throttling on the Products table.",
+      "db_latency_ms_p95 rose from 4 ms to 1580 ms, a 395x increase, reflecting extended time spent inside DynamoDB calls at the 95th percentile.",
+      "p95_latency_ms rose from 6 ms to 1586 ms (a 264x increase) while p50_latency_ms moved only from 5 ms to 6 ms, showing the impact is entirely in the tail.",
+      "db_consumed_read_capacity surged from 480 to 11900 RCU/min, a 24.8x increase, while request_rate held flat at 15.1 rps versus a baseline of 15.0 rps.",
+      "error_rate_5xx rose from 0.0 to 0.004 (0.4%), indicating a small share of requests are exhausting all retry attempts."
+    ],
+    "recommended_actions": [
+      "Raise the Products table provisioned read capacity or switch it to on-demand mode to immediately relieve throttling.",
+      "Investigate whether GET /products is performing full table scans on each call; introduce pagination with a limit and next-page token to reduce RCU consumption per request.",
+      "Add a product list cache inside the Lambda function to reduce repeated full-table reads across invocations.",
+      "After each change, recheck read_throttle_events and db_latency_ms_p95 to confirm throttling is subsiding.",
+      "Leave SDK retry settings unchanged during the incident to avoid converting current tail latency into additional 5xx errors."
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "product-service.read_throttle_events"
+    ],
+    [
+      "product-service.db_latency_ms_p95"
+    ],
+    [
+      "product-service.p95_latency_ms",
+      "product-service.p50_latency_ms"
+    ],
+    [
+      "product-service.db_consumed_read_capacity",
+      "product-service.request_rate"
+    ],
+    [
+      "product-service.error_rate_5xx"
+    ]
+  ],
+  "runbook": "database_throttling",
+  "self_check": {
+    "passed": true,
+    "findings": []
+  },
+  "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 3254,
+    "output_tokens": 1091
+  },
+  "latency_ms": 9392
+}

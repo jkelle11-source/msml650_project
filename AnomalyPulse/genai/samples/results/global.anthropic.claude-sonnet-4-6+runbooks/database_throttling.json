@@ -43,8 +43,10 @@
   ],
   "runbook": "database_throttling",
   "self_check": {
-    "passed": true,
-    "findings": []
+    "passed": false,
+    "findings": [
+      "root_cause: claims 'provisioned', but the input has no metric for it"
+    ]
   },
   "model": {
     "id": "global.anthropic.claude-sonnet-4-6",

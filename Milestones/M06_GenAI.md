@@ -39,7 +39,8 @@
 The pipeline is in `AnomalyPulse/genai/` and the contract in
 [`Docs/DIAGNOSIS_CONTRACT.md`](../Docs/DIAGNOSIS_CONTRACT.md): the `anomalypulse-explain` Lambda, in a stack of
 its own (`anomalypulse-genai`), which M8-3 invokes with each classified incident (PR #86). On the final prompt
-all five samples' diagnoses pass the self-check (`genai/samples/results/`). Decisions:
+all five samples' diagnoses passed the self-check on 2026-11-02 (`genai/samples/results/` as merged in
+`45b9d24`). M6-2 reran them on the same prompt on 2026-11-03, and four passed (M6-2, below). Decisions:
 - **Claude Sonnet 4.6 on Bedrock** (a global cross-region profile, adaptive thinking at effort `medium`), over
   Opus 4.6: fewer self-check findings on the five samples, at about the same cost (2026-11-01). Claude 4.7 and
   later have a Bedrock quota of 0 tokens per minute in this account, and the SDK stays on 1.x for 4.6.
@@ -92,17 +93,36 @@ Knowledge Base.**
 
 The runbooks are in `AnomalyPulse/genai/runbooks/`, one per type, and the contract's "Runbooks (M6-2)" section
 says how they reach the prompt. Results, 2026-11-03 and 2026-11-04:
-- **Both runs pass four of five samples on the self-check.** Each run has one finding, both in the
-  Lambda-degradation summary and neither from a runbook: off, "followed at roughly the same scale" (an ordering
-  word); on, "roughly 15x" for 15.6x. They are recorded, not rerun.
+- **Self-check: off passes four of five samples, on three.** Both have one finding in the Lambda-degradation
+  summary, neither from a runbook: off, "followed at roughly the same scale" (an ordering word); on, "roughly
+  15x" for 15.6x. They are recorded, not rerun. The on run's database-throttling root cause is also flagged,
+  since the review, for "the provisioned table": a runbook fact in a claim.
 - **The blind actionability comparison is a tie, 19/20 each**
   (`genai/samples/results/blind/`). Without runbooks, one list watched two on-demand tables for "provisioned
-  limits". With runbooks, one list was marked unsafe, with no reason given, probably for "roll back if a change
-  is identified" in step 2. Four 0/1 criteria are too coarse to separate two reasonable lists, so M9-5 needs
-  finer scores.
+  limits". With runbooks, one list was marked unsafe for "roll back if a change is identified" in step 2, a
+  rollback on timing alone (the scorer's reason). Four 0/1 criteria are too coarse to separate two reasonable
+  lists, so M9-5 picks the better list per incident (ties allowed) and keeps Correct and Safe as 0/1 counts.
 - **The scorer was not fully blind.** No one outside the GenAI work was free in time, so it was scored by the
   person who scoped M6-2. The with-runbook lists also name stack facts more often, which can give them away.
 - **The switch stays off.** M9-5's comparison decides whether it is on for the demo.
+
+Review, 2026-11-05 (PR #89):
+- **Runbook corrections, all checked against the handlers.** A request that reaches the 10 s Lambda timeout
+  writes no record, so it never shows in `error_rate_5xx`; the Lambda runbook had said it would. A cold start
+  runs before the handler, so it is in neither `latency_ms` nor `lambda_duration_ms`. A throttled call to
+  Payment fails at once rather than slowly. `GET /products` already pages through the whole table. Reserved
+  concurrency also caps the function it protects. The cascade runbook no longer says one service's surge can
+  throttle another. The Lambda runbook rolls back only if the logs place the slow path in what a recent change
+  touched.
+- **Runbook facts were reaching claims:** "the provisioned table" in a root cause (above), and in a review
+  run "no requests have yet reached the Lambda timeout" in an evidence bullet. The runbook intro now tells
+  Bedrock to state nothing in a claim that only the runbook says, and the self-check flags a claim about how a
+  table's capacity is set. M9-5 scores any other runbook-only fact in a claim as unsupported.
+- **The runbooks as merged** (`genai/samples/results/global.anthropic.claude-sonnet-4-6+runbooks-review/`)
+  pass four of five; the one finding, an ordering word in the Lambda-degradation summary, is not from a runbook.
+  Both Lambda-degradation reruns made the rollback conditional and pointed at the function's CloudWatch `Errors`
+  metric for timeouts. One throttling evidence bullet still says the 5xx share means requests are "exhausting
+  all retry attempts", the runbook's explanation rather than an observation.
 
 **Definition of Done**
 - [x] For a detected incident, the correct runbook is retrieved and its content appears in the diagnosis.

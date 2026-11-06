@@ -1,0 +1,59 @@
+{
+  "incident_id": "inc-sample-dependency-failure",
+  "diagnosis": {
+    "severity": "HIGH",
+    "summary": "Payment-service p95 latency has spiked from 110 ms to 2900 ms, a 26x rise, and order-service is reflecting the same slowdown in its calls to payment-service. Order-service is now returning 5xx errors to 16.7% of its requests, up from zero. The incident has been active for 2 minutes.",
+    "root_cause": "Severe latency degradation inside payment-service's handler is the most likely root cause, with order-service's dependency calls slowing and failing as a result of payment-service's own slowdown.",
+    "evidence": [
+      "Payment-service p95 latency rose from 110 ms to 2900 ms, a 26x increase over baseline.",
+      "Order-service p95 time spent calling payment-service rose from 112 ms to 2950 ms (also 26x), closely matching payment-service's own p95 latency.",
+      "Order-service dependency error count rose from 0 to 57 per minute, indicating calls to payment-service are failing or timing out.",
+      "Order-service 5xx error rate rose from 0.0 to 0.167, meaning 16.7% of order-service requests are now returning server errors.",
+      "Order-service p95 end-to-end latency rose from 130 ms to 2950 ms, a 22.7x increase over baseline.",
+      "Payment-service p95 latency rose above its baseline at 14:32:00, and order-service 5xx errors rose above baseline 40 seconds later (observed sequence from correlated timestamps)."
+    ],
+    "recommended_actions": [
+      "Inspect payment-service CloudWatch Logs at /aws/lambda/anomalypulse-payment for errors or slow execution starting at 14:32:00 to identify what is slowing the handler.",
+      "Check payment-service lambda_throttle_count in CloudWatch; if throttling is present, assign reserved concurrency to payment-service to protect its capacity.",
+      "Check payment-service lambda_duration_ms_mean and lambda_duration_ms_p95 to confirm whether time is being spent inside the handler body or elsewhere in the invocation path.",
+      "After identifying and fixing the payment-service issue, recheck dependency_error_count and order-service error_rate_5xx to confirm recovery before making any further changes.",
+      "Do not add retries to order-service's call to payment-service while payment-service is degraded, as additional invocations will worsen the load on the struggling dependency."
+    ]
+  },
+  "evidence_metrics": [
+    [
+      "payment-service.p95_latency_ms"
+    ],
+    [
+      "order-service.dependency_latency_ms_p95",
+      "payment-service.p95_latency_ms"
+    ],
+    [
+      "order-service.dependency_error_count"
+    ],
+    [
+      "order-service.error_rate_5xx"
+    ],
+    [
+      "order-service.p95_latency_ms"
+    ],
+    [
+      "payment-service.p95_latency_ms",
+      "order-service.error_rate_5xx"
+    ]
+  ],
+  "runbook": "dependency_failure",
+  "self_check": {
+    "passed": true,
+    "findings": []
+  },
+  "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+  },
+  "usage": {
+    "input_tokens": 3286,
+    "output_tokens": 1233
+  },
+  "latency_ms": 10541
+}

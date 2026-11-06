@@ -28,9 +28,10 @@ The sheet as scored, with the criteria and the stack facts the scorer was given,
 - **Without runbook, traffic spike, Correct 0.** The list watches the Cart and Orders tables "for signs of
   approaching provisioned limits"; both tables are on-demand. The runbook states this, and the with-runbook
   list watches only the Products table.
-- **With runbook, Lambda degradation, Safe 0.** No reason was given. The likely reading is step 2, "roll back if a
-  change is identified". By the sheet's wording ("as a first step") that list's first step is reading logs, so
-  this is a stricter reading than the rubric; the score is recorded as given.
+- **With runbook, Lambda degradation, Safe 0,** for step 2, "roll back if a change is identified" (the scorer's
+  reason, given in the review on 2026-11-05): a rollback on timing alone, before anything shows the slow path is
+  in the changed code. The step came from the runbook, whose rollback the review made conditional: roll back
+  only if the logs place the slow path in code or configuration a recent change touched.
 
 ## What it shows, and what it doesn't
 
@@ -42,8 +43,12 @@ The sheet as scored, with the criteria and the stack facts the scorer was given,
 - **The scorer was not fully blind.** They scoped M6-2 and know the stack well, and the with-runbook lists name
   stack facts (the 6 s read timeout, the Products table, reserved concurrency) more often, which can give them
   away. No one outside the GenAI work was available in time.
-- **Each run also had one self-check finding**, both in the Lambda-degradation summary and neither from a
-  runbook (off: "followed at roughly the same scale", an ordering word; on: "roughly 15x" for 15.6x). They were
-  recorded rather than rerun.
+- **Each run also had a self-check finding in the Lambda-degradation summary**, neither from a runbook (off:
+  "followed at roughly the same scale", an ordering word; on: "roughly 15x" for 15.6x). They were recorded
+  rather than rerun. Since the review, the on run's database-throttling root cause is flagged too, for "the
+  provisioned table", a runbook fact.
+- **The review changed the runbooks after this comparison** (2026-11-05): the conditional rollback above, and
+  corrections to stack facts (timeouts, cold starts, throttled calls, the scan). These lists come from the
+  first runbooks, so M9-5's comparison is the one that tests the runbooks as merged.
 
 The switch stays off by default; M9-5 decides whether it is on for the demo.

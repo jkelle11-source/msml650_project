@@ -2,6 +2,7 @@
 
 Run from AnomalyPulse/:  python -m pytest -q genai
 """
+import importlib
 import json
 import re
 import sys
@@ -78,9 +79,12 @@ def test_no_simulator_or_tier2_words(incident_type):
 
 @pytest.mark.parametrize("incident_type", contract.INCIDENT_TYPES)
 def test_runbooks_hold_no_causal_claims(incident_type):
-    # Checks and actions, not causes: a "the cause is usually X" line would end up in root_cause.
+    # Checks and actions, not causes: a "the cause is usually X" line would end up in root_cause. The
+    # self-check's own patterns, so a runbook can't hand Bedrock a word the self-check flags; the
+    # cascade's links too ("not that one produced another" was in the first cascade runbook).
     _, text = runbooks.runbook_for(incident_type)
-    assert not re.search(r"\bcaus(e|es|ed|ing)\b|\bbecause\b|\bdue to\b|\bled to\b", text, re.IGNORECASE)
+    assert not self_check.CAUSAL.search(text)
+    assert not self_check.CASCADE_LINKS.search(text)
 
 
 def test_every_runbook_number_is_a_verified_stack_fact():
@@ -107,8 +111,10 @@ def test_the_fixture_catches_a_one_character_change(monkeypatch):
     assert _off_request() != OFF_FIXTURE
 
 
-def test_off_is_the_default():
-    assert "ANOMALYPULSE_RUNBOOKS" not in __import__("os").environ or explain.RUNBOOKS is False
+def test_off_is_the_default(monkeypatch):
+    # The module reads the switch when it loads, so reload it with the variable unset.
+    monkeypatch.delenv("ANOMALYPULSE_RUNBOOKS", raising=False)
+    assert importlib.reload(explain).RUNBOOKS is False
     template = (HERE.parent / "infra" / "genai" / "template.yaml").read_text()
     assert re.search(r"ANOMALYPULSE_RUNBOOKS: 'off'", template)
 
@@ -146,6 +152,21 @@ def test_the_reply_names_the_runbook_when_on_and_none_when_off():
     assert off["runbook"] is None
     assert "runbook" not in on["diagnosis"]        # beside diagnosis: the dashboard contract is unchanged
     assert on["self_check"]["passed"] and off["self_check"]["passed"]
+
+
+def test_diagnose_checks_the_answer_against_the_runbook_it_sent(monkeypatch):
+    # Without it, every runbook number in an action would be a finding in Lambda.
+    given, real = [], self_check.check
+    monkeypatch.setattr(self_check, "check",
+                        lambda evidence, diagnosis, runbook=None: given.append(runbook) or
+                        real(evidence, diagnosis, runbook=runbook))
+    explain.diagnose(DEP, bedrock=FakeBedrock(), runbooks=True)
+    explain.diagnose(DEP, bedrock=FakeBedrock(), runbooks=False)
+    assert given == [runbooks.runbook_for("DEPENDENCY_FAILURE")[1], None]
+
+
+def test_the_runbook_intro_keeps_runbook_facts_out_of_claims():
+    assert "State nothing there that only the runbook says" in prompt.RUNBOOK_INTRO
 
 
 # --- the self-check --------------------------------------------------------------------------
@@ -198,6 +219,18 @@ def test_a_per_minute_count_may_be_written_per_second():
     assert _flags(THR, action, None, "198") == []
     wrong = _diagnosis(THR, actions=["The current 11900 RCU/min is roughly 240 RCU/s.", "Watch p95."])
     assert _flags(THR, wrong, None, "240")
+
+
+def test_a_tables_capacity_mode_is_no_claim_but_may_be_an_action():
+    # Sonnet with the throttling runbook (2026-11-03) wrote in root_cause "far above what the provisioned
+    # table can sustain": a runbook fact, and wrong (11,900 RCU/min is 198 a second, at the 200 limit).
+    _, runbook = runbooks.runbook_for("DATABASE_THROTTLING")
+    for word in ("provisioned", "on-demand", "pay-per-request"):
+        claim = _diagnosis(THR, summary=f"Reads exceed what the {word} table allows.")
+        assert f"summary: claims {word!r}, but the input has no metric for it" in self_check.check(
+            THR, claim, runbook=runbook)
+    action = _diagnosis(THR, actions=["Raise the provisioned read capacity or switch to on-demand.", "Watch p95."])
+    assert not [f for f in self_check.check(THR, action, runbook=runbook) if "recommended_actions" in f]
 
 
 def test_the_95th_percentile_is_a_name_not_a_value():

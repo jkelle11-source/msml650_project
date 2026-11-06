@@ -12,14 +12,15 @@
    by all functions. A throttled invocation never reaches the handler, so it is missing from the service's
    own request records.
 4. The Products table (`anomalypulse-products-v2`): it is provisioned at 200 read capacity units per
-   second, and `GET /products` scans it, so its reads grow with traffic. Watch product-service's
-   `db_consumed_read_capacity` (reported per minute) and `read_throttle_events`.
+   second, and `GET /products` reads the whole table on every call, so its reads grow with traffic. Watch
+   product-service's `db_consumed_read_capacity` (reported per minute) and `read_throttle_events`.
 5. Whether the extra traffic is expected (a launch, a promotion, a client stuck retrying) before acting.
 
 **Act**
 1. If latency and errors hold, monitor; no change is needed yet.
-2. If `lambda_throttle_count` rises, give the user-facing functions headroom: reserved concurrency for
-   them, or a higher account concurrency quota.
+2. If `lambda_throttle_count` rises, the shared limit is being reached: ask for a higher account
+   concurrency quota. Reserved concurrency keeps other functions from taking one function's share, but it
+   also caps that function at the reserved number.
 3. If product-service reads approach the table's capacity, raise the Products table's provisioned read
    capacity or switch it to on-demand. The Carts and Orders tables are already on-demand.
 4. To protect the stack while you find where the traffic comes from, set rate and burst limits on the API
