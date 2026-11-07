@@ -101,9 +101,21 @@ and reports the type with the most minutes. On validation's live-built windows, 
 incident, of its own type (112 of 112), and no healthy run opened one.
 
 **Definition of Done**
-- [ ] A live traffic spike is detected and classified end-to-end (MVP loop through the live path).
+- [x] A live traffic spike is detected and classified end-to-end (MVP loop through the live path).
 - [ ] Full taxonomy classifies correctly on a live run of each injector.
-- [ ] Live features confirmed Tier-1-only.
+- [x] Live features confirmed Tier-1-only.
+
+**Done (2026-11-06; [`Docs/LIVE_DIAGNOSIS.md`](../Docs/LIVE_DIAGNOSIS.md), "The live traffic spike"):**
+
+- **Item 1.** One live traffic spike (`exp-20261106T234446Z-809e`, ×6–8 band, 5 minutes) went through the pipeline
+  and the deployed Diagnosis Lambda with no manual step. The fault's 5 full minutes and the first minute after it
+  came back `TRAFFIC_SPIKE` (confidence 0.987–1.0), and `incident.py` opened one incident on them and closed it
+  74 s after the fault ended. No other minute had an incident type, including the 5 the forest alone flagged (the
+  two after idle time, the onset minute, the second minute after the fault, and the run's last, part-traffic one). Each window was diagnosed 169–177 s after its minute ended, with no
+  errors and no failed or dropped deliveries.
+- **Item 3.** The Lambda started with both models' columns checked against the Tier-1 guard's list, and none of
+  the run's 16 windows was refused (the failure queue stayed empty). `ml/diagnosis`'s tests check the list against
+  `features.guard` and the 106 real columns against the Lambda's rule.
 
 ---
 

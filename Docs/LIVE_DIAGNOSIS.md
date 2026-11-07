@@ -214,6 +214,37 @@ EventBridge fails any entry without a `Source` and `DetailType`, so every event 
 don't match what Lambda sends. Remove the `Condition` block in `diagnosis-destinations` and tell Jake, so the IAM
 review records it.
 
+## The live traffic spike (2026-11-06)
+
+Deployed from this branch at 23:37Z (the forest promoted first: `/anomalypulse/ml/models/anomaly_iforest` v1).
+A direct call with two of slot 617's validation windows answered both through the detector path: the healthy
+minute cleared, the spike minute `TRAFFIC_SPIKE` (1.0), and no metric line. The first start after the deploy ran
+past Lambda's 10 s startup limit and was retried inside the call (20.4 s in all), as after M5-1's deploys.
+
+Then one run, as Definition of Done item 1 below: `exp-20261106T234446Z-809e`, `--baseline 360`, the fault
+23:50:46–23:55:46Z, 57,149 requests (0 dropped, 0 5xx). Each minute's diagnosis, from the Lambda's metric lines:
+
+| Minute (UTC) | Detector | Classifier | `incident_type` | `incident.py` |
+|---|---|---|---|---|
+| 23:45–23:46, the first after idle time | flagged | `NORMAL` | — | |
+| 23:47–23:49 | cleared | | — | |
+| 23:50, the fault's last 14 s | flagged | `NORMAL` | — | |
+| 23:51–23:55 | flagged | `TRAFFIC_SPIKE`, 0.999–1.0 | `TRAFFIC_SPIKE` | opened at 23:51 |
+| 23:56 | flagged | `TRAFFIC_SPIKE`, 0.987 | `TRAFFIC_SPIKE` | |
+| 23:57 | flagged | `NORMAL` | — | |
+| 23:58–23:59 | cleared | | — | closed after 23:58, `ended_at` 23:57 |
+| 00:00, 46 s of traffic | flagged | `NORMAL` | — | |
+
+- **One incident,** `TRAFFIC_SPIKE` throughout (no `type_changed`), ending 74 s after the fault did: on
+  validation, a traffic spike's ended 11–87 s after.
+- **Latency:** `SinceWindowEndSeconds` 168.7–176.6 s, inside the 165–180 s expected; `SinceAnnouncedSeconds`
+  0.15–0.86 s, and 5.3 s on the one cold start (4.4 s of startup).
+- **Deliveries:** 16 windows, each diagnosed in one call (0 errors, so no retries), 0 throttles, 0
+  `DestinationDeliveryFailures`, 0 dropped events; the failure queue stayed empty and every alarm OK. The replies
+  reached the bus: between 23:44 and 23:57Z the account's `PutEventsEntriesCount` was 1,264 with 0 failed entries,
+  1,249 of them telemetry and 8 WindowReady (the rules' `MatchedEvents`), and the other 7 the Lambda's replies to
+  those 8 (the 8th in the metric's unfinished last minute), so the role's lock lets them through.
+
 ## Definition of Done: how to check each item live
 
 Start traffic at least 6 minutes before the fault (M10's note in [`PIPELINE.md`](PIPELINE.md)), so the first
