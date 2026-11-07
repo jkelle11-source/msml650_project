@@ -102,17 +102,34 @@ incident, of its own type (112 of 112), and no healthy run opened one.
 
 **Definition of Done**
 - [x] A live traffic spike is detected and classified end-to-end (MVP loop through the live path).
-- [ ] Full taxonomy classifies correctly on a live run of each injector.
+- [x] Full taxonomy classifies correctly on a live run of each injector.
 - [x] Live features confirmed Tier-1-only.
 
-**Done (2026-11-06; [`Docs/LIVE_DIAGNOSIS.md`](../Docs/LIVE_DIAGNOSIS.md), "The live traffic spike"):**
+**Done (2026-11-06 and 07; [`Docs/LIVE_DIAGNOSIS.md`](../Docs/LIVE_DIAGNOSIS.md), "The live traffic spike" and "The
+live run of each injector"):**
 
 - **Item 1.** One live traffic spike (`exp-20261106T234446Z-809e`, ×6–8 band, 5 minutes) went through the pipeline
   and the deployed Diagnosis Lambda with no manual step. The fault's 5 full minutes and the first minute after it
   came back `TRAFFIC_SPIKE` (confidence 0.987–1.0), and `incident.py` opened one incident on them and closed it
   74 s after the fault ended. No other minute had an incident type, including the 5 the forest alone flagged (the
-  two after idle time, the onset minute, the second minute after the fault, and the run's last, part-traffic one). Each window was diagnosed 169–177 s after its minute ended, with no
-  errors and no failed or dropped deliveries.
+  two after idle time, the onset minute, the second minute after the fault, and the run's last, part-traffic one).
+  Each window was diagnosed 169–177 s after its minute ended, with no errors and no failed or dropped deliveries.
+- **Item 2.** One live run of each injector plus a NORMAL run, on training bands at intensity 0.7. Each fault run
+  opened exactly one incident, which closed as its own type, and the NORMAL run opened none:
+  - `exp-20261107T020723Z-592b` (noop): no incident.
+  - `exp-20261107T022559Z-048a` (db-throttling): `DATABASE_THROTTLING`, opened 1 s after the fault started, ended
+    1 s after it ended.
+  - `exp-20261107T025044Z-2a61` (lambda-degradation, order-service): `LAMBDA_DEGRADATION`, opened 16 s after the
+    start, ended 2 min 16 s after the end.
+  - `exp-20261107T030745Z-595a` (payment-failure): `DEPENDENCY_FAILURE`, opened 15 s after the start, ended
+    1 min 15 s after the end.
+  - `exp-20261107T032517Z-e1fc` (cascade, `example.json`): `CASCADING_FAILURE`, opened 43 s after the start, ended
+    1 min 43 s after the end. It changed type 3 times on the way (`TRAFFIC_SPIKE`, `CASCADING_FAILURE`,
+    `DATABASE_THROTTLING`, then `CASCADING_FAILURE`).
+
+  Every run: 0 errors, 0 failed or dropped deliveries, the failure queue empty, alarm OK, each window diagnosed
+  167–174 s after its minute ended.
+
 - **Item 3.** The Lambda started with both models' columns checked against the Tier-1 guard's list, and none of
   the run's 16 windows was refused (the failure queue stayed empty). `ml/diagnosis`'s tests check the list against
   `features.guard` and the 106 real columns against the Lambda's rule.

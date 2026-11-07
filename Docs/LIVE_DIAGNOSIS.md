@@ -245,6 +245,40 @@ Then one run, as Definition of Done item 1 below: `exp-20261106T234446Z-809e`, `
   1,249 of them telemetry and 8 WindowReady (the rules' `MatchedEvents`), and the other 7 the Lambda's replies to
   those 8 (the 8th in the metric's unfinished last minute), so the role's lock lets them through.
 
+## The live run of each injector (2026-11-07)
+
+Definition of Done item 2. One live run of each injector plus a NORMAL run, back to back from 02:07 to 03:45Z, on
+training bands at intensity 0.7 with 5-minute faults (the cascade: `simulator/cascades/example.json`), each checked
+with `Handoffs/M8-2_Live_Checks_Script.md` at least 5 minutes after it ended. All five passed, and a second run of
+the same script on the five experiments gave the same results.
+
+| Run | Experiment | Fault (UTC) | Incident, closed as | Opened | Ended |
+|---|---|---|---|---|---|
+| noop | `exp-20261107T020723Z-592b` | none | none | n/a | n/a |
+| db-throttling (×3.5–4.5) | `exp-20261107T022559Z-048a` | 02:31:59–02:36:59 | `DATABASE_THROTTLING` | 1 s after the start | 1 s after the end |
+| lambda-degradation (order-service, 800–1100 ms) | `exp-20261107T025044Z-2a61` | 02:56:44–03:01:44 | `LAMBDA_DEGRADATION` | 16 s after | 2 min 16 s after |
+| payment-failure (500–1500 ms) | `exp-20261107T030745Z-595a` | 03:13:45–03:18:45 | `DEPENDENCY_FAILURE` | 15 s after | 1 min 15 s after |
+| cascade | `exp-20261107T032517Z-e1fc` | 03:30:17–03:40:17 | `CASCADING_FAILURE` | 43 s after | 1 min 43 s after |
+
+"Opened" is the start of the incident's first minute; "Ended" is `ended_at`, the end of its last minute with a
+type. Health, every run: `Errors` 0, `DestinationDeliveryFailures` 0, `AsyncEventsDropped` 0, the failure queue
+empty, alarm `OK`. Each window was diagnosed 167–174 s after its minute ended.
+
+What the runs showed:
+
+- **The forest alone flags many healthy minutes live.** It flagged 7 of the NORMAL run's 16 minutes, 4 of
+  them mid-run, and all 5 baseline minutes of the db-throttling run. The classifier called every one NORMAL,
+  so none became an incident: requiring both models to agree is what keeps them out.
+- **The first recovery minute is sometimes classified as another fault.** Payment failure's first minute after
+  the fault read `LAMBDA_DEGRADATION` (0.998), and so did the cascade's (0.958). `incident.py`'s
+  most-minutes rule kept both incidents' type correct.
+- **The cascade changed type 3 times,** not once: `TRAFFIC_SPIKE` (its first fault alone), `CASCADING_FAILURE`,
+  `DATABASE_THROTTLING` for 2 minutes, then `CASCADING_FAILURE` for 7 of its 11 minutes. That matches
+  PIPELINE.md's note on cascades after DB throttling's surge. It closed correctly, but M8-3 should not call
+  Bedrock on every `type_changed` without a limit.
+- **The type lasted 2 minutes past the fault once** (lambda-degradation), at the edge of the expected 1–2,
+  under the ~3 minutes that would need a look.
+
 ## Definition of Done: how to check each item live
 
 Start traffic at least 6 minutes before the fault (M10's note in [`PIPELINE.md`](PIPELINE.md)), so the first
