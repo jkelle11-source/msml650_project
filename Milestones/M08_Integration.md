@@ -91,10 +91,31 @@ for about 3 minutes past a fault's end, and the first full minute after idle tim
 incident in fewer of them (78 of 112 first recovery minutes, 24 of 56 second, 2 of 138 third). How flagged
 minutes open and close an incident is M8-2's and M8-3's call.
 
+**Decided (2026-11-06; [`Docs/LIVE_DIAGNOSIS.md`](../Docs/LIVE_DIAGNOSIS.md)):** a rule on the pipeline bus sends
+each WindowReady event to the Diagnosis Lambda. It runs M5-2's Isolation Forest (promoted as `anomaly_iforest`),
+then the classifier on the windows the forest flags, and a window gets an `incident_type` only when both agree.
+The reply goes back on the bus as the Lambda's success destination, for M8-3. An event that fails three times, or
+that EventBridge can't deliver, goes to an alarmed failure queue. The Lambda keeps no state: `incident.py` is the
+open/close rule proposed for M8-3. It opens on the first minute with a type, closes after 2 minutes without one,
+and reports the type with the most minutes. On validation's live-built windows, every fault run opened exactly one
+incident, of its own type (112 of 112), and no healthy run opened one.
+
 **Definition of Done**
-- [ ] A live traffic spike is detected and classified end-to-end (MVP loop through the live path).
+- [x] A live traffic spike is detected and classified end-to-end (MVP loop through the live path).
 - [ ] Full taxonomy classifies correctly on a live run of each injector.
-- [ ] Live features confirmed Tier-1-only.
+- [x] Live features confirmed Tier-1-only.
+
+**Done (2026-11-06; [`Docs/LIVE_DIAGNOSIS.md`](../Docs/LIVE_DIAGNOSIS.md), "The live traffic spike"):**
+
+- **Item 1.** One live traffic spike (`exp-20261106T234446Z-809e`, ×6–8 band, 5 minutes) went through the pipeline
+  and the deployed Diagnosis Lambda with no manual step. The fault's 5 full minutes and the first minute after it
+  came back `TRAFFIC_SPIKE` (confidence 0.987–1.0), and `incident.py` opened one incident on them and closed it
+  74 s after the fault ended. No other minute had an incident type, including the 5 the forest alone flagged (the
+  two after idle time, the onset minute, the second minute after the fault, and the run's last, part-traffic one). Each window was diagnosed 169–177 s after its minute ended, with no
+  errors and no failed or dropped deliveries.
+- **Item 3.** The Lambda started with both models' columns checked against the Tier-1 guard's list, and none of
+  the run's 16 windows was refused (the failure queue stayed empty). `ml/diagnosis`'s tests check the list against
+  `features.guard` and the 106 real columns against the Lambda's rule.
 
 ---
 

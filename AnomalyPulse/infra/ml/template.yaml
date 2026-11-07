@@ -307,7 +307,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: anomalypulse-diagnosis
-      Description: The AnomalyPulse Diagnosis Lambda runs as this role (M5-1)
+      Description: The AnomalyPulse Diagnosis Lambda runs as this role (M5-1, M8-2)
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -322,13 +322,42 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
+              # The classifier's pointer (M5-1) and the detector's (M8-2).
               - Effect: Allow
                 Action: ssm:GetParameter
-                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/anomalypulse/ml/models/incident_type'
+                Resource:
+                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/anomalypulse/ml/models/incident_type'
+                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/anomalypulse/ml/models/anomaly_iforest'
               # Fetching a given version needs GetObjectVersion, not GetObject.
               - Effect: Allow
                 Action: s3:GetObjectVersion
                 Resource: !Sub '${ModelBucket.Arn}/training/*'
+        # M8-2: Lambda sends each answer to a WindowReady event to the pipeline bus (the
+        # function's on-success destination, below), where M8-3 adds its own rule; an event it
+        # failed goes to the failure queue. Lambda makes these calls as this role. The pipeline
+        # senders' lock (Docs/PIPELINE.md, "The event locks"): only Lambda's success events, so
+        # this role can't put a WindowReady and make the Lambda score a window it made up.
+        # Without their 'Null' lines, though: when the destination is created, Lambda checks
+        # this role's PutEvents with no source or detail-type, and the 'Null' lines refused that
+        # check (deploy of 2026-11-06, CREATE_FAILED on the EventInvokeConfig). They add nothing:
+        # EventBridge fails any entry without a Source and DetailType, so every event that lands
+        # carries both keys, and ForAllValues holds each to these values.
+        - PolicyName: diagnosis-destinations
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: events:PutEvents
+                Resource: !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/anomalypulse-pipeline'
+                Condition:
+                  ForAllValues:StringEquals:
+                    events:source:
+                      - lambda
+                    events:detail-type:
+                      - Lambda Function Invocation Result - Success
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt DiagnosisFailureQueue.Arn
 
   DiagnosisFunction:
     Type: AWS::Serverless::Function
@@ -347,10 +376,114 @@ Resources:
       Environment:
         Variables:
           ANOMALYPULSE_MODEL_POINTER: /anomalypulse/ml/models/incident_type
+          # M8-2: the Isolation Forest the live path runs before the classifier. Promote it
+          # (`python -m ml.launch promote <iforest job>`) before deploying this, or every cold
+          # start fails reading a pointer that isn't there.
+          ANOMALYPULSE_DETECTOR_POINTER: /anomalypulse/ml/models/anomaly_iforest
+      # EventBridge invokes the Lambda asynchronously. Lambda retries a failed call twice, then
+      # sends the event to the failure queue; a success goes to the pipeline bus, as source
+      # `lambda`, detail-type `Lambda Function Invocation Result - Success`, the reply under
+      # detail.responsePayload (M8-3 subscribes). A window over an hour old is past live use.
+      EventInvokeConfig:
+        MaximumEventAgeInSeconds: 3600
+        MaximumRetryAttempts: 2
+        DestinationConfig:
+          OnSuccess:
+            Type: EventBridge
+            Destination: !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/anomalypulse-pipeline'
+          OnFailure:
+            Type: SQS
+            Destination: !GetAtt DiagnosisFailureQueue.Arn
     Metadata:
       DockerContext: ../../ml
       Dockerfile: diagnosis/Dockerfile
       DockerTag: python3.13
+
+  # ---- Live path (M8-2) ---------------------------------------
+  # The window builder (anomalypulse-pipeline, M8-1) announces each complete window on the
+  # pipeline bus as a WindowReady event; this rule hands the whole event to the Diagnosis
+  # Lambda, which reads the window from `detail` and the announcement time from `time` (the
+  # live latency it reports). No InputPath, or `time` would be lost. The bus is the pipeline
+  # stack's, named here, so that stack is deployed first. An event EventBridge can't hand to
+  # the Lambda within the hour (a missing permission, throttling) goes to the failure queue,
+  # as one the Lambda failed does, rather than being dropped unseen.
+
+  WindowReadyRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: anomalypulse-window-ready-to-diagnosis
+      Description: Each complete live window to the Diagnosis Lambda (M8-2)
+      EventBusName: anomalypulse-pipeline
+      EventPattern:
+        source:
+          - anomalypulse.pipeline
+        detail-type:
+          - WindowReady
+      Targets:
+        - Id: diagnosis
+          Arn: !GetAtt DiagnosisFunction.Arn
+          RetryPolicy:
+            MaximumEventAgeInSeconds: 3600
+          DeadLetterConfig:
+            Arn: !GetAtt DiagnosisFailureQueue.Arn
+
+  # Only this rule may invoke the Lambda through EventBridge.
+  WindowReadyPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DiagnosisFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt WindowReadyRule.Arn
+
+  # A WindowReady event the Lambda failed 3 times: a refused window (BadWindow) or a failed
+  # start (BadModel, a missing pointer); or one EventBridge couldn't deliver (the rule's
+  # dead-letter queue). Kept 14 days, the most SQS allows; the event is in the message, so it
+  # can be read and sent again.
+  DiagnosisFailureQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: anomalypulse-diagnosis-failed
+      MessageRetentionPeriod: 1209600
+
+  # EventBridge may send to the failure queue only on behalf of the WindowReady rule
+  # (aws:SourceArn), as the pipeline's queue policies do. The Lambda's own sends need no entry
+  # here: they are its role's (diagnosis-destinations), in this account.
+  DiagnosisFailureQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref DiagnosisFailureQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt DiagnosisFailureQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt WindowReadyRule.Arn
+
+  # In alarm while any live window is in the failure queue: windows that were never diagnosed.
+  # No action: its state shows in the CloudWatch console, as the pipeline's alarms do.
+  DiagnosisFailedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: anomalypulse-diagnosis-failed
+      AlarmDescription: A live window the Diagnosis Lambda failed 3 times is in anomalypulse-diagnosis-failed (M8-2)
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DiagnosisFailureQueue.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
 
   # ---- SSM Parameters ---------------------------------------
   # For the launcher and, later, the Diagnosis Lambda and M6/M8.

@@ -9,6 +9,6 @@ FROM public.ecr.aws/lambda/python:3.13
 COPY requirements-image.txt ${LAMBDA_TASK_ROOT}/
 RUN pip install --no-cache-dir --only-binary=:all: -r ${LAMBDA_TASK_ROOT}/requirements-image.txt
 
-COPY diagnosis/handler.py ${LAMBDA_TASK_ROOT}/
+COPY diagnosis/handler.py diagnosis/forbidden_names.json ${LAMBDA_TASK_ROOT}/
 
 CMD ["handler.handler"]
