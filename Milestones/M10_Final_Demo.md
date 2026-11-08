@@ -36,6 +36,7 @@
 - Clean stack deploy + seed data; verified healthy baseline (§15 Part 1 numbers).
 - Cost guardrails (capacity caps, teardown, budget alarms) for live injection.
 - A step-by-step live-injection runbook + a rollback/reset path between takes.
+- All demo traffic sent from the runner host, never a presenter's laptop, with `infra/runner/drive.sh`: with laptop traffic the Isolation Forest flagged about half of the healthy minutes, with the runner's 2.3% ([`Docs/DETECTION.md`](../Docs/DETECTION.md), "Where live traffic comes from"). The runner stays until after M10 ([`Docs/DATASET.md`](../Docs/DATASET.md), "The runner host").
 - Takes timed for the live path: start the traffic at least 6 minutes before the healthy segment, and allow about 6 minutes after an injected fault ends before calling the system healthy again. Until then the detector still flags minutes whose look-back holds the fault or the idle time before the traffic ([`Docs/PIPELINE.md`](../Docs/PIPELINE.md), "On the minutes only the live path scores").
 - After a fresh deploy of the pipeline stack, check that the window builder's runs start between about :20 and :50 of each minute, since a new schedule rule picks a new second. Later, the console shows `NO_DATA` for a moment every minute; earlier, its newest minute misses its last requests ([`Docs/PIPELINE.md`](../Docs/PIPELINE.md), "When a minute's window is ready", which has the check and the fix).
 
@@ -52,7 +53,7 @@
 - **Blocked by:** `M10-1`
 - **Blocks:** `M10-3`
 
-**Context.** Drive the simulator on stage — the database-throttling single incident (§15 Part 2) and the cascading failure (§15 Part 4) — with timing that fits the narration.
+**Context.** Drive the simulator on stage — the database-throttling single incident (§15 Part 2) and the cascading failure (§15 Part 4) — with timing that fits the narration. The simulator runs on the runner host, driven from the presenter's laptop with `infra/runner/drive.sh` (M10-1).
 
 **Deliverables**
 - Scripted injection sequence: healthy → DB throttling → (later) cascade, with rehearsed timing.

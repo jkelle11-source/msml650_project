@@ -134,3 +134,35 @@ earlier minute, and the live path scores minutes no label covers. Measured on va
 of 336 (the first NORMAL minute after idle time). It also flags every minute whose look-back still holds a fault,
 for about 3 minutes after a fault ends, and the first full minute after idle time. None of those minutes is
 labeled, so no metric above counts them.
+
+## Where live traffic comes from (measured 2026-11-07)
+
+The first live runs (M8-2's checks, 2026-11-06 and 07) sent their traffic from laptops, and the forest flagged
+about half of their healthy minutes. The same 90-minute NORMAL run from the runner host, which sent all of
+`v1`'s traffic, brought it back to `v1`'s rate:
+
+| Healthy minutes | Traffic from | Minutes | Flagged | Median score |
+|---|---|---|---|---|
+| `v1`, slots 1–700 (2026-10-20 to 25) | the runner | 1,680 | 38 (2.3%) | −0.336 |
+| `exp-20261107T221455Z-febb`, NORMAL, 90 minutes | the runner | 88 | 2 (2.3%) | −0.344 |
+| M8-2's six live checks | laptops | 33 | 16 (48.5%) | −0.367 |
+
+"Healthy" is the table above's rule: for a live run, from the manifest, its full minutes after the startup minute
+and before the fault starts. A live window scores the same in the Diagnosis Lambda as here.
+
+- **What differs is the services' tail latency.** With laptop traffic, Product's p95 latency was 7.4 ms (runner
+  6.2, `v1` 6.1), Order's p50 4.0 ms (runner and `v1` 3.3), and Order's DynamoDB latency and both Lambdas' p95
+  duration were higher. These are measured inside the services, so the client changes what they see; why is not
+  known. Validation's healthy windows score in a narrow band (−0.384 to −0.328) just above the cut-off
+  (−0.3695), so a small shift flags many minutes.
+- **The stack is a little slower than in October,** and the forest doesn't mind. On the runner run, Product's and
+  Cart's mean Lambda duration were 0.3–0.4 ms above `v1`'s (Product 2.61 ms, `v1` 2.18), all 90 minutes.
+- **`v1`'s days were steady:** each column's daily median barely moved from day to day (Product's mean Lambda
+  duration 2.15–2.21 ms). The one exception is `v1`'s first hour, 2026-10-20 00:33Z: 50% of its healthy minutes
+  flagged, then normal from the second hour on. The runner run, also its first hour after a start and after idle
+  time, didn't repeat it, so that hour stays unexplained.
+- **The classifier was unaffected:** it called every flagged healthy minute NORMAL, so none opened an incident
+  ([`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md)).
+
+So every live run's traffic comes from the runner ([`DATASET.md`](DATASET.md), "The runner host"), as the test
+set's will (M9-1). The first healthy minute after idle time is still flagged; M10's 6-minute start covers it.

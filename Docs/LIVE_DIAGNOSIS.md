@@ -268,7 +268,9 @@ What the runs showed:
 
 - **The forest alone flags many healthy minutes live.** It flagged 7 of the NORMAL run's 16 minutes, 4 of
   them mid-run, and all 5 baseline minutes of the db-throttling run. The classifier called every one NORMAL,
-  so none became an incident: requiring both models to agree is what keeps them out.
+  so none became an incident: requiring both models to agree is what keeps them out. The cause was the
+  laptop sending the traffic: a 90-minute NORMAL run from the runner host, on 2026-11-07, had 2.3% of its
+  healthy minutes flagged, `v1`'s rate ([`DETECTION.md`](DETECTION.md), "Where live traffic comes from").
 - **The first recovery minute is sometimes classified as another fault.** Payment failure's first minute after
   the fault read `LAMBDA_DEGRADATION` (0.998), and so did the cascade's (0.958). `incident.py`'s
   most-minutes rule kept both incidents' type correct.
@@ -281,28 +283,38 @@ What the runs showed:
 
 ## Definition of Done: how to check each item live
 
+All three are done (2026-11-06 and 07, above). To repeat one, send the traffic from the runner host, never a
+laptop: with laptop traffic the forest flags about half the healthy minutes ([`DETECTION.md`](DETECTION.md),
+"Where live traffic comes from"). From `AnomalyPulse/infra/runner`, `bash drive.sh start` and
+`bash drive.sh setup main` first, `bash drive.sh stop` after ([`DATASET.md`](DATASET.md), "The runner host").
+
 Start traffic at least 6 minutes before the fault (M10's note in [`PIPELINE.md`](PIPELINE.md)), so the first
 windows aren't after-idle ones: pass `--baseline 360` (the default is 300). A cascade's baseline is its spec's
 `baseline_s` (300 in `example.json`), so run it right after another run, whose recovery traffic covers the rest.
-Then read the second Logs Insights query above for the run's minutes, and run `incident.py` over them in
-`window_start` order.
+Then check each run with [`Handoffs/M8-2_Live_Checks_Script.md`](../Handoffs/M8-2_Live_Checks_Script.md) at least
+5 minutes after it ends: it reads the run's minutes from the Lambda's metric lines and runs `incident.py` over them.
 
 1. **A live traffic spike is detected and classified end-to-end.**
 
    ```bash
-   caffeinate -is python -m simulator start-incident --type traffic-spike --intensity 0.7 --band 6 8 --duration 300 --baseline 360
+   bash drive.sh run spike start-incident --type traffic-spike --intensity 0.7 --band 6 8 --duration 300 \
+       --baseline 360 --created-by "$USER"
    ```
 
    Pass: the fault's minutes come back `incident_type: TRAFFIC_SPIKE`, with `SinceWindowEndSeconds` around 165–180 s.
-2. **Full taxonomy on a live run of each injector.** One run each, a NORMAL run included. The bands are `v1`'s
-   training bands, which its validation runs used too; the test bands stay unseen until M9-1:
+2. **Full taxonomy on a live run of each injector.** One run each, a NORMAL run included, back to back: each `--`
+   starts the next when the one before ends, and a failed one stops the rest. The bands are `v1`'s training bands,
+   which its validation runs used too; the test bands stay unseen until M9-1:
 
    ```bash
-   caffeinate -is python -m simulator start-incident --type noop --duration 300 --baseline 360
-   caffeinate -is python -m simulator start-incident --type db-throttling --intensity 0.7 --band 3.5 4.5 --duration 300 --baseline 360
-   caffeinate -is python -m simulator start-incident --type lambda-degradation --intensity 0.7 --band 800 1100 --duration 300 --target order-service --baseline 360
-   caffeinate -is python -m simulator start-incident --type payment-failure --intensity 0.7 --band 500 1500 --duration 300 --baseline 360
-   caffeinate -is python -m simulator start-cascade --spec simulator/cascades/example.json
+   bash drive.sh run taxonomy \
+     start-incident --type noop --duration 300 --baseline 360 --created-by "$USER" -- \
+     start-incident --type db-throttling --intensity 0.7 --band 3.5 4.5 --duration 300 --baseline 360 --created-by "$USER" -- \
+     start-incident --type lambda-degradation --intensity 0.7 --band 800 1100 --duration 300 --target order-service \
+       --baseline 360 --created-by "$USER" -- \
+     start-incident --type payment-failure --intensity 0.7 --band 500 1500 --duration 300 --baseline 360 --created-by "$USER" -- \
+     start-cascade --spec simulator/cascades/example.json --created-by "$USER"
+   bash drive.sh log taxonomy 40     # each run's experiment id, and "COMPLETED" as each ends (about 1 h 25 min in all)
    ```
 
    Pass: the `noop` run's minutes carry no `incident_type` and open no incident. Each fault run opens one

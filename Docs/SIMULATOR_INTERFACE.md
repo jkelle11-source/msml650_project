@@ -26,6 +26,12 @@ just want to get your injector going, start with
 
 ## Running an experiment
 
+> **Live runs since 2026-11-07 go through the runner host, not a laptop:** `infra/runner/drive.sh run <session>
+> <the arguments below>` starts them there ([`DATASET.md`](DATASET.md), "The runner host"). With laptop traffic
+> the Isolation Forest flagged about half of the healthy live minutes ([`DETECTION.md`](DETECTION.md), "Where
+> live traffic comes from"). The arguments are the same either way; the laptop notes below apply to the CLI's own
+> tests.
+
 Run from **`AnomalyPulse/`** (one level above `simulator/`), on a branch that has the simulator
 code, with `pip install -r simulator/requirements.txt` and the `sim` AWS profile (setup is in
 the handoff). "No module named simulator" means you are in the wrong directory.
