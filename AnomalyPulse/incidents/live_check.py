@@ -40,7 +40,9 @@ def check_incident(rec, want, experiment_id):
     problems, notes = [], []
     prediction = rec.get("prediction") or {}
     if rec.get("status") != "CLOSED" or not rec.get("ended_at"):
-        problems.append("the incident never closed")
+            problems.append("the incident never closed (it closes only when later minutes arrive: if traffic stopped "
+                        "right after the fault, that is documented behavior, INCIDENT_STORE.md, "
+                        "'When an incident closes'; otherwise the run's own quiet minutes were never stored)")
     if prediction.get("incident_type") != want:
         problems.append(f"the incident is {prediction.get('incident_type')}, expected {want}")
     if rec.get("experiment_id") != experiment_id:
