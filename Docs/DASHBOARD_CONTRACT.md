@@ -152,14 +152,14 @@ or in `comparison`, is the point of showing them side by side.
 | `confidence` | 0–1 | The probability the classifier last gave `incident_type` |
 | `started_at` | time | `window_start` of the incident's first window |
 | `detected_at` | time | When that first window was classified |
-| `affected_services` | array of service names, at least one | The services the incident shows in: those whose own metrics in the latest window crossed a fixed line against their pre-incident baseline. M8-3 computes it with `genai.affected.affected_services()` from the feature windows, never from the manifest, and sends the same list to Bedrock (`Docs/DIAGNOSIS_CONTRACT.md`, "affected_services") |
+| `affected_services` | array of service names, at least one | The services the incident shows in: those whose own metrics crossed a fixed line against their pre-incident baseline in the incident's opening minute or any later minute it counted (if none crossed at opening, the one that rose most). The list only grows while the incident is open. M8-3 computes it with `genai.affected` from the feature windows, never from the manifest (`Docs/INCIDENT_STORE.md`); each Bedrock input lists its own minute's services (`Docs/DIAGNOSIS_CONTRACT.md`, "affected_services") |
 | `model` | object | Which model answered: `estimator` and `job`, from the Diagnosis Lambda's reply |
 
 `diagnosis` (the fields follow PROJECT_PLAN §10 and §14, and are exactly M6-1's output: `Docs/DIAGNOSIS_CONTRACT.md`):
 
 | Field | Type | Meaning |
 |---|---|---|
-| `severity` | severity | Bedrock's judgment. The manifest's severity is ground truth and never fills it |
+| `severity` | severity | The severity rubric's, computed from Bedrock's input (`genai.contract.severity()`, `Docs/DIAGNOSIS_CONTRACT.md`). Bedrock is asked for one too; a different answer is a self-check finding, never shown. The manifest's severity is ground truth and never fills it |
 | `summary` | string | Plain text. Any ordering of symptoms is worded as an **observed sequence from correlated timestamps**, never as causation |
 | `root_cause` | string | The most likely root cause |
 | `evidence` | array of strings | Each one traces to a metric in Bedrock's input |
@@ -228,7 +228,8 @@ the mock one and changes nothing else.
    polls every 15 s and keeps the last good reply on a 503 or a timeout. Nothing is missing. While `diagnosis`
    is `null`, the incident panel shows "Severity pending": the manifest's severity is ground truth and never
    fills it.
-2. **Josh: answered** (PR #86). The `diagnosis` fields are exactly M6-1's output, and Bedrock gives a
-   `severity`, from a fixed rubric that M6-1's self-check recomputes from the input. Beside `diagnosis`, the
+2. **Josh: answered** (PR #86). The `diagnosis` fields are exactly M6-1's output. Its `severity` is the fixed
+   rubric's, computed from the input (since 2026-11-08, #99; before that it was Bedrock's own pick, which the
+   self-check still compares with the rubric). Beside `diagnosis`, the
    explanation Lambda's reply carries `evidence_metrics` (the input metrics each evidence bullet cites) and
    `self_check` (`passed` and findings); M8-3 stores them, and M8-4 decides whether the console shows them.

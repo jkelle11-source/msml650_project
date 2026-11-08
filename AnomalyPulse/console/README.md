@@ -76,8 +76,9 @@ The tests check some of their values (the times, ids and numbers), so update tho
 ## What the console promises
 
 - **Nothing is invented.** Every value comes from the reply. A `null` number shows as a dash, never `0`.
-- **Severity is Bedrock's.** Until the diagnosis arrives, the incident's AI severity is pending; the injected
-  severity appears only on the ground-truth side.
+- **Severity is the diagnosis's.** It is the severity rubric's, computed from the evidence Bedrock was given
+  (`Docs/DIAGNOSIS_CONTRACT.md`), not Bedrock's own pick. Until the diagnosis arrives, the incident's AI severity
+  is pending; the injected severity appears only on the ground-truth side.
 - **Observed sequence, not cause.** Bedrock's text is shown as written (as text, never HTML), under a note
   that symptom ordering is an observed sequence from correlated timestamps, not proof of causation.
 - **The comparison:** *Same classification* when the classes agree; *Matches active fault* when only one of a
