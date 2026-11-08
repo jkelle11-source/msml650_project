@@ -189,6 +189,15 @@ def test_a_faithful_diagnosis_comes_back_in_the_dashboard_shape():
     assert result["usage"] == {"input_tokens": 1800, "output_tokens": 420}
 
 
+def test_the_diagnosis_reports_the_rubrics_severity_and_the_check_keeps_bedrocks():
+    # The first live spike: Bedrock said MEDIUM where the rubric gives LOW. Here it says MEDIUM where
+    # the rubric gives HIGH (Order's 5xx share is 16.7%).
+    result = explain.diagnose(DEP, bedrock=FakeBedrock(answer=_with(severity="MEDIUM")))
+    assert contract.severity(DEP) == "HIGH"
+    assert result["diagnosis"]["severity"] == "HIGH"
+    assert result["self_check"] == {"passed": False, "findings": ["severity: MEDIUM, but the rubric gives HIGH"]}
+
+
 def test_a_refusal_or_a_cut_off_answer_raises():
     with pytest.raises(explain.DiagnosisFailed, match="declined"):
         explain.diagnose(DEP, bedrock=FakeBedrock(stop_reason="refusal"))

@@ -48,6 +48,9 @@ self-check of 2026-11-06. Decisions:
 - **The answer is held to a schema built per request** (structured outputs), so each evidence bullet cites only
   that input's metrics.
 - **Severity comes from a fixed rubric**, stated in the prompt and recomputed by the self-check (2026-11-02).
+  Since 2026-11-08 the diagnosis reports the rubric's severity, not Bedrock's: on M8-3's first live traffic spike
+  Sonnet said `MEDIUM` where the rubric gives `LOW`. Bedrock's own severity is still checked, and a mismatch
+  stays a `self_check` finding.
 - **A cascade's root cause names its faults as concurrent and links none causally** (2026-11-02). The simulator
   injects each fault on its own, and the demo narrates a cascade as an observed sequence (plan §15).
 - **`affected_services` comes from the feature windows by a fixed rule** (`genai/affected.py`, 2026-11-02),
