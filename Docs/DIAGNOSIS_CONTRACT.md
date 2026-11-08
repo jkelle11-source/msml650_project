@@ -293,17 +293,25 @@ only for Claude 4.7 and later, so `requirements.txt` pins the 1.x release tested
 
 ## Decided in M8-3 (2026-11-07)
 
-The three open questions, answered in `incidents/` (Docs/INCIDENT_STORE.md).
+The three open questions, answered in `incidents/` (Docs/INCIDENT_STORE.md). Agreed on 2026-11-08 by
+Jake, who made M6-1's proposals on #30, including the three ways these answers differ from them:
+the baseline also leaves out minutes the detector flagged, the standard metrics come after the
+others, and there are at most 5 calls.
 
-1. **Baseline.** The mean of the incident's run's last 5 windows before `started_at` that the
-   models called healthy: the classifier said `NORMAL` **and** the detector didn't flag the minute
-   (`label` is `NORMAL` and `anomalous` is false). The detector alone keeps flagging for about 3
-   minutes after a fault and flags the first minute after idle time (`LIVE_DIAGNOSIS.md`), so a
-   minute it flags is not a clean baseline even if the classifier calls it `NORMAL`. The
-   incident store keeps those windows as it sees each diagnosed minute, adds none while an
-   incident is open, computes the baseline (`genai.affected.baseline()`) the moment an incident
-   opens, and holds it fixed for the whole incident, so a cascade's later minutes still compare
-   against the state before it. A metric with nothing to average has `baseline: null`.
+1. **Baseline.** The mean of the last 5 windows before `started_at` that the models called
+   healthy: the classifier said `NORMAL` **and** the detector didn't flag the minute (`label` is
+   `NORMAL` and `anomalous` is false). The detector alone keeps flagging for about 3 minutes
+   after a fault and flags the first minute after idle time (`LIVE_DIAGNOSIS.md`), so a minute it
+   flags is not a clean baseline even if the classifier calls it `NORMAL`. The incident store
+   keeps those windows as it sees each diagnosed minute, adds none while an incident is open,
+   computes the baseline (`genai.affected.baseline()`) the moment an incident opens, and holds
+   it fixed for the whole incident, so a cascade's later minutes still compare against the state
+   before it. A metric with nothing to average has `baseline: null`. The windows can come from an
+   earlier run, and none is too old: the store keeps the last 5 it saw, however long ago. On
+   validation's replay (Docs/INCIDENT_STORE.md), whose runs have only a minute or two of
+   healthy traffic before the fault, 1 of the 112 baselines came from the incident's own run, and
+   the oldest window was a median of 20 minutes before the incident (at most 32). A live run with
+   6 minutes of baseline traffic (`--baseline 360`) fills the 5 from its own minutes.
 2. **Which metrics.** The proposal, at most 10, in a fixed order. For each affected service,
    a metric is sent when it moved (the lines `affected.py` uses: 5xx share at least 0.01, p95
    or any other latency or duration at least 2x its baseline, request rate at least 1.75x, any
@@ -313,12 +321,19 @@ The three open questions, answered in `incidents/` (Docs/INCIDENT_STORE.md).
    Moved and type-signal metrics come first, then the standard ones, so a cap of 10 drops
    context before it drops evidence. Values are rounded to 4 decimals. A metric empty in the
    latest window is left out. `observed_sequence` is not sent in this version, so Bedrock makes
-   no ordering claim.
-3. **When to call.** When an incident opens and each time its type changes, at most 5 calls per
-   incident (a cascade that changed type 3 times on the live run would make 4). Each stored
-   diagnosis records the type it was made for (`diagnosis_for_type`), so a console showing
+   no ordering claim. On validation's replay, 98 of the 125 inputs reached the cap. What it cut
+   was mostly context, the unmoved standard metrics (333 service-metric pairs), and percentiles
+   beside the p95 that moved (`p99_latency_ms` 79 times, `p50_latency_ms` 28). In 16 inputs it
+   kept one of the type's own signals that had not moved (such as `write_throttle_events` at 0)
+   and cut one that had. No input named an affected service without sending one of its metrics.
+3. **When to call.** Whenever the stored diagnosis is not for the incident's current type, at
+   most 5 calls per incident: when an incident opens, each time its type changes (a cascade that
+   changed type 3 times on the live run would make 4), and on the next counted minute after a
+   call that failed, so a throttle or a timeout doesn't leave the console on "Severity pending"
+   for the rest of the incident. On validation's replay that is 125 calls for 112 incidents. Each
+   stored diagnosis records the type it was made for (`diagnosis_for_type`), so a console showing
    a newer type can tell. A call that fails is counted and stored with its error, and an earlier
    diagnosis is kept; a diagnosis that failed its self-check is stored, flagged.
 
-Still provisional: whether `prediction.affected_services` should be refreshed on each counted
-minute (the incident store does) or fixed when the incident opens.
+`prediction.affected_services` is refreshed on each counted minute, as the `affected_services` in
+each Bedrock input are that call's minute's (decided 2026-11-08).

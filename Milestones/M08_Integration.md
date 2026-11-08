@@ -155,28 +155,36 @@ live run of each injector"):**
 (reserved concurrency 1). It groups minutes with `incident.py`, keeps the last 5 healthy windows (the classifier
 said `NORMAL` and the detector did not flag the minute) and fixes the baseline from them when an incident opens,
 sends at most 10 metrics (those that moved and the type's own signals first, then the standard three), and calls
-`anomalypulse-explain` when an incident opens and each time its type changes, at most 5 calls per incident. It
+`anomalypulse-explain` whenever the stored diagnosis isn't for the incident's current type (when it opens, each time
+its type changes, and the next counted minute after a failed call), at most 5 calls per incident. It
 stores one record per incident (`pk` `INCIDENT`, `sk` `started_at`: the dashboard's `prediction` and `diagnosis`,
 the explanation Lambda's other outputs, and the ground-truth reference beside them) and its running state under
 `INCIDENT_STATE`. The reference is the running experiment's id from the experiment lock, read when the incident
 opens.
 
 **Definition of Done**
-- [ ] Input contract agreed with M6-1 for this seam: the contract's open questions (baseline, which metrics, when to call) answered. Carried from M6-1's Definition of Done (2026-11-02).
+- [x] Input contract agreed with M6-1 for this seam: the contract's open questions (baseline, which metrics, when to call) answered. Carried from M6-1's Definition of Done (2026-11-02).
 - [ ] Classifier output is transformed into a valid Bedrock input with no manual editing.
 - [ ] Diagnosis is stored against the incident record with a ground-truth reference for comparison.
 - [ ] Round-trip latency captured for §16 end-to-end metrics.
 
-**Built, not yet live (2026-11-07; [`Docs/INCIDENT_STORE.md`](../Docs/INCIDENT_STORE.md)):** the code, the stack and
-the tests are on the branch; nothing has run on AWS.
+**Built, not yet live (2026-11-07 and 08; [`Docs/INCIDENT_STORE.md`](../Docs/INCIDENT_STORE.md)):** the code, the
+stack and the tests are on the branch; nothing has run on AWS.
 
-- **Done:** 99 offline tests in `incidents/` (the table, S3, the lock and the explanation Lambda are faked), among
+- **Item 1.** Agreed on 2026-11-08 by Jake, who made M6-1's proposals on #30, including the answers' three changes
+  to them (the baseline also leaves out minutes the detector flagged, the standard metrics come last, at most 5
+  calls) and refreshing `affected_services` on each counted minute (`DIAGNOSIS_CONTRACT.md`, "Decided in M8-3").
+- **Done:** 125 offline tests in `incidents/` (the table, S3, the lock and the explanation Lambda are faked), among
   them one that reads a stored record through the dashboard's `build_dashboard`; `cfn-lint` finds nothing in
-  `infra/incidents/template.yaml`; the Makefile's bundle imports on its own; `incidents/live_check.py` (read-only, run after each live run) is written and its judging is tested offline.
+  `infra/incidents/template.yaml`; `sam build` makes a bundle that imports on its own; `incidents/live_check.py`
+  (read-only, run after each live run) is written and its judging is tested offline. A replay of validation's 140
+  runs as the live stream: 1,400 minutes, no errors, one incident per fault run (112) closed as its run's type with
+  its run's `experiment_id`, none on NORMAL runs, 125 Bedrock calls, every input accepted by `validate_input`, every
+  record read back by `build_dashboard` (`INCIDENT_STORE.md`, "Checked on validation").
 - **Not done:** deploying (Jake, with `admin`); the live checks (a traffic spike with `--baseline 360`, then a
-  cascade, from the runner); `sam build`, which has not run; the contract's questions agreed with M6-1 (Josh) and
-  the record's layout agreed with Josh and Linu (posted on #30, unanswered); `observed_sequence` is not sent.
-- **So all four boxes stay unchecked.**
+  cascade, from the runner); the record's layout agreed with Josh and Linu (posted on #30, unanswered);
+  `observed_sequence` is not sent.
+- **So items 2 to 4 stay unchecked until a live run.**
 
 ---
 

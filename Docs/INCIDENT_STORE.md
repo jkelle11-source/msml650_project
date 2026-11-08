@@ -1,6 +1,6 @@
 # The incident store (M8-3)
 
-**Status:** built and tested offline (99 tests in `incidents/`, none reach AWS). Not deployed yet, and not checked live. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
+**Status:** built and tested offline (125 tests in `incidents/`, none reach AWS, and a replay of validation). Not deployed yet, and not checked live. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
 
 The Lambda `anomalypulse-incidents` takes each diagnosed minute, groups minutes into incidents with
 `ml/diagnosis/incident.py`, asks `anomalypulse-explain` (M6-1) to explain each incident, and stores a record the
@@ -20,9 +20,11 @@ dashboard reads in the Incidents table.
    (`ended_at` = its last counted minute + 1 minute).
 5. **Open.** The record is written first, with `diagnosis: null`, so the console shows "Severity pending". The
    baseline is fixed here, and the ground-truth reference is read from the experiment lock.
-6. **Explain.** On `opened` and each `type_changed`, up to 5 calls per incident: build the input
-   (`incidents/builder.py`), check it with `genai.contract.validate_input`, call `anomalypulse-explain`, and
-   store the diagnosis, or the error. A diagnosis that failed its self-check is stored, flagged.
+6. **Explain.** Whenever the stored diagnosis is not for the incident's current type, up to 5 calls per
+   incident: when it opens, at each `type_changed`, and on the next counted minute after a failed call. Build
+   the input (`incidents/builder.py`), check it with `genai.contract.validate_input`, call
+   `anomalypulse-explain`, and store the diagnosis, or the error. A diagnosis that failed its self-check is
+   stored, flagged.
 7. **State last.** The state item is written after everything else. If the Lambda dies before that, the retry
    repeats the minute (Bedrock may be called twice) instead of leaving an incident with no diagnosis and no
    retry.
@@ -44,7 +46,7 @@ the window builder's.
 | `bedrock_calls`, `diagnosis_error` | Calls so far (at most 5), and the last call's error (`for_type`, `type`, `message`), cleared by a good call |
 | `evidence_metrics`, `self_check`, `runbook` | The explanation Lambda's other outputs, for M8-4 |
 | `experiment_id` | The ground-truth reference (Tier-2), at the top level and never inside `prediction` or Bedrock's input. Absent for a real incident, with no experiment running |
-| `latency` | `window_end_to_diagnosis_s`, `diagnosis_to_stored_s`, `bedrock_ms` |
+| `latency` | The first diagnosis's round trip: `window_end_to_diagnosis_s` (the first counted minute's end to its diagnosis), `diagnosis_to_stored_s` (that diagnosis, `detected_at`, to the first diagnosis stored), `bedrock_ms` (that call's) |
 
 `detected_at` is the `latency.diagnosed_at` of the incident's first counted minute. `prediction.incident_type`
 is the incident's own type (the most counted minutes), never the latest minute's label
@@ -52,8 +54,18 @@ is the incident's own type (the most counted minutes), never the latest minute's
 
 **One state item:** `pk = "INCIDENT_STATE"`, `sk = "CURRENT"`. It holds `incident.py`'s state (also kept after an
 incident closes, so the next window can be checked against it), the last 5 healthy windows (the classifier said
-`NORMAL` and the detector did not flag the minute), and the baseline fixed for the open incident. It has its own
-`pk` so that a newest-first Query on `INCIDENT` never returns it.
+`NORMAL` and the detector did not flag the minute; from any run, however old), and the baseline fixed for the open
+incident. It has its own `pk` so that a newest-first Query on `INCIDENT` never returns it.
+
+**When an incident closes.** Only when later minutes arrive: two in a row that don't count, or a window more than
+2 minutes after the last minute that counted. Idle time announces no window, so if traffic stops within about
+4 minutes of a fault's end (the last counted minute is often the first one after the fault, then two quiet minutes
+must be announced), the record stays `OPEN` until the next traffic, and a console reading it would show an active
+incident while the system is idle. The next run's first window then closes it with the right `ended_at`. On
+validation's replay, 107 of the 112 incidents were closed by the next run's first windows, because those runs end 2
+minutes after their fault. Live runs are long enough: the simulator's default `--recovery` and the cascade spec's
+`recovery_s` are both 300 s. **For M8-5 and the M10 demo:** keep traffic running at least 4 minutes after a fault
+ends.
 
 **For the dashboard.** `build_dashboard` treats any incident it is given as active (`active_incidents` is 1 and the
 status is `INCIDENT`), so the live source must pass only an `OPEN` record. `incidents.record.to_incident` returns
@@ -64,8 +76,10 @@ the three fields it reads. Numbers come back from DynamoDB as `Decimal`; `record
 Each stored diagnosis writes one embedded-metric log line (namespace `AnomalyPulse/Incidents`, dimension
 `Function`) with `SinceWindowEndSeconds` (the minute's end to its diagnosis, about 170 s), `DiagnosisToStoredSeconds`
 (the diagnosis to the record stored, including Bedrock's 6 to 32 s), `RoundTripSeconds` (the two added) and
-`BedrockMs`. The same stretches are in the record's `latency`, so M9-4 can total them in Logs Insights with
-`filter event = "incident_diagnosis"`.
+`BedrockMs`, each from the minute that triggered that call, so M9-4 can total them in Logs Insights with
+`filter event = "incident_diagnosis"`. The record's `latency` keeps only the first diagnosis's, so its stretches
+belong to one minute: the incident's first counted minute's end to its diagnosis (`detected_at`), then
+`detected_at` to the first diagnosis stored, which includes the wait when a failed first call is retried.
 
 ## IAM and failures
 
@@ -84,9 +98,12 @@ Each stored diagnosis writes one embedded-metric log line (namespace `AnomalyPul
 
 ```bash
 cd AnomalyPulse
-python3 -m pytest incidents -q          # 99 tests; none reach AWS
+python3 -m pytest incidents -q          # 125 tests; none reach AWS
 cfn-lint infra/incidents/template.yaml  # no findings (cfn-lint 1.60.0, 2026-11-07)
 ```
+
+`sam build` (SAM CLI 1.166.2, 2026-11-08) makes the bundle, which imports in Python 3.13 with nothing else from
+the repository.
 
 Deploy `anomalypulse-ml`, `anomalypulse-pipeline` and `anomalypulse-genai` first. Jake deploys this stack with
 `admin`, because it creates a role. The live checks (a traffic spike with `--baseline 360`, then a cascade) run
@@ -109,10 +126,30 @@ prediction, and a clean read-back through `build_dashboard`. A NORMAL run passes
 failed its self-check, or was made for an earlier type, is printed as a note. The judging is tested offline;
 its AWS reads have not run yet.
 
+## Checked on validation (replay, 2026-11-08)
+
+Validation's 140 runs (slots 561-700) were rebuilt as the live stream, as in M8-2's review: each complete window
+through the Diagnosis Lambda's `detect_then_classify`, wrapped as the event the rule delivers, then through
+`core.process` in window order. The table (items serialized as DynamoDB would, so a float fails), the lock (the run
+whose time holds the minute) and the explanation Lambda (`validate_input` again, a canned reply) were faked. Of
+1,400 minutes, none failed:
+
+- **Incidents:** 112, one per fault run, each closed as its run's type and referencing that run's `experiment_id`.
+  No NORMAL run opened one.
+- **Bedrock:** 125 calls (1 for 99 incidents, 2 for 13), and every input passed `validate_input`.
+- **A failing first call:** with every incident's first call made to fail, all 112 still got a diagnosis, stored at
+  the next counted minute, a minute later (226 calls). Calling only at opening and at type changes, as before the
+  review, only the 13 incidents that changed type would have got one.
+- **The record:** each read back through `build_dashboard` with its run's manifest. The largest item was the state,
+  34 KB.
+- **Baseline and metrics:** the numbers are in [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md), "Decided in M8-3".
+  Closing is in "When an incident closes", above.
+
 ## Decisions
 
 - **The type an incident reports** is the incident's (2026-11-08, Jake).
-- **Baseline, metrics, when to call Bedrock** are in [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md), "Decided in M8-3".
+- **Baseline, metrics, when to call Bedrock** are in [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md), "Decided in M8-3",
+  agreed by Jake (M6-1's proposals) on 2026-11-08. `affected_services` is refreshed on each counted minute.
 - **The ground-truth reference** comes from the experiment lock, read when the incident opens. A lock whose
   `expires_at` has passed (a crashed run) is ignored. No lock means a real incident. A failed read fails the event
   and lands in the queue, instead of storing a wrong reference.
@@ -121,11 +158,10 @@ its AWS reads have not run yet.
 
 ## Not verified yet
 
-- **Nothing has run on AWS.** The tests fake the table, S3, the lock and the explanation Lambda.
-- **`sam build` has not run.** The Makefile finds the repository with `git`, so the stack's `samconfig.toml` builds
-  in the source folder, as the pipeline's does. The bundle was built and imported by hand.
+- **Nothing has run on AWS.** The tests and the replay fake the table, S3, the lock and the explanation Lambda.
+  The Makefile finds the repository with `git`, so the stack's `samconfig.toml` builds in the source folder, as the
+  pipeline's does.
 - **Whether the event carries the full window** (`detail.requestPayload`) is unchecked: the handoff says to check it
   on the first live event, and the Lambda falls back to the window's file.
-- **Josh and Linu have not replied** on the layout (#30). `affected_services` is refreshed on each counted minute;
-  whether the console wants it fixed at opening is open.
+- **Josh and Linu have not replied** on the layout (#30).
 - **`observed_sequence` is not sent,** so Bedrock makes no ordering claim.
