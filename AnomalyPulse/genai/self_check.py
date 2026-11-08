@@ -250,6 +250,43 @@ def _texts(diagnosis: dict):
         yield f"recommended_actions[{i}]", action, False, None
 
 
+# Each finding's kind, read back from its text, so a reader (the incident store, M8-3, retries a
+# diagnosis by its findings' kinds) never matches the wording itself. A finding about one field
+# is "<field>: <what>", and its kind comes from how <what> starts, never from the diagnosis's own text
+# quoted after it. Keep these in step with the messages check() and contract.check_output_shape write:
+# test_genai gives each message a kind, and counts the messages so a new one can't go unlabeled.
+_FIELD = re.compile(r"^(summary|root_cause|evidence\[\d+\]|recommended_actions\[\d+\]): ")
+_FIELD_KINDS = (
+    ("the time ", "time"),
+    ("the number ", "number"),
+    ("mentions a threshold", "threshold"),
+    ("names ", "service"),
+    ("claims ", "metric"),
+    ("causal wording ", "wording"),
+    ("a cascade's faults are concurrent", "wording"),
+    ("orders symptoms without saying", "wording"),
+    ("makes an ordering claim", "wording"),
+)
+_WHOLE_KINDS = (
+    (re.compile(r"^severity: "), "severity"),
+    (re.compile(r"^evidence cites "), "citation"),
+    (re.compile(r"^(summary|root_cause) is empty$|^evidence has \d+ bullets; |^evidence\[\d+\] cites no input metric$|"
+                r"^evidence\[\d+\] is empty$|^recommended_actions has \d+ items; |^a recommended action is empty$"),
+     "shape"),
+)
+KINDS = ("severity", "number", "time", "threshold", "service", "metric", "wording", "citation", "shape")
+
+
+def kind(finding: str) -> str:
+    """One of KINDS for a finding from check() or contract.check_output_shape(); "unknown" for any other
+    text. "wording" is causal wording and an ordering claim; "metric" is a claim no input metric supports."""
+    field = _FIELD.match(finding)
+    if field:
+        what = finding[field.end():]
+        return next((k for start, k in _FIELD_KINDS if what.startswith(start)), "unknown")
+    return next((k for pattern, k in _WHOLE_KINDS if pattern.search(finding)), "unknown")
+
+
 def check(evidence: dict, diagnosis: dict, runbook: str | None = None) -> list[str]:
     """Findings for a raw diagnosis (evidence items with `statement` and `metrics`). Empty means none.
     `runbook` is the text the diagnosis was given, if any: its numbers are allowed in actions."""

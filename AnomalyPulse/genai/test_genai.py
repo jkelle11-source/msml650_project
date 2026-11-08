@@ -3,6 +3,7 @@
 Run from AnomalyPulse/:  python -m pytest -q genai
 """
 import copy
+import inspect
 import json
 import re
 import sys
@@ -605,3 +606,63 @@ def test_each_samples_affected_services_follow_the_rule(name):
     base = {f"{m['service'].split('-')[0]}_{m['metric']}": m["baseline"] for m in sample["metrics"]}
     current = {f"{m['service'].split('-')[0]}_{m['metric']}": m["current"] for m in sample["metrics"]}
     assert affected.affected_services(base, current) == sample["affected_services"]
+
+
+# --- the self-check's finding kinds (read by the incident store, M8-3) -------------------------
+
+_NO_SEQUENCE = {k: v for k, v in DEP.items() if k != "observed_sequence"}
+_BARE = {"summary": "", "root_cause": " ", "evidence": [{"statement": "", "metrics": []}], "recommended_actions": [""]}
+
+
+@pytest.mark.parametrize("evidence, diagnosis, want", [
+    (DEP, _with(severity="MEDIUM"), "severity"),
+    (DEP, _with(summary="Payment latency rose at 14:29."), "time"),
+    (DEP, _with(summary="Payment p95 latency rose to 4.8 s."), "number"),                      # not in the input
+    (DEP, _with(evidence=[{"statement": "Payment p95 latency is 2950 ms.",                     # not its metrics'
+                           "metrics": ["payment-service.p95_latency_ms"]}]), "number"),
+    (DEP, _with(summary="Order's 5xx share is above the alert threshold."), "threshold"),
+    (DEP, _with(summary="Cart-service latency also rose."), "service"),
+    (DEP, _with(root_cause="DynamoDB throttling is the most likely root cause."), "metric"),
+    (DEP, _with(summary="Slow Payment calls caused Order to fail."), "wording"),               # causal wording
+    (SAMPLES["cascading_failure"], _with(root_cause="The spike in turn put payment-service under load."), "wording"),
+    (DEP, _with(summary="Order failures began after Payment slowed."), "wording"),             # no 'observed sequence'
+    (_NO_SEQUENCE, _with(summary="Order failures began after Payment slowed (observed sequence)."), "wording"),
+    (DEP, _with(evidence=[{"statement": "Cart is fine.", "metrics": ["cart-service.p95_latency_ms"]}]), "citation"),
+])
+def test_each_finding_the_self_check_writes_has_its_kind(evidence, diagnosis, want):
+    kinds = [self_check.kind(f) for f in self_check.check(evidence, diagnosis)]
+    assert want in kinds and "unknown" not in kinds
+
+
+def test_each_shape_problem_is_of_kind_shape():
+    problems = contract.check_output_shape(_BARE)
+    assert len(problems) == 7 and {self_check.kind(p) for p in problems} == {"shape"}
+
+
+def test_every_message_is_counted_here():
+    # The cases above write each of check()'s 12 messages and check_output_shape's 6. A new message needs
+    # a kind in self_check (_FIELD_KINDS or _WHOLE_KINDS) and a case above.
+    assert inspect.getsource(self_check.check).count("findings.append(") == 12
+    assert inspect.getsource(contract.check_output_shape).count("problems.append(") == 6
+
+
+def test_the_kind_comes_from_the_message_not_the_quoted_text():
+    quoted = "summary: orders symptoms without saying 'observed sequence': 'Then the number 9 is not in the input.'"
+    assert self_check.kind(quoted) == "wording"
+    assert self_check.kind("evidence[12]: the time 14:29 is not in the input") == "time"
+    assert self_check.kind("recommended_actions[0]: the number 7 is not in or derivable from the input") == "number"
+    assert self_check.kind("summary: something new") == "unknown"
+    assert self_check.kind("a message nobody writes") == "unknown"
+    assert self_check.kind("severity is fine") == "unknown"
+
+
+def test_the_saved_answers_findings_all_have_a_kind():
+    # The 20 answers in samples/results (Opus 4.6 and Sonnet 4.6, with and without runbooks), checked again.
+    found = []
+    for path in sorted((Path(__file__).parent / "samples" / "results").glob("*/*.json")):
+        answer = json.loads(path.read_text())
+        d = answer["diagnosis"]
+        raw = {**d, "evidence": [{"statement": s, "metrics": m} for s, m in zip(d["evidence"], answer["evidence_metrics"])]}
+        found += contract.check_output_shape(raw) + self_check.check(SAMPLES[path.stem], raw)
+    kinds = [self_check.kind(f) for f in found]
+    assert len(found) >= 10 and "unknown" not in kinds, [f for f in found if self_check.kind(f) == "unknown"]

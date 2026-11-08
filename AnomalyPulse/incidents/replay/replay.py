@@ -1,7 +1,7 @@
 """The incident store over validation's runs as the live stream (Docs/INCIDENT_STORE.md, "Checked on validation").
 
     cd AnomalyPulse
-    python3 incidents/replay/replay.py <dir> <out.json> [--fail-first]
+    python3 incidents/replay/replay.py <dir> <out.json> [--fail-first | --flag-first]
     python3 incidents/replay/analyze.py <out.json>
 
 <dir> is what download.sh fetched. Needs Python 3.13 with the Diagnosis Lambda's libraries
@@ -20,7 +20,8 @@
      fails as it would in DynamoDB, and the largest item's size is kept;
    - the lock: held by the run whose started_at-ended_at holds the minute's diagnosis time;
    - the explanation Lambda: validate_input again, then a canned reply (with --fail-first, every
-     incident's first call fails, as a throttle would).
+     incident's first call fails, as a throttle would; with --flag-first, the first answer for each
+     of an incident's types is flagged for a wrong number, and later ones are clean).
    Then each stored record is read back through the dashboard's build_dashboard with its run's
    manifest.
 
@@ -37,9 +38,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]     # AnomalyPulse/
-if len(sys.argv) not in (3, 4) or (len(sys.argv) == 4 and sys.argv[3] != "--fail-first"):
+if len(sys.argv) not in (3, 4) or (len(sys.argv) == 4 and sys.argv[3] not in ("--fail-first", "--flag-first")):
     sys.exit(__doc__.split("\n\n")[1])
-DIR, OUT, FAIL_FIRST = Path(sys.argv[1]), Path(sys.argv[2]), len(sys.argv) == 4
+DIR, OUT = Path(sys.argv[1]), Path(sys.argv[2])
+FAIL_FIRST, FLAG_FIRST = sys.argv[3:] == ["--fail-first"], sys.argv[3:] == ["--flag-first"]
+FLAG = "summary: the number 99 is not in or derivable from the input"
 DATA = DIR / "data"
 sys.path[:0] = [str(ROOT), str(ROOT / "ml" / "diagnosis")]
 os.environ["ANOMALYPULSE_MODEL_DIR"] = str(DIR / "models" / "lr")
@@ -124,7 +127,7 @@ class Fakes:
     """core.process's dependencies (see core.py's docstring)."""
 
     def __init__(self):
-        self.items, self.calls, self.lines, self.failed = {}, [], [], set()
+        self.items, self.calls, self.lines, self.failed, self.flagged = {}, [], [], set(), set()
         self.clock, self.largest = None, (0, None)
 
     def _put(self, key, item):
@@ -162,9 +165,13 @@ class Fakes:
         if FAIL_FIRST and evidence["incident_id"] not in self.failed:
             self.failed.add(evidence["incident_id"])
             raise core.ExplainError("ThrottlingException", "replay: every incident's first call fails")
+        check = {"passed": True, "findings": []}
+        if FLAG_FIRST and (evidence["incident_id"], evidence["incident_type"]) not in self.flagged:
+            self.flagged.add((evidence["incident_id"], evidence["incident_type"]))
+            check = {"passed": False, "findings": [FLAG]}
         return {"diagnosis": {"severity": contract.severity(evidence), "summary": "s", "root_cause": "r",
                               "evidence": ["a", "b", "c"], "recommended_actions": ["x", "y"]},
-                "evidence_metrics": [], "self_check": {"passed": True}, "runbook": None, "usage": {},
+                "evidence_metrics": [], "self_check": check, "runbook": None, "usage": {},
                 "latency_ms": 20000}
 
     def now(self):
@@ -213,8 +220,9 @@ for rec in records:
         errors.append(["read-back " + rec["sk"], repr(err)])
 
 OUT.write_text(json.dumps({
-    "fail_first": FAIL_FIRST, "minutes": len(stream), "errors": errors, "largest_item": fakes.largest,
-    "metric_lines": len(fakes.lines), "records": records, "calls": calls, "steps": steps,
+    "fail_first": FAIL_FIRST, "flag_first": FLAG_FIRST, "minutes": len(stream), "errors": errors,
+    "largest_item": fakes.largest, "metric_lines": sum(line.get("event") == "incident_diagnosis" for line in fakes.lines),
+    "retry_lines": [line for line in fakes.lines if line.get("event") == "incident_retry"], "records": records, "calls": calls, "steps": steps,
     "runs": [{"slot": r["slot"], "experiment_id": r["experiment_id"], "incident_type": r["manifest"]["incident_type"],
               "started_at": r["manifest"]["started_at"], "ended_at": r["manifest"]["ended_at"],
               "activations": r["manifest"].get("activations") or []} for r in runs]}, default=str))

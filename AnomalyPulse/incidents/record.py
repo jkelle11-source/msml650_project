@@ -12,12 +12,17 @@ import json
 from datetime import datetime
 from decimal import Decimal
 
+from genai import self_check
 from genai.contract import SERVICES
 from incidents.builder import incident_id
 
 PK = "INCIDENT"
 MAX_CALLS = 5
 MAX_ERROR_CHARS = 500
+# A stored diagnosis whose self-check found one of these is asked for again, once per incident type:
+# anything it says that the input doesn't support, and causal or ordering wording. Not a severity
+# disagreement (the rubric's severity is reported anyway), a quoted threshold, or a shape problem.
+RETRY_KINDS = ("number", "time", "service", "metric", "citation", "wording")
 
 
 def _t(text):
@@ -51,8 +56,10 @@ def open_record(state, prediction, services, model, experiment_id=None):
             "model": {"estimator": model["estimator"], "job": model["job"]},
         },
         "diagnosis": None,
+        "diagnosis_input": None,
         "diagnosis_for_type": None,
         "bedrock_calls": 0,
+        "retried_for": [],
         "diagnosis_error": None,
         "evidence_metrics": None,
         "self_check": None,
@@ -87,9 +94,9 @@ def close(record, ended_at):
     return new
 
 
-def with_diagnosis(record, call_type, reply, stored_at):
+def with_diagnosis(record, call_type, reply, stored_at, diagnosis_input):
     """Store the explain Lambda's reply. call_type: the incident type the call was made for;
-    stored_at: now.
+    stored_at: now; diagnosis_input: the input the call sent, kept with the diagnosis it produced.
 
     `latency` keeps the FIRST diagnosis's numbers, so its stretches belong to one minute: the
     incident's first counted minute's end to its diagnosis (detected_at), then detected_at to the
@@ -97,6 +104,7 @@ def with_diagnosis(record, call_type, reply, stored_at):
     numbers are in its log line (core.metric_line)."""
     new = copy.deepcopy(record)
     new["diagnosis"] = reply["diagnosis"]
+    new["diagnosis_input"] = diagnosis_input
     new["diagnosis_for_type"] = call_type
     new["bedrock_calls"] = record["bedrock_calls"] + 1
     new["diagnosis_error"] = None
@@ -120,13 +128,58 @@ def with_error(record, call_type, error):
     return new
 
 
+def with_retry(record, call_type, reply, stored_at, diagnosis_input):
+    """A retry's reply (call_reason "retry"). Its diagnosis replaces the flagged one only if its
+    self-check is clean; otherwise the flagged one stays, for M8-4 to show as it decides, and only the
+    call is counted. Either way the type's one retry is used."""
+    if clean(reply.get("self_check")):
+        return retried(with_diagnosis(record, call_type, reply, stored_at, diagnosis_input), call_type)
+    new = copy.deepcopy(record)
+    new["bedrock_calls"] = record["bedrock_calls"] + 1
+    return retried(new, call_type)
+
+
+def retried(record, call_type):
+    """The record with call_type's one retry used (also when the retry's call failed)."""
+    new = copy.deepcopy(record)
+    new["retried_for"] = list(record.get("retried_for") or []) + [call_type]
+    return new
+
+
+def finding_kinds(check):
+    """The kinds (genai.self_check.kind) of a self-check result's findings."""
+    return {self_check.kind(finding) for finding in ((check or {}).get("findings") or [])}
+
+
+def clean(check):
+    """True when a self-check found nothing, or only that Bedrock's own severity wasn't the rubric's:
+    the diagnosis reports the rubric's, so that finding changes nothing shown."""
+    return finding_kinds(check) <= {"severity"}
+
+
+def call_reason(record, state):
+    """Why to call Bedrock on this counted minute of an open incident, or None. Never once MAX_CALLS
+    calls have been made.
+
+    "type": the stored diagnosis isn't for the incident's current type. That is when the incident
+    opens (no diagnosis yet), when its type changes, and on the next counted minute after a failed
+    call, so one failure doesn't leave the console on "Severity pending" for the rest of the incident.
+    "retry": it is, but its self-check found one of RETRY_KINDS (a number, time, service, claim or
+    citation the input doesn't support, or causal or ordering wording), and the type
+    hasn't had its one retry; so retries can't use up the calls a later type change needs."""
+    if record["bedrock_calls"] >= MAX_CALLS:
+        return None
+    if record["diagnosis_for_type"] != state["incident_type"]:
+        return "type"
+    if (state["incident_type"] not in (record.get("retried_for") or [])
+            and finding_kinds(record.get("self_check")) & set(RETRY_KINDS)):
+        return "retry"
+    return None
+
+
 def wants_bedrock(record, state):
-    """True when the stored diagnosis isn't for the incident's current type and the cap isn't
-    reached. That is when the incident opens (no diagnosis yet), when its type changes, and on the
-    next counted minute after a failed call, so one failure doesn't leave the console on
-    "Severity pending" for the rest of the incident. Called only on counted minutes of an open
-    incident."""
-    return record["bedrock_calls"] < MAX_CALLS and record["diagnosis_for_type"] != state["incident_type"]
+    """True when call_reason gives a reason. Called only on counted minutes of an open incident."""
+    return call_reason(record, state) is not None
 
 
 def to_incident(record):

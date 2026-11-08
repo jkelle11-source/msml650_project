@@ -17,6 +17,16 @@ REPLY = {"diagnosis": {"severity": "HIGH", "summary": "s", "root_cause": "r", "e
          "evidence_metrics": [], "self_check": {"passed": True}, "runbook": ["x"], "latency_ms": 8200}
 
 
+NUMBER = "summary: the number 4.8 is not in or derivable from the input"
+WORDING = "evidence[0]: orders symptoms without saying 'observed sequence': 'Order failed after Payment slowed.'"
+SEVERITY = "severity: MEDIUM, but the rubric gives HIGH"
+
+
+def flagged(*findings, summary="s"):
+    return {**REPLY, "diagnosis": {**REPLY["diagnosis"], "summary": summary},
+            "self_check": {"passed": not findings, "findings": list(findings)}}
+
+
 def ws(m):
     return f"2026-11-06T14:{m:02d}:00.000Z"
 
@@ -414,3 +424,100 @@ def test_a_counted_minute_where_nothing_crosses_keeps_the_affected_services():
     opened(deps)
     feed(deps, 3, "DEPENDENCY_FAILURE", window(ws(3)))
     assert deps.records[ws(2)]["prediction"]["affected_services"] == ["order-service", "payment-service"]
+
+
+def test_the_input_sent_is_stored_with_its_diagnosis():
+    deps = FakeDeps()
+    opened(deps)
+    rec = deps.records[ws(2)]
+    assert rec["diagnosis_input"] == deps.explain_calls[0] and rec["diagnosis_input"]["window_start"] == ws(2)
+    assert rec["retried_for"] == []
+
+
+def test_a_diagnosis_flagged_for_a_wrong_number_is_asked_for_again_on_the_next_counted_minute():
+    deps = FakeDeps()
+    deps.reply = flagged(NUMBER, summary="first")
+    opened(deps)
+    deps.reply = flagged(summary="second")
+    feed(deps, 3, "DEPENDENCY_FAILURE", failing(3))
+    rec = deps.records[ws(2)]
+    assert len(deps.explain_calls) == 2 and rec["bedrock_calls"] == 2
+    assert rec["diagnosis"]["summary"] == "second" and rec["self_check"]["passed"] is True
+    assert rec["diagnosis_input"] == deps.explain_calls[1] and rec["diagnosis_input"]["window_start"] == ws(3)
+    assert rec["retried_for"] == ["DEPENDENCY_FAILURE"]
+    assert rec["latency"]["diagnosis_to_stored_s"] == 12.75          # still the first diagnosis's
+    retry = [line for line in deps.lines if line["event"] == "incident_retry"]
+    assert retry == [{"event": "incident_retry", "incident_id": rec["incident_id"], "for_type": "DEPENDENCY_FAILURE",
+                      "flagged": ["number"], "kept": True, "found": []}]
+    assert sum(line["event"] == "incident_diagnosis" for line in deps.lines) == 2   # both were stored
+    feed(deps, 4, "DEPENDENCY_FAILURE", failing(4))
+    assert len(deps.explain_calls) == 2                                  # once per type
+
+
+def test_a_retry_flagged_too_keeps_the_first_diagnosis_and_its_input():
+    deps = FakeDeps()
+    deps.reply = flagged(NUMBER, summary="first")
+    opened(deps)
+    deps.reply = flagged(WORDING, summary="second")
+    feed(deps, 3, "DEPENDENCY_FAILURE", failing(3))
+    rec = deps.records[ws(2)]
+    assert rec["diagnosis"]["summary"] == "first" and rec["diagnosis_input"] == deps.explain_calls[0]
+    assert rec["bedrock_calls"] == 2 and rec["retried_for"] == ["DEPENDENCY_FAILURE"]
+    assert [line.get("kept") for line in deps.lines if line["event"] == "incident_retry"] == [False]
+    assert deps.lines[-1]["found"] == ["wording"]
+    assert sum(line["event"] == "incident_diagnosis" for line in deps.lines) == 1   # nothing new stored
+    feed(deps, 4, "DEPENDENCY_FAILURE", failing(4))
+    assert len(deps.explain_calls) == 2
+
+
+def test_a_failed_retry_keeps_the_flagged_diagnosis_and_uses_the_retry():
+    deps = FakeDeps()
+    deps.reply = flagged(WORDING)
+    opened(deps)
+    deps.fail = core.ExplainError("ThrottlingException", "slow down")
+    feed(deps, 3, "DEPENDENCY_FAILURE", failing(3))
+    rec = deps.records[ws(2)]
+    assert rec["diagnosis"] is not None and rec["diagnosis_error"]["type"] == "ThrottlingException"
+    assert rec["retried_for"] == ["DEPENDENCY_FAILURE"] and rec["diagnosis_input"] == deps.explain_calls[0]
+    assert deps.lines[-1] == {"event": "incident_retry", "incident_id": rec["incident_id"],
+                              "for_type": "DEPENDENCY_FAILURE", "flagged": ["wording"], "kept": False,
+                              "error": "ThrottlingException"}
+    deps.fail = None
+    feed(deps, 4, "DEPENDENCY_FAILURE", failing(4))
+    assert len(deps.explain_calls) == 2
+
+
+def test_a_diagnosis_flagged_only_for_bedrocks_own_severity_is_not_asked_for_again():
+    deps = FakeDeps()
+    deps.reply = flagged(SEVERITY)
+    opened(deps)
+    feed(deps, 3, "DEPENDENCY_FAILURE", failing(3))
+    assert len(deps.explain_calls) == 1 and not any(line["event"] == "incident_retry" for line in deps.lines)
+
+
+def test_a_type_change_on_the_retrys_minute_is_called_for_the_new_type_which_has_its_own_retry():
+    deps = FakeDeps()
+    deps.reply = flagged(NUMBER)
+    feed(deps, 0)
+    feed(deps, 1, "TRAFFIC_SPIKE", failing(1))
+    feed(deps, 2, "CASCADING_FAILURE", failing(2))                       # type change, not a retry
+    rec = deps.records[ws(1)]
+    assert rec["bedrock_calls"] == 2 and rec["diagnosis_for_type"] == "CASCADING_FAILURE" and rec["retried_for"] == []
+    feed(deps, 3, "CASCADING_FAILURE", failing(3))                       # the cascade's retry
+    feed(deps, 4, "CASCADING_FAILURE", failing(4))
+    rec = deps.records[ws(1)]
+    assert len(deps.explain_calls) == 3 and rec["retried_for"] == ["CASCADING_FAILURE"]
+
+
+def test_a_retry_counts_toward_the_cap(monkeypatch):
+    monkeypatch.setattr(record, "MAX_CALLS", 2)
+    deps = FakeDeps()
+    deps.reply = flagged(NUMBER)
+    feed(deps, 0)
+    feed(deps, 1, "TRAFFIC_SPIKE", failing(1))
+    feed(deps, 2, "TRAFFIC_SPIKE", failing(2))                           # the retry
+    feed(deps, 3, "CASCADING_FAILURE", failing(3))
+    assert feed(deps, 4, "CASCADING_FAILURE", failing(4))["changes"] == ["type_changed"]   # capped: no call
+    rec = deps.records[ws(1)]
+    assert len(deps.explain_calls) == 2 and rec["diagnosis_for_type"] == "TRAFFIC_SPIKE"
+    assert rec["prediction"]["incident_type"] == "CASCADING_FAILURE"

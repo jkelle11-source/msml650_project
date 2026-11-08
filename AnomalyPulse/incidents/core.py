@@ -87,9 +87,22 @@ def metric_line(prediction, rec, stored, reply):
             "Function": FUNCTION, "event": "incident_diagnosis", "incident_id": rec["incident_id"], **values}
 
 
-def _explain(rec, state, baseline, window, prediction, deps):
+def retry_line(rec, call_type, before, reply, error):
+    """One log line per retry: the flagged diagnosis's finding kinds, and the retry's (or its error),
+    and whether its diagnosis replaced the flagged one. M9-5 can count how often a retry helps."""
+    line = {"event": "incident_retry", "incident_id": rec["incident_id"], "for_type": call_type,
+            "flagged": sorted(before)}
+    if error:
+        return {**line, "kept": False, "error": error["type"]}
+    return {**line, "kept": record.clean(reply.get("self_check")),
+            "found": sorted(record.finding_kinds(reply.get("self_check")))}
+
+
+def _explain(rec, state, baseline, window, prediction, deps, reason="type"):
+    """Call Bedrock for the incident's current type and store what comes back. reason: record.call_reason's."""
     call_type = state["incident_type"]
-    error = None
+    before = record.finding_kinds(rec.get("self_check"))
+    error = reply = None
     try:
         evidence = builder.build_input(state, baseline, window)
         contract.validate_input(evidence)
@@ -103,12 +116,19 @@ def _explain(rec, state, baseline, window, prediction, deps):
     stored = None
     if error:
         rec = record.with_error(rec, call_type, error)
+        if reason == "retry":
+            rec = record.retried(rec, call_type)
+    elif reason == "retry":
+        stored = deps.now() if record.clean(reply.get("self_check")) else None
+        rec = record.with_retry(rec, call_type, reply, stored and _iso(stored), evidence)
     else:
         stored = deps.now()
-        rec = record.with_diagnosis(rec, call_type, reply, _iso(stored))
+        rec = record.with_diagnosis(rec, call_type, reply, _iso(stored), evidence)
     deps.put_record(rec)
     if stored is not None:
         deps.emit(metric_line(prediction, rec, stored, reply))
+    if reason == "retry":
+        deps.emit(retry_line(rec, call_type, before, reply, error))
     return rec
 
 
@@ -149,9 +169,11 @@ def process(event, deps):
             rec = record.refresh(rec, new, affected.crossing(baseline, window))
             deps.put_record(rec)
 
-    # On open, on a type change, and on the next counted minute after a failed call (record.wants_bedrock).
-    if rec is not None and record.wants_bedrock(rec, new):
-        _explain(rec, new, baseline, window, prediction, deps)
+    # On open, on a type change, and on the next counted minute after a failed call; and once per type
+    # after a diagnosis flagged for something the input doesn't support or its wording (record.call_reason).
+    reason = record.call_reason(rec, new) if rec is not None else None
+    if reason:
+        _explain(rec, new, baseline, window, prediction, deps, reason)
 
     recent = list(state["recent_normal"])
     if prediction.get("label") == "NORMAL" and not prediction.get("anomalous") and new["status"] != "OPEN":
