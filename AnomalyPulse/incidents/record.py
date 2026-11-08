@@ -16,7 +16,6 @@ from incidents.builder import incident_id
 
 PK = "INCIDENT"
 MAX_CALLS = 5
-CALL_ON = ("opened", "type_changed")
 MAX_ERROR_CHARS = 500
 
 
@@ -83,9 +82,14 @@ def close(record, ended_at):
     return new
 
 
-def with_diagnosis(record, call_type, reply, diagnosed_at, stored_at):
-    """Store the explain Lambda's reply. call_type: the incident type the call was made for.
-    diagnosed_at: when the minute that triggered the call was diagnosed; stored_at: now."""
+def with_diagnosis(record, call_type, reply, stored_at):
+    """Store the explain Lambda's reply. call_type: the incident type the call was made for;
+    stored_at: now.
+
+    `latency` keeps the FIRST diagnosis's numbers, so its stretches belong to one minute: the
+    incident's first counted minute's end to its diagnosis (detected_at), then detected_at to the
+    first diagnosis stored, which includes a retry after a failed first call. Each call's own
+    numbers are in its log line (core.metric_line)."""
     new = copy.deepcopy(record)
     new["diagnosis"] = reply["diagnosis"]
     new["diagnosis_for_type"] = call_type
@@ -94,8 +98,10 @@ def with_diagnosis(record, call_type, reply, diagnosed_at, stored_at):
     new["evidence_metrics"] = reply.get("evidence_metrics")
     new["self_check"] = reply.get("self_check")
     new["runbook"] = reply.get("runbook")
-    new["latency"]["bedrock_ms"] = reply.get("latency_ms")
-    new["latency"]["diagnosis_to_stored_s"] = round((_t(stored_at) - _t(diagnosed_at)).total_seconds(), 3)
+    if record["latency"]["diagnosis_to_stored_s"] is None:
+        detected = record["prediction"]["detected_at"]
+        new["latency"]["bedrock_ms"] = reply.get("latency_ms")
+        new["latency"]["diagnosis_to_stored_s"] = round((_t(stored_at) - _t(detected)).total_seconds(), 3)
     return new
 
 
@@ -109,9 +115,13 @@ def with_error(record, call_type, error):
     return new
 
 
-def wants_bedrock(changes, calls):
-    """True when this step's changes call for a diagnosis and the cap isn't reached."""
-    return calls < MAX_CALLS and any(c in CALL_ON for c in changes)
+def wants_bedrock(record, state):
+    """True when the stored diagnosis isn't for the incident's current type and the cap isn't
+    reached. That is when the incident opens (no diagnosis yet), when its type changes, and on the
+    next counted minute after a failed call, so one failure doesn't leave the console on
+    "Severity pending" for the rest of the incident. Called only on counted minutes of an open
+    incident."""
+    return record["bedrock_calls"] < MAX_CALLS and record["diagnosis_for_type"] != state["incident_type"]
 
 
 def to_incident(record):

@@ -155,3 +155,47 @@ def test_a_type_the_contract_does_not_know_is_refused_by_the_contract_not_by_a_c
     result = builder.build_input(state("NORMAL"), BASE, DEPENDENCY_WINDOW)
     with pytest.raises(contract.BadInput):
         contract.validate_input(result)
+
+# ---- Added in review (PR #98) -------------------------------------------------------------------
+
+@pytest.mark.parametrize("metric, base, current, moved", [
+    ("throttled_requests", 0.0, 1.0, True),       # a count above zero, baseline or not
+    ("throttled_requests", 0.0, 0.0, False),
+    ("dependency_error_count", None, 2.0, True),
+    ("error_rate_5xx", None, 0.01, True),         # the 5xx line is 0.01, inclusive
+    ("error_rate_5xx", 0.0, 0.0099, False),
+    ("request_rate", 10.0, 17.5, True),           # 1.75x for request rate
+    ("request_rate", 10.0, 17.4, False),
+    ("p95_latency_ms", 10.0, 20.0, True),         # 2x for p95
+    ("p95_latency_ms", 10.0, 19.9, False),
+    ("lambda_duration_ms_mean", 10.0, 20.0, True),  # and for any other latency or duration
+    ("p95_latency_ms", 0.0, 50.0, False),         # a baseline of 0 or None moves nothing (no division)
+    ("p95_latency_ms", None, 50.0, False),
+])
+def test_what_counts_as_moved(metric, base, current, moved):
+    assert builder._moved(metric, base, current) is moved
+
+
+def test_a_count_of_zero_outside_the_standard_set_and_the_types_signals_is_not_sent():
+    base = {**BASE, "order_dependency_error_count": 0.0, "order_lambda_throttle_count": 0.0}
+    win = {**DEPENDENCY_WINDOW, "order_dependency_error_count": 0.0, "order_lambda_throttle_count": 0.0}
+    result = builder.build_input(state("TRAFFIC_SPIKE"), base, win)
+    assert ("order-service", "dependency_error_count") not in refs(result)
+    assert ("order-service", "lambda_throttle_count") not in refs(result)
+
+
+def test_a_moved_metric_comes_before_context_with_a_better_rank():
+    base = {**BASE, "order_lambda_duration_ms_mean": 10.0}
+    win = window(order_error_rate_5xx=0.2, order_request_rate=3.0, order_p95_latency_ms=100.0,
+                 order_lambda_duration_ms_mean=30.0)
+    result = builder.build_input(state("TRAFFIC_SPIKE"), base, win)
+    assert refs(result) == [("order-service", "error_rate_5xx"), ("order-service", "lambda_duration_ms_mean"),
+                            ("order-service", "p95_latency_ms"), ("order-service", "request_rate")]
+
+
+def test_the_types_own_signals_rank_with_the_moved_metrics_before_context():
+    base = {**BASE, "order_dependency_latency_ms_mean": 5.0}
+    win = {**DEPENDENCY_WINDOW, "order_dependency_latency_ms_mean": 5.0}
+    result = builder.build_input(state(), base, win)
+    order = refs(result)
+    assert order.index(("order-service", "dependency_latency_ms_mean")) < order.index(("order-service", "request_rate"))

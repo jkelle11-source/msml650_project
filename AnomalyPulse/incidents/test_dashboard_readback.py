@@ -38,8 +38,7 @@ MANIFEST = {"experiment_id": "exp-1", "status": "RUNNING", "incident_type": "DEP
 def stored(with_diagnosis=True):
     rec = record.open_record(STATE, PREDICTION, ["order-service", "payment-service"], MODEL)
     if with_diagnosis:
-        rec = record.with_diagnosis(rec, "DEPENDENCY_FAILURE", {"diagnosis": DIAGNOSIS}, DETECTED,
-                                    "2026-10-30T14:33:16.000Z")
+        rec = record.with_diagnosis(rec, "DEPENDENCY_FAILURE", {"diagnosis": DIAGNOSIS}, "2026-10-30T14:33:16.000Z")
     return rec
 
 

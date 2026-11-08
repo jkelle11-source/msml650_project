@@ -42,8 +42,11 @@ def failing(m):
     return window(ws(m), order_p95=2950.0, order_errors=0.167, payment_p95=2900.0, payment_errors=0.5)
 
 
-def event(m, typ=None, win=None, request=True, as_string=False):
-    prediction = {"window_start": ws(m), "anomalous": bool(typ), "label": typ or "NORMAL",
+def event(m, typ=None, win=None, request=True, as_string=False, flagged=None):
+    """flagged: the detector's verdict when it differs from the classifier's (default: flagged
+    exactly when typ is set)."""
+    anomalous = bool(typ) if flagged is None else flagged
+    prediction = {"window_start": ws(m), "anomalous": anomalous, "label": typ or "NORMAL",
                   "incident_type": typ, "confidence": 0.9 if typ else None,
                   "latency": {"window_end": ws(m + 1), "announced_at": diagnosed(m), "diagnosed_at": diagnosed(m),
                               "since_window_end_s": 167.25, "since_announced_s": 1.25}}
@@ -58,6 +61,7 @@ class FakeDeps:
     def __init__(self):
         self.state, self.records, self.windows, self.lock = None, {}, {}, None
         self.fail, self.explain_calls, self.lines, self.ops = None, [], [], []
+        self.reply = REPLY
         self.t = datetime(2026, 11, 6, 14, 5, 0, tzinfo=timezone.utc)
 
     def now(self):
@@ -89,7 +93,7 @@ class FakeDeps:
         self.explain_calls.append(evidence)
         if self.fail:
             raise self.fail
-        return REPLY
+        return self.reply
 
     def emit(self, line):
         self.lines.append(line)
@@ -301,6 +305,103 @@ def test_a_window_that_is_not_the_predictions_is_refused():
     with pytest.raises(ValueError):
         feed(deps, 1, win=window(ws(5)))
 
+
 def test_the_summary_says_the_window_came_from_the_event():
     deps = FakeDeps()
     assert feed(deps, 0)["window_from"] == "event"
+
+
+# ---- Added in review (PR #98) -------------------------------------------------------------------
+
+def test_a_failed_first_call_is_retried_on_the_next_counted_minute():
+    deps = FakeDeps()
+    deps.fail = core.ExplainError("ThrottlingException", "slow down")
+    opened(deps)
+    deps.fail = None
+    feed(deps, 3, "DEPENDENCY_FAILURE", failing(3))
+    rec = deps.records[ws(2)]
+    assert len(deps.explain_calls) == 2 and rec["bedrock_calls"] == 2
+    assert rec["diagnosis"] == REPLY["diagnosis"] and rec["diagnosis_error"] is None
+    assert rec["diagnosis_for_type"] == "DEPENDENCY_FAILURE"
+    # The record's latency runs from detected_at (minute 2's diagnosis, 14:05:47.25) to the stored
+    # retry (now() at minute 3's step: 14:06:48, then 14:07:00).
+    assert rec["latency"]["diagnosis_to_stored_s"] == 72.75
+    # The log line is the retry's own: from minute 3's diagnosis (14:06:47.25).
+    assert deps.lines[-1]["DiagnosisToStoredSeconds"] == 12.75
+
+
+def test_no_retry_once_a_diagnosis_for_the_current_type_is_stored():
+    deps = FakeDeps()
+    opened(deps)
+    for m in (3, 4, 5):
+        feed(deps, m, "DEPENDENCY_FAILURE", failing(m))
+    assert len(deps.explain_calls) == 1
+
+
+def test_a_failing_explanation_stops_at_the_cap():
+    deps = FakeDeps()
+    deps.fail = core.ExplainError("DiagnosisFailed", "refused")
+    opened(deps)
+    for m in range(3, 10):
+        feed(deps, m, "DEPENDENCY_FAILURE", failing(m))
+    assert len(deps.explain_calls) == record.MAX_CALLS
+    assert deps.records[ws(2)]["bedrock_calls"] == record.MAX_CALLS
+
+
+def test_a_failed_call_after_a_type_change_is_retried_for_the_new_type():
+    deps = FakeDeps()
+    feed(deps, 0)
+    feed(deps, 1, "TRAFFIC_SPIKE", failing(1))
+    deps.fail = core.ExplainError("Timeout", "t")
+    feed(deps, 2, "CASCADING_FAILURE", failing(2))
+    assert deps.records[ws(1)]["diagnosis_for_type"] == "TRAFFIC_SPIKE"
+    deps.fail = None
+    feed(deps, 3, "CASCADING_FAILURE", failing(3))
+    rec = deps.records[ws(1)]
+    assert len(deps.explain_calls) == 3 and rec["diagnosis_for_type"] == "CASCADING_FAILURE"
+
+
+def test_a_minute_the_detector_flagged_never_enters_the_baseline():
+    deps = FakeDeps()
+    feed(deps, 0, win=window(ws(0), order_p95=100.0))
+    feed(deps, 1, win=window(ws(1), order_p95=900.0), flagged=True)    # NORMAL, but flagged
+    feed(deps, 2, win=window(ws(2), order_p95=120.0))
+    assert [w["window_start"] for w in deps.state["recent_normal"]] == [ws(0), ws(2)]
+    feed(deps, 3, "DEPENDENCY_FAILURE", failing(3))
+    assert deps.state["baseline"]["order_p95_latency_ms"] == 110.0
+
+
+def test_quiet_minutes_of_an_open_incident_neither_enter_the_baseline_nor_rewrite_the_record():
+    deps = FakeDeps()
+    opened(deps)
+    before = len(deps.ops)
+    feed(deps, 3)
+    assert [w["window_start"] for w in deps.state["recent_normal"]] == [ws(0), ws(1)]
+    assert deps.ops[before:] == [("put_state",)]
+
+
+def test_the_baseline_is_the_mean_of_the_last_five_normal_windows():
+    deps = FakeDeps()
+    for m, p95 in enumerate((1000.0, 100.0, 110.0, 120.0, 130.0, 140.0)):
+        feed(deps, m, win=window(ws(m), order_p95=p95))
+    feed(deps, 6, "DEPENDENCY_FAILURE", failing(6))
+    assert deps.state["baseline"]["order_p95_latency_ms"] == 120.0
+
+
+def test_a_counted_minute_refreshes_the_affected_services():
+    deps = FakeDeps()
+    opened(deps)
+    assert deps.records[ws(2)]["prediction"]["affected_services"] == ["order-service", "payment-service"]
+    spread = {**failing(3), "product_error_rate_5xx": 0.3}
+    feed(deps, 3, "DEPENDENCY_FAILURE", spread)
+    assert deps.records[ws(2)]["prediction"]["affected_services"] == [
+        "product-service", "order-service", "payment-service"]
+
+def test_each_calls_log_line_has_its_own_numbers_and_the_record_keeps_the_first():
+    deps = FakeDeps()
+    feed(deps, 0)
+    feed(deps, 1, "TRAFFIC_SPIKE", failing(1))
+    deps.reply = {**REPLY, "latency_ms": 31000}
+    feed(deps, 2, "CASCADING_FAILURE", failing(2))
+    assert [line["BedrockMs"] for line in deps.lines] == [8200, 31000]
+    assert deps.records[ws(1)]["latency"]["bedrock_ms"] == 8200

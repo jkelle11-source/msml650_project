@@ -45,8 +45,12 @@ def _iso(moment):
     return moment.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
+def _parse(text):
+    return datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
 def _after_a_minute(text):
-    return _iso(datetime.fromisoformat(text.replace("Z", "+00:00")) + timedelta(minutes=1))
+    return _iso(_parse(text) + timedelta(minutes=1))
 
 
 def _window(detail, payload, deps):
@@ -67,13 +71,15 @@ def _experiment(deps, now):
     return None
 
 
-def metric_line(prediction, rec, stored):
-    """One embedded-metric-format log line for a stored diagnosis (round-trip latency)."""
-    since_end = (prediction.get("latency") or {}).get("since_window_end_s")
-    to_stored = rec["latency"]["diagnosis_to_stored_s"]
+def metric_line(prediction, rec, stored, reply):
+    """One embedded-metric-format log line for a stored diagnosis: this call's own round trip, from
+    the minute that triggered it (the record keeps only the first diagnosis's)."""
+    lag = prediction.get("latency") or {}
+    since_end = lag.get("since_window_end_s")
+    to_stored = round((stored - _parse(lag["diagnosed_at"])).total_seconds(), 3)
     values = {"SinceWindowEndSeconds": since_end, "DiagnosisToStoredSeconds": to_stored,
               "RoundTripSeconds": None if since_end is None else round(since_end + to_stored, 3),
-              "BedrockMs": rec["latency"]["bedrock_ms"]}
+              "BedrockMs": reply.get("latency_ms")}
     values = {name: value for name, value in values.items() if value is not None}
     return {"_aws": {"Timestamp": int(stored.timestamp() * 1000),
                      "CloudWatchMetrics": [{"Namespace": NAMESPACE, "Dimensions": [["Function"]],
@@ -99,11 +105,10 @@ def _explain(rec, state, baseline, window, prediction, deps):
         rec = record.with_error(rec, call_type, error)
     else:
         stored = deps.now()
-        diagnosed_at = (prediction.get("latency") or {}).get("diagnosed_at")
-        rec = record.with_diagnosis(rec, call_type, reply, diagnosed_at, _iso(stored))
+        rec = record.with_diagnosis(rec, call_type, reply, _iso(stored))
     deps.put_record(rec)
     if stored is not None:
-        deps.emit(metric_line(prediction, rec, stored))
+        deps.emit(metric_line(prediction, rec, stored, reply))
     return rec
 
 
@@ -120,7 +125,7 @@ def process(event, deps):
     state = deps.get_state() or {"incident": None, "recent_normal": [], "baseline": {}}
     prev = state["incident"]
     if prev and prediction["window_start"] <= prev["last_window"]:
-            return {"action": "ignored", "changes": [], "window_from": window_from}
+        return {"action": "ignored", "changes": [], "window_from": window_from}
     new, changes = incident.step(prev, prediction)
     now = deps.now()
 
@@ -144,7 +149,8 @@ def process(event, deps):
             rec = record.refresh(rec, new, affected.affected_services(baseline, window))
             deps.put_record(rec)
 
-    if rec is not None and record.wants_bedrock(changes, rec["bedrock_calls"]):
+    # On open, on a type change, and on the next counted minute after a failed call (record.wants_bedrock).
+    if rec is not None and record.wants_bedrock(rec, new):
         _explain(rec, new, baseline, window, prediction, deps)
 
     recent = list(state["recent_normal"])

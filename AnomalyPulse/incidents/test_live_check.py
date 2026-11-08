@@ -20,7 +20,7 @@ NOW = datetime(2026, 11, 6, 14, 30, 0, tzinfo=timezone.utc)
 def good(experiment_id="exp-1"):
     rec = record.open_record(STATE, PREDICTION, ["order-service", "payment-service"],
                              {"estimator": "e", "job": "j"}, experiment_id)
-    rec = record.with_diagnosis(rec, "DEPENDENCY_FAILURE", REPLY, DIAGNOSED, "2026-11-06T14:05:59.750Z")
+    rec = record.with_diagnosis(rec, "DEPENDENCY_FAILURE", REPLY, "2026-11-06T14:05:59.750Z")
     return record.close(rec, "2026-11-06T14:08:00.000Z")
 
 

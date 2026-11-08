@@ -91,7 +91,7 @@ def test_close_sets_status_and_end():
 
 
 def test_a_diagnosis_is_stored_with_its_type_the_call_count_and_latency():
-    r = record.with_diagnosis(new(), "DEPENDENCY_FAILURE", REPLY, DIAGNOSED, "2026-10-30T14:35:59.750Z")
+    r = record.with_diagnosis(new(), "DEPENDENCY_FAILURE", REPLY, "2026-10-30T14:35:59.750Z")
     assert r["diagnosis"] == REPLY["diagnosis"] and r["diagnosis_for_type"] == "DEPENDENCY_FAILURE"
     assert r["bedrock_calls"] == 1 and r["diagnosis_error"] is None
     assert r["evidence_metrics"] == REPLY["evidence_metrics"] and r["runbook"] == ["step"]
@@ -100,7 +100,7 @@ def test_a_diagnosis_is_stored_with_its_type_the_call_count_and_latency():
 
 def test_a_diagnosis_that_failed_its_self_check_is_stored_flagged_not_dropped():
     reply = {**REPLY, "self_check": {"passed": False, "findings": ["x"]}}
-    r = record.with_diagnosis(new(), "DEPENDENCY_FAILURE", reply, DIAGNOSED, DIAGNOSED)
+    r = record.with_diagnosis(new(), "DEPENDENCY_FAILURE", reply, DIAGNOSED)
     assert r["diagnosis"] is not None and r["self_check"]["passed"] is False
 
 
@@ -112,7 +112,7 @@ def test_a_failed_call_is_counted_and_leaves_the_diagnosis_null():
 
 
 def test_a_failed_second_call_keeps_the_first_diagnosis():
-    first = record.with_diagnosis(new(), "TRAFFIC_SPIKE", REPLY, DIAGNOSED, DIAGNOSED)
+    first = record.with_diagnosis(new(), "TRAFFIC_SPIKE", REPLY, DIAGNOSED)
     second = record.with_error(first, "CASCADING_FAILURE", {"type": "Timeout", "message": "t"})
     assert second["diagnosis"] == REPLY["diagnosis"] and second["diagnosis_for_type"] == "TRAFFIC_SPIKE"
     assert second["bedrock_calls"] == 2 and second["diagnosis_error"]["for_type"] == "CASCADING_FAILURE"
@@ -120,21 +120,36 @@ def test_a_failed_second_call_keeps_the_first_diagnosis():
 
 def test_a_good_call_after_a_failed_one_clears_the_error():
     failed = record.with_error(new(), "TRAFFIC_SPIKE", {"type": "Timeout", "message": "t"})
-    good = record.with_diagnosis(failed, "TRAFFIC_SPIKE", REPLY, DIAGNOSED, DIAGNOSED)
+    good = record.with_diagnosis(failed, "TRAFFIC_SPIKE", REPLY, DIAGNOSED)
     assert good["diagnosis_error"] is None and good["bedrock_calls"] == 2
 
 
-def test_bedrock_is_called_on_open_and_type_change_up_to_the_cap():
-    assert record.wants_bedrock(["opened"], 0)
-    assert record.wants_bedrock(["type_changed"], 3)
-    assert record.wants_bedrock(["closed", "opened"], 0)
-    assert not record.wants_bedrock(["closed"], 1)
-    assert not record.wants_bedrock([], 1)
-    assert not record.wants_bedrock(["type_changed"], record.MAX_CALLS)
+def test_bedrock_is_called_when_the_stored_diagnosis_is_not_for_the_current_type_up_to_the_cap():
+    opened = new()
+    assert record.wants_bedrock(opened, STATE)                                   # no diagnosis yet
+    done = record.with_diagnosis(opened, "DEPENDENCY_FAILURE", REPLY, DIAGNOSED)
+    assert not record.wants_bedrock(done, STATE)                                 # same type: no call
+    assert record.wants_bedrock(done, {**STATE, "incident_type": "CASCADING_FAILURE"})   # type changed
+    failed = record.with_error(opened, "DEPENDENCY_FAILURE", {"type": "Timeout", "message": "t"})
+    assert record.wants_bedrock(failed, STATE)                                   # retry after a failure
+    capped = {**failed, "bedrock_calls": record.MAX_CALLS}
+    assert not record.wants_bedrock(capped, STATE)
+    assert record.wants_bedrock({**failed, "bedrock_calls": record.MAX_CALLS - 1}, STATE)
+
+
+def test_the_record_keeps_the_first_diagnosiss_latency_measured_from_detected_at():
+    failed = record.with_error(new(), "TRAFFIC_SPIKE", {"type": "Timeout", "message": "t"})
+    first = record.with_diagnosis(failed, "TRAFFIC_SPIKE", REPLY, "2026-10-30T14:37:00.250Z")
+    # detected_at 14:35:47.250 -> stored 14:37:00.250: the failed call's minute is counted in.
+    assert first["latency"]["diagnosis_to_stored_s"] == 73.0 and first["latency"]["bedrock_ms"] == 8200
+    second = record.with_diagnosis(first, "CASCADING_FAILURE", {**REPLY, "latency_ms": 31000},
+                                   "2026-10-30T14:40:00.000Z")
+    assert second["latency"] == first["latency"] and second["diagnosis_for_type"] == "CASCADING_FAILURE"
+    assert second["latency"]["window_end_to_diagnosis_s"] == 167.25
 
 
 def test_floats_become_decimals_and_come_back_equal():
-    r = record.with_diagnosis(new("exp-1"), "DEPENDENCY_FAILURE", REPLY, DIAGNOSED, "2026-10-30T14:35:59.750Z")
+    r = record.with_diagnosis(new("exp-1"), "DEPENDENCY_FAILURE", REPLY, "2026-10-30T14:35:59.750Z")
     stored = record.to_dynamodb(r)
     assert stored["prediction"]["confidence"] == Decimal("0.93")
     assert stored["latency"]["diagnosis_to_stored_s"] == Decimal("12.5")
@@ -142,6 +157,11 @@ def test_floats_become_decimals_and_come_back_equal():
 
 
 def test_the_dashboard_reads_the_incident_id_prediction_and_diagnosis():
-    r = record.with_diagnosis(new(), "DEPENDENCY_FAILURE", REPLY, DIAGNOSED, DIAGNOSED)
+    r = record.with_diagnosis(new(), "DEPENDENCY_FAILURE", REPLY, DIAGNOSED)
     assert set(record.to_incident(r)) == {"incident_id", "prediction", "diagnosis"}
     assert record.to_incident(r)["diagnosis"] == REPLY["diagnosis"]
+
+def test_whole_numbers_come_back_from_dynamodb_as_ints():
+    back = record.from_dynamodb({"calls": Decimal("2"), "share": Decimal("0.5"), "list": [Decimal("3")]})
+    assert back == {"calls": 2, "share": 0.5, "list": [3]}
+    assert type(back["calls"]) is int and type(back["list"][0]) is int and type(back["share"]) is float
