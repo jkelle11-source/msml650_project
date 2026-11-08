@@ -291,24 +291,34 @@ them, while Sonnet's answers to the final prompt pass (that folder's README says
 only for Claude 4.7 and later, so `requirements.txt` pins the 1.x release tested (1.17.0). Moving to a
 4.7-or-later model, once its quota is raised, is also the time to move to SDK 2.x.
 
-## Open questions (for M8-3, #30)
+## Decided in M8-3 (2026-11-07)
 
-Each has a proposal; M8-3 agrees or changes it (M8-3's Definition of Done, carried from M6-1's).
+The three open questions, answered in `incidents/` (Docs/INCIDENT_STORE.md).
 
-1. **Baseline.** Proposal: the mean of the windows before `started_at` that were classified `NORMAL`, up
-   to the last 5 (`genai.affected.baseline()`), held fixed for the whole incident. A cascade's later minutes
-   then still compare against the pre-cascade state, which is what an engineer wants to see. A metric with
-   nothing to average gets `baseline: null`. (`affected_services` was calibrated with this mean, over the
-   one or two quiet minutes v1's runs have before their fault.)
-2. **Which metrics to send** (about 5–10). Proposal: for each affected service, `request_rate`,
-   `p95_latency_ms` and `error_rate_5xx`, so Bedrock can also say what didn't move; any other metric of
-   that service past the line `affected_services` uses (2x its baseline, 1.75x for request rate, or a count
-   above zero); and the incident type's own signals (throttle counts, `db_latency_ms_p95` and consumed
-   read capacity for database throttling; `lambda_duration_ms_mean` for Lambda degradation; Order's three
-   `dependency_*` for dependency failures). Bedrock can cite only what it is sent.
-3. **When to call.** Proposal: once when the incident is first classified, and again each time its
-   `incident_type` changes (a cascade is first classified as its first fault's type, then as
-   `CASCADING_FAILURE` once that has as many of the incident's minutes). On validation that is 125 calls
-   for 112 incidents, but one live cascade changed type 3 times (`TRAFFIC_SPIKE`, `CASCADING_FAILURE`,
-   `DATABASE_THROTTLING`, then `CASCADING_FAILURE`), 4 calls for one incident. Not every minute: a call costs about 3¢ and takes 6–32 s,
-   and the console shows "Severity pending" until the reply is stored.
+1. **Baseline.** The mean of the incident's run's last 5 windows before `started_at` that the
+   models called healthy: the classifier said `NORMAL` **and** the detector didn't flag the minute
+   (`label` is `NORMAL` and `anomalous` is false). The detector alone keeps flagging for about 3
+   minutes after a fault and flags the first minute after idle time (`LIVE_DIAGNOSIS.md`), so a
+   minute it flags is not a clean baseline even if the classifier calls it `NORMAL`. The
+   incident store keeps those windows as it sees each diagnosed minute, adds none while an
+   incident is open, computes the baseline (`genai.affected.baseline()`) the moment an incident
+   opens, and holds it fixed for the whole incident, so a cascade's later minutes still compare
+   against the state before it. A metric with nothing to average has `baseline: null`.
+2. **Which metrics.** The proposal, at most 10, in a fixed order. For each affected service,
+   a metric is sent when it moved (the lines `affected.py` uses: 5xx share at least 0.01, p95
+   or any other latency or duration at least 2x its baseline, request rate at least 1.75x, any
+   throttle or dependency-error count above zero), or it is one of the incident type's own signals
+   (listed in `incidents/builder.py`), or it is one of the three standard metrics (`request_rate`,
+   `p95_latency_ms`, `error_rate_5xx`), which give Bedrock the context to say what did not move.
+   Moved and type-signal metrics come first, then the standard ones, so a cap of 10 drops
+   context before it drops evidence. Values are rounded to 4 decimals. A metric empty in the
+   latest window is left out. `observed_sequence` is not sent in this version, so Bedrock makes
+   no ordering claim.
+3. **When to call.** When an incident opens and each time its type changes, at most 5 calls per
+   incident (a cascade that changed type 3 times on the live run would make 4). Each stored
+   diagnosis records the type it was made for (`diagnosis_for_type`), so a console showing
+   a newer type can tell. A call that fails is counted and stored with its error, and an earlier
+   diagnosis is kept; a diagnosis that failed its self-check is stored, flagged.
+
+Still provisional: whether `prediction.affected_services` should be refreshed on each counted
+minute (the incident store does) or fixed when the incident opens.
