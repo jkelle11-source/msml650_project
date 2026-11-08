@@ -214,7 +214,10 @@ labels and features are stored in S3.
 
 One `c7g.large` in us-east-2 (Amazon Linux 2023, arm64), stack `anomalypulse-runner`
 (`infra/runner/template.yaml`). It runs every batch, training and test: a change of client partway
-through would track the train/test split. It has no inbound port; it is reached through Session Manager.
+through would track the train/test split. **It also sends every live run's traffic** (checks, smoke tests, the
+M10 demo), never a laptop: with laptop traffic, the Isolation Forest flagged about half of the healthy live
+minutes; with the runner's, 2.3%, as on `v1` ([`DETECTION.md`](DETECTION.md), "Where live traffic comes
+from"). It has no inbound port; it is reached through Session Manager.
 Its role can only assume `anomalypulse-simulator`, which trusts it by name (`infra/shared/template.yaml`).
 On the instance the simulator runs as `--profile sim`, as on a laptop, but the credentials come from the
 instance and renew themselves: no SSO session to expire mid-batch.
@@ -233,10 +236,29 @@ experiment lock refuses a second.
 | Set up, or move to another commit | `bash ~/msml650_project/AnomalyPulse/infra/runner/setup.sh <commit or branch>`. The first time: `git clone https://github.com/jkelle11-source/msml650_project.git ~/msml650_project` first. |
 | Run | `bash ~/msml650_project/AnomalyPulse/infra/runner/in-tmux.sh <session> <simulator arguments>`; logs in `~/logs/`. |
 | Stop between batches | `aws ec2 stop-instances --instance-ids <id> --profile dev` (`start-instances` to resume; the instance id stays, so the dataset's pin holds) |
-| After M9-1 | `aws cloudformation delete-stack --stack-name anomalypulse-runner --profile admin` |
+| After M10 | `aws cloudformation delete-stack --stack-name anomalypulse-runner --profile admin`. Not after M9-1: the live demo's traffic comes from it too |
 
 Run every batch from a commit, not from files you are editing: setup.sh checks out a commit detached, and
 each batch records it.
+
+**A live run from a laptop, through the runner.** `infra/runner/drive.sh` wraps the steps above in
+`ssm send-command`, so nothing needs a Session Manager session, and the laptop only sends commands:
+
+```bash
+cd AnomalyPulse/infra/runner
+bash drive.sh status                    # the instance, the experiment lock, any tmux session
+bash drive.sh start                     # about a minute, until it takes commands
+bash drive.sh setup main                # the commit or branch to run
+bash drive.sh run spike start-incident --type traffic-spike --intensity 0.7 --band 6 8 \
+    --duration 300 --baseline 360 --created-by "$USER"
+bash drive.sh log spike                 # the end of the run's log; it ends "<experiment_id> COMPLETED"
+bash drive.sh stop                      # refuses while a run is going
+```
+
+Live runs and batches share the runner, one at a time. A run from the CLI is not part of any dataset: the
+registry holds only the experiments a batch launched. The experiment lock refuses a second run while one is
+going, and a batch's setup checks out its own commit, so a live run's `setup` doesn't change what a batch runs.
+Stop the runner after each session.
 
 **Cost:** about $0.07 an hour for the instance, $0.005 an hour for its public IPv4 address while running,
 and about $1.30 a month for its 16 GB volume. 117 hours of training generation is about $9.

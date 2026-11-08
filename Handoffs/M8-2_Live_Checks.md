@@ -1,5 +1,9 @@
 # M8-2 Handoff — The Live Checks Left After PR #93
 
+> **Done (2026-11-07, PR #95):** all five runs passed, and #29 is closed. These runs sent their traffic from a
+> laptop. Live runs now send it from the runner host instead ([`Docs/DATASET.md`](../Docs/DATASET.md), "The runner
+> host"); [`Docs/LIVE_DIAGNOSIS.md`](../Docs/LIVE_DIAGNOSIS.md)'s Definition of Done section has the same runs that way.
+
 > **The one-sentence version:** M8-2 is merged and deployed, and one live traffic spike passed, so Definition of
 > Done items 1 and 3 are ticked. What's left is item 2: five live runs, one per injector plus a NORMAL run, about
 > 1½ hours, each checked with the script in [`M8-2_Live_Checks_Script.md`](M8-2_Live_Checks_Script.md).

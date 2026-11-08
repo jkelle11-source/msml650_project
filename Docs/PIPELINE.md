@@ -355,6 +355,7 @@ look-back still holds a fault.
   and both after-idle flags.
 - **M9:** recovery and startup minutes are not labeled windows, so test-set metrics built from M4's features
   never score them. A metric taken from live windows would.
-- **M10:** start the traffic at least 6 minutes before the healthy segment, and allow about 6 minutes after an
+- **M10:** send the traffic from the runner host, never a laptop ([`DETECTION.md`](DETECTION.md), "Where live
+  traffic comes from"). Start it at least 6 minutes before the healthy segment, and allow about 6 minutes after an
   injected fault ends before calling the system healthy again: the minutes above, plus the almost 3 minutes
   after a minute ends before its full window is ready.

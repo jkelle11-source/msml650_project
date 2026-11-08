@@ -57,7 +57,8 @@ training and validation ran from), because it adds the test set's queue generato
 the workload, the injectors or the batch's checks.
 
 With slots 1–700 done, other experiments can run again, one at a time, but never during a batch. The runner
-host stays stopped between batches and is terminated only after M9-1.
+host sends their traffic too, never a laptop, stays stopped between sessions, and is terminated only after M10
+([Docs/DATASET.md](Docs/DATASET.md), "The runner host").
 
 **Milestone 3 — Incident Simulator** (complete, merged to `main` and validated on the deployed
 stack, 2026-10-15). M3 built the tool that deliberately
@@ -90,9 +91,11 @@ a run's effect in landed telemetry, phase by phase.
 
 **Running an experiment** (details in the interface doc's "Running an experiment"):
 
-- **Run from `AnomalyPulse/` under `caffeinate -is`:**
-  `caffeinate -is python -m simulator start-incident …`. A sleeping laptop stops the
-  run, and the runner then records it as `FAILED`.
+- **Send every run's traffic from the runner host, never a laptop:**
+  `bash AnomalyPulse/infra/runner/drive.sh run <session> start-incident …` from a laptop
+  starts it there. With laptop traffic the Isolation Forest flagged about half of the
+  healthy live minutes ([Docs/DETECTION.md](Docs/DETECTION.md), "Where live traffic comes
+  from"); the runner also never sleeps, and its credentials renew themselves.
 - **Keep the 20 rps default.** M4 uses it for every run, test set included.
 - **M4's batches run on an EC2 instance in us-east-2**, not a laptop (M4-1 in
   [Milestones/M04_Dataset.md](Milestones/M04_Dataset.md)).
@@ -177,7 +180,7 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [AnomalyPulse/infra/dashboard/](AnomalyPulse/infra/dashboard/) | The `anomalypulse-dashboard` stack (M7-2): the read API's Lambda, its HTTP API (`GET /dashboard`, CORS), role and log group, and the URL's SSM parameter. |
 | [AnomalyPulse/pipeline/](AnomalyPulse/pipeline/) | M8-1's live telemetry pipeline, one folder per Lambda, each with `handler.py` and its tests: `forwarder/` (CloudWatch Logs → the pipeline bus), `aggregator/` (the telemetry queue → `pipeline/records/`) and `window_builder/` (every minute: health, the 106-column windows, WindowReady; its `Makefile` packages `features/` and the parts of `simulator/` the guard needs). See [Docs/PIPELINE.md](Docs/PIPELINE.md). |
 | [AnomalyPulse/infra/pipeline/](AnomalyPulse/infra/pipeline/) | The `anomalypulse-pipeline` stack (M8-1): the second subscription filter on each service log group, the three Lambdas, the bus and its rule, the telemetry, dead-letter and undelivered queues, the Incidents table and its SSM parameter, and the alarms. |
-| [AnomalyPulse/infra/runner/](AnomalyPulse/infra/runner/) | M4's runner host: its own CloudFormation stack (`anomalypulse-runner`: one EC2 instance, reached through Session Manager), `setup.sh` and the tmux helper. |
+| [AnomalyPulse/infra/runner/](AnomalyPulse/infra/runner/) | M4's runner host, which sends every batch's and every live run's traffic: its own CloudFormation stack (`anomalypulse-runner`: one EC2 instance, reached through Session Manager), `setup.sh`, the tmux helper, and `drive.sh`, which drives it from a laptop. |
 
 ---
 
