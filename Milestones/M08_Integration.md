@@ -164,27 +164,36 @@ opens.
 
 **Definition of Done**
 - [x] Input contract agreed with M6-1 for this seam: the contract's open questions (baseline, which metrics, when to call) answered. Carried from M6-1's Definition of Done (2026-11-02).
-- [ ] Classifier output is transformed into a valid Bedrock input with no manual editing.
-- [ ] Diagnosis is stored against the incident record with a ground-truth reference for comparison.
-- [ ] Round-trip latency captured for §16 end-to-end metrics.
+- [x] Classifier output is transformed into a valid Bedrock input with no manual editing.
+- [x] Diagnosis is stored against the incident record with a ground-truth reference for comparison.
+- [x] Round-trip latency captured for §16 end-to-end metrics.
 
-**Built, not yet live (2026-11-07 and 08; [`Docs/INCIDENT_STORE.md`](../Docs/INCIDENT_STORE.md)):** the code, the
-stack and the tests are on the branch; nothing has run on AWS.
+**Done (2026-11-07 and 08; [`Docs/INCIDENT_STORE.md`](../Docs/INCIDENT_STORE.md), "The live traffic spike" and
+"Checked on validation"):**
 
 - **Item 1.** Agreed on 2026-11-08 by Jake, who made M6-1's proposals on #30, including the answers' three changes
   to them (the baseline also leaves out minutes the detector flagged, the standard metrics come last, at most 5
-  calls) and refreshing `affected_services` on each counted minute (`DIAGNOSIS_CONTRACT.md`, "Decided in M8-3").
-- **Done:** 125 offline tests in `incidents/` (the table, S3, the lock and the explanation Lambda are faked), among
-  them one that reads a stored record through the dashboard's `build_dashboard`; `cfn-lint` finds nothing in
-  `infra/incidents/template.yaml`; `sam build` makes a bundle that imports on its own; `incidents/live_check.py`
-  (read-only, run after each live run) is written and its judging is tested offline. A replay of validation's 140
-  runs as the live stream: 1,400 minutes, no errors, one incident per fault run (112) closed as its run's type with
-  its run's `experiment_id`, none on NORMAL runs, 125 Bedrock calls, every input accepted by `validate_input`, every
-  record read back by `build_dashboard` (`INCIDENT_STORE.md`, "Checked on validation").
-- **Not done:** deploying (Jake, with `admin`); the live checks (a traffic spike with `--baseline 360`, then a
-  cascade, from the runner); the record's layout agreed with Josh and Linu (posted on #30, unanswered);
-  `observed_sequence` is not sent.
-- **So items 2 to 4 stay unchecked until a live run.**
+  calls). `affected_services` only grows while an incident is open (`DIAGNOSIS_CONTRACT.md`, "Decided in M8-3").
+- **Items 2 to 4.** Deployed 2026-11-08 (`anomalypulse-incidents`). One live traffic spike from the runner, run by
+  Rachel (`exp-20261108T200346Z-6040`, ×6-8 band, `--baseline 360`), passed `live_check.py`, run again
+  independently. It opened one incident on the fault's first full minute and closed it as `TRAFFIC_SPIKE` 74 s
+  after the fault ended; no other minute had an incident type.
+  - **Item 2:** the Lambda built Bedrock's input from the event's own window and `validate_input` accepted it.
+  - **Item 3:** the diagnosis was stored with the run's `experiment_id` beside the prediction, and
+    `build_dashboard` read the record back with the run's manifest.
+  - **Item 4:** 174.6 s from the minute's end to its diagnosis, then 42.3 s to the stored diagnosis (Bedrock
+    41.4 s): 216.9 s, in the record and in the `incident_diagnosis` log line.
+  - 16 invocations, 0 errors or throttles, the failure queue empty.
+
+  Offline: 126 tests in `incidents/`, and validation's 140 runs replayed as the live stream (scripts in
+  `incidents/replay/`): one incident per fault run (112) of its run's type with its run's `experiment_id`, none on
+  NORMAL runs, 125 Bedrock calls, every input accepted.
+- **Found live and fixed:** `affected_services` shrank to one service at the incident's last counted minute, the
+  first one after the fault (now it only grows; 88 of validation's 112 records had ended with one service).
+  Bedrock's severity (`MEDIUM`) wasn't the rubric's (`LOW`); the explanation Lambda now reports the rubric's, in its
+  own PR.
+- **Not done:** the cascade's live check (after the merge); the record's layout agreed with Josh and Linu (posted
+  on #30, unanswered); `observed_sequence` is not sent.
 
 ---
 

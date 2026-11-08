@@ -1,6 +1,6 @@
 # The incident store (M8-3)
 
-**Status:** built and tested offline (125 tests in `incidents/`, none reach AWS, and a replay of validation). Not deployed yet, and not checked live. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
+**Status:** deployed (2026-11-08) and checked live on one traffic spike; 126 offline tests in `incidents/` and a replay of validation. The cascade's live check is still to run. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
 
 The Lambda `anomalypulse-incidents` takes each diagnosed minute, groups minutes into incidents with
 `ml/diagnosis/incident.py`, asks `anomalypulse-explain` (M6-1) to explain each incident, and stores a record the
@@ -40,7 +40,7 @@ the window builder's.
 |---|---|
 | `incident_id` | `inc-` plus `started_at`, the same for the whole incident |
 | `status`, `ended_at` | `OPEN` or `CLOSED`; `ended_at` is `null` while open |
-| `prediction` | The dashboard's shape: `incident_type`, `confidence`, `started_at`, `detected_at`, `affected_services`, `model` (`estimator`, `job`) |
+| `prediction` | The dashboard's shape: `incident_type`, `confidence`, `started_at`, `detected_at`, `affected_services`, `model` (`estimator`, `job`). `affected_services` only grows while the incident is open: the opening minute's list, plus each counted minute's services that cross the line |
 | `diagnosis` | The dashboard's `diagnosis`, or `null` until Bedrock answers (or if it failed) |
 | `diagnosis_for_type` | The incident type that diagnosis was made for |
 | `bedrock_calls`, `diagnosis_error` | Calls so far (at most 5), and the last call's error (`for_type`, `type`, `message`), cleared by a good call |
@@ -98,7 +98,7 @@ belong to one minute: the incident's first counted minute's end to its diagnosis
 
 ```bash
 cd AnomalyPulse
-python3 -m pytest incidents -q          # 125 tests; none reach AWS
+python3 -m pytest incidents -q          # 126 tests; none reach AWS
 cfn-lint infra/incidents/template.yaml  # no findings (cfn-lint 1.60.0, 2026-11-07)
 ```
 
@@ -123,8 +123,37 @@ It reads the run's manifest (to know its type and window), the incident records 
 Lambda's own log lines and health. For a fault run it passes with exactly one incident, closed, of the run's
 type, with its diagnosis stored, 1 to 5 Bedrock calls, the run's `experiment_id` beside (never inside) the
 prediction, and a clean read-back through `build_dashboard`. A NORMAL run passes with none. A diagnosis that
-failed its self-check, or was made for an earlier type, is printed as a note. The judging is tested offline;
-its AWS reads have not run yet.
+failed its self-check, or was made for an earlier type, is printed as a note. The judging is tested offline,
+and it ran on the live traffic spike below with the AnomalyPulseDeveloper role.
+
+## The live traffic spike (2026-11-08)
+
+Run by Rachel from the runner with `drive.sh`: `exp-20261108T200346Z-6040`, a traffic spike in the ×6-8 band
+(multiplier 7.4), 300 s of fault after `--baseline 360`, 20:03:46 to 20:19:46 UTC. `live_check.py` passed, run by
+Rachel and again independently, and the minutes were rebuilt one by one from the two Lambdas' log lines and the
+windows in S3:
+
+- **One incident,** `inc-20261108T201000Z`, `TRAFFIC_SPIKE` (0.962), opened on the fault's first full minute
+  (20:10) and closed as its run's type, with `ended_at` 20:16, 74 s after the fault ended. Its 6 counted minutes
+  were 20:10 to 20:15; 20:16 and 20:17 didn't count, and the 20:17 event closed it. No other minute had an
+  incident type.
+- **The ground-truth reference:** the run's `experiment_id`, beside the prediction. `build_dashboard` read the
+  record back with the run's manifest (detection latency 247.8 s from the fault's start).
+- **Bedrock:** 1 call, at opening, and its input passed `validate_input`. The answer was stored, flagged: it said
+  `MEDIUM`, and the rubric gives `LOW` for that input (traffic about 8x on every service, no 5xx, no p95 rise,
+  no throttles). The explanation Lambda now reports the rubric's severity (a separate genai PR).
+- **Round trip:** 174.6 s from the minute's end to its diagnosis, then 42.3 s to the stored diagnosis, of which
+  Bedrock took 41.4 s (above the 6 to 32 s M6-1 measured): 216.9 s.
+- **The event carries the window:** `window_from` was `event` on all 16 steps, so the store never read a window
+  from S3.
+- **Health:** 16 invocations, 0 errors, 0 throttles, 0 failed deliveries or dropped events, the failure queue
+  empty, the alarm OK.
+- **Baseline:** 3 healthy windows (20:06 to 20:08). The detector flagged 20:04 and 20:05, the first minutes after
+  idle time, and 20:09, the minute the fault started in.
+- **Found:** the record's `affected_services` ended as `["order-service"]`. The minutes 20:10 to 20:14 listed all
+  four services; 20:15, the first minute after the fault, still counted, but nothing crossed the line, so the
+  list fell back to one service and replaced the four. The list now only grows (above, "What it stores"); this
+  record was stored before that change.
 
 ## Checked on validation (replay, 2026-11-08)
 
@@ -141,7 +170,9 @@ whose time holds the minute) and the explanation Lambda (`validate_input` again,
   the next counted minute, a minute later (226 calls). Calling only at opening and at type changes, as before the
   review, only the 13 incidents that changed type would have got one.
 - **The record:** each read back through `build_dashboard` with its run's manifest. The largest item was the state,
-  34 KB.
+  34 KB. `affected_services` at close: all four services on every traffic spike, Order and Payment on every
+  dependency failure, Product alone on 23 of the 28 DB throttling incidents (88 of the 112 had one service before
+  the list was made to only grow).
 - **Baseline and metrics:** the numbers are in [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md), "Decided in M8-3".
   Closing is in "When an incident closes", above.
 
@@ -165,7 +196,7 @@ incidents/replay/download.sh <dir>                       # read-only, about 940 
 
 - **The type an incident reports** is the incident's (2026-11-08, Jake).
 - **Baseline, metrics, when to call Bedrock** are in [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md), "Decided in M8-3",
-  agreed by Jake (M6-1's proposals) on 2026-11-08. `affected_services` is refreshed on each counted minute.
+  agreed by Jake (M6-1's proposals) on 2026-11-08. `affected_services` only grows while an incident is open.
 - **The ground-truth reference** comes from the experiment lock, read when the incident opens. A lock whose
   `expires_at` has passed (a crashed run) is ignored. No lock means a real incident. A failed read fails the event
   and lands in the queue, instead of storing a wrong reference.
@@ -174,10 +205,6 @@ incidents/replay/download.sh <dir>                       # read-only, about 940 
 
 ## Not verified yet
 
-- **Nothing has run on AWS.** The tests and the replay fake the table, S3, the lock and the explanation Lambda.
-  The Makefile finds the repository with `git`, so the stack's `samconfig.toml` builds in the source folder, as the
-  pipeline's does.
-- **Whether the event carries the full window** (`detail.requestPayload`) is unchecked: the handoff says to check it
-  on the first live event, and the Lambda falls back to the window's file.
+- **One live run only:** a traffic spike. The cascade, which changes type the most, runs after the merge.
 - **Josh and Linu have not replied** on the layout (#30).
 - **`observed_sequence` is not sent,** so Bedrock makes no ordering claim.

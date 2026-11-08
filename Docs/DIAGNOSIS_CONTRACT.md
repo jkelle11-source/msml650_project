@@ -310,8 +310,9 @@ others, and there are at most 5 calls.
    earlier run, and none is too old: the store keeps the last 5 it saw, however long ago. On
    validation's replay (Docs/INCIDENT_STORE.md), whose runs have only a minute or two of
    healthy traffic before the fault, 1 of the 112 baselines came from the incident's own run, and
-   the oldest window was a median of 20 minutes before the incident (at most 32). A live run with
-   6 minutes of baseline traffic (`--baseline 360`) fills the 5 from its own minutes.
+   the oldest window was a median of 20 minutes before the incident (at most 32). The first live
+   spike (`--baseline 360`, 6 minutes before the fault) had 3, all its own: the detector flagged the
+   two minutes after idle time and the minute the fault started in. A longer baseline gives more.
 2. **Which metrics.** The proposal, at most 10, in a fixed order. For each affected service,
    a metric is sent when it moved (the lines `affected.py` uses: 5xx share at least 0.01, p95
    or any other latency or duration at least 2x its baseline, request rate at least 1.75x, any
@@ -335,5 +336,12 @@ others, and there are at most 5 calls.
    a newer type can tell. A call that fails is counted and stored with its error, and an earlier
    diagnosis is kept; a diagnosis that failed its self-check is stored, flagged.
 
-`prediction.affected_services` is refreshed on each counted minute, as the `affected_services` in
-each Bedrock input are that call's minute's (decided 2026-11-08).
+`prediction.affected_services` only grows while an incident is open (decided 2026-11-08): it starts as
+the opening minute's `affected_services`, and each counted minute adds the services that cross the line
+(`genai.affected.crossing`), never removing one. Replacing it with each counted minute's list, as first
+built, let the last counted minute shrink it: that minute is often the first one after the fault, when the
+classifier still names the incident but nothing crosses any more, so `affected_services` falls back to the
+one service that rose most. The first live spike's record ended as `["order-service"]` that way, and on
+validation's replay 88 of the 112 records ended with one service, every dependency failure among them.
+Growing, every traffic spike keeps all four services and every dependency failure keeps Order and Payment.
+Each Bedrock input still lists its own minute's `affected_services`.
