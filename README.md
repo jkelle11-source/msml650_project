@@ -162,6 +162,7 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [Docs/DASHBOARD_CONTRACT.md](Docs/DASHBOARD_CONTRACT.md) | The dashboard data contract (M7-2): the JSON object the SRE console reads, what every field means, the mock scenarios, and where each value comes from in M8. |
 | [Docs/PIPELINE.md](Docs/PIPELINE.md) | The live telemetry pipeline (M8-1): the path from a service's log line to a one-minute window, what it writes (health, windows, the WindowReady event, the Incidents table's health item), when each window is ready, what late telemetry does, its alarms and load tests, the IAM at each hop, and what live windows do differently from training's, measured on validation. |
 | [Docs/LIVE_DIAGNOSIS.md](Docs/LIVE_DIAGNOSIS.md) | Detect + classify on the live path (M8-2): each WindowReady window through the Isolation Forest, then the classifier, in the Diagnosis Lambda; the reply, the Tier-1 guard on the live path, the detection-latency metrics, the open/close rule proposed for M8-3 (`incident.py`) with its results on validation, deploying, and the live Definition of Done checks. |
+| [Docs/INCIDENT_STORE.md](Docs/INCIDENT_STORE.md) | The incident store (M8-3): the path of each diagnosed minute through `anomalypulse-incidents` (grouping into incidents, Bedrock's input, when it is called, the stored record's layout and what the dashboard reads), the baseline and metrics decisions, round-trip latency, its IAM and failure queue, deploying, and what is not verified yet. |
 | [Docs/Summary.md](Docs/Summary.md) | Short project summary draft. |
 | [Milestones/](Milestones/) | The ten milestone specs (M1–M10), each with issues and Definition of Done. |
 | [Handoffs/](Handoffs/) | Onboarding and handoff docs — [M1-1_Handoff.md](Handoffs/M1-1_Handoff.md) (stack + team conventions), [M2-1_Handoff.md](Handoffs/M2-1_Handoff.md) (how to emit telemetry), [M3-1_Handoff.md](Handoffs/M3-1_Handoff.md) (how to write an injector), [M5-1_Handoff.md](Handoffs/M5-1_Handoff.md) (how to train, package and promote a model), [M6-1_Handoff.md](Handoffs/M6-1_Handoff.md) (the diagnosis pipeline after review, and how to build M6-2's runbooks), [M8-2_Live_Checks.md](Handoffs/M8-2_Live_Checks.md) (M8-2's last live checks, one run per injector, with [the check script](Handoffs/M8-2_Live_Checks_Script.md)) and [M8-3_Handoff.md](Handoffs/M8-3_Handoff.md) (building M8-3 on M8-2's live diagnoses: the events, `incident.py`, Bedrock's input, the incident record, and the decisions left). |
@@ -174,7 +175,9 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [AnomalyPulse/ml/](AnomalyPulse/ml/) | M5's training and inference: the SageMaker launcher (`python -m ml.launch smoke / train / tune / promote`), the job scripts (`job/`), the pinned library versions (`requirements-image.txt`), and the Diagnosis Lambda (`diagnosis/`: `handler.py`, its `Dockerfile`, `forbidden_names.json`, the Tier-1 guard's list copied by `write_forbidden_names.py`, and `incident.py`, M8-2's open/close rule for M8-3). |
 | [AnomalyPulse/infra/ml/](AnomalyPulse/infra/ml/) | The `anomalypulse-ml` stack (M5–M8): the versioned model bucket, the training image's ECR copy, the SageMaker training and trainer roles, the Diagnosis Lambda, and its SSM parameters; from M8-2, the rule that sends it each WindowReady event from the pipeline bus, its failure queue `anomalypulse-diagnosis-failed` and that queue's alarm. |
 | [AnomalyPulse/genai/](AnomalyPulse/genai/) | M6-1's explanation layer: `contract.py` (the input contract and the severity rubric), `prompt.py`, `explain.py` (the Bedrock call), `self_check.py` (the smoke-level fidelity check), `affected.py` (which services an incident affects, for M8-3), `handler.py` (the `anomalypulse-explain` Lambda), `runbooks.py` and `runbooks/` (M6-2: one runbook per incident type for `recommended_actions`, behind `ANOMALYPULSE_RUNBOOKS`, off by default), `samples/` (one input per incident type and each model's saved diagnoses), `run_samples.py` (`--runbooks on|off`) and the tests. |
+| [AnomalyPulse/incidents/](AnomalyPulse/incidents/) | M8-3's incident store: `builder.py` (Bedrock's input), `record.py` (the stored record), `core.py` (one diagnosed minute in, records out), `handler.py` (the Lambda's AWS calls), the `Makefile` that bundles it with `genai/` and `incident.py`, `live_check.py` (the read-only check to run after each live run), `replay/` (validation's runs replayed as the live stream, offline: `download.sh`, `replay.py`, `analyze.py`), and the tests (`python3 -m pytest incidents`). Its stack is `infra/incidents/`. |
 | [AnomalyPulse/infra/genai/](AnomalyPulse/infra/genai/) | The `anomalypulse-genai` stack (M6-1): the explanation Lambda, its role (`bedrock:InvokeModel` on Claude models only) and log group, and the function name's SSM parameter. |
+| [AnomalyPulse/infra/incidents/](AnomalyPulse/infra/incidents/) | The `anomalypulse-incidents` stack (M8-3): the rule that sends it each diagnosed minute from the pipeline bus, the Lambda (reserved concurrency 1, 150 s timeout) and its least-privilege role, the failure queue `anomalypulse-incidents-failed` and its alarm. |
 | [AnomalyPulse/dashboard/](AnomalyPulse/dashboard/) | M7-2's dashboard read API: `builder.py` (every rule of the dashboard contract), `mock_source.py` (the contract's six mock scenarios), `handler.py` (the Lambda: picks the source, reads the clock), and their tests. |
 | [AnomalyPulse/console/](AnomalyPulse/console/) | M7-1's SRE console: static HTML, CSS and JavaScript modules (no build step) that render the dashboard contract, `mock/` (snapshots of the read API's six scenarios, the demo's offline fallback) and its tests. Run from the presenting laptop; see its [README](AnomalyPulse/console/README.md). Kept out of `dashboard/`, which is packaged whole into the read API's Lambda. |
 | [AnomalyPulse/infra/dashboard/](AnomalyPulse/infra/dashboard/) | The `anomalypulse-dashboard` stack (M7-2): the read API's Lambda, its HTTP API (`GET /dashboard`, CORS), role and log group, and the URL's SSM parameter. |
@@ -230,7 +233,7 @@ service Lambdas. All tables are on-demand (`PAY_PER_REQUEST`).
 | `anomalypulse-orders` | `order_id` (S) | — | `GET /orders/{id}` by key. |
 | `anomalypulse-experiments` | `pk` (S) | — | Simulator only. Holds the one experiment lock item (`pk = "LOCK"`). |
 | `anomalypulse-fault-config` | `service` (S) | `fault_id` (S) | One item per injected fault, written by the simulator and queried by each service for its own partition. TTL on `expires_at`. |
-| `anomalypulse-incidents` | `pk` (S) | `sk` (S) | The `anomalypulse-pipeline` stack's, kept if the stack is deleted. The window builder's health item (`pk = "HEALTH"`, `sk = "LATEST"`), and the incidents M8-2 and M8-3 write, in a layout of their choosing ([Docs/PIPELINE.md](Docs/PIPELINE.md)). |
+| `anomalypulse-incidents` | `pk` (S) | `sk` (S) | The `anomalypulse-pipeline` stack's, kept if the stack is deleted. The window builder's health item (`pk = "HEALTH"`, `sk = "LATEST"`), and M8-3's incident records and running state, laid out in [Docs/INCIDENT_STORE.md](Docs/INCIDENT_STORE.md) ([Docs/PIPELINE.md](Docs/PIPELINE.md) describes the health item). |
 
 > **M3 note:** the DynamoDB-throttling incident needs a table in `PROVISIONED`
 > mode with low capacity to produce *real* throttling. On-demand is correct for
@@ -430,6 +433,22 @@ name is `/anomalypulse/tables/incidents/name`. After a deploy that creates the w
 builder's schedule rule, such as a new stack, check which second its runs start at
 ([Docs/PIPELINE.md](Docs/PIPELINE.md), "When a minute's window is ready").
 
+### The incident store stack
+
+The incident store (M8-3) is its own stack, `anomalypulse-incidents`. It reads the pipeline bus, so
+`anomalypulse-ml`, `anomalypulse-pipeline` and `anomalypulse-genai` are deployed first:
+
+```bash
+cd AnomalyPulse/infra/incidents
+sam build
+AWS_PROFILE=admin sam deploy
+```
+
+`admin`, because the stack creates an IAM role. `sam build` builds in the source folder (`build_in_source`
+in `samconfig.toml`), because the `Makefile` in `incidents/` bundles `genai/` and `ml/diagnosis/incident.py`
+from the repository. How it works, what it stores and what is not verified yet:
+[Docs/INCIDENT_STORE.md](Docs/INCIDENT_STORE.md).
+
 ## Running the tests
 
 Each service has unit tests next to its handler. Test-only dependencies live in
@@ -490,6 +509,16 @@ dependencies. No test reaches AWS or needs credentials:
 cd AnomalyPulse/simulator
 pip install -r requirements-dev.txt
 python -m pytest
+```
+
+The incident store's tests (M8-3) reach no AWS: the table, S3, the experiment lock and the explanation
+Lambda are faked, and one test reads a stored record through the dashboard's `build_dashboard`. They run
+from `AnomalyPulse/` (the package is `incidents`):
+
+```bash
+cd AnomalyPulse
+python3 -m pytest incidents -q
+cfn-lint infra/incidents/template.yaml   # optional: pip install cfn-lint
 ```
 
 The pipeline's three Lambdas have their own tests, which reach no AWS: S3, the bus and

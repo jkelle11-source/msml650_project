@@ -149,11 +149,51 @@ live run of each injector"):**
 - Invoke Bedrock (M6 pipeline) and capture the structured diagnosis.
 - Persist prediction + diagnosis + ground-truth reference to the Incidents DynamoDB table.
 
+**Decided (2026-11-07; [`Docs/DIAGNOSIS_CONTRACT.md`](../Docs/DIAGNOSIS_CONTRACT.md), "Decided in M8-3", and
+[`Docs/INCIDENT_STORE.md`](../Docs/INCIDENT_STORE.md)):** the incident store is a stack of its own,
+`anomalypulse-incidents`: one Lambda that takes each diagnosed minute from the pipeline bus, one at a time
+(reserved concurrency 1). It groups minutes with `incident.py`, keeps the last 5 healthy windows (the classifier
+said `NORMAL` and the detector did not flag the minute) and fixes the baseline from them when an incident opens,
+sends at most 10 metrics (those that moved and the type's own signals first, then the standard three), and calls
+`anomalypulse-explain` whenever the stored diagnosis isn't for the incident's current type (when it opens, each time
+its type changes, and the next counted minute after a failed call), at most 5 calls per incident. It
+stores one record per incident (`pk` `INCIDENT`, `sk` `started_at`: the dashboard's `prediction` and `diagnosis`,
+the explanation Lambda's other outputs, and the ground-truth reference beside them) and its running state under
+`INCIDENT_STATE`. The reference is the running experiment's id from the experiment lock, read when the incident
+opens.
+
 **Definition of Done**
-- [ ] Input contract agreed with M6-1 for this seam: the contract's open questions (baseline, which metrics, when to call) answered. Carried from M6-1's Definition of Done (2026-11-02).
-- [ ] Classifier output is transformed into a valid Bedrock input with no manual editing.
-- [ ] Diagnosis is stored against the incident record with a ground-truth reference for comparison.
-- [ ] Round-trip latency captured for §16 end-to-end metrics.
+- [x] Input contract agreed with M6-1 for this seam: the contract's open questions (baseline, which metrics, when to call) answered. Carried from M6-1's Definition of Done (2026-11-02).
+- [x] Classifier output is transformed into a valid Bedrock input with no manual editing.
+- [x] Diagnosis is stored against the incident record with a ground-truth reference for comparison.
+- [x] Round-trip latency captured for §16 end-to-end metrics.
+
+**Done (2026-11-07 and 08; [`Docs/INCIDENT_STORE.md`](../Docs/INCIDENT_STORE.md), "The live traffic spike" and
+"Checked on validation"):**
+
+- **Item 1.** Agreed on 2026-11-08 by Jake, who made M6-1's proposals on #30, including the answers' three changes
+  to them (the baseline also leaves out minutes the detector flagged, the standard metrics come last, at most 5
+  calls). `affected_services` only grows while an incident is open (`DIAGNOSIS_CONTRACT.md`, "Decided in M8-3").
+- **Items 2 to 4.** Deployed 2026-11-08 (`anomalypulse-incidents`). One live traffic spike from the runner, run by
+  Rachel (`exp-20261108T200346Z-6040`, ×6-8 band, `--baseline 360`), passed `live_check.py`, run again
+  independently. It opened one incident on the fault's first full minute and closed it as `TRAFFIC_SPIKE` 74 s
+  after the fault ended; no other minute had an incident type.
+  - **Item 2:** the Lambda built Bedrock's input from the event's own window and `validate_input` accepted it.
+  - **Item 3:** the diagnosis was stored with the run's `experiment_id` beside the prediction, and
+    `build_dashboard` read the record back with the run's manifest.
+  - **Item 4:** 174.6 s from the minute's end to its diagnosis, then 42.3 s to the stored diagnosis (Bedrock
+    41.4 s): 216.9 s, in the record and in the `incident_diagnosis` log line.
+  - 16 invocations, 0 errors or throttles, the failure queue empty.
+
+  Offline: 126 tests in `incidents/`, and validation's 140 runs replayed as the live stream (scripts in
+  `incidents/replay/`): one incident per fault run (112) of its run's type with its run's `experiment_id`, none on
+  NORMAL runs, 125 Bedrock calls, every input accepted.
+- **Found live and fixed:** `affected_services` shrank to one service at the incident's last counted minute, the
+  first one after the fault (now it only grows; 88 of validation's 112 records had ended with one service).
+  Bedrock's severity (`MEDIUM`) wasn't the rubric's (`LOW`); the explanation Lambda now reports the rubric's, in its
+  own PR.
+- **Not done:** the cascade's live check (after the merge); the record's layout agreed with Josh and Linu (posted
+  on #30, unanswered); `observed_sequence` is not sent.
 
 ---
 
