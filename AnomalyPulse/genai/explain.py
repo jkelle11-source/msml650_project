@@ -100,11 +100,13 @@ def diagnose(evidence: dict, *, bedrock=None, model: str | None = None,
         raise DiagnosisFailed(f"no text in the answer (stop_reason {response.stop_reason})")
     raw = json.loads(text)
 
+    # The self-check judges Bedrock's own answer, so a severity off the rubric stays a finding (M9-5
+    # counts them); the diagnosis reports the rubric's, which is computed from the input, not generated.
     findings = contract.check_output_shape(raw) + self_check.check(evidence, raw, runbook=runbook_text)
     return {
         "incident_id": evidence["incident_id"],
         "diagnosis": {
-            "severity": raw["severity"],
+            "severity": contract.severity(evidence),
             "summary": raw["summary"],
             "root_cause": raw["root_cause"],
             "evidence": [item["statement"] for item in raw["evidence"]],

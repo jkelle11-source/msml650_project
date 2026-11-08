@@ -137,10 +137,13 @@ point of M9-5 is that Bedrock explains from what a monitor could see.
 ```
 
 - **`diagnosis` is exactly the dashboard contract's `diagnosis`** (`Docs/DASHBOARD_CONTRACT.md`): `severity`
-  (`LOW`/`MEDIUM`/`HIGH`, Bedrock's judgment from a fixed rubric in the prompt, which `self_check` recomputes
-  from the input: below), `summary`, `root_cause`,
+  (`LOW`/`MEDIUM`/`HIGH`, the rubric's, computed from the input: below), `summary`, `root_cause`,
   `evidence` (strings), `recommended_actions` (strings, in the order to try them). The dashboard's open
-  question 2 is answered: the fields match, and Bedrock gives a severity. The classifier's `confidence` is
+  question 2 is answered: the fields match. Bedrock is still asked for a severity, by the rubric the prompt
+  states, and `self_check` flags an answer whose severity is not the rubric's, but the diagnosis reports the
+  rubric's (2026-11-08). On M8-3's first live traffic spike Sonnet said `MEDIUM` where the rubric gives `LOW`
+  (traffic about 8x, no errors, no latency rise), so the console would have shown a severity the rubric
+  contradicts. The finding stays in `self_check`, so M9-5 can count how often Bedrock disagrees. The classifier's `confidence` is
   not repeated here; it is the dashboard's `prediction.confidence`.
 - **`evidence_metrics[i]`** lists the input metrics evidence bullet *i* rests on. Bedrock's answer is held to
   a schema built per request (structured outputs) in which a bullet can only cite this input's metrics, so
