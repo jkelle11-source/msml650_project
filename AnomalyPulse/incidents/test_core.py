@@ -405,3 +405,12 @@ def test_each_calls_log_line_has_its_own_numbers_and_the_record_keeps_the_first(
     feed(deps, 2, "CASCADING_FAILURE", failing(2))
     assert [line["BedrockMs"] for line in deps.lines] == [8200, 31000]
     assert deps.records[ws(1)]["latency"]["bedrock_ms"] == 8200
+
+
+def test_a_counted_minute_where_nothing_crosses_keeps_the_affected_services():
+    # The first live spike's case: the last counted minute is the first one after the fault, the
+    # classifier still names the incident, and no service crosses the line any more.
+    deps = FakeDeps()
+    opened(deps)
+    feed(deps, 3, "DEPENDENCY_FAILURE", window(ws(3)))
+    assert deps.records[ws(2)]["prediction"]["affected_services"] == ["order-service", "payment-service"]

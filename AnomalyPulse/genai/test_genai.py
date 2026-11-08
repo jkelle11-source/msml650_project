@@ -562,6 +562,15 @@ def test_a_quiet_minute_still_names_one_service():
     assert affected.affected_services(QUIET, QUIET) == ["product-service"]
 
 
+def test_crossing_names_only_the_services_past_a_line_and_can_be_empty():
+    assert affected.crossing(QUIET, QUIET) == []
+    assert affected.crossing(QUIET, _minute(order_error_rate_5xx=0.01, product_request_rate=26.25)) == [
+        "product-service", "order-service"]
+    # affected_services is crossing's list, or the fallback when it is empty.
+    assert affected.affected_services(QUIET, _minute(order_p95_latency_ms=259.0)) == ["order-service"]
+    assert affected.crossing(QUIET, _minute(order_p95_latency_ms=259.0)) == []
+
+
 def test_columns_a_service_has_no_are_ignored():
     # Payment has no table: a stray payment_read_throttle_events can't mark it.
     got = affected.affected_services(QUIET, _minute(payment_read_throttle_events=5, order_p95_latency_ms=400.0))

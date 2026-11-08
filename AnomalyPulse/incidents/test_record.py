@@ -77,10 +77,15 @@ def test_refresh_updates_type_and_confidence_and_keeps_detected_at():
     assert r == before
 
 
-def test_refresh_replaces_the_services_only_when_given():
-    r = new()
-    assert record.refresh(r, STATE, ["product-service"])["prediction"]["affected_services"] == ["product-service"]
+def test_refresh_adds_services_in_service_order_and_never_removes_one():
+    r = new()                                       # order-service, payment-service
+    grown = record.refresh(r, STATE, ["product-service"])
+    assert grown["prediction"]["affected_services"] == ["product-service", "order-service", "payment-service"]
     assert record.refresh(r, STATE, [])["prediction"]["affected_services"] == ["order-service", "payment-service"]
+    assert record.refresh(r, STATE, ["order-service"])["prediction"]["affected_services"] == [
+        "order-service", "payment-service"]
+    assert record.refresh(grown, STATE, ["cart-service"])["prediction"]["affected_services"] == [
+        "product-service", "cart-service", "order-service", "payment-service"]
 
 
 def test_close_sets_status_and_end():

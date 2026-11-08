@@ -12,6 +12,7 @@ import json
 from datetime import datetime
 from decimal import Decimal
 
+from genai.contract import SERVICES
 from incidents.builder import incident_id
 
 PK = "INCIDENT"
@@ -64,14 +65,18 @@ def open_record(state, prediction, services, model, experiment_id=None):
     return record
 
 
-def refresh(record, state, services=None):
-    """The record after a counted minute: the incident's current type and confidence, and the
-    affected services if given. detected_at and the diagnosis stay as they were."""
+def refresh(record, state, services=()):
+    """The record after a counted minute: the incident's current type and confidence, and its
+    affected services so far, the stored ones plus `services` (the minute's services that cross
+    the line, genai.affected.crossing), in SERVICES order. None is removed while the incident is
+    open: its last counted minute is often the first one after the fault, when nothing crosses any
+    more and affected_services would fall back to one service (the first live spike's record ended
+    as ["order-service"] that way). detected_at and the diagnosis stay as they were."""
     new = copy.deepcopy(record)
     new["prediction"]["incident_type"] = state["incident_type"]
     new["prediction"]["confidence"] = state["confidence"]
-    if services:
-        new["prediction"]["affected_services"] = list(services)
+    seen = set(record["prediction"]["affected_services"]) | set(services)
+    new["prediction"]["affected_services"] = [s for s in SERVICES if s in seen]
     return new
 
 

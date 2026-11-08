@@ -64,7 +64,12 @@ def _rise(base: dict, current: dict, service: str) -> float:
     return max((r for r in ratios if r is not None), default=0)
 
 
+def crossing(base: dict, current: dict) -> list[str]:
+    """The services whose own signals cross the line in `current`, in SERVICES order; may be empty.
+    M8-3 adds these to an open incident's list on each counted minute (no fallback there)."""
+    return [s for s in SERVICES if _crosses(base, current, s)]
+
+
 def affected_services(base: dict, current: dict) -> list[str]:
     """The affected services, in SERVICES order; never empty."""
-    affected = [s for s in SERVICES if _crosses(base, current, s)]
-    return affected or [max(SERVICES, key=lambda s: _rise(base, current, s))]
+    return crossing(base, current) or [max(SERVICES, key=lambda s: _rise(base, current, s))]

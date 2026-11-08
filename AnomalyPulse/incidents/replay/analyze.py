@@ -67,6 +67,12 @@ print(f"incidents with a diagnosis: {sum(r['diagnosis'] is not None for r in rec
       f"with an error left: {sum(r['diagnosis_error'] is not None for r in records)}; "
       f"diagnosis not for the final type: {sum(r['diagnosis_for_type'] != r['prediction']['incident_type'] for r in records)}")
 print(f"largest item: {d['largest_item'][0]} bytes ({d['largest_item'][1]}); metric lines: {d['metric_lines']}")
+sizes = Counter(len(r["prediction"]["affected_services"]) for r in records)
+by_type = {}
+for r in records:
+    by_type.setdefault(r["prediction"]["incident_type"], Counter())[len(r["prediction"]["affected_services"])] += 1
+print(f"affected_services stored at close, services per incident: {sorted(sizes.items())}; by type: "
+      + "; ".join(f"{k} {sorted(v.items())}" for k, v in sorted(by_type.items())))
 
 # ---- closing: by the incident's own run, or by a later run's windows --------------------------------
 closed_by, opened_slot = Counter(), None

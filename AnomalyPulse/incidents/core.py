@@ -146,7 +146,7 @@ def process(event, deps):
     elif new["status"] == "OPEN" and incident.counts(prediction):
         rec = deps.get_record(new["started_at"])
         if rec is not None:
-            rec = record.refresh(rec, new, affected.affected_services(baseline, window))
+            rec = record.refresh(rec, new, affected.crossing(baseline, window))
             deps.put_record(rec)
 
     # On open, on a type change, and on the next counted minute after a failed call (record.wants_bedrock).
