@@ -1,0 +1,223 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  AnomalyPulse incident store (M8-3) - the Lambda that groups each diagnosed minute into an
+  incident, asks Claude (anomalypulse-explain) to explain it, and stores the record the dashboard
+  reads (Docs/INCIDENT_STORE.md). A stack of its own: anomalypulse-shared is not redeployed until
+  M9-1. It reads the pipeline bus, so anomalypulse-ml (the Diagnosis Lambda), anomalypulse-pipeline
+  and anomalypulse-genai are deployed first.
+
+Resources:
+
+  # ---- Incidents Lambda ---------------------------------------
+  # incidents/handler.py. Its role holds only what core.process uses: GetItem and PutItem on its
+  # own two partitions of the Incidents table (never the window builder's HEALTH items), GetItem
+  # on the experiments table's LOCK item, the pipeline's window files, the four SSM names, and
+  # the explain function.
+
+  IncidentsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/anomalypulse-incidents
+      RetentionInDays: 90
+
+  IncidentsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: anomalypulse-incidents
+      Description: The AnomalyPulse incident store Lambda runs as this role (M8-3)
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: incidents-logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt IncidentsLogGroup.Arn
+        - PolicyName: incidents-window-read
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub 'arn:aws:s3:::anomalypulse-telemetry-${AWS::AccountId}-${AWS::Region}/pipeline/windows/*'
+        - PolicyName: incidents-table
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/anomalypulse-incidents'
+                Condition:
+                  ForAllValues:StringEquals:
+                    dynamodb:LeadingKeys:
+                      - INCIDENT
+                      - INCIDENT_STATE
+                  'Null':
+                    dynamodb:LeadingKeys: 'false'
+        - PolicyName: incidents-lock-read
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:GetItem
+                Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/anomalypulse-experiments'
+                Condition:
+                  ForAllValues:StringEquals:
+                    dynamodb:LeadingKeys:
+                      - LOCK
+                  'Null':
+                    dynamodb:LeadingKeys: 'false'
+        - PolicyName: incidents-explain
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:anomalypulse-explain'
+        - PolicyName: incidents-parameters
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource:
+                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/anomalypulse/tables/incidents/name'
+                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/anomalypulse/tables/experiments/name'
+                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/anomalypulse/telemetry/bucket/name'
+                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/anomalypulse/genai/explain-function'
+        - PolicyName: incidents-failure-queue
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt IncidentsFailureQueue.Arn
+
+  IncidentsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      FunctionName: anomalypulse-incidents
+      CodeUri: ../../incidents
+      Handler: incidents.handler.handler
+      Runtime: python3.13
+      Architectures:
+        - arm64
+      MemorySize: 512
+      # One explain call takes 6-32 s and that Lambda's own timeout is 120 s; this must outlast it.
+      Timeout: 150
+      # One event at a time, so two minutes can't read the same incident state and lose one. Lambda
+      # queues the rest of an asynchronous burst and delivers it, within MaximumEventAgeInSeconds.
+      ReservedConcurrentExecutions: 1
+      Role: !GetAtt IncidentsRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref IncidentsLogGroup
+      # No OnSuccess destination: a success event from this function would land on the bus the
+      # rule below reads, one more event for nothing.
+      EventInvokeConfig:
+        MaximumEventAgeInSeconds: 3600
+        MaximumRetryAttempts: 2
+        DestinationConfig:
+          OnFailure:
+            Type: SQS
+            Destination: !GetAtt IncidentsFailureQueue.Arn
+
+  # ---- The rule: each diagnosed minute ------------------------
+  # The Diagnosis Lambda's on-success destination (anomalypulse-ml) puts each answer on the
+  # pipeline bus as source `lambda`, detail-type `Lambda Function Invocation Result - Success`,
+  # the reply under detail.responsePayload and the request under detail.requestPayload.
+
+  DiagnosedWindowRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: anomalypulse-diagnosed-window-to-incidents
+      Description: Each diagnosed live window to the incident store Lambda (M8-3)
+      EventBusName: anomalypulse-pipeline
+      EventPattern:
+        source:
+          - lambda
+        detail-type:
+          - Lambda Function Invocation Result - Success
+        detail:
+          requestContext:
+            functionArn:
+              - prefix: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:anomalypulse-diagnosis'
+      Targets:
+        - Id: incidents
+          Arn: !GetAtt IncidentsFunction.Arn
+          RetryPolicy:
+            MaximumEventAgeInSeconds: 3600
+          DeadLetterConfig:
+            Arn: !GetAtt IncidentsFailureQueue.Arn
+
+  # Only this rule may invoke the function through EventBridge.
+  DiagnosedWindowPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref IncidentsFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DiagnosedWindowRule.Arn
+
+  # ---- Failures ------------------------------------------------
+  # An event the function failed 3 times, or one EventBridge couldn't deliver within the hour.
+  # Kept 14 days (the most SQS allows); the event is in the message, so it can be sent again.
+
+  IncidentsFailureQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: anomalypulse-incidents-failed
+      MessageRetentionPeriod: 1209600
+
+  IncidentsFailureQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref IncidentsFailureQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt IncidentsFailureQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt DiagnosedWindowRule.Arn
+
+  # In alarm while any diagnosed minute is in the failure queue: minutes whose incident was never
+  # stored. No action: its state shows in the CloudWatch console, as the pipeline's alarms do.
+  IncidentsFailedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: anomalypulse-incidents-failed
+      AlarmDescription: A diagnosed minute the incident store failed 3 times is in anomalypulse-incidents-failed (M8-3)
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt IncidentsFailureQueue.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+Outputs:
+  IncidentsFunctionName:
+    Value: !Ref IncidentsFunction
