@@ -44,13 +44,21 @@ files in `genai/samples/` are valid examples.
 | Field | Meaning | From (M8-3) |
 |---|---|---|
 | `incident_id` | The incident's id. Returned with the diagnosis; never sent to Bedrock (nor `contract_version`) | The dashboard contract's `incident_id` |
-| `incident_type` | One of `TRAFFIC_SPIKE`, `DATABASE_THROTTLING`, `LAMBDA_DEGRADATION`, `DEPENDENCY_FAILURE`, `CASCADING_FAILURE`; never `NORMAL` | Classifier reply: the latest window's `label` |
-| `confidence` | 0–1 | That label's probability |
+| `incident_type` | One of `TRAFFIC_SPIKE`, `DATABASE_THROTTLING`, `LAMBDA_DEGRADATION`, `DEPENDENCY_FAILURE`, `CASCADING_FAILURE`; never `NORMAL` | The incident's type, from `ml/diagnosis/incident.py`: the type with the most of the incident's minutes so far, a tie going to the most recent (decided 2026-11-08, below) |
+| `confidence` | 0–1 | That type's latest probability, `incident.py`'s `confidence` |
 | `started_at`, `window_start` | The incident's first window; the latest window | `window_start` of those windows |
 | `duration_minutes` | How long the incident has been active | |
 | `affected_services` | Distinct service names, at least one: where the incident shows | `genai.affected.affected_services()`: see below. The same list is the dashboard's `prediction.affected_services` |
 | `metrics` | The evidence: one entry per (service, metric), at least one | Feature windows: see below |
 | `observed_sequence` | Optional. When each listed metric first moved, in time order | See below |
+
+**Why the incident's type, not the latest window's label** (decided 2026-11-08). As a fault ends, the
+classifier often names a different type for its last minute or two. On `v1`'s validation runs rebuilt as
+the live stream, taking each minute's label closed 21 of 112 incidents with the wrong type (13 of 21
+dependency failures as `LAMBDA_DEGRADATION`), and the most-minutes type closed all 112 with their run's
+type ([`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), "Opening and closing incidents"). A cascade still moves
+from its first fault's type to `CASCADING_FAILURE`, once that has as many of the incident's minutes. The
+dashboard's `prediction.incident_type` is the same type ([`DASHBOARD_CONTRACT.md`](DASHBOARD_CONTRACT.md)).
 
 **`metrics`.** `metric` is a feature column without its service prefix, so `order-service`'s
 `p95_latency_ms` is the column `order_p95_latency_ms` (`Docs/FEATURE_MATRIX.md`). `current` is the latest
@@ -300,5 +308,7 @@ Each has a proposal; M8-3 agrees or changes it (M8-3's Definition of Done, carri
    `dependency_*` for dependency failures). Bedrock can cite only what it is sent.
 3. **When to call.** Proposal: once when the incident is first classified, and again each time its
    `incident_type` changes (a cascade is first classified as its first fault's type, then as
-   `CASCADING_FAILURE` once two faults overlap). Not every minute: a call costs about 3¢ and takes 6–32 s,
+   `CASCADING_FAILURE` once that has as many of the incident's minutes). On validation that is 125 calls
+   for 112 incidents, but one live cascade changed type 3 times (`TRAFFIC_SPIKE`, `CASCADING_FAILURE`,
+   `DATABASE_THROTTLING`, then `CASCADING_FAILURE`), 4 calls for one incident. Not every minute: a call costs about 3¢ and takes 6–32 s,
    and the console shows "Severity pending" until the reply is stored.

@@ -148,8 +148,8 @@ or in `comparison`, is the point of showing them side by side.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `incident_type` | incident type, never `NORMAL` | The latest window's class. It can change during one incident: a cascade is first classified as its first fault's type, and as `CASCADING_FAILURE` only once two faults overlap (the Window Labeling Policy) |
-| `confidence` | 0–1 | The probability the classifier gave `incident_type` |
+| `incident_type` | incident type, never `NORMAL` | The incident's type: the class with the most of the incident's minutes so far, a tie going to the most recent (`ml/diagnosis/incident.py`; decided 2026-11-08, [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md), "Why the incident's type"). It can change during one incident: a cascade is first classified as its first fault's type, and as `CASCADING_FAILURE` once that has as many of its minutes. A class the classifier gives only a fault's last minute or two doesn't replace it |
+| `confidence` | 0–1 | The probability the classifier last gave `incident_type` |
 | `started_at` | time | `window_start` of the incident's first window |
 | `detected_at` | time | When that first window was classified |
 | `affected_services` | array of service names, at least one | The services the incident shows in: those whose own metrics in the latest window crossed a fixed line against their pre-incident baseline. M8-3 computes it with `genai.affected.affected_services()` from the feature windows, never from the manifest, and sends the same list to Bedrock (`Docs/DIAGNOSIS_CONTRACT.md`, "affected_services") |
