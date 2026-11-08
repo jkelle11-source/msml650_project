@@ -69,6 +69,14 @@ def check_incident(rec, want, experiment_id):
     return problems, notes
 
 
+def record_range(start, end):
+    """The sort keys (`started_at`) of the incidents a run opened, both ends included. An incident starts on
+    one of the run's minutes, the first of which can begin up to a minute before the run does, and the last
+    of which begins before the run ends. Nothing later: when runs are chained, the next run's incident would
+    count as this one's."""
+    return _iso(start - timedelta(minutes=1)), _iso(end)
+
+
 def check_run(records, want, experiment_id):
     """(problems, notes) for every record the run opened."""
     if want == "NORMAL":
@@ -102,8 +110,11 @@ def summarize_steps(lines):
             "closed": sum("closed" in (line.get("changes") or []) for line in steps)}
 
 
-def summarize_latency(lines):
-    rows = [line for line in lines if line.get("event") == "incident_diagnosis"]
+def summarize_latency(lines, incident_ids=None):
+    """The diagnosis log lines' latencies; only those of `incident_ids` when given (the log window runs past
+    the run's end, into the next run's minutes when runs are chained)."""
+    rows = [line for line in lines if line.get("event") == "incident_diagnosis"
+            and (incident_ids is None or line.get("incident_id") in incident_ids)]
     out = {"diagnoses": len(rows)}
     for name in ("SinceWindowEndSeconds", "DiagnosisToStoredSeconds", "RoundTripSeconds", "BedrockMs"):
         values = [line[name] for line in rows if isinstance(line.get(name), (int, float))]
@@ -167,7 +178,7 @@ def main(argv=None):
     print(f"{args.experiment_id}: {want}, run {start:%H:%M:%S}-{end:%H:%M:%S}Z")
 
     items = table.query(KeyConditionExpression=Key("pk").eq(record.PK) & Key("sk").between(
-        _iso(start - timedelta(minutes=1)), _iso(end + timedelta(minutes=10))), ConsistentRead=True)["Items"]
+        *record_range(start, end)), ConsistentRead=True)["Items"]
     records = [record.from_dynamodb(item) for item in items]
     for rec in records:
         p = rec["prediction"]
@@ -191,7 +202,7 @@ def main(argv=None):
         time.sleep(1)
     messages = [f["value"] for row in res["results"] for f in row if f["field"] == "@message"]
     lines = parse_lines(messages)
-    steps, latency = summarize_steps(lines), summarize_latency(lines)
+    steps, latency = summarize_steps(lines), summarize_latency(lines, {rec["incident_id"] for rec in records})
     print(f"steps: {steps}")
     print(f"latency: {latency}")
     if not steps["steps"]:

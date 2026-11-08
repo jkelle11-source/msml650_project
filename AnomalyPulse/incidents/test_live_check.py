@@ -121,6 +121,27 @@ def test_latency_is_summarized_from_the_metric_lines():
     assert out["SinceWindowEndSeconds"] is None
 
 
+def test_latency_counts_only_the_runs_own_incidents():
+    lines = [{"event": "incident_diagnosis", "incident_id": "inc-a", "RoundTripSeconds": 180.0},
+             {"event": "incident_diagnosis", "incident_id": "inc-next-run", "RoundTripSeconds": 200.0}]
+    assert live_check.summarize_latency(lines, {"inc-a"})["RoundTripSeconds"] == {"median": 180.0, "max": 180.0}
+    assert live_check.summarize_latency(lines, set()) == {
+        "diagnoses": 0, "SinceWindowEndSeconds": None, "DiagnosisToStoredSeconds": None,
+        "RoundTripSeconds": None, "BedrockMs": None}
+
+
+def test_the_record_range_ends_at_the_run_end():
+    # The live noop (21:42:44.489 to 21:58:44.511) and the cascade chained after it: the cascade's incident
+    # (22:04) is not the noop's.
+    noop = live_check.record_range(datetime(2026, 11, 8, 21, 42, 44, 489000, tzinfo=timezone.utc),
+                                   datetime(2026, 11, 8, 21, 58, 44, 511000, tzinfo=timezone.utc))
+    assert noop == ("2026-11-08T21:41:44.489Z", "2026-11-08T21:58:44.511Z")
+    lo, hi = noop
+    assert lo <= "2026-11-08T21:42:00.000Z" <= hi          # the run's first minute
+    assert lo <= "2026-11-08T21:58:00.000Z" <= hi          # its last
+    assert not lo <= "2026-11-08T22:04:00.000Z" <= hi      # the next run's incident
+
+
 def test_a_stored_record_reads_back_through_the_dashboard():
     problems, latency = live_check.readback(good(), None, NOW)
     assert problems == [] and latency is None
