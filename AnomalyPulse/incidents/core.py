@@ -50,10 +50,13 @@ def _after_a_minute(text):
 
 
 def _window(detail, payload, deps):
-    """The minute's feature window: from the request the Diagnosis Lambda answered, or from S3."""
+    """The minute's feature window and where it came from: the request the Diagnosis Lambda
+    answered ("event"), or its file in S3 ("s3")."""
     request = _json(detail.get("requestPayload"))
     windows = ((request or {}).get("detail") or {}).get("windows")
-    return windows[0] if windows else deps.read_window(payload["key"])
+    if windows:
+        return windows[0], "event"
+    return deps.read_window(payload["key"]), "s3"
 
 
 def _experiment(deps, now):
@@ -109,7 +112,7 @@ def process(event, deps):
     detail = event["detail"]
     payload = _json(detail["responsePayload"])
     prediction = payload["predictions"][0]
-    window = _window(detail, payload, deps)
+    window, window_from = _window(detail, payload, deps)
     if window["window_start"] != prediction["window_start"]:
         raise ValueError(f"the window ({window['window_start']}) is not the prediction's "
                          f"({prediction['window_start']})")
@@ -117,7 +120,7 @@ def process(event, deps):
     state = deps.get_state() or {"incident": None, "recent_normal": [], "baseline": {}}
     prev = state["incident"]
     if prev and prediction["window_start"] <= prev["last_window"]:
-        return {"action": "ignored", "changes": []}
+            return {"action": "ignored", "changes": [], "window_from": window_from}
     new, changes = incident.step(prev, prediction)
     now = deps.now()
 
@@ -149,4 +152,5 @@ def process(event, deps):
         recent = (recent + [window])[-KEEP_NORMAL:]
     deps.put_state({"incident": new, "recent_normal": recent,
                     "baseline": baseline if new["status"] == "OPEN" else {}})
-    return {"action": "processed", "changes": changes, "incident": new.get("started_at")}
+    return {"action": "processed", "changes": changes, "incident": new.get("started_at"),
+            "window_from": window_from}

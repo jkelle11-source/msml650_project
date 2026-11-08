@@ -169,5 +169,5 @@ def test_the_state_item_stays_small():
 def test_the_handler_runs_a_step_and_returns_a_summary(monkeypatch, capsys):
     monkeypatch.setattr(handler, "_deps", build())
     result = handler.handler(event(0), None)
-    assert result == {"action": "processed", "changes": [], "incident": None}
+    assert result == {"action": "processed", "changes": [], "incident": None, "window_from": "event"}
     assert "incident_step" in capsys.readouterr().out

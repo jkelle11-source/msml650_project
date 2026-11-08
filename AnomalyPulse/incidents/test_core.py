@@ -285,8 +285,8 @@ def test_the_window_is_read_from_s3_when_the_event_does_not_carry_it():
     feed(deps, 0)
     feed(deps, 1)
     deps.t = datetime(2026, 11, 6, 14, 5, 48, tzinfo=timezone.utc)
-    core.process(event(2, "DEPENDENCY_FAILURE", request=False), deps)
-    assert deps.records[ws(2)]["status"] == "OPEN"
+    result = core.process(event(2, "DEPENDENCY_FAILURE", request=False), deps)
+    assert deps.records[ws(2)]["status"] == "OPEN" and result["window_from"] == "s3"
 
 
 def test_a_reply_payload_that_is_a_json_string_is_accepted():
@@ -300,3 +300,7 @@ def test_a_window_that_is_not_the_predictions_is_refused():
     deps = FakeDeps()
     with pytest.raises(ValueError):
         feed(deps, 1, win=window(ws(5)))
+
+def test_the_summary_says_the_window_came_from_the_event():
+    deps = FakeDeps()
+    assert feed(deps, 0)["window_from"] == "event"
