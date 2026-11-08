@@ -1,6 +1,6 @@
 # The incident store (M8-3)
 
-**Status:** built and tested offline (81 tests in `incidents/`, none reach AWS). Not deployed yet, and not checked live. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
+**Status:** built and tested offline (99 tests in `incidents/`, none reach AWS). Not deployed yet, and not checked live. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
 
 The Lambda `anomalypulse-incidents` takes each diagnosed minute, groups minutes into incidents with
 `ml/diagnosis/incident.py`, asks `anomalypulse-explain` (M6-1) to explain each incident, and stores a record the
@@ -84,13 +84,30 @@ Each stored diagnosis writes one embedded-metric log line (namespace `AnomalyPul
 
 ```bash
 cd AnomalyPulse
-python3 -m pytest incidents -q          # 81 tests; none reach AWS
+python3 -m pytest incidents -q          # 99 tests; none reach AWS
 cfn-lint infra/incidents/template.yaml  # no findings (cfn-lint 1.60.0, 2026-11-07)
 ```
 
 Deploy `anomalypulse-ml`, `anomalypulse-pipeline` and `anomalypulse-genai` first. Jake deploys this stack with
 `admin`, because it creates a role. The live checks (a traffic spike with `--baseline 360`, then a cascade) run
 from the runner host, one at a time and never during M9-1 ([`M8-3_Handoff.md`](../Handoffs/M8-3_Handoff.md), §9).
+
+## Checking a live run
+
+`incidents/live_check.py` reads one finished run and prints PASS or FAIL. It changes nothing. Run it at least
+5 minutes after the run ends:
+
+```bash
+cd AnomalyPulse
+python3 -m incidents.live_check <experiment_id> --profile anomalypulse
+```
+
+It reads the run's manifest (to know its type and window), the incident records the run opened, and the
+Lambda's own log lines and health. For a fault run it passes with exactly one incident, closed, of the run's
+type, with its diagnosis stored, 1 to 5 Bedrock calls, the run's `experiment_id` beside (never inside) the
+prediction, and a clean read-back through `build_dashboard`. A NORMAL run passes with none. A diagnosis that
+failed its self-check, or was made for an earlier type, is printed as a note. The judging is tested offline;
+its AWS reads have not run yet.
 
 ## Decisions
 

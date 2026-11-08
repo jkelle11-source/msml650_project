@@ -170,9 +170,9 @@ opens.
 **Built, not yet live (2026-11-07; [`Docs/INCIDENT_STORE.md`](../Docs/INCIDENT_STORE.md)):** the code, the stack and
 the tests are on the branch; nothing has run on AWS.
 
-- **Done:** 81 offline tests in `incidents/` (the table, S3, the lock and the explanation Lambda are faked), among
+- **Done:** 99 offline tests in `incidents/` (the table, S3, the lock and the explanation Lambda are faked), among
   them one that reads a stored record through the dashboard's `build_dashboard`; `cfn-lint` finds nothing in
-  `infra/incidents/template.yaml`; the Makefile's bundle imports on its own.
+  `infra/incidents/template.yaml`; the Makefile's bundle imports on its own; `incidents/live_check.py` (read-only, run after each live run) is written and its judging is tested offline.
 - **Not done:** deploying (Jake, with `admin`); the live checks (a traffic spike with `--baseline 360`, then a
   cascade, from the runner); `sam build`, which has not run; the contract's questions agreed with M6-1 (Josh) and
   the record's layout agreed with Josh and Linu (posted on #30, unanswered); `observed_sequence` is not sent.
