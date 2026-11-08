@@ -62,7 +62,7 @@ incident. It has its own `pk` so that a newest-first Query on `INCIDENT` never r
 4 minutes of a fault's end (the last counted minute is often the first one after the fault, then two quiet minutes
 must be announced), the record stays `OPEN` until the next traffic, and a console reading it would show an active
 incident while the system is idle. The next run's first window then closes it with the right `ended_at`. On
-validation's replay, 107 of the 112 incidents were closed by the next run's first windows, because those runs end 2
+validation's replay, 108 of the 112 incidents were closed by a later run's windows, because those runs end 2
 minutes after their fault. Live runs are long enough: the simulator's default `--recovery` and the cascade spec's
 `recovery_s` are both 300 s. **For M8-5 and the M10 demo:** keep traffic running at least 4 minutes after a fault
 ends.
@@ -144,6 +144,22 @@ whose time holds the minute) and the explanation Lambda (`validate_input` again,
   34 KB.
 - **Baseline and metrics:** the numbers are in [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md), "Decided in M8-3".
   Closing is in "When an incident closes", above.
+
+**Running it again** (after a change to `incidents/`, `incident.py`, the builder's rules or a promoted model). The
+scripts are in `incidents/replay/`; the replay reaches no AWS. It needs Python 3.13 with the Diagnosis Lambda's
+libraries, because it runs the Lambda's own `detect_then_classify`:
+
+```bash
+cd AnomalyPulse
+python3.13 -m venv <venv> && <venv>/bin/pip install -r ml/requirements-image.txt boto3 jsonschema
+incidents/replay/download.sh <dir>                       # read-only, about 940 MB: the runs and both promoted models
+<venv>/bin/python incidents/replay/replay.py <dir> <out.json>     # about a minute; add --fail-first for that variant
+<venv>/bin/python incidents/replay/analyze.py <out.json>
+```
+
+`download.sh` takes each model from its promoted pointer (`/anomalypulse/ml/models/incident_type` and
+`anomaly_iforest`), the versions the Diagnosis Lambda serves; the numbers above are from the classifier version
+`kNUehxgF…` and the forest version `He.BgX3O…`. `replay.py`'s docstring says how each window and event is built.
 
 ## Decisions
 
