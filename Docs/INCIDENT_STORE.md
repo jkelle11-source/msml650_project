@@ -27,7 +27,9 @@ dashboard reads in the Incidents table.
    (`record.RETRY_KINDS`, each finding's kind from `genai.self_check.kind`). Build the input
    (`incidents/builder.py`), check it with `genai.contract.validate_input`, call `anomalypulse-explain`, and
    store the diagnosis with the input it was made from, or the error. A diagnosis that failed its self-check
-   is stored, flagged. A retry's diagnosis replaces the flagged one only if its self-check is clean (a
+   is stored, flagged. A retry resends the flagged diagnosis's own input with the answer and its findings
+   (not a severity disagreement), and asks Bedrock to fix them (`DIAGNOSIS_CONTRACT.md`, "Revising an
+   answer"). Its diagnosis replaces the flagged one only if its self-check is clean (a
    severity disagreement alone doesn't count: the rubric's severity is reported anyway); otherwise the
    flagged one stays. Each retry writes an `incident_retry` log line: the flagged diagnosis's finding kinds,
    the retry's (or its error), and whether it was kept.
@@ -177,7 +179,8 @@ whose time holds the minute) and the explanation Lambda (`validate_input` again,
   the next counted minute, a minute later (226 calls). Calling only at opening and at type changes, as before the
   review, only the 13 incidents that changed type would have got one.
 - **A flagged first answer** (2026-11-08, `--flag-first`): with the first answer for each of an incident's types
-  flagged for a wrong number, every incident got its retry at the next counted minute and kept the clean answer:
+  flagged for a wrong number, every incident got its retry at the next counted minute, resending the flagged
+  diagnosis's input with the answer and the finding, and kept the clean answer:
   114 retries (2 incidents had one for each of two types), 239 calls, at most 4 for an incident, so the cap of 5
   was never reached. In the plain replay nothing changed (125 calls), and every record holds the input of its
   stored diagnosis.
@@ -220,5 +223,7 @@ incidents/replay/download.sh <dir>                       # read-only, about 940 
 - **One live run only:** a traffic spike. The cascade, which changes type the most, runs after the merge.
 - **Josh and Linu have not replied** on the layout (#30).
 - **`observed_sequence` is not sent,** so Bedrock makes no ordering claim.
-- **The retry for a flagged diagnosis** (2026-11-08) has run only in tests and the replay, not on AWS. The
-  records of the two live runs were stored before it, so they have no `diagnosis_input` or `retried_for`.
+- **The retry for a flagged diagnosis** (2026-11-08) has run in the store only in tests and the replay, not on
+  AWS. The revision request itself ran on Bedrock on three saved answers, and all three came back clean
+  (`DIAGNOSIS_CONTRACT.md`, "Decided in M8-3"). The records of the two live runs were stored before it, so they
+  have no `diagnosis_input` or `retried_for`.

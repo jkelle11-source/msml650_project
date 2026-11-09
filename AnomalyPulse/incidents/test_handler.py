@@ -120,6 +120,13 @@ def test_explain_returns_the_reply_and_invokes_synchronously():
     assert json.loads(call["Payload"]) == {"incident_id": "inc-1"}
 
 
+def test_a_retry_sends_the_revision_beside_the_inputs_fields():
+    lam = FakeLambda()
+    revise = {"answer": {"summary": "s"}, "findings": ["summary: the number 9 is not in or derivable from the input"]}
+    assert build(lam=lam).explain({"incident_id": "inc-1"}, revise=revise) == REPLY
+    assert json.loads(lam.calls[0]["Payload"]) == {"incident_id": "inc-1", "revise": revise}
+
+
 def test_a_function_error_becomes_an_explain_error_with_its_type():
     lam = FakeLambda(reply={"errorType": "DiagnosisFailed", "errorMessage": "refused"}, function_error=True)
     with pytest.raises(core.ExplainError) as err:

@@ -3,7 +3,8 @@
 incidents/handler.py gives it AWS (the table, S3, the lock, the explain Lambda); tests give it
 fakes. `deps` needs: get_state() -> dict|None, put_state(state), get_record(started_at) ->
 dict|None, put_record(record), read_window(key) -> dict, read_lock() -> dict|None, explain(input)
--> reply (raises ExplainError), now() -> an aware datetime, emit(line: dict).
+-> reply (raises ExplainError; explain(input, revise=...) for a retry), now() -> an aware datetime,
+emit(line: dict).
 
 Per minute: the incident's record when it opens, then Bedrock, then the record again with the
 diagnosis, then the state LAST. A crash before the state is written means the retry redoes the
@@ -102,11 +103,17 @@ def _explain(rec, state, baseline, window, prediction, deps, reason="type"):
     """Call Bedrock for the incident's current type and store what comes back. reason: record.call_reason's."""
     call_type = state["incident_type"]
     before = record.finding_kinds(rec.get("self_check"))
-    error = reply = None
+    error = reply = revise = None
     try:
-        evidence = builder.build_input(state, baseline, window)
+        if reason == "retry":
+            # The same input again, with the flagged answer and what its self-check found.
+            evidence, revise = rec["diagnosis_input"], record.revision(rec)
+        else:
+            evidence = builder.build_input(state, baseline, window)
         contract.validate_input(evidence)
-        reply = deps.explain(evidence)
+        if revise is not None:
+            contract.validate_revision(revise, evidence)
+        reply = deps.explain(evidence, revise=revise)
         if "diagnosis" not in reply:
             raise ExplainError("BadReply", "the reply has no diagnosis")
     except contract.BadInput as err:

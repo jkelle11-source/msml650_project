@@ -218,6 +218,45 @@ def output_schema(evidence: dict) -> dict:
     }
 
 
+# A request to revise an answer (M8-3's retry for a flagged diagnosis): the answer as Bedrock gave it and
+# the self-check's findings on it. Bounded, so a retry costs about what the first call did.
+MAX_REVISION_FINDINGS = 20
+MAX_FINDING_CHARS = 1000
+
+
+def validate_revision(revise: dict, evidence: dict) -> dict:
+    """Return `revise` if it is a well-formed request to revise an answer to `evidence`; raise BadInput
+    naming the first problem. revise: {"answer": an answer in output_schema(evidence)'s shape, as Bedrock
+    gave it for this same input; "findings": 1 to MAX_REVISION_FINDINGS non-empty strings}."""
+    if not isinstance(revise, dict) or set(revise) != {"answer", "findings"}:
+        raise BadInput("revise must be an object with exactly answer and findings")
+    leaked = sorted(FORBIDDEN_KEYS & set(_all_keys(revise)))
+    if leaked:
+        raise BadInput(f"ground truth must never reach Bedrock; remove {', '.join(leaked)} from revise")
+    answer, findings = revise["answer"], revise["findings"]
+    fields = output_schema(evidence)["required"]
+    if not isinstance(answer, dict) or set(answer) != set(fields):
+        raise BadInput(f"revise.answer must have exactly {', '.join(fields)}")
+    if answer["severity"] not in SEVERITIES:
+        raise BadInput(f"revise.answer.severity must be one of {', '.join(SEVERITIES)}")
+    if not all(isinstance(answer[f], str) for f in ("summary", "root_cause")):
+        raise BadInput("revise.answer's summary and root_cause must be strings")
+    refs = {metric_ref(m["service"], m["metric"]) for m in evidence["metrics"]}
+    items = answer["evidence"]
+    if not isinstance(items, list) or not all(
+            isinstance(i, dict) and set(i) == {"statement", "metrics"} and isinstance(i["statement"], str)
+            and isinstance(i["metrics"], list) and all(r in refs for r in i["metrics"]) for i in items):
+        raise BadInput("revise.answer.evidence must be bullets of a statement and metrics from this input")
+    if not isinstance(answer["recommended_actions"], list) or not all(
+            isinstance(a, str) for a in answer["recommended_actions"]):
+        raise BadInput("revise.answer.recommended_actions must be strings")
+    if (not isinstance(findings, list) or not 1 <= len(findings) <= MAX_REVISION_FINDINGS
+            or not all(isinstance(f, str) and 0 < len(f.strip()) and len(f) <= MAX_FINDING_CHARS for f in findings)):
+        raise BadInput(f"revise.findings must be 1 to {MAX_REVISION_FINDINGS} non-empty strings of at most "
+                       f"{MAX_FINDING_CHARS} characters")
+    return revise
+
+
 def severity(evidence: dict) -> str:
     """The rubric's severity for an input: what Bedrock's `severity` must be."""
     affected = set(evidence["affected_services"])

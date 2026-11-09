@@ -65,6 +65,11 @@ self-check of 2026-11-06. Decisions:
   M6-2 review's live runs): the change clears four findings and adds none, so 16 pass instead of 13. On
   Sonnet's answers to the final prompt, 4 of 9 findings were false positives. The hedge rule doubles the chance
   that a wrong number behind "roughly" passes (4–9.5%).
+- **A flagged answer can be revised** (2026-11-08, for M8-3's retry): the event may carry `revise`, the earlier
+  answer to the same input and its self-check findings, which go to Bedrock as the next two turns
+  (`DIAGNOSIS_CONTRACT.md`, "Revising an answer"). On the three saved Opus answers with findings (13 in all),
+  Sonnet 4.6's revisions had none, in 5 to 10 s each. A request without `revise` is unchanged. Each finding's
+  kind is read back with `self_check.kind()`.
 
 **Definition of Done**
 - [x] For a set of sample inputs (one per incident type), Bedrock produces a well-formed report matching the template.

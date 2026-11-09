@@ -76,6 +76,9 @@ print(f"diagnosis_input: stored with {sum(r.get('diagnosis_input') is not None f
       f"{len(diagnosed)} diagnoses, each one of its incident's inputs: "
       f"{sum(r.get('diagnosis_input') in sent.get(r['incident_id'], []) for r in diagnosed)}; "
       f"the last input sent: {sum(r.get('diagnosis_input') == sent[r['incident_id']][-1] for r in diagnosed)}")
+resent = sum(c.get("revised", False) and c["evidence"] == calls[i - 1]["evidence"] for i, c in enumerate(calls))
+print(f"revisions: {sum(c.get('revised', False) for c in calls)}, each resending the input of the call before it: "
+      f"{resent}")
 retries = d.get("retry_lines", [])
 print(f"retries: {len(retries)}, kept {sum(line['kept'] for line in retries)}; stored diagnoses still flagged: "
       f"{sum(not (r['self_check'] or {}).get('passed', True) for r in diagnosed)}; "

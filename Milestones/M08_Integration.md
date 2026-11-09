@@ -157,7 +157,8 @@ said `NORMAL` and the detector did not flag the minute) and fixes the baseline f
 sends at most 10 metrics (those that moved and the type's own signals first, then the standard three), and calls
 `anomalypulse-explain` whenever the stored diagnosis isn't for the incident's current type (when it opens, each time
 its type changes, and the next counted minute after a failed call), and once per type again for a diagnosis its
-self-check flagged for something the input doesn't support or its wording (2026-11-08), at most 5 calls per incident. It
+self-check flagged for something the input doesn't support or its wording, resending its input with the answer and
+the findings (2026-11-08), at most 5 calls per incident. It
 stores one record per incident (`pk` `INCIDENT`, `sk` `started_at`: the dashboard's `prediction` and `diagnosis`,
 the input that diagnosis was made from, the explanation Lambda's other outputs, and the ground-truth reference
 beside them) and its running state under

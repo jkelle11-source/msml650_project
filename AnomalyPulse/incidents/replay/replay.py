@@ -21,7 +21,8 @@
    - the lock: held by the run whose started_at-ended_at holds the minute's diagnosis time;
    - the explanation Lambda: validate_input again, then a canned reply (with --fail-first, every
      incident's first call fails, as a throttle would; with --flag-first, the first answer for each
-     of an incident's types is flagged for a wrong number, and later ones are clean).
+     of an incident's types is flagged for a wrong number, and the retry, which resends that input
+     with the answer and the finding, comes back clean).
    Then each stored record is read back through the dashboard's build_dashboard with its run's
    manifest.
 
@@ -128,6 +129,7 @@ class Fakes:
 
     def __init__(self):
         self.items, self.calls, self.lines, self.failed, self.flagged = {}, [], [], set(), set()
+        self.revised = []
         self.clock, self.largest = None, (0, None)
 
     def _put(self, key, item):
@@ -159,14 +161,17 @@ class Fakes:
                 return {"experiment_id": r["experiment_id"], "expires_at": int(self.clock.timestamp()) + 3600}
         return None
 
-    def explain(self, evidence):
+    def explain(self, evidence, revise=None):
         contract.validate_input(evidence)
+        if revise is not None:
+            contract.validate_revision(revise, evidence)
         self.calls.append(evidence)
+        self.revised.append(revise is not None)
         if FAIL_FIRST and evidence["incident_id"] not in self.failed:
             self.failed.add(evidence["incident_id"])
             raise core.ExplainError("ThrottlingException", "replay: every incident's first call fails")
         check = {"passed": True, "findings": []}
-        if FLAG_FIRST and (evidence["incident_id"], evidence["incident_type"]) not in self.flagged:
+        if FLAG_FIRST and revise is None and (evidence["incident_id"], evidence["incident_type"]) not in self.flagged:
             self.flagged.add((evidence["incident_id"], evidence["incident_type"]))
             check = {"passed": False, "findings": [FLAG]}
         return {"diagnosis": {"severity": contract.severity(evidence), "summary": "s", "root_cause": "r",
@@ -198,8 +203,9 @@ for r, window, p, models in stream:
         continue
     steps.append([window["window_start"], r["slot"], out["changes"]])
     state = fakes.get_state()
-    for evidence in fakes.calls[made:]:
-        calls.append({"slot": r["slot"], "evidence": evidence, "window": window, "baseline": state["baseline"],
+    for evidence, revised in zip(fakes.calls[made:], fakes.revised[made:]):
+        calls.append({"slot": r["slot"], "evidence": evidence, "revised": revised, "window": window,
+                      "baseline": state["baseline"],
                       "opened": "opened" in out["changes"],
                       "baseline_windows": [w["window_start"] for w in (before or {}).get("recent_normal", [])]})
 

@@ -13,7 +13,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from genai import self_check
-from genai.contract import SERVICES
+from genai.contract import MAX_FINDING_CHARS, MAX_REVISION_FINDINGS, SERVICES
 from incidents.builder import incident_id
 
 PK = "INCIDENT"
@@ -146,6 +146,21 @@ def retried(record, call_type):
     return new
 
 
+def revision(record):
+    """What a retry asks Bedrock to fix (genai.contract.validate_revision): the stored answer, as Bedrock
+    gave it (the diagnosis's bullets with the metrics each cites), and its self-check findings, but not
+    a severity disagreement: the stored severity is already the rubric's."""
+    diagnosis = record["diagnosis"]
+    answer = {"severity": diagnosis["severity"], "summary": diagnosis["summary"],
+              "root_cause": diagnosis["root_cause"],
+              "evidence": [{"statement": statement, "metrics": list(metrics)} for statement, metrics
+                           in zip(diagnosis["evidence"], record.get("evidence_metrics") or [])],
+              "recommended_actions": diagnosis["recommended_actions"]}
+    findings = [finding[:MAX_FINDING_CHARS] for finding in (record.get("self_check") or {}).get("findings") or []
+                if self_check.kind(finding) != "severity"]
+    return {"answer": answer, "findings": findings[:MAX_REVISION_FINDINGS]}
+
+
 def finding_kinds(check):
     """The kinds (genai.self_check.kind) of a self-check result's findings."""
     return {self_check.kind(finding) for finding in ((check or {}).get("findings") or [])}
@@ -166,12 +181,15 @@ def call_reason(record, state):
     call, so one failure doesn't leave the console on "Severity pending" for the rest of the incident.
     "retry": it is, but its self-check found one of RETRY_KINDS (a number, time, service, claim or
     citation the input doesn't support, or causal or ordering wording), and the type
-    hasn't had its one retry; so retries can't use up the calls a later type change needs."""
+    hasn't had its one retry; so retries can't use up the calls a later type change needs. A retry
+    resends the diagnosis's own input with the answer and its findings (revision), so a record
+    stored before inputs were kept (no diagnosis_input) gets none."""
     if record["bedrock_calls"] >= MAX_CALLS:
         return None
     if record["diagnosis_for_type"] != state["incident_type"]:
         return "type"
     if (state["incident_type"] not in (record.get("retried_for") or [])
+            and record.get("diagnosis_input") is not None
             and finding_kinds(record.get("self_check")) & set(RETRY_KINDS)):
         return "retry"
     return None

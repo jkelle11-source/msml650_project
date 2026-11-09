@@ -666,3 +666,76 @@ def test_the_saved_answers_findings_all_have_a_kind():
         found += contract.check_output_shape(raw) + self_check.check(SAMPLES[path.stem], raw)
     kinds = [self_check.kind(f) for f in found]
     assert len(found) >= 10 and "unknown" not in kinds, [f for f in found if self_check.kind(f) == "unknown"]
+
+
+# --- revising a flagged answer (M8-3's retry) ---------------------------------------------------
+
+FLAGGED = _with(summary="Payment p95 latency rose to 4.8 s.")
+REVISE = {"answer": FLAGGED, "findings": ["summary: the number 4.8 is not in or derivable from the input"]}
+
+
+def test_a_revision_request_sends_the_answer_back_and_lists_the_findings():
+    plain, req = explain.request(DEP), explain.request(DEP, revise=REVISE)
+    assert [m["role"] for m in req["messages"]] == ["user", "assistant", "user"]
+    assert req["messages"][0] == plain["messages"][0]
+    assert json.loads(req["messages"][1]["content"]) == FLAGGED
+    ask = req["messages"][2]["content"]
+    assert "- summary: the number 4.8 is not in or derivable from the input\n" in ask
+    assert ask.endswith(prompt.REVISION_ASK)
+    assert {k: v for k, v in req.items() if k != "messages"} == {k: v for k, v in plain.items() if k != "messages"}
+
+
+def test_a_revised_answer_is_checked_like_any_other():
+    fake = FakeBedrock(GOOD)
+    result = explain.diagnose(DEP, bedrock=fake, revise=REVISE)
+    assert result["self_check"]["passed"] is True and len(fake.calls[0]["messages"]) == 3
+    again = explain.diagnose(DEP, bedrock=FakeBedrock(FLAGGED), revise=REVISE)
+    assert again["self_check"]["findings"] == REVISE["findings"]
+
+
+def test_a_bad_revision_never_reaches_bedrock():
+    fake = FakeBedrock()
+    with pytest.raises(contract.BadInput):
+        explain.diagnose(DEP, bedrock=fake, revise={"answer": FLAGGED})
+    assert fake.calls == []
+
+
+def test_the_lambda_handler_passes_a_revision_on(monkeypatch):
+    fake = FakeBedrock()
+    monkeypatch.setattr(explain, "client", lambda: fake)
+    assert handler.handler({**DEP, "revise": REVISE}, None)["self_check"]["passed"] is True
+    assert len(fake.calls[0]["messages"]) == 3
+    handler.handler(DEP, None)
+    assert len(fake.calls[1]["messages"]) == 1
+
+
+def _answer(**changes):
+    return {**REVISE, "answer": {**FLAGGED, **changes}}
+
+
+@pytest.mark.parametrize("revise, problem", [
+    ([], "exactly answer and findings"),
+    ({"answer": FLAGGED}, "exactly answer and findings"),
+    ({**REVISE, "note": "x"}, "exactly answer and findings"),
+    (_answer(experiment_id="exp-1"), "ground truth"),
+    ({**REVISE, "answer": {k: v for k, v in FLAGGED.items() if k != "root_cause"}}, "revise.answer must have"),
+    (_answer(severity="CRITICAL"), "severity"),
+    (_answer(summary=5), "summary and root_cause"),
+    (_answer(evidence=[{"statement": "x", "metrics": ["cart-service.p95_latency_ms"]}]), "metrics from this input"),
+    (_answer(evidence=[{"statement": "x", "metrics": [], "note": "y"}]), "metrics from this input"),
+    (_answer(evidence="x"), "metrics from this input"),
+    (_answer(recommended_actions=[1]), "recommended_actions"),
+    ({**REVISE, "findings": []}, "revise.findings"),
+    ({**REVISE, "findings": ["   "]}, "revise.findings"),
+    ({**REVISE, "findings": ["x" * (contract.MAX_FINDING_CHARS + 1)]}, "revise.findings"),
+    ({**REVISE, "findings": ["x"] * (contract.MAX_REVISION_FINDINGS + 1)}, "revise.findings"),
+])
+def test_a_malformed_revision_is_refused(revise, problem):
+    with pytest.raises(contract.BadInput, match=re.escape(problem)):
+        contract.validate_revision(revise, DEP)
+
+
+def test_a_well_formed_revision_is_returned():
+    assert contract.validate_revision(REVISE, DEP) is REVISE
+    at_the_limits = {**REVISE, "findings": ["x" * contract.MAX_FINDING_CHARS] * contract.MAX_REVISION_FINDINGS}
+    assert contract.validate_revision(at_the_limits, DEP) is at_the_limits

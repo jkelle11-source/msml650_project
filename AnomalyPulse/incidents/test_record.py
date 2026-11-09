@@ -254,3 +254,30 @@ def test_a_retry_that_is_flagged_too_keeps_the_first_flagged_diagnosis_and_its_i
 def test_the_input_survives_dynamodb():
     r = record.with_diagnosis(new(), "DEPENDENCY_FAILURE", REPLY, DIAGNOSED, INPUT)
     assert record.from_dynamodb(record.to_dynamodb(r))["diagnosis_input"] == INPUT
+
+
+def test_a_retry_sends_the_stored_answer_as_bedrock_gave_it_and_its_findings_but_not_severity():
+    reply = {**REPLY, "diagnosis": {**REPLY["diagnosis"], "evidence": ["e1", "e2"]},
+             "evidence_metrics": [["payment-service.p95_latency_ms"], ["order-service.error_rate_5xx"]],
+             "self_check": {"passed": False, "findings": [NUMBER, SEVERITY, WORDING]}}
+    r = record.with_diagnosis(new(), "DEPENDENCY_FAILURE", reply, DIAGNOSED, INPUT)
+    revise = record.revision(r)
+    assert revise == {"answer": {"severity": "HIGH", "summary": "s", "root_cause": "r",
+                                 "evidence": [{"statement": "e1", "metrics": ["payment-service.p95_latency_ms"]},
+                                              {"statement": "e2", "metrics": ["order-service.error_rate_5xx"]}],
+                                 "recommended_actions": ["a"]},
+                      "findings": [NUMBER, WORDING]}
+    assert contract.validate_revision(revise, r["diagnosis_input"]) is revise
+
+
+def test_the_findings_a_retry_sends_are_bounded():
+    many = [f"summary: the number {i} is not in or derivable from the input" for i in range(30)]
+    long = "summary: orders symptoms without saying 'observed sequence': '" + "x" * 2000 + "'"
+    r = record.with_diagnosis(new(), "DEPENDENCY_FAILURE", flagged(long, *many), DIAGNOSED, INPUT)
+    findings = record.revision(r)["findings"]
+    assert len(findings) == contract.MAX_REVISION_FINDINGS and len(findings[0]) == contract.MAX_FINDING_CHARS
+
+
+def test_a_record_with_no_stored_input_is_not_retried():
+    done = record.with_diagnosis(new(), "DEPENDENCY_FAILURE", flagged(NUMBER), DIAGNOSED, INPUT)
+    assert record.call_reason({**done, "diagnosis_input": None}, STATE) is None

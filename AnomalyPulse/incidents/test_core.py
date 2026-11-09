@@ -22,9 +22,15 @@ WORDING = "evidence[0]: orders symptoms without saying 'observed sequence': 'Ord
 SEVERITY = "severity: MEDIUM, but the rubric gives HIGH"
 
 
-def flagged(*findings, summary="s"):
-    return {**REPLY, "diagnosis": {**REPLY["diagnosis"], "summary": summary},
+def flagged(*findings, summary="s", cites="order-service.error_rate_5xx"):
+    return {**REPLY, "diagnosis": {**REPLY["diagnosis"], "summary": summary}, "evidence_metrics": [[cites]],
             "self_check": {"passed": not findings, "findings": list(findings)}}
+
+
+def answer(summary):
+    """What a retry sends back as the flagged answer, for flagged(summary=summary)."""
+    return {"severity": "HIGH", "summary": summary, "root_cause": "r",
+            "evidence": [{"statement": "e", "metrics": ["order-service.error_rate_5xx"]}], "recommended_actions": ["a"]}
 
 
 def ws(m):
@@ -70,7 +76,7 @@ def event(m, typ=None, win=None, request=True, as_string=False, flagged=None):
 class FakeDeps:
     def __init__(self):
         self.state, self.records, self.windows, self.lock = None, {}, {}, None
-        self.fail, self.explain_calls, self.lines, self.ops = None, [], [], []
+        self.fail, self.explain_calls, self.revisions, self.lines, self.ops = None, [], [], [], []
         self.reply = REPLY
         self.t = datetime(2026, 11, 6, 14, 5, 0, tzinfo=timezone.utc)
 
@@ -99,8 +105,9 @@ class FakeDeps:
     def read_lock(self):
         return self.lock
 
-    def explain(self, evidence):
+    def explain(self, evidence, revise=None):
         self.explain_calls.append(evidence)
+        self.revisions.append(copy.deepcopy(revise))
         if self.fail:
             raise self.fail
         return self.reply
@@ -443,7 +450,10 @@ def test_a_diagnosis_flagged_for_a_wrong_number_is_asked_for_again_on_the_next_c
     rec = deps.records[ws(2)]
     assert len(deps.explain_calls) == 2 and rec["bedrock_calls"] == 2
     assert rec["diagnosis"]["summary"] == "second" and rec["self_check"]["passed"] is True
-    assert rec["diagnosis_input"] == deps.explain_calls[1] and rec["diagnosis_input"]["window_start"] == ws(3)
+    # The retry resent the flagged diagnosis's own input (minute 2's), with the answer and its findings.
+    assert deps.explain_calls[1] == deps.explain_calls[0] and deps.explain_calls[1]["window_start"] == ws(2)
+    assert deps.revisions == [None, {"answer": answer("first"), "findings": [NUMBER]}]
+    assert rec["diagnosis_input"] == deps.explain_calls[0]
     assert rec["retried_for"] == ["DEPENDENCY_FAILURE"]
     assert rec["latency"]["diagnosis_to_stored_s"] == 12.75          # still the first diagnosis's
     retry = [line for line in deps.lines if line["event"] == "incident_retry"]
@@ -521,3 +531,21 @@ def test_a_retry_counts_toward_the_cap(monkeypatch):
     rec = deps.records[ws(1)]
     assert len(deps.explain_calls) == 2 and rec["diagnosis_for_type"] == "TRAFFIC_SPIKE"
     assert rec["prediction"]["incident_type"] == "CASCADING_FAILURE"
+
+
+def test_a_retry_leaves_a_severity_disagreement_out_of_the_findings_it_sends():
+    deps = FakeDeps()
+    deps.reply = flagged(SEVERITY, WORDING, summary="first")
+    opened(deps)
+    feed(deps, 3, "DEPENDENCY_FAILURE", failing(3))
+    assert deps.revisions[1] == {"answer": answer("first"), "findings": [WORDING]}
+
+
+def test_a_revision_the_contract_refuses_is_stored_as_an_error_and_never_sent():
+    deps = FakeDeps()
+    deps.reply = flagged(NUMBER, cites="cart-service.lambda_duration_ms_p95")     # not in the input
+    opened(deps)
+    feed(deps, 3, "DEPENDENCY_FAILURE", failing(3))
+    rec = deps.records[ws(2)]
+    assert len(deps.explain_calls) == 1 and rec["diagnosis_error"]["type"] == "BadInput"
+    assert rec["diagnosis"] is not None and rec["retried_for"] == ["DEPENDENCY_FAILURE"]
