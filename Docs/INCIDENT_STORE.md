@@ -1,6 +1,6 @@
 # The incident store (M8-3)
 
-**Status:** deployed (2026-11-08) and checked live on a traffic spike and a cascade; 128 offline tests in `incidents/` and a replay of validation. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
+**Status:** deployed (2026-11-08) and checked live on a traffic spike and a cascade; 165 offline tests in `incidents/` and a replay of validation. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
 
 The Lambda `anomalypulse-incidents` takes each diagnosed minute, groups minutes into incidents with
 `ml/diagnosis/incident.py`, asks `anomalypulse-explain` (M6-1) to explain each incident, and stores a record the
@@ -107,7 +107,7 @@ belong to one minute: the incident's first counted minute's end to its diagnosis
 
 ```bash
 cd AnomalyPulse
-python3 -m pytest incidents -q          # 128 tests; none reach AWS
+python3 -m pytest incidents -q          # 165 tests; none reach AWS
 cfn-lint infra/incidents/template.yaml  # no findings (cfn-lint 1.60.0, 2026-11-07)
 ```
 
