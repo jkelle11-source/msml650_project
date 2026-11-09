@@ -20,11 +20,19 @@ dashboard reads in the Incidents table.
    (`ended_at` = its last counted minute + 1 minute).
 5. **Open.** The record is written first, with `diagnosis: null`, so the console shows "Severity pending". The
    baseline is fixed here, and the ground-truth reference is read from the experiment lock.
-6. **Explain.** Whenever the stored diagnosis is not for the incident's current type, up to 5 calls per
-   incident: when it opens, at each `type_changed`, and on the next counted minute after a failed call. Build
-   the input (`incidents/builder.py`), check it with `genai.contract.validate_input`, call
-   `anomalypulse-explain`, and store the diagnosis, or the error. A diagnosis that failed its self-check is
-   stored, flagged.
+6. **Explain.** Up to 5 calls per incident. Whenever the stored diagnosis is not for the incident's current
+   type: when it opens, at each `type_changed`, and on the next counted minute after a failed call. And once
+   per incident type, on the next counted minute, when the stored diagnosis's self-check found something the
+   input doesn't support (a number, time, service, claim or citation) or causal or ordering wording
+   (`record.RETRY_KINDS`, each finding's kind from `genai.self_check.kind`). Build the input
+   (`incidents/builder.py`), check it with `genai.contract.validate_input`, call `anomalypulse-explain`, and
+   store the diagnosis with the input it was made from, or the error. A diagnosis that failed its self-check
+   is stored, flagged. A retry resends the flagged diagnosis's own input with the answer and its findings
+   (not a severity disagreement), and asks Bedrock to fix them (`DIAGNOSIS_CONTRACT.md`, "Revising an
+   answer"). Its diagnosis replaces the flagged one only if its self-check is clean (a
+   severity disagreement alone doesn't count: the rubric's severity is reported anyway); otherwise the
+   flagged one stays. Each retry writes an `incident_retry` log line: the flagged diagnosis's finding kinds,
+   the retry's (or its error), and whether it was kept.
 7. **State last.** The state item is written after everything else. If the Lambda dies before that, the retry
    repeats the minute (Bedrock may be called twice) instead of leaving an incident with no diagnosis and no
    retry.
@@ -42,8 +50,9 @@ the window builder's.
 | `status`, `ended_at` | `OPEN` or `CLOSED`; `ended_at` is `null` while open |
 | `prediction` | The dashboard's shape: `incident_type`, `confidence`, `started_at`, `detected_at`, `affected_services`, `model` (`estimator`, `job`). `affected_services` only grows while the incident is open: the opening minute's list, plus each counted minute's services that cross the line |
 | `diagnosis` | The dashboard's `diagnosis`, or `null` until Bedrock answers (or if it failed) |
+| `diagnosis_input` | The input that diagnosis was made from, as `validate_input` accepted it, for M8-4; `null` until a diagnosis is stored |
 | `diagnosis_for_type` | The incident type that diagnosis was made for |
-| `bedrock_calls`, `diagnosis_error` | Calls so far (at most 5), and the last call's error (`for_type`, `type`, `message`), cleared by a good call |
+| `bedrock_calls`, `retried_for`, `diagnosis_error` | Calls so far (at most 5, retries included), the incident types whose flagged diagnosis has been asked for again, and the last call's error (`for_type`, `type`, `message`), cleared by a good call |
 | `evidence_metrics`, `self_check`, `runbook` | The explanation Lambda's other outputs, for M8-4 |
 | `experiment_id` | The ground-truth reference (Tier-2), at the top level and never inside `prediction` or Bedrock's input. Absent for a real incident, with no experiment running |
 | `latency` | The first diagnosis's round trip: `window_end_to_diagnosis_s` (the first counted minute's end to its diagnosis), `diagnosis_to_stored_s` (that diagnosis, `detected_at`, to the first diagnosis stored), `bedrock_ms` (that call's) |
@@ -169,6 +178,12 @@ whose time holds the minute) and the explanation Lambda (`validate_input` again,
 - **A failing first call:** with every incident's first call made to fail, all 112 still got a diagnosis, stored at
   the next counted minute, a minute later (226 calls). Calling only at opening and at type changes, as before the
   review, only the 13 incidents that changed type would have got one.
+- **A flagged first answer** (2026-11-08, `--flag-first`): with the first answer for each of an incident's types
+  flagged for a wrong number, every incident got its retry at the next counted minute, resending the flagged
+  diagnosis's input with the answer and the finding, and kept the clean answer:
+  114 retries (2 incidents had one for each of two types), 239 calls, at most 4 for an incident, so the cap of 5
+  was never reached. In the plain replay nothing changed (125 calls), and every record holds the input of its
+  stored diagnosis.
 - **The record:** each read back through `build_dashboard` with its run's manifest. The largest item was the state,
   34 KB. `affected_services` at close: all four services on every traffic spike, Order and Payment on every
   dependency failure, Product alone on 23 of the 28 DB throttling incidents (88 of the 112 had one service before
@@ -184,7 +199,7 @@ libraries, because it runs the Lambda's own `detect_then_classify`:
 cd AnomalyPulse
 python3.13 -m venv <venv> && <venv>/bin/pip install -r ml/requirements-image.txt boto3 jsonschema
 incidents/replay/download.sh <dir>                       # read-only, about 940 MB: the runs and both promoted models
-<venv>/bin/python incidents/replay/replay.py <dir> <out.json>     # about a minute; add --fail-first for that variant
+<venv>/bin/python incidents/replay/replay.py <dir> <out.json>     # about a minute; add --fail-first or --flag-first for those variants
 <venv>/bin/python incidents/replay/analyze.py <out.json>
 ```
 
@@ -208,3 +223,7 @@ incidents/replay/download.sh <dir>                       # read-only, about 940 
 - **One live run only:** a traffic spike. The cascade, which changes type the most, runs after the merge.
 - **Josh and Linu have not replied** on the layout (#30).
 - **`observed_sequence` is not sent,** so Bedrock makes no ordering claim.
+- **The retry for a flagged diagnosis** (2026-11-08) has run in the store only in tests and the replay, not on
+  AWS. The revision request itself ran on Bedrock on three saved answers, and all three came back clean
+  (`DIAGNOSIS_CONTRACT.md`, "Decided in M8-3"). The records of the two live runs were stored before it, so they
+  have no `diagnosis_input` or `retried_for`.

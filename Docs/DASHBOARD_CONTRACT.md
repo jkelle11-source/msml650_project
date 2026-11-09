@@ -232,4 +232,5 @@ the mock one and changes nothing else.
    rubric's, computed from the input (since 2026-11-08, #99; before that it was Bedrock's own pick, which the
    self-check still compares with the rubric). Beside `diagnosis`, the
    explanation Lambda's reply carries `evidence_metrics` (the input metrics each evidence bullet cites) and
-   `self_check` (`passed` and findings); M8-3 stores them, and M8-4 decides whether the console shows them.
+   `self_check` (`passed` and findings); M8-3 stores them, with the input the diagnosis was made from
+   (`diagnosis_input`), and M8-4 decides whether the console shows them.

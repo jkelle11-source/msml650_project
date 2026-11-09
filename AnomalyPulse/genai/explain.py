@@ -65,29 +65,42 @@ def _runbook(evidence: dict, use: bool | None):
     return runbooks.runbook_for(evidence["incident_type"])
 
 
-def request(evidence: dict, model: str | None = None, runbooks: bool | None = None) -> dict:
-    """The Messages request for one diagnosis. Pure, so tests can check it without Bedrock."""
+def request(evidence: dict, model: str | None = None, runbooks: bool | None = None,
+            revise: dict | None = None) -> dict:
+    """The Messages request for one diagnosis. Pure, so tests can check it without Bedrock.
+
+    revise (contract.validate_revision): an earlier answer to this same input and its self-check
+    findings. It goes back as the assistant's turn, and a user turn lists the findings and asks for
+    the answer again (prompt.revision_message). The request still ends on a user turn, so this is
+    not a prefill, and an assistant turn with no thinking blocks is fine on Sonnet 4.6."""
     _, runbook = _runbook(evidence, runbooks)
+    messages = [{"role": "user", "content": prompt.user_message(evidence, runbook)}]
+    if revise is not None:
+        messages += [{"role": "assistant", "content": json.dumps(revise["answer"])},
+                     {"role": "user", "content": prompt.revision_message(revise["findings"])}]
     return {
         "model": model or MODEL_ID,
         "max_tokens": MAX_TOKENS,
         "thinking": {"type": "adaptive"},
         "system": prompt.SYSTEM_PROMPT,
-        "messages": [{"role": "user", "content": prompt.user_message(evidence, runbook)}],
+        "messages": messages,
         "output_config": {"effort": EFFORT,
                           "format": {"type": "json_schema", "schema": contract.output_schema(evidence)}},
     }
 
 
 def diagnose(evidence: dict, *, bedrock=None, model: str | None = None,
-             runbooks: bool | None = None) -> dict:
+             runbooks: bool | None = None, revise: dict | None = None) -> dict:
     """Validate the input, ask Bedrock, check the answer. Raises BadInput or DiagnosisFailed.
-    `runbooks` overrides the ANOMALYPULSE_RUNBOOKS switch."""
+    `runbooks` overrides the ANOMALYPULSE_RUNBOOKS switch. `revise` asks Bedrock to fix an earlier
+    answer to this input (request()); the new answer is checked as any other."""
     contract.validate_input(evidence)
+    if revise is not None:
+        contract.validate_revision(revise, evidence)
     model = model or MODEL_ID
     runbook_name, runbook_text = _runbook(evidence, runbooks)
     started = time.perf_counter()
-    response = (bedrock or client()).messages.create(**request(evidence, model, runbooks))
+    response = (bedrock or client()).messages.create(**request(evidence, model, runbooks, revise))
     latency_ms = round((time.perf_counter() - started) * 1000)
 
     if response.stop_reason == "refusal":

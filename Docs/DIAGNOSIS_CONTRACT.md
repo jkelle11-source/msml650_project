@@ -113,6 +113,16 @@ and each labeled minute was scored against the faults active in at least half of
 parameters, `injector`, `band`, `intensity`, `label`, `error_type`, `db_throttled`. These are Tier-2: the
 point of M9-5 is that Bedrock explains from what a monitor could see.
 
+**Revising an answer** (2026-11-08, for M8-3's retry of a flagged diagnosis). The Lambda's event may carry
+`revise` beside the input's fields: `{"answer": ..., "findings": [...]}`, an earlier answer to this same input
+as Bedrock gave it (`severity`, `summary`, `root_cause`, `evidence` bullets with the `metrics` each cites,
+`recommended_actions`) and 1 to 20 of its self-check findings, each at most 1,000 characters.
+`contract.validate_revision` refuses any other shape, a cited metric that isn't in this input, or a
+ground-truth key, with `BadInput`, before Bedrock. The earlier answer then goes back as the assistant's turn,
+and a user turn lists the findings and asks for the whole diagnosis again, fixed (`prompt.revision_message`).
+A claim the evidence really shows may stay, since the check has false positives. The new answer is checked
+like any other, and the reply has the same shape. Without `revise`, the request is byte-for-byte what it was.
+
 ## Output
 
 `genai.explain.diagnose(input)`, which the Lambda returns:
@@ -152,7 +162,11 @@ point of M9-5 is that Bedrock explains from what a monitor could see.
   when runbooks are off, the default. It sits beside `diagnosis`, not in it, so the dashboard contract is
   unchanged. See "Runbooks (M6-2)" below.
 - **`self_check`**: the smoke-level fidelity check below. A diagnosis that fails it is still returned, with
-  `passed: false` and its findings, so M8-3 can store it flagged rather than lose it.
+  `passed: false` and its findings, so M8-3 can store it flagged rather than lose it. The findings are
+  plain sentences; `genai.self_check.kind()` reads each one's kind back from its text (`number`, `time`,
+  `wording`, `severity`, `threshold`, `service`, `metric`, `citation`, or `shape` for
+  `contract.check_output_shape`'s), so a reader never matches the wording itself. M8-3 asks again on
+  all but `severity`, `threshold` and `shape` ("Decided in M8-3", 3).
 - **Errors.** A bad input raises `BadInput` (it never reaches Bedrock). A refusal (Bedrock declining; there
   is no server-side fallback on Bedrock) or an answer cut off at `max_tokens` raises `DiagnosisFailed`.
   A Bedrock attempt is cut off at 50 s and retried once (as are throttles and 5xx), then raises the SDK's
@@ -338,6 +352,28 @@ others, and there are at most 5 calls.
    stored diagnosis records the type it was made for (`diagnosis_for_type`), so a console showing
    a newer type can tell. A call that fails is counted and stored with its error, and an earlier
    diagnosis is kept; a diagnosis that failed its self-check is stored, flagged.
+
+   **And once per type, a retry for a flagged diagnosis** (decided 2026-11-08 by Jake, from Josh's
+   request for M8-4): when the stored diagnosis is for the current type but its self-check found
+   something the input doesn't support (a number, a clock time, a service, a claim with no metric of
+   its kind, a cited metric not in the input) or causal or ordering wording (`kind` `number`, `time`,
+   `service`, `metric`, `citation`, `wording`), the next counted minute asks again, within the 5
+   calls. It resends the diagnosis's own input (`diagnosis_input`) with the flagged answer and its
+   findings, leaving out a severity disagreement ("Revising an answer", above), so Bedrock is told
+   what to fix; a record stored before inputs were kept gets no retry. Its answer replaces the flagged one only if its self-check is clean, apart from a
+   severity disagreement (the rubric's severity is reported anyway); otherwise, or if the call fails,
+   the flagged one stays, and M8-4 decides how to show it. One retry per type, so retries can't use up
+   the calls a later type change needs. A severity disagreement, a quoted threshold and a shape
+   problem (such as 7 evidence bullets) are not retried. Of the 17 findings on the 20 saved answers
+   (`genai/samples/results`), 13 would be (all but 2 thresholds and 2 shape problems). The record
+   keeps the input each stored diagnosis was made from (`diagnosis_input`), replaced with it. On real
+   Bedrock (Sonnet 4.6, 2026-11-08), the three saved Opus answers with findings (13 in all, 2 to 6
+   each, shape and threshold ones included) came back from a revision with none, in 5 to 10 s each,
+   against 15 s for a plain call on the cascade sample: a revision reads about 700 more tokens and
+   writes about half as many. On validation's replay with each type's first answer flagged for a
+   wrong number (Docs/INCIDENT_STORE.md, "Checked on validation"), every incident got its retry,
+   each resending the flagged diagnosis's input, and kept the clean answer: 114 retries, 239 calls,
+   at most 4 for an incident.
 
 `prediction.affected_services` only grows while an incident is open (decided 2026-11-08): it starts as
 the opening minute's `affected_services`, and each counted minute adds the services that cross the line
