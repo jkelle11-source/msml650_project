@@ -63,11 +63,13 @@ class AwsDeps:
             return None
         return {"experiment_id": item["experiment_id"], "expires_at": int(item["expires_at"])}
 
-    def explain(self, evidence):
+    def explain(self, evidence, revise=None):
+        """The explain Lambda's reply for an input; with `revise` (a retry), beside the input's fields."""
+        payload = evidence if revise is None else {**evidence, "revise": revise}
         try:
             response = self.lambda_client.invoke(FunctionName=self.explain_function,
                                                  InvocationType="RequestResponse",
-                                                 Payload=json.dumps(evidence).encode("utf-8"))
+                                                 Payload=json.dumps(payload).encode("utf-8"))
         except (BotoCoreError, ClientError) as err:
             raise core.ExplainError(type(err).__name__, str(err)) from None
         body = response["Payload"].read()

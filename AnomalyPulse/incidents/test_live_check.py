@@ -15,12 +15,13 @@ REPLY = {"diagnosis": {"severity": "HIGH", "summary": "s", "root_cause": "r", "e
                        "recommended_actions": ["a"]},
          "evidence_metrics": [], "self_check": {"passed": True}, "runbook": [], "latency_ms": 8200}
 NOW = datetime(2026, 11, 6, 14, 30, 0, tzinfo=timezone.utc)
+INPUT = {"incident_id": "inc-20261106T140200Z", "metrics": []}
 
 
 def good(experiment_id="exp-1"):
     rec = record.open_record(STATE, PREDICTION, ["order-service", "payment-service"],
                              {"estimator": "e", "job": "j"}, experiment_id)
-    rec = record.with_diagnosis(rec, "DEPENDENCY_FAILURE", REPLY, "2026-11-06T14:05:59.750Z")
+    rec = record.with_diagnosis(rec, "DEPENDENCY_FAILURE", REPLY, "2026-11-06T14:05:59.750Z", INPUT)
     return record.close(rec, "2026-11-06T14:08:00.000Z")
 
 
@@ -152,3 +153,22 @@ def test_a_record_the_dashboard_cannot_read_is_reported():
     del rec["prediction"]["affected_services"]
     problems, _ = live_check.readback(rec, None, NOW)
     assert problems and "could not read the record" in problems[0]
+
+
+def test_a_diagnosis_stored_without_its_input_fails():
+    rec = good()
+    rec["diagnosis_input"] = None
+    problems, _ = run([rec])
+    assert problems == ["no diagnosis_input was stored with the diagnosis"]
+
+
+def test_a_record_stored_before_retries_needs_no_input():
+    rec = {k: v for k, v in good().items() if k not in ("diagnosis_input", "retried_for")}
+    assert run([rec]) == ([], [])
+
+
+def test_a_retry_is_a_note():
+    rec = good()
+    rec["retried_for"] = ["DEPENDENCY_FAILURE"]
+    problems, notes = run([rec])
+    assert problems == [] and notes == ["a flagged diagnosis was asked for again for DEPENDENCY_FAILURE"]

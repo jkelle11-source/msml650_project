@@ -30,7 +30,8 @@ def column(service, metric):
     return f"{service.split('-')[0]}_{metric}"
 
 
-print(f"{'fail-first replay' if d['fail_first'] else 'replay'}: {d['minutes']} minutes, {len(d['errors'])} errors")
+mode = "fail-first replay" if d["fail_first"] else "flag-first replay" if d.get("flag_first") else "replay"
+print(f"{mode}: {d['minutes']} minutes, {len(d['errors'])} errors")
 for err in d["errors"][:10]:
     print("  error:", err)
 
@@ -67,6 +68,21 @@ print(f"incidents with a diagnosis: {sum(r['diagnosis'] is not None for r in rec
       f"with an error left: {sum(r['diagnosis_error'] is not None for r in records)}; "
       f"diagnosis not for the final type: {sum(r['diagnosis_for_type'] != r['prediction']['incident_type'] for r in records)}")
 print(f"largest item: {d['largest_item'][0]} bytes ({d['largest_item'][1]}); metric lines: {d['metric_lines']}")
+sent = {}
+for c in calls:
+    sent.setdefault(c["evidence"]["incident_id"], []).append(c["evidence"])
+diagnosed = [r for r in records if r["diagnosis"] is not None]
+print(f"diagnosis_input: stored with {sum(r.get('diagnosis_input') is not None for r in diagnosed)} of "
+      f"{len(diagnosed)} diagnoses, each one of its incident's inputs: "
+      f"{sum(r.get('diagnosis_input') in sent.get(r['incident_id'], []) for r in diagnosed)}; "
+      f"the last input sent: {sum(r.get('diagnosis_input') == sent[r['incident_id']][-1] for r in diagnosed)}")
+resent = sum(c.get("revised", False) and c["evidence"] == calls[i - 1]["evidence"] for i, c in enumerate(calls))
+print(f"revisions: {sum(c.get('revised', False) for c in calls)}, each resending the input of the call before it: "
+      f"{resent}")
+retries = d.get("retry_lines", [])
+print(f"retries: {len(retries)}, kept {sum(line['kept'] for line in retries)}; stored diagnoses still flagged: "
+      f"{sum(not (r['self_check'] or {}).get('passed', True) for r in diagnosed)}; "
+      f"incidents with a retry: {sum(bool(r.get('retried_for')) for r in records)}")
 sizes = Counter(len(r["prediction"]["affected_services"]) for r in records)
 by_type = {}
 for r in records:

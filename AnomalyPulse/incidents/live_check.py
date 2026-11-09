@@ -59,6 +59,11 @@ def check_incident(rec, want, experiment_id):
                          f"{prediction.get('incident_type')}")
         if (rec.get("self_check") or {}).get("passed") is False:
             notes.append("the diagnosis failed its self-check (stored flagged)")
+        # Records stored before retries (no retried_for) have no input either.
+        if "retried_for" in rec and rec.get("diagnosis_input") is None:
+            problems.append("no diagnosis_input was stored with the diagnosis")
+    if rec.get("retried_for"):
+        notes.append(f"a flagged diagnosis was asked for again for {', '.join(rec['retried_for'])}")
     calls = rec.get("bedrock_calls", 0)
     if not 1 <= calls <= record.MAX_CALLS:
         problems.append(f"bedrock_calls is {calls}, expected 1 to {record.MAX_CALLS}")

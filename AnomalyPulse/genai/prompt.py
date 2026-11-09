@@ -88,6 +88,21 @@ RUNBOOK_INTRO = ("Runbook for this incident type. Use it only for recommended_ac
                  "incident.")
 
 
+# M8-3's retry for a flagged diagnosis: the first answer goes back as the assistant's turn, then this
+# user turn lists what the self-check found. The check is a set of rules with false positives, so a
+# claim the evidence really shows may stay.
+REVISION_ASK = ("Write the whole diagnosis again from the same evidence, in the same JSON, with each "
+                "problem fixed: drop or reword a claim the evidence doesn't support, take a bullet's numbers "
+                "only from the metrics it cites, and follow the rules on ordering and causal words. Keep "
+                "what was not flagged. If a flagged claim is exactly what the evidence shows, keep it.")
+
+
+def revision_message(findings: list[str]) -> str:
+    """The user turn after the first answer: the self-check's findings, then REVISION_ASK."""
+    return ("An automatic check of your answer against the rules and the evidence found these problems:\n"
+            + "\n".join(f"- {finding}" for finding in findings) + "\n\n" + REVISION_ASK)
+
+
 def user_message(evidence: dict, runbook: str | None = None) -> str:
     """The request's user turn: the evidence, as sorted JSON so equal inputs give equal prompts, and
     the runbook's text after it when one is given."""
