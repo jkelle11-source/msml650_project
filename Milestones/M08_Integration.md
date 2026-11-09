@@ -233,7 +233,7 @@ new prediction while the call runs, or longer if it fails (`record.for_another_t
 held a diagnosis back is kept even with a finding the feed shows, instead of being dropped and leaving "Severity
 pending" for the rest of that type (`record.retry_kept`). And a bullet citing no metric, which Bedrock's schema
 can't rule out, is now a `citation` finding, so it is retried and held back, not shown as a `shape` problem. The
-last two change the incident store's Lambda, so they take effect live once `anomalypulse-incidents` is redeployed.
+last two change the incident store's Lambda; `anomalypulse-incidents` was redeployed with them the same day.
 
 **Built, offline (2026-11-08):** `incidents/feed.py` checks the three items below for a stored record against what
 the dashboard returns for it, re-running the self-check on the shown text against the stored input. All 15 saved

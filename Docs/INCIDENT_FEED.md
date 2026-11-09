@@ -3,8 +3,8 @@
 **Status:** built and checked offline (2026-11-08), and live on one traffic spike (2026-11-09). The hold takes
 effect on the console when M8-5's live source builds the incident with `to_incident` ("For M8-5", below); today's
 dashboard Lambda serves only the mock scenarios. The review's two changes to the incident store (which retry
-answer is kept, and a bullet citing nothing counts as a `citation`; 2026-11-09) take effect live once
-`anomalypulse-incidents` is redeployed. **Owner:**
+answer is kept, and a bullet citing nothing counts as a `citation`; 2026-11-09) were deployed with
+`anomalypulse-incidents` on 2026-11-09 (18:51 UTC); no live run has exercised them yet. **Owner:**
 Josh · **Code:** `AnomalyPulse/incidents/record.py` (`to_incident`), `AnomalyPulse/incidents/feed.py` (the check) ·
 **Reads:** [`INCIDENT_STORE.md`](INCIDENT_STORE.md) (M8-3's record) · **Read by:** M8-5 (the live source),
 M9-5

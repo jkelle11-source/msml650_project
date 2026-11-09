@@ -1,6 +1,6 @@
 # The incident store (M8-3)
 
-**Status:** deployed (2026-11-08) and checked live on a traffic spike and a cascade; 219 offline tests in `incidents/` (46 of them M8-4's feed check) and a replay of validation. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
+**Status:** deployed (2026-11-08; redeployed 2026-11-09 with #102 and with M8-4's review) and checked live on a traffic spike and a cascade; 219 offline tests in `incidents/` (46 of them M8-4's feed check) and a replay of validation. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
 
 The Lambda `anomalypulse-incidents` takes each diagnosed minute, groups minutes into incidents with
 `ml/diagnosis/incident.py`, asks `anomalypulse-explain` (M6-1) to explain each incident, and stores a record the
@@ -283,5 +283,5 @@ incidents/replay/download.sh <dir>                       # read-only, about 940 
 - **The review's two changes (2026-11-09)** are tested offline and in the replay (whose numbers they don't
   change), not live: a retry that clears what held a diagnosis back is kept even with a finding the feed shows
   (`record.retry_kept`), and a bullet citing no metric is a `citation` finding, so it is retried and held back
-  (`genai.self_check.kind`). Both are in this Lambda's bundle, so they take effect once `anomalypulse-incidents`
-  is redeployed.
+  (`genai.self_check.kind`). Both are in this Lambda's bundle, deployed on 2026-11-09 (18:51 UTC; only the
+  function changed, and its code is the build's, file for file). No live run has reached either yet.
