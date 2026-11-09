@@ -1,6 +1,6 @@
 # The incident store (M8-3)
 
-**Status:** deployed (2026-11-08) and checked live on a traffic spike and a cascade; 165 offline tests in `incidents/` and a replay of validation. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
+**Status:** deployed (2026-11-08) and checked live on a traffic spike and a cascade; 205 offline tests in `incidents/` (40 of them M8-4's feed check) and a replay of validation. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
 
 The Lambda `anomalypulse-incidents` takes each diagnosed minute, groups minutes into incidents with
 `ml/diagnosis/incident.py`, asks `anomalypulse-explain` (M6-1) to explain each incident, and stores a record the
@@ -78,7 +78,9 @@ ends.
 
 **For the dashboard.** `build_dashboard` treats any incident it is given as active (`active_incidents` is 1 and the
 status is `INCIDENT`), so the live source must pass only an `OPEN` record. `incidents.record.to_incident` returns
-the three fields it reads. Numbers come back from DynamoDB as `Decimal`; `record.from_dynamodb` converts them.
+the three fields it reads, with `diagnosis: null` while a diagnosis flagged for causal or ordering wording, or a
+citation outside the input, is held back (M8-4, [`INCIDENT_FEED.md`](INCIDENT_FEED.md)). Numbers come back from
+DynamoDB as `Decimal`; `record.from_dynamodb` converts them.
 
 ## Round-trip latency
 
@@ -107,7 +109,7 @@ belong to one minute: the incident's first counted minute's end to its diagnosis
 
 ```bash
 cd AnomalyPulse
-python3 -m pytest incidents -q          # 165 tests; none reach AWS
+python3 -m pytest incidents -q          # 205 tests; none reach AWS
 cfn-lint infra/incidents/template.yaml  # no findings (cfn-lint 1.60.0, 2026-11-07)
 ```
 
@@ -263,9 +265,11 @@ incidents/replay/download.sh <dir>                       # read-only, about 940 
 
 - **Two live runs only:** a traffic spike and a cascade. The call cap and the retry after a failed call have
   not run on AWS, only in the replay.
-- **Josh and Linu have not replied** on the layout (#30).
+- **Linu has not replied** on the layout (#30). Josh's two requests for M8-4 (the stored input and a retry for
+  a flagged diagnosis) were built in #102; M8-4 uses the layout as it is ([`INCIDENT_FEED.md`](INCIDENT_FEED.md)).
 - **`observed_sequence` is not sent,** so Bedrock makes no ordering claim.
-- **The retry for a flagged diagnosis** (2026-11-08) has run in the store only in tests and the replay, not on
-  AWS. The revision request itself ran on Bedrock on three saved answers, and all three came back clean
-  (`DIAGNOSIS_CONTRACT.md`, "Decided in M8-3"). The records of the two live runs were stored before it, so they
-  have no `diagnosis_input` or `retried_for`.
+- **The retry for a flagged diagnosis** (2026-11-08) has run live once: on M8-4's traffic spike
+  (`exp-20261109T025523Z-bbf1`, 2026-11-09), the first answer was flagged for a claim (`metric`), and the retry
+  came back clean and was kept ([`INCIDENT_FEED.md`](INCIDENT_FEED.md), "The live run"). A retry that comes back
+  flagged again has not happened live. The records of M8-3's two live runs were stored before #102, so they have
+  no `diagnosis_input` or `retried_for`.

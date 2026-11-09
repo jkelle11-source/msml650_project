@@ -157,7 +157,8 @@ like any other, and the reply has the same shape. Without `revise`, the request 
   not repeated here; it is the dashboard's `prediction.confidence`.
 - **`evidence_metrics[i]`** lists the input metrics evidence bullet *i* rests on. Bedrock's answer is held to
   a schema built per request (structured outputs) in which a bullet can only cite this input's metrics, so
-  every bullet traces to an input metric by construction. M8-4 can keep it beside the bullets.
+  every bullet traces to an input metric by construction. The incident store keeps it beside the bullets, and
+  M8-4 checks every shown bullet against it and the stored input ([`INCIDENT_FEED.md`](INCIDENT_FEED.md)).
 - **`runbook`** (M6-2): the name of the runbook the diagnosis was given (`"dependency_failure"`), or `null`
   when runbooks are off, the default. It sits beside `diagnosis`, not in it, so the dashboard contract is
   unchanged. See "Runbooks (M6-2)" below.
@@ -362,7 +363,8 @@ others, and there are at most 5 calls.
    findings, leaving out a severity disagreement ("Revising an answer", above), so Bedrock is told
    what to fix; a record stored before inputs were kept gets no retry. Its answer replaces the flagged one only if its self-check is clean, apart from a
    severity disagreement (the rubric's severity is reported anyway); otherwise, or if the call fails,
-   the flagged one stays, and M8-4 decides how to show it. One retry per type, so retries can't use up
+   the flagged one stays. M8-4 holds a diagnosis flagged for wording or a citation back from the dashboard
+   (`diagnosis: null`, "Severity pending") and shows one with any other finding ([`INCIDENT_FEED.md`](INCIDENT_FEED.md)). One retry per type, so retries can't use up
    the calls a later type change needs. A severity disagreement, a quoted threshold and a shape
    problem (such as 7 evidence bullets) are not retried. Of the 17 findings on the 20 saved answers
    (`genai/samples/results`), 13 would be (all but 2 thresholds and 2 shape problems). The record

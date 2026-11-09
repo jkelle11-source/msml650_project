@@ -23,6 +23,11 @@ MAX_ERROR_CHARS = 500
 # anything it says that the input doesn't support, and causal or ordering wording. Not a severity
 # disagreement (the rubric's severity is reported anyway), a quoted threshold, or a shape problem.
 RETRY_KINDS = ("number", "time", "service", "metric", "citation", "wording")
+# A stored diagnosis whose self-check found one of these is held back from the dashboard (M8-4): the
+# console shows "Severity pending" instead. Causal or ordering wording would render an observed sequence
+# as causation, and a citation outside the input breaks evidence-to-metric traceability. Other findings
+# (a number rounded too far, say) are shown: M9-5 scores them.
+HOLD_KINDS = ("wording", "citation")
 
 
 def _t(text):
@@ -200,10 +205,22 @@ def wants_bedrock(record, state):
     return call_reason(record, state) is not None
 
 
+def held_back(record):
+    """True when the stored diagnosis's self-check found one of HOLD_KINDS. It stays held until a clean
+    answer replaces it (a retry, or a call for a new type); if none does, the console shows "Severity
+    pending" for the rest of the incident rather than the flagged text."""
+    return record.get("diagnosis") is not None and bool(finding_kinds(record.get("self_check")) & set(HOLD_KINDS))
+
+
+def shown_diagnosis(record):
+    """The diagnosis the dashboard shows: the stored one, or None while it is held back."""
+    return None if held_back(record) else record.get("diagnosis")
+
+
 def to_incident(record):
-    """What build_dashboard reads: incident_id, prediction, diagnosis."""
+    """What build_dashboard reads: incident_id, prediction, diagnosis (None while held back, M8-4)."""
     return {"incident_id": record["incident_id"], "prediction": record["prediction"],
-            "diagnosis": record["diagnosis"]}
+            "diagnosis": shown_diagnosis(record)}
 
 
 def to_dynamodb(item):

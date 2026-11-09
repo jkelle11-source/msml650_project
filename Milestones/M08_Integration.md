@@ -220,10 +220,31 @@ live cascade" and "Checked on validation"):**
 - Mapping from the stored diagnosis to the dashboard data contract fields (summary, root cause, evidence, actions).
 - Verification that observed-sequence wording and evidence-to-metric traceability survive the hand-off.
 
+**Decided (2026-11-08; [`Docs/INCIDENT_FEED.md`](../Docs/INCIDENT_FEED.md)):** M8-3 stores the diagnosis in the
+dashboard's shape, so `incidents.record.to_incident` is the whole mapping, and the dashboard contract stays at
+version 1. `evidence_metrics`, `self_check`, `runbook` and `diagnosis_input` stay in the record, not on the
+console. A diagnosis whose self-check found causal or ordering wording, or a citation outside the input, is held
+back (`diagnosis: null`, "Severity pending") until a clean answer replaces it. M8-3 asks again once per type with
+the findings to fix (#102, built for this ticket's two requests). Every other finding is shown.
+
+**Built, offline (2026-11-08):** `incidents/feed.py` checks the three items below for a stored record against what
+the dashboard returns for it, re-running the self-check on the shown text against the stored input. All 15 saved
+Sonnet diagnoses went through DynamoDB's round trip, `to_incident`, `build_dashboard` and JSON. 14 arrived intact,
+and one was held back (an ordering claim with no observed sequence). The console's own `checkReply` and
+`viewModel` showed every section as stored. Each way the hand-off could break fails a test (40 in
+`incidents/test_feed.py`).
+
+**Done, live (2026-11-09; [`Docs/INCIDENT_FEED.md`](../Docs/INCIDENT_FEED.md), "The live run"):** a traffic spike
+from the runner (`exp-20261109T025523Z-bbf1`, after `anomalypulse-incidents` and `anomalypulse-explain` were
+redeployed with #102). It opened one incident, `inc-20261109T030100Z`, and `python3 -m incidents.feed` passed on
+its record: all five sections intact, no wording finding, and each of the 6 bullets citing input metrics. The
+first answer was flagged (a claim with no metric of its kind, so it was shown). The retry came back clean and
+replaced it, the first live retry. `live_check.py` passed as well.
+
 **Definition of Done**
-- [ ] A stored diagnosis appears in the feed contract with all sections intact.
-- [ ] No ordering claim is rendered as causation.
-- [ ] Every evidence bullet still traces to an input metric.
+- [x] A stored diagnosis appears in the feed contract with all sections intact.
+- [x] No ordering claim is rendered as causation.
+- [x] Every evidence bullet still traces to an input metric.
 
 ---
 
