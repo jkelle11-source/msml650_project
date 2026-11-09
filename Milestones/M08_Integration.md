@@ -231,8 +231,9 @@ the findings to fix (#102, built for this ticket's two requests). Every other fi
 the dashboard returns for it, re-running the self-check on the shown text against the stored input. All 15 saved
 Sonnet diagnoses went through DynamoDB's round trip, `to_incident`, `build_dashboard` and JSON. 14 arrived intact,
 and one was held back (an ordering claim with no observed sequence). The console's own `checkReply` and
-`viewModel` showed every section as stored. Each way the hand-off could break fails a test (40 in
-`incidents/test_feed.py`).
+`viewModel` showed every section as stored. Each way the hand-off could break fails a test (42 in
+`incidents/test_feed.py`). A record stored before #102 has no input to check against, so for it that part of the
+check is a note, as in `live_check.py`.
 
 **Done, live (2026-11-09; [`Docs/INCIDENT_FEED.md`](../Docs/INCIDENT_FEED.md), "The live run"):** a traffic spike
 from the runner (`exp-20261109T025523Z-bbf1`, after `anomalypulse-incidents` and `anomalypulse-explain` were
@@ -259,6 +260,13 @@ replaced it, the first live retry. `live_check.py` passed as well.
 **Deliverables**
 - Frontend pointed at the live BFF; mock feed removed or gated behind a demo flag.
 - Live end-to-end smoke: inject → detect → classify → diagnose → **render on the console with ground truth**.
+
+**Carried from M8-4 (2026-11-09; [`Docs/INCIDENT_FEED.md`](../Docs/INCIDENT_FEED.md), "For M8-5"):** the live
+source reads the newest `OPEN` incident record and passes `incidents.record.to_incident(record)` to
+`build_dashboard`, never the raw record. That is what holds back a diagnosis flagged for causal or ordering wording
+(it comes out as `null`, "Severity pending"); `build_dashboard` also shows any incident it is given as active, so a
+closed record must not be passed. The dashboard Lambda's bundle already carries `incidents.record` and the modules
+it imports (`dashboard/Makefile`, checked by `incidents/test_bundle.py`).
 
 **Definition of Done**
 - [ ] Console shows a real injected incident with live classification, confidence, diagnosis, and ground truth.

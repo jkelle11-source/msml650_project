@@ -37,6 +37,10 @@ Resources:
   
   DashboardFunction:
     Type: AWS::Serverless::Function
+    # dashboard/Makefile bundles the read API with incidents/record.py and the genai modules it imports,
+    # for M8-5's live source (Docs/INCIDENT_FEED.md).
+    Metadata:
+      BuildMethod: makefile
     Properties:
       FunctionName: anomalypulse-dashboard
       CodeUri: ../../dashboard

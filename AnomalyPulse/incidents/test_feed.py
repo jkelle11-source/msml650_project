@@ -195,6 +195,30 @@ def test_a_diagnosis_without_its_input_fails():
     assert checked(rec)[0] == ["no diagnosis_input: traceability and wording can't be checked again"]
 
 
+def before_102(rec):
+    """The record as M8-3 stored it before #102: no diagnosis_input and no retried_for."""
+    return {k: v for k, v in rec.items() if k not in ("diagnosis_input", "retried_for")}
+
+
+def test_a_record_stored_before_102_passes_with_a_note():
+    # M8-3's two live runs (2026-11-08) were stored before #102 kept the input; live_check passes them too.
+    rec = before_102(stored())
+    problems, notes = checked(rec)
+    assert problems == []
+    assert notes == ["stored before #102 (no diagnosis_input): citations and wording not checked against the input"]
+
+
+def test_a_record_stored_before_102_still_needs_every_section_and_a_citation_per_bullet():
+    rec = before_102(stored())
+    shown = feed.feed_view(rec, NOW)
+    shown["diagnosis"]["summary"] = "changed on the way"
+    assert feed.check(rec, shown)[0] == ["summary is not as stored"]
+    rec["evidence_metrics"] = [[]] + rec["evidence_metrics"][1:]
+    assert checked(rec)[0] == ["evidence[0] cites no metric"]
+    rec["evidence_metrics"] = rec["evidence_metrics"][1:]
+    assert "evidence bullets" in checked(rec)[0][0]
+
+
 def test_the_runbook_text_is_used_for_action_numbers():
     rec = stored("global.anthropic.claude-sonnet-4-6+runbooks", "dependency_failure")
     assert rec["runbook"] == "dependency_failure"

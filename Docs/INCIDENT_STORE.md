@@ -1,6 +1,6 @@
 # The incident store (M8-3)
 
-**Status:** deployed (2026-11-08) and checked live on a traffic spike and a cascade; 205 offline tests in `incidents/` (40 of them M8-4's feed check) and a replay of validation. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
+**Status:** deployed (2026-11-08) and checked live on a traffic spike and a cascade; 209 offline tests in `incidents/` (42 of them M8-4's feed check) and a replay of validation. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
 
 The Lambda `anomalypulse-incidents` takes each diagnosed minute, groups minutes into incidents with
 `ml/diagnosis/incident.py`, asks `anomalypulse-explain` (M6-1) to explain each incident, and stores a record the
@@ -109,7 +109,7 @@ belong to one minute: the incident's first counted minute's end to its diagnosis
 
 ```bash
 cd AnomalyPulse
-python3 -m pytest incidents -q          # 205 tests; none reach AWS
+python3 -m pytest incidents -q          # 209 tests; none reach AWS
 cfn-lint infra/incidents/template.yaml  # no findings (cfn-lint 1.60.0, 2026-11-07)
 ```
 
@@ -263,8 +263,8 @@ incidents/replay/download.sh <dir>                       # read-only, about 940 
 
 ## Not verified yet
 
-- **Two live runs only:** a traffic spike and a cascade. The call cap and the retry after a failed call have
-  not run on AWS, only in the replay.
+- **Three live runs:** M8-3's traffic spike and cascade, and M8-4's traffic spike (`exp-20261109T025523Z-bbf1`).
+  The call cap and the retry after a failed call have not run on AWS, only in the replay.
 - **Linu has not replied** on the layout (#30). Josh's two requests for M8-4 (the stored input and a retry for
   a flagged diagnosis) were built in #102; M8-4 uses the layout as it is ([`INCIDENT_FEED.md`](INCIDENT_FEED.md)).
 - **`observed_sequence` is not sent,** so Bedrock makes no ordering claim.

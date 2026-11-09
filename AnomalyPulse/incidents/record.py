@@ -25,8 +25,9 @@ MAX_ERROR_CHARS = 500
 RETRY_KINDS = ("number", "time", "service", "metric", "citation", "wording")
 # A stored diagnosis whose self-check found one of these is held back from the dashboard (M8-4): the
 # console shows "Severity pending" instead. Causal or ordering wording would render an observed sequence
-# as causation, and a citation outside the input breaks evidence-to-metric traceability. Other findings
-# (a number rounded too far, say) are shown: M9-5 scores them.
+# as causation, and a citation outside the input breaks evidence-to-metric traceability. (Bedrock can't
+# produce a citation finding today: its output schema allows only the input's metrics. It is held in case that
+# ever changes.) Other findings (a number rounded too far, say) are shown: M9-5 scores them.
 HOLD_KINDS = ("wording", "citation")
 
 

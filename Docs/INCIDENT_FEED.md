@@ -1,6 +1,8 @@
 # The incident feed (M8-4)
 
-**Status:** built and checked offline (2026-11-08), and live on one traffic spike (2026-11-09). **Owner:**
+**Status:** built and checked offline (2026-11-08), and live on one traffic spike (2026-11-09). The hold takes
+effect on the console when M8-5's live source builds the incident with `to_incident` ("For M8-5", below); today's
+dashboard Lambda serves only the mock scenarios. **Owner:**
 Josh · **Code:** `AnomalyPulse/incidents/record.py` (`to_incident`), `AnomalyPulse/incidents/feed.py` (the check) ·
 **Reads:** [`INCIDENT_STORE.md`](INCIDENT_STORE.md) (M8-3's record) · **Read by:** M8-5 (the live source),
 M9-5
@@ -35,7 +37,8 @@ dashboard contract stays at version 1 and the console needs no change. M9-5 read
 A stored diagnosis whose self-check found **causal or ordering wording** (`kind` `wording`) or **a citation
 outside the input** (`citation`) is not shown: `to_incident` gives `diagnosis: null`, and the console shows
 "Severity pending" (`record.HOLD_KINDS`, `record.held_back`). Showing it would render an observed sequence as
-causation, or a bullet that traces to no input metric.
+causation, or a bullet that traces to no input metric. A citation finding can't come from Bedrock today: its
+output schema lets a bullet cite only the input's metrics. It is held anyway, in case that ever changes.
 
 - **Usually for about a minute.** M8-3 asks Bedrock again on the next counted minute, with the findings to fix
   (#102). A clean answer replaces the held one, and the feed shows it.
@@ -59,7 +62,11 @@ causation, or a bullet that traces to no input metric.
 3. **Every evidence bullet traces to an input metric:** one `evidence_metrics` entry per bullet, none empty,
    each a metric of `diagnosis_input`, and no `citation` finding.
 
-**Offline** (`python3 -m pytest incidents/test_feed.py`, 40 tests): all 15 saved Sonnet diagnoses
+A record stored before #102 kept no input (no `diagnosis_input`, no `retried_for`; M8-3's two live runs). For
+it, items 2 and 3 are checked only as far as they can be without the input (one citation entry per bullet, none
+empty), and the rest is a note, not a failure, as `live_check.py` allows those records.
+
+**Offline** (`python3 -m pytest incidents/test_feed.py`, 42 tests): all 15 saved Sonnet diagnoses
 (`genai/samples/results/`, runbooks off, on, and the review's) stored with their inputs, through DynamoDB's
 Decimal round trip, `to_incident`, `build_dashboard` and JSON. 14 reach the feed intact. One, the review run's
 Lambda degradation (an ordering claim with no observed sequence), is held back. Each way the hand-off could
@@ -103,5 +110,8 @@ Run by Josh from the runner with `drive.sh`: `exp-20261109T025523Z-bbf1`, a traf
 
 The live source should call `incidents.record.from_dynamodb`, then `to_incident`, on the newest `OPEN` record.
 It shouldn't read `diagnosis` itself, or a held-back diagnosis reaches the console. `record.py` imports
-`incidents.builder` and `genai.self_check`, so the dashboard Lambda's bundle needs the modules
-`incidents/Makefile` already copies.
+`incidents.builder` and `genai.self_check`, so the dashboard Lambda is built by `dashboard/Makefile`
+(2026-11-09), which bundles `incidents/record.py` and `builder.py` with `genai/contract.py`, `affected.py` and
+`self_check.py`; `sam build` picks it up, and a redeploy of `anomalypulse-dashboard` changes nothing it serves.
+`incidents/test_bundle.py` checks that each Lambda's Makefile copies every module its code imports; a new module
+the live source runs is one more entry in its `BUILDS` row.

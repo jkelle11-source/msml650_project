@@ -14,6 +14,9 @@ what the dashboard returned for it, after the JSON round trip the read API makes
 
 Other findings (a number, a severity disagreement) are notes: they are shown, and M9-5 scores them.
 
+A record stored before #102 kept no input (`diagnosis_input`, nor `retried_for`), so for it items 2 and 3 are
+checked only as far as they can be without the input, as live_check allows those records: a note, not a failure.
+
     cd AnomalyPulse
     python3 -m incidents.feed --profile <profile>              # the 10 newest stored incidents
     python3 -m incidents.feed --profile <profile> --limit 3
@@ -72,13 +75,18 @@ def check(rec, shown):
         return problems, notes
 
     # 3. Every bullet traces to an input metric, by its citations.
-    given = rec.get("diagnosis_input")
     cited = rec.get("evidence_metrics")
-    if given is None:
-        return problems + ["no diagnosis_input: traceability and wording can't be checked again"], notes
     if cited is None or len(cited) != len(diagnosis["evidence"]):
         return problems + [f"{len(cited or [])} evidence_metrics entries for "
                            f"{len(diagnosis['evidence'])} evidence bullets"], notes
+    given = rec.get("diagnosis_input")
+    if given is None and "retried_for" not in rec:
+        # Stored before #102: there is no input to check the citations and the wording against.
+        problems += [f"evidence[{i}] cites no metric" for i, metrics in enumerate(cited) if not metrics]
+        notes.append("stored before #102 (no diagnosis_input): citations and wording not checked against the input")
+        return problems, notes
+    if given is None:
+        return problems + ["no diagnosis_input: traceability and wording can't be checked again"], notes
     refs = {contract.metric_ref(m["service"], m["metric"]) for m in given["metrics"]}
     for i, metrics in enumerate(cited):
         if not metrics:

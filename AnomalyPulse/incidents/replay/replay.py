@@ -24,7 +24,7 @@
      of an incident's types is flagged for a wrong number, and the retry, which resends that input
      with the answer and the finding, comes back clean).
    Then each stored record is read back through the dashboard's build_dashboard with its run's
-   manifest.
+   manifest, as record.to_incident gives it (a held-back diagnosis reads back as None, M8-4).
 
 Ground truth (manifests, labels) builds no window and no event: the lock's fake uses run times only,
 and analyze.py scores against the rest.
@@ -219,7 +219,8 @@ for rec in records:
     try:
         shown = dashboard.build_dashboard(health, record.to_incident(rec), manifests.get(rec.get("experiment_id")),
                                           detected)["incident"]
-        assert shown["prediction"] == rec["prediction"] and shown["diagnosis"] == rec["diagnosis"]
+        # What the dashboard should show: the stored diagnosis, or None while it is held back (M8-4).
+        assert shown["prediction"] == rec["prediction"] and shown["diagnosis"] == record.shown_diagnosis(rec)
         if rec.get("experiment_id"):
             assert shown["ground_truth"]["experiment_id"] == rec["experiment_id"]
     except Exception as err:  # noqa: BLE001
