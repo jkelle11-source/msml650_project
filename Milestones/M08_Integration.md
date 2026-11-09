@@ -171,8 +171,8 @@ opens.
 - [x] Diagnosis is stored against the incident record with a ground-truth reference for comparison.
 - [x] Round-trip latency captured for §16 end-to-end metrics.
 
-**Done (2026-11-07 and 08; [`Docs/INCIDENT_STORE.md`](../Docs/INCIDENT_STORE.md), "The live traffic spike" and
-"Checked on validation"):**
+**Done (2026-11-07 and 08; [`Docs/INCIDENT_STORE.md`](../Docs/INCIDENT_STORE.md), "The live traffic spike", "The
+live cascade" and "Checked on validation"):**
 
 - **Item 1.** Agreed on 2026-11-08 by Jake, who made M6-1's proposals on #30, including the answers' three changes
   to them (the baseline also leaves out minutes the detector flagged, the standard metrics come last, at most 5
@@ -191,12 +191,20 @@ opens.
   Offline: 126 tests in `incidents/`, and validation's 140 runs replayed as the live stream (scripts in
   `incidents/replay/`): one incident per fault run (112) of its run's type with its run's `experiment_id`, none on
   NORMAL runs, 125 Bedrock calls, every input accepted.
+- **The cascade (after the merge).** A noop warm-up (`exp-20261108T214244Z-7b76`) and the cascade
+  (`exp-20261108T215845Z-3480`, `simulator/cascades/example.json`), chained from the runner by Rachel, both passed
+  `live_check.py`, run again independently; the noop opened no incident. The cascade opened one incident at 22:04
+  as `TRAFFIC_SPIKE`, while the spike ran alone, and it changed to `CASCADING_FAILURE` a minute later (2 Bedrock
+  calls, both inputs accepted). It closed as the run's type with all four services and severity `HIGH`, the
+  rubric's; the self-check had no finding. The record's round trip is 197.3 s (the type change's call took
+  209.5 s); 25 steps, 0 errors, the failure queue empty.
 - **Found live and fixed:** `affected_services` shrank to one service at the incident's last counted minute, the
   first one after the fault (now it only grows; 88 of validation's 112 records had ended with one service).
   Bedrock's severity (`MEDIUM`) wasn't the rubric's (`LOW`); the explanation Lambda now reports the rubric's, in its
-  own PR.
-- **Not done:** the cascade's live check (after the merge); the record's layout agreed with Josh and Linu (posted
-  on #30, unanswered); `observed_sequence` is not sent.
+  own PR. And `live_check.py` counted a chained run's incident as the earlier run's too (the noop's re-check failed
+  on the cascade's incident); a run's incidents now end at the run's end.
+- **Not done:** the record's layout agreed with Josh and Linu (posted on #30; Josh's two requests for M8-4, the
+  stored input and a retry for a flagged diagnosis, were built in #102); `observed_sequence` is not sent.
 
 ---
 

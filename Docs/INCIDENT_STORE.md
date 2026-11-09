@@ -1,6 +1,6 @@
 # The incident store (M8-3)
 
-**Status:** deployed (2026-11-08) and checked live on one traffic spike; 126 offline tests in `incidents/` and a replay of validation. The cascade's live check is still to run. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
+**Status:** deployed (2026-11-08) and checked live on a traffic spike and a cascade; 165 offline tests in `incidents/` and a replay of validation. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
 
 The Lambda `anomalypulse-incidents` takes each diagnosed minute, groups minutes into incidents with
 `ml/diagnosis/incident.py`, asks `anomalypulse-explain` (M6-1) to explain each incident, and stores a record the
@@ -107,7 +107,7 @@ belong to one minute: the incident's first counted minute's end to its diagnosis
 
 ```bash
 cd AnomalyPulse
-python3 -m pytest incidents -q          # 126 tests; none reach AWS
+python3 -m pytest incidents -q          # 165 tests; none reach AWS
 cfn-lint infra/incidents/template.yaml  # no findings (cfn-lint 1.60.0, 2026-11-07)
 ```
 
@@ -133,7 +133,12 @@ Lambda's own log lines and health. For a fault run it passes with exactly one in
 type, with its diagnosis stored, 1 to 5 Bedrock calls, the run's `experiment_id` beside (never inside) the
 prediction, and a clean read-back through `build_dashboard`. A NORMAL run passes with none. A diagnosis that
 failed its self-check, or was made for an earlier type, is printed as a note. The judging is tested offline,
-and it ran on the live traffic spike below with the AnomalyPulseDeveloper role.
+and it ran on the live runs below with the AnomalyPulseDeveloper role.
+
+A run's incidents are the records that started from a minute before the run to its end, so a run chained
+straight after another (the live cascade after its noop) doesn't count as the first run's. The step counts and
+health still cover 10 minutes past the end, so they can include the next run's first minutes; the latencies are
+only the run's own incidents'.
 
 ## The live traffic spike (2026-11-08)
 
@@ -163,6 +168,42 @@ windows in S3:
   four services; 20:15, the first minute after the fault, still counted, but nothing crossed the line, so the
   list fell back to one service and replaced the four. The list now only grows (above, "What it stores"); this
   record was stored before that change.
+
+## The live cascade (2026-11-08)
+
+Run by Rachel from the runner with `drive.sh`, chained in one tmux session after a noop warm-up: the noop
+`exp-20261108T214244Z-7b76` (21:42:44 to 21:58:44 UTC; 19,173 requests, none dropped; `live_check` passed: no
+incident and no Bedrock call in its 16 minutes), then the cascade `exp-20261108T215845Z-3480` from
+`simulator/cascades/example.json` (21:58:45 to 22:18:45 UTC; 50,104 requests, 114 5xx, none dropped). Four faults
+stacked: a traffic spike from 22:03:45, db-throttling from 22:05:15, lambda-degradation from 22:06:17 and
+retry-amplification from 22:07:26, all until 22:13:45. `live_check.py` passed, run by Rachel and again
+independently, and the minutes were rebuilt one by one from the two Lambdas' log lines and the windows in S3:
+
+- **One incident,** `inc-20261108T220400Z`. It opened at 22:04 as `TRAFFIC_SPIKE`, while the spike ran alone, and
+  changed to `CASCADING_FAILURE` (1.000) at 22:05, when db-throttling joined. It closed as the run's type, with
+  `ended_at` 22:16, 135 s after the faults ended. Of its 12 counted minutes (22:04 to 22:15), 9 were a cascade, 2
+  a traffic spike (22:04 and 22:14) and 1 a Lambda degradation (22:15); 22:16 and 22:17 didn't count, and the
+  22:17 event closed it.
+- **Baseline:** 5 healthy windows (21:58 to 22:02), from the noop's end and the cascade's own first minutes. The
+  detector flagged 22:03, the minute the spike started in. (The spike's run had 3.)
+- **`affected_services` kept all four services:** all four crossed the line on every minute from 22:04 to 22:13.
+  At 22:14 and 22:15, still counted, none did, and the old rule would have replaced the four with
+  `["payment-service"]`, the one that rose most. The list now only grows, so it kept them (the spike's record,
+  stored before that change, ended as one).
+- **The ground-truth reference:** the run's `experiment_id`, beside the prediction. `build_dashboard` read the
+  record back with the run's manifest (detection latency 247.2 s from the fault's start).
+- **Bedrock:** 2 calls, at opening (for `TRAFFIC_SPIKE`) and at the type change (for `CASCADING_FAILURE`), and both
+  inputs passed `validate_input`. The stored diagnosis is the second: severity `HIGH`, the rubric's for its input
+  (Product's p95 about 285 times its baseline, with read throttling). Bedrock's own answer was also `HIGH`, so the
+  self-check raised no finding.
+- **Round trip:** the record keeps the first diagnosis's, 197.3 s: 172.3 s from the minute's end to its diagnosis,
+  then 24.9 s to the stored diagnosis, of which Bedrock took 24.2 s. The type change's call took 209.5 s (173.1 s,
+  then 36.4 s; Bedrock 36.1 s). Both are in the `incident_diagnosis` log lines.
+- **The event carries the window:** `window_from` was `event` on all 25 steps.
+- **Health:** 0 errors, 0 failed deliveries, 0 dropped events, the failure queue empty, the alarm OK.
+
+Not exercised on AWS: the cap of 5 calls and the retry after a failed call (no call failed; the validation replay
+covers both).
 
 ## Checked on validation (replay, 2026-11-08)
 
@@ -220,7 +261,8 @@ incidents/replay/download.sh <dir>                       # read-only, about 940 
 
 ## Not verified yet
 
-- **One live run only:** a traffic spike. The cascade, which changes type the most, runs after the merge.
+- **Two live runs only:** a traffic spike and a cascade. The call cap and the retry after a failed call have
+  not run on AWS, only in the replay.
 - **Josh and Linu have not replied** on the layout (#30).
 - **`observed_sequence` is not sent,** so Bedrock makes no ordering claim.
 - **The retry for a flagged diagnosis** (2026-11-08) has run in the store only in tests and the replay, not on
