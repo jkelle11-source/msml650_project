@@ -269,8 +269,10 @@ _FIELD_KINDS = (
 )
 _WHOLE_KINDS = (
     (re.compile(r"^severity: "), "severity"),
-    (re.compile(r"^evidence cites "), "citation"),
-    (re.compile(r"^(summary|root_cause) is empty$|^evidence has \d+ bullets; |^evidence\[\d+\] cites no input metric$|"
+    # A bullet citing a metric the input lacks, or citing none (the schema can't require one): either way
+    # it traces to no input metric, so the incident store retries it and the feed holds it back (M8-4).
+    (re.compile(r"^evidence cites |^evidence\[\d+\] cites no input metric$"), "citation"),
+    (re.compile(r"^(summary|root_cause) is empty$|^evidence has \d+ bullets; |"
                 r"^evidence\[\d+\] is empty$|^recommended_actions has \d+ items; |^a recommended action is empty$"),
      "shape"),
 )

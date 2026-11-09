@@ -135,21 +135,27 @@ def _dashboard_builder():
     return module
 
 
-def readback(rec, manifest, now):
-    """(problems, detection_latency_s): the stored record through the dashboard's build_dashboard,
-    on a quiet health window (this checks the record's shape, not live health)."""
+def quiet_window(now):
+    """A health window with every service quiet, for reading a record back through build_dashboard."""
     window = {"window_start": now.replace(second=0, microsecond=0).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
               "system_p95_latency_ms": 0.0}
     for service in SERVICES:
         window.update({f"{service}_request_rate": 1.0, f"{service}_error_rate_5xx": 0.0,
                        f"{service}_p95_latency_ms": 1.0})
+    return window
+
+
+def readback(rec, manifest, now):
+    """(problems, detection_latency_s): the stored record through the dashboard's build_dashboard,
+    on a quiet health window (this checks the record's shape, not live health)."""
     try:
-        result = _dashboard_builder().build_dashboard(window, record.to_incident(rec), manifest, now)
+        result = _dashboard_builder().build_dashboard(quiet_window(now), record.to_incident(rec), manifest, now)
     except Exception as err:  # noqa: BLE001 - any failure to read the record is the finding
         return [f"build_dashboard could not read the record: {type(err).__name__}: {err}"], None
     shown = result["incident"]
     problems = []
-    if shown is None or shown["diagnosis"] != rec["diagnosis"] or shown["prediction"] != rec["prediction"]:
+    if (shown is None or shown["diagnosis"] != record.shown_diagnosis(rec)
+            or shown["prediction"] != rec["prediction"]):
         problems.append("build_dashboard did not return the stored prediction and diagnosis")
     latency = None
     if manifest is not None and shown and shown.get("comparison"):

@@ -10,3 +10,8 @@ capabilities = "CAPABILITY_NAMED_IAM"
 
 [default.global.parameters]
 region = "us-east-2"
+
+# The Makefile reads dashboard/, incidents/ and genai/ from the repository (it finds the repository with
+# git), so it runs in its source folder instead of a copy.
+[default.build.parameters]
+build_in_source = true

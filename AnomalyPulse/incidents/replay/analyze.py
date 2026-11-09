@@ -79,6 +79,23 @@ print(f"diagnosis_input: stored with {sum(r.get('diagnosis_input') is not None f
 resent = sum(c.get("revised", False) and c["evidence"] == calls[i - 1]["evidence"] for i, c in enumerate(calls))
 print(f"revisions: {sum(c.get('revised', False) for c in calls)}, each resending the input of the call before it: "
       f"{resent}")
+held = d.get("held_minutes", {})        # incident_id -> the minutes after which its diagnosis was held back
+
+
+def longest_run(minutes):
+    """The longest stretch of consecutive minutes in a list of window starts."""
+    best = run = 0
+    previous = None
+    for m in sorted(t(x) for x in minutes):
+        run = run + 1 if previous is not None and m - previous == timedelta(minutes=1) else 1
+        best, previous = max(best, run), m
+    return best
+
+
+print(f"held back (Severity pending, M8-4): {len(held)} incidents, minutes held per incident "
+      f"{sorted(Counter(len(v) for v in held.values()).items())}, longest unbroken hold "
+      f"{max((longest_run(v) for v in held.values()), default=0)} min; still held when the incident closed: "
+      f"{len(d.get('held_at_close', []))}")
 retries = d.get("retry_lines", [])
 print(f"retries: {len(retries)}, kept {sum(line['kept'] for line in retries)}; stored diagnoses still flagged: "
       f"{sum(not (r['self_check'] or {}).get('passed', True) for r in diagnosed)}; "

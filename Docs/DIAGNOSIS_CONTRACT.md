@@ -157,7 +157,10 @@ like any other, and the reply has the same shape. Without `revise`, the request 
   not repeated here; it is the dashboard's `prediction.confidence`.
 - **`evidence_metrics[i]`** lists the input metrics evidence bullet *i* rests on. Bedrock's answer is held to
   a schema built per request (structured outputs) in which a bullet can only cite this input's metrics, so
-  every bullet traces to an input metric by construction. M8-4 can keep it beside the bullets.
+  no bullet can cite a metric the input lacks. The schema can't require a citation, though: a bullet citing
+  none is a `citation` finding (`evidence[i] cites no input metric`, since 2026-11-09). The incident store
+  keeps it beside the bullets, and M8-4 checks every shown bullet against it and the stored input
+  ([`INCIDENT_FEED.md`](INCIDENT_FEED.md)).
 - **`runbook`** (M6-2): the name of the runbook the diagnosis was given (`"dependency_failure"`), or `null`
   when runbooks are off, the default. It sits beside `diagnosis`, not in it, so the dashboard contract is
   unchanged. See "Runbooks (M6-2)" below.
@@ -165,8 +168,9 @@ like any other, and the reply has the same shape. Without `revise`, the request 
   `passed: false` and its findings, so M8-3 can store it flagged rather than lose it. The findings are
   plain sentences; `genai.self_check.kind()` reads each one's kind back from its text (`number`, `time`,
   `wording`, `severity`, `threshold`, `service`, `metric`, `citation`, or `shape` for
-  `contract.check_output_shape`'s), so a reader never matches the wording itself. M8-3 asks again on
-  all but `severity`, `threshold` and `shape` ("Decided in M8-3", 3).
+  `contract.check_output_shape`'s, except a bullet citing no metric, a `citation`), so a reader never
+  matches the wording itself. M8-3 asks again on all but `severity`, `threshold` and `shape` ("Decided
+  in M8-3", 3).
 - **Errors.** A bad input raises `BadInput` (it never reaches Bedrock). A refusal (Bedrock declining; there
   is no server-side fallback on Bedrock) or an answer cut off at `max_tokens` raises `DiagnosisFailed`.
   A Bedrock attempt is cut off at 50 s and retried once (as are throttles and 5xx), then raises the SDK's
@@ -356,13 +360,18 @@ others, and there are at most 5 calls.
    **And once per type, a retry for a flagged diagnosis** (decided 2026-11-08 by Jake, from Josh's
    request for M8-4): when the stored diagnosis is for the current type but its self-check found
    something the input doesn't support (a number, a clock time, a service, a claim with no metric of
-   its kind, a cited metric not in the input) or causal or ordering wording (`kind` `number`, `time`,
-   `service`, `metric`, `citation`, `wording`), the next counted minute asks again, within the 5
-   calls. It resends the diagnosis's own input (`diagnosis_input`) with the flagged answer and its
-   findings, leaving out a severity disagreement ("Revising an answer", above), so Bedrock is told
-   what to fix; a record stored before inputs were kept gets no retry. Its answer replaces the flagged one only if its self-check is clean, apart from a
-   severity disagreement (the rubric's severity is reported anyway); otherwise, or if the call fails,
-   the flagged one stays, and M8-4 decides how to show it. One retry per type, so retries can't use up
+   its kind, a bullet citing a metric not in the input or none) or causal or ordering wording (`kind`
+   `number`, `time`, `service`, `metric`, `citation`, `wording`), the next counted minute asks again,
+   within the 5 calls. It resends the diagnosis's own input (`diagnosis_input`) with the flagged answer
+   and its findings, leaving out a severity disagreement ("Revising an answer", above), so Bedrock is
+   told what to fix; a record stored before inputs were kept gets no retry. Its answer replaces the
+   flagged one if its self-check is clean, apart from a severity disagreement (the rubric's severity is
+   reported anyway), or if the flagged one is held back from the dashboard and the retry has nothing
+   that would hold it (`record.retry_kept`, 2026-11-09: an answer the console can show beats one it
+   can't, so a retry that fixes causal wording but rounds a number too far is kept). Otherwise, or if
+   the call fails, the flagged one stays. M8-4 holds a diagnosis flagged for wording or a citation back
+   from the dashboard (`diagnosis: null`, "Severity pending") and shows one with any other finding
+   ([`INCIDENT_FEED.md`](INCIDENT_FEED.md)). One retry per type, so retries can't use up
    the calls a later type change needs. A severity disagreement, a quoted threshold and a shape
    problem (such as 7 evidence bullets) are not retried. Of the 17 findings on the 20 saved answers
    (`genai/samples/results`), 13 would be (all but 2 thresholds and 2 shape problems). The record
@@ -370,10 +379,10 @@ others, and there are at most 5 calls.
    Bedrock (Sonnet 4.6, 2026-11-08), the three saved Opus answers with findings (13 in all, 2 to 6
    each, shape and threshold ones included) came back from a revision with none, in 5 to 10 s each,
    against 15 s for a plain call on the cascade sample: a revision reads about 700 more tokens and
-   writes about half as many. On validation's replay with each type's first answer flagged for a
-   wrong number (Docs/INCIDENT_STORE.md, "Checked on validation"), every incident got its retry,
-   each resending the flagged diagnosis's input, and kept the clean answer: 114 retries, 239 calls,
-   at most 4 for an incident.
+   writes about half as many. On validation's replay with each type's first answer flagged (for
+   causal wording since 2026-11-09; Docs/INCIDENT_STORE.md, "Checked on validation"), every incident
+   got its retry, each resending the flagged diagnosis's input, and kept the clean answer: 114
+   retries, 239 calls, at most 4 for an incident.
 
 `prediction.affected_services` only grows while an incident is open (decided 2026-11-08): it starts as
 the opening minute's `affected_services`, and each counted minute adds the services that cross the line

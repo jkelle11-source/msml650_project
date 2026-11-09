@@ -634,9 +634,13 @@ def test_each_finding_the_self_check_writes_has_its_kind(evidence, diagnosis, wa
     assert want in kinds and "unknown" not in kinds
 
 
-def test_each_shape_problem_is_of_kind_shape():
+def test_each_shape_problem_is_of_kind_shape_but_a_bullet_citing_nothing_is_a_citation():
+    # A bullet that cites no metric traces to none, like one citing a metric the input lacks (M8-4): the
+    # incident store retries it and the feed holds it back. The schema can't require a citation.
     problems = contract.check_output_shape(_BARE)
-    assert len(problems) == 7 and {self_check.kind(p) for p in problems} == {"shape"}
+    kinds = {p: self_check.kind(p) for p in problems}
+    assert len(problems) == 7 and kinds.pop("evidence[0] cites no input metric") == "citation"
+    assert set(kinds.values()) == {"shape"}
 
 
 def test_every_message_is_counted_here():

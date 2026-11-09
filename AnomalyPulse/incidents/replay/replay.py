@@ -21,10 +21,12 @@
    - the lock: held by the run whose started_at-ended_at holds the minute's diagnosis time;
    - the explanation Lambda: validate_input again, then a canned reply (with --fail-first, every
      incident's first call fails, as a throttle would; with --flag-first, the first answer for each
-     of an incident's types is flagged for a wrong number, and the retry, which resends that input
-     with the answer and the finding, comes back clean).
-   Then each stored record is read back through the dashboard's build_dashboard with its run's
-   manifest.
+     of an incident's types is flagged for causal wording, which M8-4 holds back from the dashboard,
+     and the retry, which resends that input with the answer and the finding, comes back clean).
+   After each minute, the open incident's record is read as the dashboard gets it, to count the
+   minutes its diagnosis is held back ("Severity pending", M8-4). At the end, each stored record is
+   read back through the dashboard's build_dashboard with its run's manifest, as record.to_incident
+   gives it (a held-back diagnosis reads back as None).
 
 Ground truth (manifests, labels) builds no window and no event: the lock's fake uses run times only,
 and analyze.py scores against the rest.
@@ -43,7 +45,9 @@ if len(sys.argv) not in (3, 4) or (len(sys.argv) == 4 and sys.argv[3] not in ("-
     sys.exit(__doc__.split("\n\n")[1])
 DIR, OUT = Path(sys.argv[1]), Path(sys.argv[2])
 FAIL_FIRST, FLAG_FIRST = sys.argv[3:] == ["--fail-first"], sys.argv[3:] == ["--flag-first"]
-FLAG = "summary: the number 99 is not in or derivable from the input"
+# The finding --flag-first gives each first answer: causal wording, which the incident store retries and the
+# feed holds back (record.RETRY_KINDS, record.HOLD_KINDS).
+FLAG = "summary: causal wording 'caused'; correlated timestamps are an observed sequence, not proof of cause"
 DATA = DIR / "data"
 sys.path[:0] = [str(ROOT), str(ROOT / "ml" / "diagnosis")]
 os.environ["ANOMALYPULSE_MODEL_DIR"] = str(DIR / "models" / "lr")
@@ -54,7 +58,7 @@ os.environ.pop("ANOMALYPULSE_DETECTOR_POINTER", None)
 from boto3.dynamodb.types import TypeSerializer  # noqa: E402
 from features.build_matrix import build_matrix  # noqa: E402
 import handler as diagnosis  # noqa: E402  (ml/diagnosis/handler.py, the Diagnosis Lambda)
-from genai import contract  # noqa: E402
+from genai import contract, self_check  # noqa: E402
 from incidents import core, record  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("dashboard_builder", ROOT / "dashboard" / "builder.py")
@@ -186,7 +190,8 @@ class Fakes:
         self.lines.append(line)
 
 
-fakes, steps, calls, errors = Fakes(), [], [], []
+assert self_check.kind(FLAG) == "wording" and "wording" in record.RETRY_KINDS and "wording" in record.HOLD_KINDS
+fakes, steps, calls, errors, held = Fakes(), [], [], [], {}
 for r, window, p, models in stream:
     fakes.clock = t(p["latency"]["diagnosed_at"])
     event = {"source": "lambda", "detail-type": "Lambda Function Invocation Result - Success",
@@ -203,6 +208,11 @@ for r, window, p, models in stream:
         continue
     steps.append([window["window_start"], r["slot"], out["changes"]])
     state = fakes.get_state()
+    # The console until the next minute: "Severity pending" if the open incident's diagnosis is held back.
+    if state["incident"] and state["incident"]["status"] == "OPEN":
+        rec = fakes.get_record(state["incident"]["started_at"])
+        if rec is not None and record.held_back(rec):
+            held.setdefault(rec["incident_id"], []).append(window["window_start"])
     for evidence, revised in zip(fakes.calls[made:], fakes.revised[made:]):
         calls.append({"slot": r["slot"], "evidence": evidence, "revised": revised, "window": window,
                       "baseline": state["baseline"],
@@ -219,7 +229,8 @@ for rec in records:
     try:
         shown = dashboard.build_dashboard(health, record.to_incident(rec), manifests.get(rec.get("experiment_id")),
                                           detected)["incident"]
-        assert shown["prediction"] == rec["prediction"] and shown["diagnosis"] == rec["diagnosis"]
+        # What the dashboard should show: the stored diagnosis, or None while it is held back (M8-4).
+        assert shown["prediction"] == rec["prediction"] and shown["diagnosis"] == record.shown_diagnosis(rec)
         if rec.get("experiment_id"):
             assert shown["ground_truth"]["experiment_id"] == rec["experiment_id"]
     except Exception as err:  # noqa: BLE001
@@ -227,6 +238,7 @@ for rec in records:
 
 OUT.write_text(json.dumps({
     "fail_first": FAIL_FIRST, "flag_first": FLAG_FIRST, "minutes": len(stream), "errors": errors,
+    "held_minutes": held, "held_at_close": [r["incident_id"] for r in records if record.held_back(r)],
     "largest_item": fakes.largest, "metric_lines": sum(line.get("event") == "incident_diagnosis" for line in fakes.lines),
     "retry_lines": [line for line in fakes.lines if line.get("event") == "incident_retry"], "records": records, "calls": calls, "steps": steps,
     "runs": [{"slot": r["slot"], "experiment_id": r["experiment_id"], "incident_type": r["manifest"]["incident_type"],

@@ -480,6 +480,50 @@ def test_a_retry_flagged_too_keeps_the_first_diagnosis_and_its_input():
     assert len(deps.explain_calls) == 2
 
 
+def test_a_retry_that_fixes_held_wording_is_kept_and_logged_as_kept_though_it_has_a_number_finding():
+    # M8-4: the first answer is held back for its wording; the retry fixes that but rounds a number too far,
+    # which the feed shows. It replaces the held one, so the console isn't left on "Severity pending".
+    deps = FakeDeps()
+    deps.reply = flagged(WORDING, summary="first")
+    opened(deps)
+    assert record.to_incident(deps.records[ws(2)])["diagnosis"] is None
+    deps.reply = flagged(NUMBER, summary="second")
+    feed(deps, 3, "DEPENDENCY_FAILURE", failing(3))
+    rec = deps.records[ws(2)]
+    assert rec["diagnosis"]["summary"] == "second" and record.to_incident(rec)["diagnosis"] == rec["diagnosis"]
+    assert rec["self_check"]["findings"] == [NUMBER] and rec["retried_for"] == ["DEPENDENCY_FAILURE"]
+    assert deps.lines[-1] == {"event": "incident_retry", "incident_id": rec["incident_id"],
+                              "for_type": "DEPENDENCY_FAILURE", "flagged": ["wording"], "kept": True,
+                              "found": ["number"]}
+    assert sum(line["event"] == "incident_diagnosis" for line in deps.lines) == 2   # both were stored
+    feed(deps, 4, "DEPENDENCY_FAILURE", failing(4))
+    assert len(deps.explain_calls) == 2                                  # the type's one retry is used
+
+
+def test_while_the_type_changes_the_dashboard_shows_no_diagnosis():
+    # M8-4: the record is written with the new type before Bedrock is called, so until the new type's
+    # diagnosis is stored the earlier type's would sit under the new prediction; to_incident hides it.
+    class Spy(FakeDeps):
+        def explain(self, evidence, revise=None):
+            self.during = record.to_incident(self.records[ws(1)])      # what the dashboard reads meanwhile
+            return super().explain(evidence, revise)
+
+    deps = Spy()
+    deps.reply = flagged(summary="spike")
+    feed(deps, 0)
+    feed(deps, 1, "TRAFFIC_SPIKE", failing(1))
+    assert record.to_incident(deps.records[ws(1)])["diagnosis"]["summary"] == "spike"
+    deps.fail = core.ExplainError("ThrottlingException", "slow down")
+    feed(deps, 2, "CASCADING_FAILURE", failing(2))
+    assert deps.during["prediction"]["incident_type"] == "CASCADING_FAILURE" and deps.during["diagnosis"] is None
+    rec = deps.records[ws(1)]
+    assert rec["diagnosis"]["summary"] == "spike" and rec["diagnosis_for_type"] == "TRAFFIC_SPIKE"   # kept
+    assert record.to_incident(rec)["diagnosis"] is None                  # but not shown after the failed call
+    deps.fail, deps.reply = None, flagged(summary="cascade")
+    feed(deps, 3, "CASCADING_FAILURE", failing(3))
+    assert record.to_incident(deps.records[ws(1)])["diagnosis"]["summary"] == "cascade"
+
+
 def test_a_failed_retry_keeps_the_flagged_diagnosis_and_uses_the_retry():
     deps = FakeDeps()
     deps.reply = flagged(WORDING)

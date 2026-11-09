@@ -31,6 +31,7 @@ METRIC = "root_cause: claims 'throttling', but the input has no metric for it"
 CITATION = "evidence cites cart-service.p95_latency_ms, which is not in the input"
 THRESHOLD = "evidence[0]: mentions a threshold; the severity rubric's are never quoted"
 SHAPE = "evidence has 7 bullets; 3 to 6 expected"
+UNCITED = "evidence[0] cites no input metric"          # contract.check_output_shape's; a citation (M8-4)
 
 
 def flagged(*findings, summary="s"):
@@ -205,6 +206,7 @@ def test_a_clean_self_check_is_one_with_no_finding_or_only_bedrocks_own_severity
 @pytest.mark.parametrize("findings, reason", [
     ([NUMBER], "retry"), ([TIME], "retry"), ([SERVICE], "retry"), ([METRIC], "retry"), ([CITATION], "retry"),
     ([WORDING], "retry"), ([SEVERITY, NUMBER], "retry"), ([THRESHOLD, SHAPE, CITATION], "retry"),
+    ([UNCITED], "retry"),
     ([SEVERITY], None), ([THRESHOLD], None), ([SHAPE], None), ([SEVERITY, THRESHOLD, SHAPE], None),
     ([], None), (["a message nobody writes"], None)])
 def test_a_diagnosis_flagged_for_an_unsupported_claim_or_wording_is_asked_for_again(findings, reason):
@@ -249,6 +251,30 @@ def test_a_retry_that_is_flagged_too_keeps_the_first_flagged_diagnosis_and_its_i
         assert rejected["diagnosis_input"] == INPUT and rejected["bedrock_calls"] == 2
         assert rejected["retried_for"] == ["DEPENDENCY_FAILURE"] and record.call_reason(rejected, STATE) is None
     assert first["bedrock_calls"] == 1 and first["retried_for"] == []        # the argument is left alone
+
+
+@pytest.mark.parametrize("held", [WORDING, UNCITED])
+def test_a_retry_that_clears_what_held_the_diagnosis_back_is_kept_with_a_finding_the_feed_shows(held):
+    # M8-4: an answer the console can show beats one it can't, so a retry that fixes the causal wording (or
+    # the bullet citing nothing) but rounds a number too far replaces the held one, and M9-5 scores the number.
+    first = record.with_diagnosis(new(), "DEPENDENCY_FAILURE", flagged(held, summary="first"), DIAGNOSED, INPUT)
+    assert record.held_back(first) and record.shown_diagnosis(first) is None
+    for reply in (flagged(NUMBER, summary="second"), flagged(METRIC, SEVERITY, summary="second")):
+        assert record.retry_kept(first, reply)
+        kept = record.with_retry(first, "DEPENDENCY_FAILURE", reply, "2026-10-30T14:37:00.000Z", INPUT)
+        assert kept["diagnosis"]["summary"] == "second" and kept["self_check"] == reply["self_check"]
+        assert not record.held_back(kept) and record.shown_diagnosis(kept) == kept["diagnosis"]
+        assert kept["retried_for"] == ["DEPENDENCY_FAILURE"] and record.call_reason(kept, STATE) is None
+    for reply in (flagged(WORDING, summary="second"), flagged(NUMBER, UNCITED, summary="second")):
+        assert not record.retry_kept(first, reply)                           # still held: the first stays
+        assert record.with_retry(first, "DEPENDENCY_FAILURE", reply, None, INPUT)["diagnosis"]["summary"] == "first"
+
+
+def test_a_retry_with_findings_does_not_replace_a_diagnosis_the_feed_already_shows():
+    first = record.with_diagnosis(new(), "DEPENDENCY_FAILURE", flagged(NUMBER, summary="first"), DIAGNOSED, INPUT)
+    assert not record.held_back(first)
+    assert not record.retry_kept(first, flagged(METRIC, summary="second"))
+    assert record.retry_kept(first, flagged(SEVERITY, summary="second"))      # clean: the rubric's is reported
 
 
 def test_the_input_survives_dynamodb():
