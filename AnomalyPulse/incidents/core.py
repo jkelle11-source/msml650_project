@@ -88,15 +88,15 @@ def metric_line(prediction, rec, stored, reply):
             "Function": FUNCTION, "event": "incident_diagnosis", "incident_id": rec["incident_id"], **values}
 
 
-def retry_line(rec, call_type, before, reply, error):
+def retry_line(rec, call_type, before, reply, error, kept=False):
     """One log line per retry: the flagged diagnosis's finding kinds, and the retry's (or its error),
-    and whether its diagnosis replaced the flagged one. M9-5 can count how often a retry helps."""
+    and whether its diagnosis replaced the flagged one (kept: record.retry_kept). M9-5 can count how
+    often a retry helps."""
     line = {"event": "incident_retry", "incident_id": rec["incident_id"], "for_type": call_type,
             "flagged": sorted(before)}
     if error:
         return {**line, "kept": False, "error": error["type"]}
-    return {**line, "kept": record.clean(reply.get("self_check")),
-            "found": sorted(record.finding_kinds(reply.get("self_check")))}
+    return {**line, "kept": kept, "found": sorted(record.finding_kinds(reply.get("self_check")))}
 
 
 def _explain(rec, state, baseline, window, prediction, deps, reason="type"):
@@ -120,13 +120,14 @@ def _explain(rec, state, baseline, window, prediction, deps, reason="type"):
         error = {"type": "BadInput", "message": str(err)}
     except ExplainError as err:
         error = {"type": err.kind, "message": err.message}
-    stored = None
+    stored, kept = None, False
     if error:
         rec = record.with_error(rec, call_type, error)
         if reason == "retry":
             rec = record.retried(rec, call_type)
     elif reason == "retry":
-        stored = deps.now() if record.clean(reply.get("self_check")) else None
+        kept = record.retry_kept(rec, reply)            # judged against the flagged record, before it changes
+        stored = deps.now() if kept else None
         rec = record.with_retry(rec, call_type, reply, stored and _iso(stored), evidence)
     else:
         stored = deps.now()
@@ -135,7 +136,7 @@ def _explain(rec, state, baseline, window, prediction, deps, reason="type"):
     if stored is not None:
         deps.emit(metric_line(prediction, rec, stored, reply))
     if reason == "retry":
-        deps.emit(retry_line(rec, call_type, before, reply, error))
+        deps.emit(retry_line(rec, call_type, before, reply, error, kept))
     return rec
 
 

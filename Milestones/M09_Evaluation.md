@@ -137,6 +137,16 @@
 - **With runbooks on, a runbook-only fact in a summary, root cause or evidence bullet is unsupported**, like
   any fact the input doesn't hold. The self-check catches runbook numbers and capacity modes only.
 
+**From `M8-4`** (2026-11-09; [`Docs/INCIDENT_FEED.md`](../Docs/INCIDENT_FEED.md)):
+- **Count the capacity-mode slip as an actionability error.** M8-4's live diagnosis
+  (`exp-20261109T025523Z-bbf1`) told the engineer to check provisioned capacity on the Carts and Orders tables,
+  which are on-demand; M6-2's blind comparison scored the same slip without runbooks. The prompt is left as it
+  is: the runbooks state each table's mode, so the with-and-without comparison above measures the fix.
+- **What the console showed is not every stored diagnosis.** One flagged for causal or ordering wording or a
+  bullet citing no metric is held back ("Severity pending") until a retry clears it; every other finding is
+  shown. Score the stored diagnoses (`diagnosis`, `self_check`, `evidence_metrics`, `diagnosis_input` in the
+  record), and the store's `incident_retry` log lines give how often a retry was kept and what it still found.
+
 **Definition of Done**
 - [ ] Evidence fidelity and hallucination rate computed over test-set diagnoses.
 - [ ] Actionability scored against a written rubric by ≥1 human rater.

@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from genai import contract, self_check
 from incidents import feed, live_check, record
 
 SAMPLES = Path(__file__).resolve().parent.parent / "genai" / "samples"
@@ -91,6 +92,52 @@ def test_a_citation_outside_the_input_is_held_back():
     assert record.to_incident(rec)["diagnosis"] is None
 
 
+def test_a_bullet_citing_nothing_is_held_back():
+    # The schema lets a bullet cite only the input's metrics but can't require one; the explain Lambda's own
+    # checks (as explain.diagnose runs them) find the bullet citing nothing, and the feed must not show it.
+    rec = stored()
+    rec["evidence_metrics"][1] = []
+    raw = feed.raw_diagnosis(rec["diagnosis"], rec["evidence_metrics"])
+    found = contract.check_output_shape(raw) + self_check.check(rec["diagnosis_input"], raw)
+    assert "evidence[1] cites no input metric" in found
+    rec["self_check"] = {"passed": False, "findings": found}
+    assert record.held_back(rec) and record.to_incident(rec)["diagnosis"] is None
+    assert checked(rec)[0] == []
+
+
+def test_the_failing_kinds_are_the_held_kinds():
+    # What the feed holds back is exactly what its check must never find in shown text.
+    assert set(feed.FAILING_KINDS) == set(record.HOLD_KINDS)
+
+
+def changed_type(rec, to="CASCADING_FAILURE"):
+    """The record after a type change, before the new type's diagnosis is stored (core.process writes the
+    new type first and calls Bedrock second)."""
+    return record.refresh(rec, {"incident_type": to, "confidence": 0.8})
+
+
+def test_a_diagnosis_for_another_type_is_held_until_the_new_types_arrives():
+    rec = changed_type(stored())
+    assert record.for_another_type(rec) and record.to_incident(rec)["diagnosis"] is None
+    problems, notes = checked(rec)
+    assert problems == [] and notes == ["diagnosis made for DEPENDENCY_FAILURE, not CASCADING_FAILURE: "
+                                        "the console shows Severity pending"]
+    failed = record.with_error(rec, "CASCADING_FAILURE", {"type": "ThrottlingException", "message": ""})
+    assert record.to_incident(failed)["diagnosis"] is None                # the old one is kept, not shown
+    reply = json.loads((SAMPLES / "results" / RUNS[0] / "cascading_failure.json").read_text())
+    given = json.loads((SAMPLES / "cascading_failure.json").read_text())
+    done = record.with_diagnosis(failed, "CASCADING_FAILURE", reply, "2026-10-30T14:38:00.000Z", given)
+    assert record.to_incident(done)["diagnosis"] == reply["diagnosis"]
+    assert not record.for_another_type(record.open_record(
+        {"started_at": STARTED, "incident_type": "TRAFFIC_SPIKE", "confidence": 0.9}, PREDICTION, [], MODEL))
+
+
+def test_a_diagnosis_for_another_type_on_the_dashboard_fails():
+    rec = changed_type(stored())
+    shown = feed.feed_view(rec, NOW) | {"diagnosis": rec["diagnosis"]}
+    assert feed.check(rec, shown)[0] == ["a diagnosis made for another type reached the dashboard"]
+
+
 @pytest.mark.parametrize("finding", ["severity: HIGH, but the rubric gives MEDIUM",
                                      "summary: the number 15 is not in or derivable from the input",
                                      "root_cause: claims 'provisioned', but the input has no metric for it"])
@@ -119,6 +166,7 @@ def test_the_live_check_reads_a_held_record_back():
     rec = _flagged(stored(), "summary: causal wording 'caused'; correlated timestamps are an observed "
                              "sequence, not proof of cause")
     assert live_check.readback(rec, None, NOW) == ([], None)
+    assert live_check.readback(changed_type(stored()), None, NOW) == ([], None)
 
 
 def test_an_incident_waiting_for_bedrock_passes():
@@ -220,6 +268,9 @@ def test_a_record_stored_before_102_still_needs_every_section_and_a_citation_per
 
 
 def test_the_runbook_text_is_used_for_action_numbers():
-    rec = stored("global.anthropic.claude-sonnet-4-6+runbooks", "dependency_failure")
-    assert rec["runbook"] == "dependency_failure"
-    assert not any("the number 6" in n for n in checked(rec)[1])
+    # This answer's actions quote a number only its runbook has (10): allowed with the runbook's text,
+    # a note without it.
+    rec = stored("global.anthropic.claude-sonnet-4-6+runbooks", "lambda_degradation")
+    assert rec["runbook"] == "lambda_degradation"
+    assert not any("the number 10" in n for n in checked(rec)[1])
+    assert any("the number 10 is not in or derivable" in n for n in checked({**rec, "runbook": None})[1])

@@ -25,9 +25,10 @@ MAX_ERROR_CHARS = 500
 RETRY_KINDS = ("number", "time", "service", "metric", "citation", "wording")
 # A stored diagnosis whose self-check found one of these is held back from the dashboard (M8-4): the
 # console shows "Severity pending" instead. Causal or ordering wording would render an observed sequence
-# as causation, and a citation outside the input breaks evidence-to-metric traceability. (Bedrock can't
-# produce a citation finding today: its output schema allows only the input's metrics. It is held in case that
-# ever changes.) Other findings (a number rounded too far, say) are shown: M9-5 scores them.
+# as causation, and a bullet that cites no input metric breaks evidence-to-metric traceability. (Bedrock's
+# output schema lets a bullet cite only the input's metrics, but it can't require one, so a bullet citing
+# none is the citation finding Bedrock can produce.) Other findings (a number rounded too far, say) are
+# shown: M9-5 scores them.
 HOLD_KINDS = ("wording", "citation")
 
 
@@ -134,11 +135,20 @@ def with_error(record, call_type, error):
     return new
 
 
+def retry_kept(record, reply):
+    """True when a retry's reply replaces the stored, flagged diagnosis: its self-check is clean, or the
+    stored one is held back from the dashboard (held_back) and the retry found nothing that would hold it.
+    An answer the console can show beats one it can't (M8-4): a retry that fixes causal wording but rounds
+    a number too far is shown, and M9-5 scores the number."""
+    check = reply.get("self_check")
+    return clean(check) or (held_back(record) and not finding_kinds(check) & set(HOLD_KINDS))
+
+
 def with_retry(record, call_type, reply, stored_at, diagnosis_input):
-    """A retry's reply (call_reason "retry"). Its diagnosis replaces the flagged one only if its
-    self-check is clean; otherwise the flagged one stays, for M8-4 to show as it decides, and only the
-    call is counted. Either way the type's one retry is used."""
-    if clean(reply.get("self_check")):
+    """A retry's reply (call_reason "retry"). Its diagnosis replaces the flagged one when retry_kept;
+    otherwise the flagged one stays and only the call is counted. Either way the type's one retry is
+    used."""
+    if retry_kept(record, reply):
         return retried(with_diagnosis(record, call_type, reply, stored_at, diagnosis_input), call_type)
     new = copy.deepcopy(record)
     new["bedrock_calls"] = record["bedrock_calls"] + 1
@@ -207,19 +217,30 @@ def wants_bedrock(record, state):
 
 
 def held_back(record):
-    """True when the stored diagnosis's self-check found one of HOLD_KINDS. It stays held until a clean
-    answer replaces it (a retry, or a call for a new type); if none does, the console shows "Severity
-    pending" for the rest of the incident rather than the flagged text."""
+    """True when the stored diagnosis's self-check found one of HOLD_KINDS. It stays held until an answer
+    without them replaces it (the retry, retry_kept, or a call for a new type); if none does, the console
+    shows "Severity pending" for the rest of the incident rather than the flagged text."""
     return record.get("diagnosis") is not None and bool(finding_kinds(record.get("self_check")) & set(HOLD_KINDS))
 
 
+def for_another_type(record):
+    """True when the stored diagnosis was made for another type than the incident's current one. After a
+    type change the store writes the new type first and calls Bedrock second (core.process), so this
+    lasts while that call is in flight, after it fails until the next counted minute's call, or for the
+    rest of the incident once the calls run out."""
+    return (record.get("diagnosis") is not None
+            and record.get("diagnosis_for_type") != record["prediction"]["incident_type"])
+
+
 def shown_diagnosis(record):
-    """The diagnosis the dashboard shows: the stored one, or None while it is held back."""
-    return None if held_back(record) else record.get("diagnosis")
+    """The diagnosis the dashboard shows: the stored one, or None while it is held back or was made for
+    another type than the incident's current one (M8-4)."""
+    return None if held_back(record) or for_another_type(record) else record.get("diagnosis")
 
 
 def to_incident(record):
-    """What build_dashboard reads: incident_id, prediction, diagnosis (None while held back, M8-4)."""
+    """What build_dashboard reads: incident_id, prediction, diagnosis (shown_diagnosis: None while held
+    back or made for another type, M8-4)."""
     return {"incident_id": record["incident_id"], "prediction": record["prediction"],
             "diagnosis": shown_diagnosis(record)}
 

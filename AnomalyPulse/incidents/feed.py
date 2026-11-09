@@ -2,7 +2,8 @@
 
 M8-3 stores Bedrock's diagnosis in the dashboard's shape already, so the mapping is record.to_incident:
 the five sections as stored, or None while the diagnosis is held back (record.HOLD_KINDS: causal or
-ordering wording, or a citation outside the input). check() verifies the hand-off for one record against
+ordering wording, or a bullet that cites no input metric) or was made for another type than the
+incident's current one (record.for_another_type). check() verifies the hand-off for one record against
 what the dashboard returned for it, after the JSON round trip the read API makes:
 
 1. every section intact: severity, summary, root cause, the evidence bullets and the actions in order,
@@ -30,8 +31,10 @@ from genai import contract, runbooks, self_check
 from incidents import live_check, record
 
 SECTIONS = ("severity", "summary", "root_cause", "evidence", "recommended_actions")
-# Findings that break the Definition of Done (items 2 and 3); every other kind is a note.
-FAILING_KINDS = {"wording": "an ordering claim rendered as causation", "citation": "a bullet cites no input metric"}
+# Findings that break the Definition of Done (items 2 and 3); every other kind is a note. The same kinds
+# as record.HOLD_KINDS (test_feed checks): what the feed holds back is what it must never show.
+FAILING_KINDS = {"wording": "an ordering claim rendered as causation",
+                 "citation": "a bullet that traces to no input metric"}
 
 
 def raw_diagnosis(diagnosis, evidence_metrics):
@@ -59,6 +62,12 @@ def check(rec, shown):
             problems.append("a held-back diagnosis reached the dashboard")
         kinds = sorted(record.finding_kinds(rec.get("self_check")) & set(record.HOLD_KINDS))
         notes.append(f"diagnosis held back ({', '.join(kinds)}): the console shows Severity pending")
+        return problems, notes
+    if record.for_another_type(rec):
+        if diagnosis is not None:
+            problems.append("a diagnosis made for another type reached the dashboard")
+        notes.append(f"diagnosis made for {rec.get('diagnosis_for_type')}, not "
+                     f"{rec['prediction']['incident_type']}: the console shows Severity pending")
         return problems, notes
     if stored is None:
         if diagnosis is not None:

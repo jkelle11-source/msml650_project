@@ -1,6 +1,6 @@
 # The incident store (M8-3)
 
-**Status:** deployed (2026-11-08) and checked live on a traffic spike and a cascade; 209 offline tests in `incidents/` (42 of them M8-4's feed check) and a replay of validation. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
+**Status:** deployed (2026-11-08) and checked live on a traffic spike and a cascade; 219 offline tests in `incidents/` (46 of them M8-4's feed check) and a replay of validation. **Owner:** Rachel · **Code:** `AnomalyPulse/incidents/` · **Stack:** `infra/incidents/` (`anomalypulse-incidents`) · **Reads:** [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md), [`DIAGNOSIS_CONTRACT.md`](DIAGNOSIS_CONTRACT.md) · **Read by:** M8-4 (the feed), M8-5 (the live source)
 
 The Lambda `anomalypulse-incidents` takes each diagnosed minute, groups minutes into incidents with
 `ml/diagnosis/incident.py`, asks `anomalypulse-explain` (M6-1) to explain each incident, and stores a record the
@@ -23,16 +23,19 @@ dashboard reads in the Incidents table.
 6. **Explain.** Up to 5 calls per incident. Whenever the stored diagnosis is not for the incident's current
    type: when it opens, at each `type_changed`, and on the next counted minute after a failed call. And once
    per incident type, on the next counted minute, when the stored diagnosis's self-check found something the
-   input doesn't support (a number, time, service, claim or citation) or causal or ordering wording
+   input doesn't support (a number, time, service, claim, or a citation of a metric it lacks or of none) or
+   causal or ordering wording
    (`record.RETRY_KINDS`, each finding's kind from `genai.self_check.kind`). Build the input
    (`incidents/builder.py`), check it with `genai.contract.validate_input`, call `anomalypulse-explain`, and
    store the diagnosis with the input it was made from, or the error. A diagnosis that failed its self-check
    is stored, flagged. A retry resends the flagged diagnosis's own input with the answer and its findings
    (not a severity disagreement), and asks Bedrock to fix them (`DIAGNOSIS_CONTRACT.md`, "Revising an
-   answer"). Its diagnosis replaces the flagged one only if its self-check is clean (a
-   severity disagreement alone doesn't count: the rubric's severity is reported anyway); otherwise the
-   flagged one stays. Each retry writes an `incident_retry` log line: the flagged diagnosis's finding kinds,
-   the retry's (or its error), and whether it was kept.
+   answer"). Its diagnosis replaces the flagged one if its self-check is clean (a severity disagreement
+   alone doesn't count: the rubric's severity is reported anyway), or if the flagged one is held back from
+   the dashboard and the retry has nothing that would hold it (`record.retry_kept`, 2026-11-09; M8-4,
+   [`INCIDENT_FEED.md`](INCIDENT_FEED.md)); otherwise the flagged one stays. Each retry writes an
+   `incident_retry` log line: the flagged diagnosis's finding kinds, the retry's (or its error), and whether
+   it was kept.
 7. **State last.** The state item is written after everything else. If the Lambda dies before that, the retry
    repeats the minute (Bedrock may be called twice) instead of leaving an incident with no diagnosis and no
    retry.
@@ -79,8 +82,9 @@ ends.
 **For the dashboard.** `build_dashboard` treats any incident it is given as active (`active_incidents` is 1 and the
 status is `INCIDENT`), so the live source must pass only an `OPEN` record. `incidents.record.to_incident` returns
 the three fields it reads, with `diagnosis: null` while a diagnosis flagged for causal or ordering wording, or a
-citation outside the input, is held back (M8-4, [`INCIDENT_FEED.md`](INCIDENT_FEED.md)). Numbers come back from
-DynamoDB as `Decimal`; `record.from_dynamodb` converts them.
+bullet that cites no input metric, is held back, and while the stored diagnosis was made for the incident's
+earlier type: a type change writes the new type before its call (M8-4, [`INCIDENT_FEED.md`](INCIDENT_FEED.md)).
+Numbers come back from DynamoDB as `Decimal`; `record.from_dynamodb` converts them.
 
 ## Round-trip latency
 
@@ -109,7 +113,7 @@ belong to one minute: the incident's first counted minute's end to its diagnosis
 
 ```bash
 cd AnomalyPulse
-python3 -m pytest incidents -q          # 209 tests; none reach AWS
+python3 -m pytest incidents -q          # 219 tests; none reach AWS
 cfn-lint infra/incidents/template.yaml  # no findings (cfn-lint 1.60.0, 2026-11-07)
 ```
 
@@ -276,3 +280,8 @@ incidents/replay/download.sh <dir>                       # read-only, about 940 
   came back clean and was kept ([`INCIDENT_FEED.md`](INCIDENT_FEED.md), "The live run"). A retry that comes back
   flagged again has not happened live. The records of M8-3's two live runs were stored before #102, so they have
   no `diagnosis_input` or `retried_for`.
+- **The review's two changes (2026-11-09)** are tested offline and in the replay (whose numbers they don't
+  change), not live: a retry that clears what held a diagnosis back is kept even with a finding the feed shows
+  (`record.retry_kept`), and a bullet citing no metric is a `citation` finding, so it is retried and held back
+  (`genai.self_check.kind`). Both are in this Lambda's bundle, so they take effect once `anomalypulse-incidents`
+  is redeployed.

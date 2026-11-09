@@ -223,19 +223,27 @@ live cascade" and "Checked on validation"):**
 **Decided (2026-11-08; [`Docs/INCIDENT_FEED.md`](../Docs/INCIDENT_FEED.md)):** M8-3 stores the diagnosis in the
 dashboard's shape, so `incidents.record.to_incident` is the whole mapping, and the dashboard contract stays at
 version 1. `evidence_metrics`, `self_check`, `runbook` and `diagnosis_input` stay in the record, not on the
-console. A diagnosis whose self-check found causal or ordering wording, or a citation outside the input, is held
-back (`diagnosis: null`, "Severity pending") until a clean answer replaces it. M8-3 asks again once per type with
-the findings to fix (#102, built for this ticket's two requests). Every other finding is shown.
+console. A diagnosis whose self-check found causal or ordering wording, or a bullet that cites no input metric, is
+held back (`diagnosis: null`, "Severity pending") until an answer without them replaces it. M8-3 asks again once
+per type with the findings to fix (#102, built for this ticket's two requests). Every other finding is shown.
+
+**Review (2026-11-09):** three gaps closed. A diagnosis made for the incident's earlier type is also held back: a
+type change writes the new type before its Bedrock call, so the old type's diagnosis would otherwise sit under the
+new prediction while the call runs, or longer if it fails (`record.for_another_type`). A retry that clears what
+held a diagnosis back is kept even with a finding the feed shows, instead of being dropped and leaving "Severity
+pending" for the rest of that type (`record.retry_kept`). And a bullet citing no metric, which Bedrock's schema
+can't rule out, is now a `citation` finding, so it is retried and held back, not shown as a `shape` problem. The
+last two change the incident store's Lambda, so they take effect live once `anomalypulse-incidents` is redeployed.
 
 **Built, offline (2026-11-08):** `incidents/feed.py` checks the three items below for a stored record against what
 the dashboard returns for it, re-running the self-check on the shown text against the stored input. All 15 saved
 Sonnet diagnoses went through DynamoDB's round trip, `to_incident`, `build_dashboard` and JSON. 14 arrived intact,
 and one was held back (an ordering claim with no observed sequence). The console's own `checkReply` and
-`viewModel` showed every section as stored. Each way the hand-off could break fails a test (42 in
+`viewModel` showed every section as stored. Each way the hand-off could break fails a test (46 in
 `incidents/test_feed.py`). A record stored before #102 has no input to check against, so for it that part of the
 check is a note, as in `live_check.py`. On validation's replay with each type's first answer flagged for causal
 wording, all 112 incidents were held back, then shown a minute later (13 that changed type, two minutes); none was
-still held at close.
+still held at close. The review's changes leave the replay's numbers as they were.
 
 **Done, live (2026-11-09; [`Docs/INCIDENT_FEED.md`](../Docs/INCIDENT_FEED.md), "The live run"):** a traffic spike
 from the runner (`exp-20261109T025523Z-bbf1`, after `anomalypulse-incidents` and `anomalypulse-explain` were
@@ -265,10 +273,17 @@ replaced it, the first live retry. `live_check.py` passed as well.
 
 **Carried from M8-4 (2026-11-09; [`Docs/INCIDENT_FEED.md`](../Docs/INCIDENT_FEED.md), "For M8-5"):** the live
 source reads the newest `OPEN` incident record and passes `incidents.record.to_incident(record)` to
-`build_dashboard`, never the raw record. That is what holds back a diagnosis flagged for causal or ordering wording
-(it comes out as `null`, "Severity pending"); `build_dashboard` also shows any incident it is given as active, so a
-closed record must not be passed. The dashboard Lambda's bundle already carries `incidents.record` and the modules
-it imports (`dashboard/Makefile`, checked by `incidents/test_bundle.py`).
+`build_dashboard`, never the raw record. That is what holds back a diagnosis flagged for causal or ordering wording,
+or one made for the incident's earlier type during a type change (it comes out as `null`, "Severity pending");
+`build_dashboard` also shows any incident it is given as active, so a closed record must not be passed. The
+dashboard Lambda's bundle already carries `incidents.record` and the modules it imports (`dashboard/Makefile`,
+checked by `incidents/test_bundle.py`).
+
+**Suggested from M8-4's review:** reword the console's pending panel. It says "Waiting for Bedrock" and that the
+diagnosis "hasn't arrived yet" (`console/js/render.js`), which is true while a call or a retry is in flight but not
+once a retry has come back held too. Wording true in every case, such as "The incident is classified; no
+diagnosis is ready to show yet", is a one-line console change (no contract change; no console test checks the
+text).
 
 **Definition of Done**
 - [ ] Console shows a real injected incident with live classification, confidence, diagnosis, and ground truth.

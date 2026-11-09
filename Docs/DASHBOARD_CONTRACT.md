@@ -136,7 +136,7 @@ Each item of `services`:
 |---|---|---|---|
 | `incident_id` | string | never `null` | The same while the incident is active; a new id is a new incident |
 | `prediction` | object | never `null` | What the models concluded |
-| `diagnosis` | object or `null` | Bedrock hasn't answered yet, or its answer is held back for causal or ordering wording or a citation outside the input (M8-4, [`INCIDENT_FEED.md`](INCIDENT_FEED.md)) | What Bedrock wrote |
+| `diagnosis` | object or `null` | Bedrock hasn't answered yet, its answer is held back for causal or ordering wording or a bullet that cites no input metric, or it was made for the incident's earlier type (M8-4, [`INCIDENT_FEED.md`](INCIDENT_FEED.md)) | What Bedrock wrote |
 | `ground_truth` | object or `null` | No injected fault is known for this time: a real incident, or no manifest was found | What the simulator injected |
 | `comparison` | object or `null` | `ground_truth` is `null` | The two compared |
 
@@ -234,5 +234,6 @@ the mock one and changes nothing else.
    explanation Lambda's reply carries `evidence_metrics` (the input metrics each evidence bullet cites) and
    `self_check` (`passed` and findings); M8-3 stores them, with the input the diagnosis was made from
    (`diagnosis_input`). **M8-4 (2026-11-08): the console doesn't show them,** so this contract stays at version 1.
-   `diagnosis` is the stored one, or `null` while one flagged for causal or ordering wording, or a citation outside
-   the input, is held back ([`INCIDENT_FEED.md`](INCIDENT_FEED.md)).
+   `diagnosis` is the stored one, or `null` while one flagged for causal or ordering wording, or a bullet that
+   cites no input metric, is held back, or while the stored one was made for the incident's earlier type
+   ([`INCIDENT_FEED.md`](INCIDENT_FEED.md)).

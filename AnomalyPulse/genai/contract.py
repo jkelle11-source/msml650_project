@@ -190,7 +190,8 @@ def output_schema(evidence: dict) -> dict:
     """The JSON schema Bedrock's answer is held to (structured outputs).
 
     Built per request: an evidence bullet can only cite metrics this input has,
-    so a citation of a metric that isn't there can't be produced at all.
+    so a citation of a metric that isn't there can't be produced at all. It can't require a
+    citation, though: a bullet citing none is check_output_shape's to catch.
     """
     refs = [metric_ref(m["service"], m["metric"]) for m in evidence["metrics"]]
     return {
