@@ -233,7 +233,9 @@ Sonnet diagnoses went through DynamoDB's round trip, `to_incident`, `build_dashb
 and one was held back (an ordering claim with no observed sequence). The console's own `checkReply` and
 `viewModel` showed every section as stored. Each way the hand-off could break fails a test (42 in
 `incidents/test_feed.py`). A record stored before #102 has no input to check against, so for it that part of the
-check is a note, as in `live_check.py`.
+check is a note, as in `live_check.py`. On validation's replay with each type's first answer flagged for causal
+wording, all 112 incidents were held back, then shown a minute later (13 that changed type, two minutes); none was
+still held at close.
 
 **Done, live (2026-11-09; [`Docs/INCIDENT_FEED.md`](../Docs/INCIDENT_FEED.md), "The live run"):** a traffic spike
 from the runner (`exp-20261109T025523Z-bbf1`, after `anomalypulse-incidents` and `anomalypulse-explain` were

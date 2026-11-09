@@ -372,10 +372,10 @@ others, and there are at most 5 calls.
    Bedrock (Sonnet 4.6, 2026-11-08), the three saved Opus answers with findings (13 in all, 2 to 6
    each, shape and threshold ones included) came back from a revision with none, in 5 to 10 s each,
    against 15 s for a plain call on the cascade sample: a revision reads about 700 more tokens and
-   writes about half as many. On validation's replay with each type's first answer flagged for a
-   wrong number (Docs/INCIDENT_STORE.md, "Checked on validation"), every incident got its retry,
-   each resending the flagged diagnosis's input, and kept the clean answer: 114 retries, 239 calls,
-   at most 4 for an incident.
+   writes about half as many. On validation's replay with each type's first answer flagged (for
+   causal wording since 2026-11-09; Docs/INCIDENT_STORE.md, "Checked on validation"), every incident
+   got its retry, each resending the flagged diagnosis's input, and kept the clean answer: 114
+   retries, 239 calls, at most 4 for an incident.
 
 `prediction.affected_services` only grows while an incident is open (decided 2026-11-08): it starts as
 the opening minute's `affected_services`, and each counted minute adds the services that cross the line

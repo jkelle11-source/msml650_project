@@ -41,7 +41,10 @@ causation, or a bullet that traces to no input metric. A citation finding can't 
 output schema lets a bullet cite only the input's metrics. It is held anyway, in case that ever changes.
 
 - **Usually for about a minute.** M8-3 asks Bedrock again on the next counted minute, with the findings to fix
-  (#102). A clean answer replaces the held one, and the feed shows it.
+  (#102). A clean answer replaces the held one, and the feed shows it. On validation's replay with each type's
+  first answer flagged for causal wording (`incidents/replay/replay.py --flag-first`, 2026-11-09), every one of the
+  112 incidents was held back and then shown: 99 for 1 minute, and 13 for 2, the ones that changed type, whose new
+  type's first answer was flagged too. Every retry came on the next minute, and none was still held at close.
 - **If the retry is flagged too** (one retry per type), the console stays on "Severity pending" until a call for
   a new type gives a clean answer, or the incident closes. On real Bedrock, three answers with 13 findings all
   came back clean from one revision (`DIAGNOSIS_CONTRACT.md`, "Decided in M8-3").

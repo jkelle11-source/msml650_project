@@ -221,12 +221,15 @@ whose time holds the minute) and the explanation Lambda (`validate_input` again,
 - **A failing first call:** with every incident's first call made to fail, all 112 still got a diagnosis, stored at
   the next counted minute, a minute later (226 calls). Calling only at opening and at type changes, as before the
   review, only the 13 incidents that changed type would have got one.
-- **A flagged first answer** (2026-11-08, `--flag-first`): with the first answer for each of an incident's types
-  flagged for a wrong number, every incident got its retry at the next counted minute, resending the flagged
-  diagnosis's input with the answer and the finding, and kept the clean answer:
-  114 retries (2 incidents had one for each of two types), 239 calls, at most 4 for an incident, so the cap of 5
-  was never reached. In the plain replay nothing changed (125 calls), and every record holds the input of its
-  stored diagnosis.
+- **A flagged first answer** (`--flag-first`; 2026-11-08, and since 2026-11-09 flagged for causal wording, which
+  M8-4 holds back from the dashboard): with the first answer for each of an incident's types flagged, every
+  incident got its retry at the next counted minute, resending the flagged diagnosis's input with the answer and
+  the finding, and kept the clean answer: 114 retries (2 incidents had one for each of two types), 239 calls, at
+  most 4 for an incident, so the cap of 5 was never reached. Each flagged answer was held back for one minute, until
+  the retry replaced it: 99 incidents showed "Severity pending" for 1 minute and 13 for 2 (the ones that changed
+  type, whose new type's first answer was flagged too; 11 of them two minutes in a row). None was still held when
+  it closed. In the plain replay nothing changed (125 calls, nothing held), and every record holds the input of
+  its stored diagnosis.
 - **The record:** each read back through `build_dashboard` with its run's manifest. The largest item was the state,
   34 KB. `affected_services` at close: all four services on every traffic spike, Order and Payment on every
   dependency failure, Product alone on 23 of the 28 DB throttling incidents (88 of the 112 had one service before
