@@ -2,9 +2,10 @@
 
 **Status:** built and checked offline (2026-11-08), and live on one traffic spike (2026-11-09). The hold takes
 effect on the console through M8-5's live source, which builds the incident with `to_incident` ("For M8-5",
-below; built 2026-11-10). The review's two changes to the incident store (which retry
+below; deployed 2026-11-11). The review's two changes to the incident store (which retry
 answer is kept, and a bullet citing nothing counts as a `citation`; 2026-11-09) were deployed with
-`anomalypulse-incidents` on 2026-11-09 (18:51 UTC); no live run has exercised them yet. **Owner:**
+`anomalypulse-incidents` on 2026-11-09 (18:51 UTC); no live run has exercised them yet (M8-5's two retries came
+back clean, so the rule that predates the review kept them, and nothing was held back). **Owner:**
 Josh · **Code:** `AnomalyPulse/incidents/record.py` (`to_incident`), `AnomalyPulse/incidents/feed.py` (the check) ·
 **Reads:** [`INCIDENT_STORE.md`](INCIDENT_STORE.md) (M8-3's record) · **Read by:** M8-5 (the live source),
 M9-5
@@ -154,4 +155,6 @@ the live source runs is one more entry in its `BUILDS` row.
 **Done (M8-5, 2026-11-10).** `dashboard/live_source.py` does exactly this: `from_dynamodb`, then `to_incident`, on
 the newest record, and only while it is `OPEN`. The console's pending panel now reads "Diagnosis pending": "The
 incident is classified; no diagnosis is ready to show yet." `incidents/test_bundle.py`'s `BUILDS` row lists
-`live_source`.
+`live_source`. **Live (2026-11-11):** during the cascade's two type changes, the console showed "Diagnosis
+pending" until each new type's diagnosis arrived, so no diagnosis was shown under another type's prediction
+([`DASHBOARD_CONTRACT.md`](DASHBOARD_CONTRACT.md), "The live run").
