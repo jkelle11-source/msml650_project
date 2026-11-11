@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
+from botocore.exceptions import ClientError
 
 import builder
 import handler
@@ -146,6 +147,56 @@ def test_a_live_reply_json_can_t_write_is_a_503_not_a_crash():
     unconverted = {**window, "system_p95_latency_ms": Decimal("260")}
     response = handler.respond({}, "live", NOW, read=reads((unconverted, incident, manifest))[0])
     assert response["statusCode"] == 503 and "TypeError" in body(response)["error"]
+
+
+# An AWS error's message names the role's ARN, and with it the account ID. The API is public and the console
+# shows a 503's reason on screen, so a reply carries an AWS error's code, never its message; the log keeps it.
+ACCOUNT = "123456789012"
+DENIED = (f"User: arn:aws:sts::{ACCOUNT}:assumed-role/anomalypulse-dashboard/anomalypulse-dashboard is not "
+          f"authorized to perform: dynamodb:Query on resource: "
+          f"arn:aws:dynamodb:us-east-2:{ACCOUNT}:table/anomalypulse-incidents")
+
+
+def access_denied():
+    return ClientError({"Error": {"Code": "AccessDeniedException", "Message": DENIED}}, "Query")
+
+
+def test_a_failed_aws_read_says_its_error_code_and_never_its_message(capsys):
+    response = handler.respond({}, "live", NOW, read=failing(access_denied()))
+    assert response["statusCode"] == 503
+    assert body(response) == {"error": "live read failed: ClientError (AccessDeniedException)"}
+    assert ACCOUNT not in response["body"] and "arn:" not in response["body"]
+    assert DENIED in json.loads(capsys.readouterr().out)["detail"]
+
+
+def test_an_aws_error_with_no_code_still_says_it_is_an_aws_error():
+    response = handler.respond({}, "live", NOW, read=failing(ClientError({}, "GetObject")))
+    assert body(response) == {"error": "live read failed: ClientError (no error code)"}
+
+
+def test_any_other_failure_says_only_its_type():
+    error = ValueError(f"bad manifest at s3://anomalypulse-telemetry-{ACCOUNT}/experiments/exp-1/manifest.json")
+    response = handler.respond({}, "live", NOW, read=failing(error))
+    assert body(response) == {"error": "live read failed: ValueError"}
+
+
+def test_handler_live_with_its_reads_denied_is_a_503_naming_only_the_code(monkeypatch):
+    # The whole path: handler.handler, read_live and live_source.read, on a table that refuses the Query.
+    class DeniedTable:
+        def get_item(self, **kwargs):
+            return {}
+
+        def query(self, **kwargs):
+            raise access_denied()
+
+    monkeypatch.setenv("DASHBOARD_SOURCE", "live")
+    monkeypatch.setenv("INCIDENTS_TABLE", "anomalypulse-incidents")
+    monkeypatch.setenv("TELEMETRY_BUCKET", "anomalypulse-telemetry")
+    monkeypatch.setattr(handler, "_aws", lambda name: (DeniedTable(), "s3-client"))
+    response = handler.handler({}, None)
+    assert response["statusCode"] == 503
+    assert body(response) == {"error": "live read failed: ClientError (AccessDeniedException)"}
+    assert ACCOUNT not in response["body"]
 
 
 @pytest.mark.parametrize("unset", [("INCIDENTS_TABLE",), ("TELEMETRY_BUCKET",), ("INCIDENTS_TABLE", "TELEMETRY_BUCKET")])

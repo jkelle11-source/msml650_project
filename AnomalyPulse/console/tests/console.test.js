@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { test } from "node:test";
 import { SCENARIOS } from "../js/config.js";
-import { dashboardUrl, fetchReply, FeedError } from "../js/feed.js";
+import { dashboardUrl, fetchReply, FeedError, lastSnapshotText } from "../js/feed.js";
 import { clock, count, dateTime, latency, list, percent } from "../js/format.js";
 import { checkReply, ContractError, verdict, viewModel } from "../js/model.js";
 const fixture = (name) => JSON.parse(readFileSync(new URL(`../mock/${name}.json`, import.meta.url), "utf8"));
@@ -286,6 +286,20 @@ test("the pending diagnosis says only what is true while a call, a retry or a ho
   const source = await readFile(new URL("../js/render.js", import.meta.url), "utf8");
   assert.ok(source.includes("no diagnosis is ready to show yet"));
   for (const text of ["Waiting for Bedrock", "hasn't arrived yet"]) assert.ok(!source.includes(text), text);
+});
+
+test("after a failed refresh, the notice names a scenario only while the picker is on", () => {
+  // Live, there is no picker and state.scenario stays "healthy", so naming it would mislabel a live incident.
+  assert.equal(lastSnapshotText(true, "healthy", false), "The last successful snapshot remains visible.");
+  assert.equal(lastSnapshotText(true, "incident", false), "The last successful snapshot remains visible.");
+  assert.equal(lastSnapshotText(true, "incident", true), "The last successful incident snapshot remains visible.");
+  for (const named of [true, false]) assert.equal(lastSnapshotText(false, null, named), "No successful snapshot is available.");
+});
+
+test("the stale notice comes from lastSnapshotText, told whether the picker is on", () => {
+  const source = readFileSync(new URL("../js/app.js", import.meta.url), "utf8");
+  assert.ok(source.includes("lastSnapshotText(Boolean(state.last), state.lastScenario, demoEnabled)"));
+  assert.ok(!source.includes("snapshot remains visible"));
 });
 
 // --- pages ------------------------------------------------------------------------------

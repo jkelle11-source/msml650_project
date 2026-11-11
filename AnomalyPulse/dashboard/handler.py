@@ -12,6 +12,8 @@ import os
 from datetime import datetime, timezone
 from functools import lru_cache
 
+from botocore.exceptions import ClientError
+
 import live_source
 import mock_source
 from builder import build_dashboard
@@ -20,14 +22,17 @@ DEFAULT_SCENARIO = "healthy"
 LIVE_SETTINGS = ("INCIDENTS_TABLE", "TELEMETRY_BUCKET")
 
 
+class SettingMissing(RuntimeError):
+    """A live setting isn't set. Its message names only the settings, so the reply may carry it."""
+
+
 def _response(status_code: int, payload: dict) -> dict:
     return {"statusCode": status_code, "headers": {"Content-Type": "application/json"}, "body": json.dumps(payload)}
 
 
 @lru_cache(maxsize=1)
 def _aws(table_name: str):
-    """The Incidents table and an S3 client, made once per warm Lambda. boto3 is imported only here, so the
-    mock path needs nothing beyond the standard library."""
+    """The Incidents table and an S3 client, made once per warm Lambda (boto3 comes with the Lambda runtime)."""
     import boto3
     return boto3.resource("dynamodb").Table(table_name), boto3.client("s3")
 
@@ -36,19 +41,30 @@ def read_live() -> tuple:
     """The live inputs for build_dashboard: (window, incident, manifest)."""
     missing = [name for name in LIVE_SETTINGS if not os.environ.get(name)]
     if missing:
-        raise RuntimeError(f"{' and '.join(missing)} not set")
+        raise SettingMissing(f"{' and '.join(missing)} not set")
     table, s3 = _aws(os.environ["INCIDENTS_TABLE"])
     return live_source.read(table, s3, os.environ["TELEMETRY_BUCKET"])
+
+
+def _reason(e: Exception) -> str:
+    """What a failed live read's reply says. The API is public and the console shows the reply, so: an AWS
+    error's type and code (ClientError (AccessDeniedException), say), never its message, which names the
+    role's ARN and with it the account ID; any other error's type only. The log line has the full text."""
+    if isinstance(e, SettingMissing):
+        return str(e)
+    if isinstance(e, ClientError):
+        return f"ClientError ({e.response.get('Error', {}).get('Code') or 'no error code'})"
+    return type(e).__name__
 
 
 def _live(now: datetime, read) -> dict:
     # The live API ignores ?scenario= (Docs/DASHBOARD_CONTRACT.md, "The call").
     try:
         body = json.dumps(build_dashboard(*read(), now))
-    except Exception as e:  # noqa: BLE001 - any failure is a 503 with its reason, which the console shows
+    except Exception as e:  # noqa: BLE001 - any failure is a 503 saying what failed (_reason), which the console shows
         print(json.dumps({"level": "ERROR", "message": "live read failed", "error": type(e).__name__,
                           "detail": str(e)}))
-        return _response(503, {"error": f"live read failed: {type(e).__name__}: {e}"})
+        return _response(503, {"error": f"live read failed: {_reason(e)}"})
     return {"statusCode": 200, "headers": {"Content-Type": "application/json"}, "body": body}
 
 

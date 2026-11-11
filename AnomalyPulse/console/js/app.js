@@ -1,7 +1,7 @@
 // Existing M7-1 console controller: load, manual refresh, poll, visibility cleanup,
 // scenario selection and stale-on-error. No infrastructure-changing controls.
 import { CONFIG, SCENARIOS } from "./config.js";
-import { dashboardUrl, fetchReply, FeedError } from "./feed.js";
+import { dashboardUrl, fetchReply, FeedError, lastSnapshotText } from "./feed.js";
 import { render, renderConnection, renderNoReply, renderNotice } from "./render.js";
 import { initNav, updateTabs } from "./nav.js";
 
@@ -59,7 +59,7 @@ async function refresh({ manual = false } = {}) {
     const reason = error instanceof FeedError ? error.message : "unexpected request failure";
     renderConnection({ source: sourceLabel(), kind: state.last ? "stale" : "offline" });
     if (!state.last) renderNoReply();
-    const showing = state.last ? `The last successful ${state.lastScenario} snapshot remains visible.` : "No successful snapshot is available.";
+    const showing = lastSnapshotText(Boolean(state.last), state.lastScenario, demoEnabled);
     renderNotice(`${showing} Refresh failed (${reason}). The console will retry when visible.`, "error");
   } finally {
     if (state.inflight === controller) {

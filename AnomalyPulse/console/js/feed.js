@@ -2,6 +2,14 @@
 import { checkReply } from "./model.js";
 export class FeedError extends Error {}
 
+// After a failed refresh: what is still on screen. A scenario is named only while the picker is on
+// (named): the live API has no scenarios, and naming the default one would call a live incident's
+// snapshot "healthy".
+export function lastSnapshotText(hasLast, scenario, named) {
+  if (!hasLast) return "No successful snapshot is available.";
+  return named ? `The last successful ${scenario} snapshot remains visible.` : "The last successful snapshot remains visible.";
+}
+
 export function dashboardUrl({ source, apiBaseUrl, scenarios }, scenario = "healthy") {
   if (source === "mock") return `./mock/${encodeURIComponent(scenario)}.json`;
   if (source !== "api") throw new FeedError(`Unknown dashboard source: ${source}`);
