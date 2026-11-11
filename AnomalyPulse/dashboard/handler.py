@@ -41,11 +41,8 @@ def read_live() -> tuple:
     return live_source.read(table, s3, os.environ["TELEMETRY_BUCKET"])
 
 
-def _live(params: dict, now: datetime, read) -> dict:
-    if "scenario" in params:
-        # Scenarios are mock data. Answering one with live data would let a demo show the wrong thing silently.
-        return _response(400, {"error": "this API serves live data; ?scenario= is for the mock source "
-                                        "(the console's ?source=mock reads its snapshots)"})
+def _live(now: datetime, read) -> dict:
+    # The live API ignores ?scenario= (Docs/DASHBOARD_CONTRACT.md, "The call").
     try:
         body = json.dumps(build_dashboard(*read(), now))
     except Exception as e:  # noqa: BLE001 - any failure is a 503 with its reason, which the console shows
@@ -60,7 +57,7 @@ def respond(event: dict, source: str | None, now: datetime, read=read_live) -> d
     # An HTTP API event has no queryStringParameters key, or None, when the URL has no query string.
     params = event.get("queryStringParameters") or {}
     if source == "live":
-        return _live(params, now, read)
+        return _live(now, read)
     if source != "mock":
         # Never fall back to mock: a live deploy missing its setting would show made-up incidents as real.
         return _response(503, {"error": f"DASHBOARD_SOURCE is {source!r}; this build serves 'mock' or 'live'"})

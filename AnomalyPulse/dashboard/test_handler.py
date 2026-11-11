@@ -122,12 +122,11 @@ def test_live_with_no_incident_serves_healthy():
     assert body(response)["health"]["status"] == "HEALTHY" and body(response)["incident"] is None
 
 
-def test_live_refuses_a_scenario_without_reading_anything():
-    read, calls = reads()
+def test_live_ignores_a_scenario_as_the_contract_says():
+    read, calls = reads(mock_source.read("healthy", NOW))
     response = handler.respond({"queryStringParameters": {"scenario": "incident"}}, "live", NOW, read=read)
-    assert response["statusCode"] == 400 and response["headers"] == JSON
-    assert "?source=mock" in body(response)["error"]
-    assert calls == []
+    assert response["statusCode"] == 200 and body(response)["incident"] is None
+    assert calls == [1]
 
 
 @pytest.mark.parametrize("error", [RuntimeError("Incidents table unreachable"), KeyError("window_start"),

@@ -40,9 +40,6 @@ with its diagnosis, and the injected ground truth of the run that caused it. The
 | M8-5 (now): live data | deployed with `DashboardSource=live` (the default) | `scenarios: false` (no picker, no `?scenario`) |
 | M7: the mock scenarios | deployed with `DashboardSource=mock` | `scenarios: true` |
 
-The live API answers 400 to `?scenario=`, so a page still set for scenarios says so instead of showing live data
-as a scenario.
-
 Without editing the file, add to the page's address:
 
 - `?source=mock` to read the snapshots in `mock/`. Needs no network, so it is the demo's fallback.
@@ -65,8 +62,7 @@ Scenario picker is back).
 
 The files in `mock/` are the API's replies, captured on 2026-11-02 (UTC), so the offline fallback tells the same
 story as the API. `mock_source.py` in `AnomalyPulse/dashboard/` is the one place the scenarios are defined; after
-it changes, capture them again from an API deployed with `DashboardSource=mock` (the live API answers 400 to
-`?scenario=`):
+it changes, capture them again from an API deployed with `DashboardSource=mock` (the live API ignores `?scenario=`):
 
 ```bash
 cd AnomalyPulse/console/mock
