@@ -1,8 +1,8 @@
 # The incident feed (M8-4)
 
 **Status:** built and checked offline (2026-11-08), and live on one traffic spike (2026-11-09). The hold takes
-effect on the console when M8-5's live source builds the incident with `to_incident` ("For M8-5", below); today's
-dashboard Lambda serves only the mock scenarios. The review's two changes to the incident store (which retry
+effect on the console through M8-5's live source, which builds the incident with `to_incident` ("For M8-5",
+below; built 2026-11-10). The review's two changes to the incident store (which retry
 answer is kept, and a bullet citing nothing counts as a `citation`; 2026-11-09) were deployed with
 `anomalypulse-incidents` on 2026-11-09 (18:51 UTC); no live run has exercised them yet. **Owner:**
 Josh · **Code:** `AnomalyPulse/incidents/record.py` (`to_incident`), `AnomalyPulse/incidents/feed.py` (the check) ·
@@ -71,7 +71,8 @@ minute (each type change's call succeeds within its minute), so their numbers ar
 
 The console's pending text ("Waiting for Bedrock": the diagnosis "hasn't arrived yet") is true while a call or a
 retry is in flight, which is most of the time a diagnosis is held. It isn't once a retry has come back held too.
-No contract change: M8-5 can reword it to something true in every case ("For M8-5", below).
+No contract change: M8-5 reworded it to something true in every case ("Diagnosis pending": "no diagnosis is
+ready to show yet"; 2026-11-10).
 
 ## The check (Definition of Done)
 
@@ -149,3 +150,8 @@ It is a console change only, no contract change. `record.py` imports
 `self_check.py`; `sam build` picks it up, and a redeploy of `anomalypulse-dashboard` changes nothing it serves.
 `incidents/test_bundle.py` checks that each Lambda's Makefile copies every module its code imports; a new module
 the live source runs is one more entry in its `BUILDS` row.
+
+**Done (M8-5, 2026-11-10).** `dashboard/live_source.py` does exactly this: `from_dynamodb`, then `to_incident`, on
+the newest record, and only while it is `OPEN`. The console's pending panel now reads "Diagnosis pending": "The
+incident is classified; no diagnosis is ready to show yet." `incidents/test_bundle.py`'s `BUILDS` row lists
+`live_source`.
