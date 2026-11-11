@@ -1,6 +1,6 @@
 // Where the console reads from.
-//   M7 (now)      source: "api", scenarios: true    Jake's mock API; the Scenario picker sends ?scenario=<name>
-//   M8-5, live    source: "api", scenarios: false   live data, no picker
+//   M8-5 (now)    source: "api", scenarios: false   live data, no picker
+//   M7            source: "api", scenarios: true    the API deployed with DashboardSource=mock; the picker sends ?scenario=
 // Overrides in the page's address, without editing this file:
 //   ?source=mock      the snapshots of the API's replies in mock/ (no network needed: the demo's fallback)
 //   ?api=<base URL>   another read API
@@ -8,7 +8,7 @@ export const CONFIG = {
   source: "api",
   // M7-2's read API (also in SSM at /anomalypulse/dashboard/url).
   apiBaseUrl: "https://ffc8nyi6jl.execute-api.us-east-2.amazonaws.com",
-  scenarios: true,
+  scenarios: false,
   pollMs: 15000,
   timeoutMs: 8000,
 };

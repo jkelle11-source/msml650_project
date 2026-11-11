@@ -275,10 +275,17 @@ test("the API's unrounded shares and its own ids are accepted and read the same"
   assert.doesNotThrow(() => viewModel(api));
 });
 
-test("the console reads Jake's API by default, with ?scenario on", async () => {
+test("the console reads the live API by default, with no ?scenario", async () => {
   const { CONFIG } = await import("../js/config.js");
-  assert.equal(dashboardUrl(CONFIG, "incident"),
-    "https://ffc8nyi6jl.execute-api.us-east-2.amazonaws.com/dashboard?scenario=incident");
+  assert.equal(CONFIG.scenarios, false);
+  assert.equal(dashboardUrl(CONFIG, "incident"), "https://ffc8nyi6jl.execute-api.us-east-2.amazonaws.com/dashboard");
+});
+
+test("the pending diagnosis says only what is true while a call, a retry or a hold is in progress", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(new URL("../js/render.js", import.meta.url), "utf8");
+  assert.ok(source.includes("no diagnosis is ready to show yet"));
+  for (const text of ["Waiting for Bedrock", "hasn't arrived yet"]) assert.ok(!source.includes(text), text);
 });
 
 // --- pages ------------------------------------------------------------------------------
