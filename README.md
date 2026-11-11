@@ -385,11 +385,14 @@ sam build
 AWS_PROFILE=admin sam deploy
 ```
 
-`admin`, because the stack creates an IAM role. The function's code is
-`AnomalyPulse/dashboard/`, which needs nothing beyond the Python standard library.
-Its URL is the stack's `DashboardUrl` output and `/anomalypulse/dashboard/url`.
-The function serves the contract's mock scenarios (`DASHBOARD_SOURCE: mock`)
-until M8-5 switches it to live data.
+`admin`, because the stack creates an IAM role. `dashboard/Makefile` builds the
+function: `AnomalyPulse/dashboard/`, with the incident store's `record.py` and the
+modules it imports (boto3 comes with the Lambda runtime). Its URL is the stack's
+`DashboardUrl` output and `/anomalypulse/dashboard/url`. With `DashboardSource=live`,
+the stack's default since M8-5, it serves live data: the newest minute's health and
+the open incident from the Incidents table, and that run's manifest from the
+telemetry bucket. `sam deploy --parameter-overrides DashboardSource=mock` serves the
+contract's mock scenarios instead, and `DashboardSource=live` switches it back.
 
 ### The explanation stack
 

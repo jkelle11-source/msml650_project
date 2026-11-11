@@ -5,8 +5,8 @@
 
 The one JSON object the console reads, what every field means, and where each value comes from once M8 makes it
 live. The console renders only from this object. Until M8-5 the read API served mock data in exactly this shape;
-M8-5 switched its source to live data without changing the shape (built 2026-11-10; deployed with the stack's
-`DashboardSource=live`, the default, and `DashboardSource=mock` serves the scenarios again).
+M8-5 switches its source to live data without changing the shape (built 2026-11-10, not yet deployed: the stack's
+`DashboardSource` parameter is `live` by default, and `DashboardSource=mock` serves the scenarios again).
 
 ---
 
@@ -21,7 +21,9 @@ The URL is the `anomalypulse-dashboard` stack's `DashboardUrl` output, also publ
 
 - **200** with the object below, `Content-Type: application/json`.
 - **503** with `{"error": "<what failed>"}` when the API can't read its source. The console keeps showing the
-  last good reply, marked stale.
+  last good reply, marked stale, and shows the error. Live, it names the error's type, and an AWS error's code
+  (`live read failed: ClientError (AccessDeniedException)`), never an AWS error's message, which names the
+  role's ARN and the account ID: the API is public. The full text is in the function's log.
 - **Poll every 10–15 s** (the console polls every 15 s). The numbers describe one-minute windows, so they change
   at most once a minute; the diagnosis can arrive at any time.
 - **Mock only:** `GET /dashboard?scenario=<name>` returns one of the fixed scenarios below, so every state of the
@@ -217,13 +219,13 @@ which the example rounds to 0.167. The numbers are illustrative; none comes from
 
 **The code** is in `AnomalyPulse/dashboard/`. `builder.py` applies every rule in this document to raw inputs:
 the latest window, the incident record, the manifest and the time. `mock_source.py` supplies the scenarios'
-inputs. `handler.py` picks the source from the `DASHBOARD_SOURCE` setting (anything but `mock`, including no
-setting, answers 503, never mock data) and is the only code that reads the clock. M8-5 added the live source
+inputs. `handler.py` picks the source from the `DASHBOARD_SOURCE` setting (anything but `mock` or `live`,
+including no setting, answers 503, never mock data) and is the only code that reads the clock. M8-5 added the live source
 beside the mock one and changed nothing else: `live_source.py` reads the health item, the newest incident record
 only while it is `OPEN` (through `incidents.record.to_incident`, never the raw record), and the run's manifest
 (`experiments/<experiment_id>/manifest.json`; none for a record without an `experiment_id`, or a missing object).
 `DASHBOARD_SOURCE=live` reads the table and bucket named by `INCIDENTS_TABLE` and `TELEMETRY_BUCKET`; a live
-read that fails answers 503 with its reason, never mock data. The stack's role only reads: `GetItem` and `Query`
+read that fails answers 503 saying what failed ("The call", above), never mock data. The stack's role only reads: `GetItem` and `Query`
 on the `HEALTH` and `INCIDENT` partitions, the manifests, and `ListBucket` so a missing manifest is `NoSuchKey`.
 
 ## Open questions

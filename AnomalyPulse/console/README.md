@@ -35,6 +35,12 @@ By default it reads the read API, `https://ffc8nyi6jl.execute-api.us-east-2.amaz
 SSM at `/anomalypulse/dashboard/url`), which serves live data (M8-5): the newest minute's health, the open incident
 with its diagnosis, and the injected ground truth of the run that caused it. There is no Scenario picker.
 
+An incident stays on the console while its record is `OPEN`, and the incident store closes it only when later
+minutes arrive. If a run's traffic stops within about 4 minutes of its fault's end, the incident stays on screen
+while the system is idle, until the next run's first window closes it, within about 4 minutes of that run's
+traffic starting (Docs/INCIDENT_STORE.md, "When an incident closes"). Runs keep 5 minutes of traffic after a fault
+by default, and the demo starts its traffic at least 6 minutes before the healthy segment (M10), which covers it.
+
 | When | The API | In `js/config.js` |
 |---|---|---|
 | M8-5 (now): live data | deployed with `DashboardSource=live` (the default) | `scenarios: false` (no picker, no `?scenario`) |
