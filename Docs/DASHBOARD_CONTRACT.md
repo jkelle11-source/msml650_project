@@ -4,8 +4,10 @@
 **Status:** signed off by Linu (2026-10-31, #27); `diagnosis` matches M6-1's output (Josh, PR #86)
 
 The one JSON object the console reads, what every field means, and where each value comes from once M8 makes it
-live. The console renders only from this object. Until M8-5 the read API serves mock data in exactly this shape;
-M8-5 switches its source to live data without changing the shape.
+live. The console renders only from this object. Until M8-5 the read API served mock data in exactly this shape;
+M8-5 switched its source to live data without changing the shape (deployed 2026-11-11 with the stack's
+`DashboardSource=live`, its default; `DashboardSource=mock` serves the scenarios again). "The live run", below, is
+its check: one run of each incident type, shown on the console from the live API.
 
 ---
 
@@ -20,14 +22,16 @@ The URL is the `anomalypulse-dashboard` stack's `DashboardUrl` output, also publ
 
 - **200** with the object below, `Content-Type: application/json`.
 - **503** with `{"error": "<what failed>"}` when the API can't read its source. The console keeps showing the
-  last good reply, marked stale.
+  last good reply, marked stale, and shows the error. Live, it names the error's type, and an AWS error's code
+  (`live read failed: ClientError (AccessDeniedException)`), never an AWS error's message, which names the
+  role's ARN and the account ID: the API is public. The full text is in the function's log.
 - **Poll every 10–15 s** (the console polls every 15 s). The numbers describe one-minute windows, so they change
   at most once a minute; the diagnosis can arrive at any time.
 - **Mock only:** `GET /dashboard?scenario=<name>` returns one of the fixed scenarios below, so every state of the
   console can be built and checked; no `scenario` gives `healthy`. An unknown name returns **400** with
   `{"error": "unknown scenario '<name>'; use one of: ..."}`. The live API ignores `scenario`.
-- **CORS:** any origin while the API serves mock data. M8-5 narrows it to the console's addresses,
-  `http://127.0.0.1:4173` and `http://localhost:4173` (a browser treats the two as different origins).
+- **CORS:** only the console's addresses, `http://127.0.0.1:4173` and `http://localhost:4173` (a browser treats
+  the two as different origins), since M8-5; any origin while the API served only mock data.
 
 ## Example
 
@@ -216,9 +220,62 @@ which the example rounds to 0.167. The numbers are illustrative; none comes from
 
 **The code** is in `AnomalyPulse/dashboard/`. `builder.py` applies every rule in this document to raw inputs:
 the latest window, the incident record, the manifest and the time. `mock_source.py` supplies the scenarios'
-inputs. `handler.py` picks the source from the `DASHBOARD_SOURCE` setting (anything but `mock`, including no
-setting, answers 503, never mock data) and is the only code that reads the clock. M8-5 adds a live source beside
-the mock one and changes nothing else.
+inputs. `handler.py` picks the source from the `DASHBOARD_SOURCE` setting (anything but `mock` or `live`,
+including no setting, answers 503, never mock data) and is the only code that reads the clock. M8-5 added the live source
+beside the mock one and changed nothing else: `live_source.py` reads the health item, the newest incident record
+only while it is `OPEN` (through `incidents.record.to_incident`, never the raw record), and the run's manifest
+(`experiments/<experiment_id>/manifest.json`; none for a record without an `experiment_id`, or a missing object).
+`DASHBOARD_SOURCE=live` reads the table and bucket named by `INCIDENTS_TABLE` and `TELEMETRY_BUCKET`; a live
+read that fails answers 503 saying what failed ("The call", above), never mock data. The stack's role only reads: `GetItem` and `Query`
+on the `HEALTH` and `INCIDENT` partitions, the manifests, and `ListBucket` so a missing manifest is `NoSuchKey`.
+
+## The live run (M8-5, 2026-11-11)
+
+**The deploy.** `anomalypulse-dashboard` was deployed at 19:14 UTC from `2368f78`, and the deployed code is that
+commit's build, file for file. Checked before any traffic:
+
+- `GET /dashboard` answers 200 with this object, which the console's `checkReply` accepts, and ignores
+  `?scenario=`. A CORS preflight from `http://127.0.0.1:4173` or `http://localhost:4173` is allowed; one from any
+  other origin is not.
+- The role, in IAM's policy simulator: 17 of 17 cases as expected. Reads of the `HEALTH` and `INCIDENT` partitions
+  and of the manifests are allowed. `INCIDENT_STATE`, writes, scans, other tables, other keys and other buckets are
+  refused. Access Analyzer found nothing on either policy.
+- A cold start took 1.6 s (0.28 s of it init), and a warm call 17–39 ms, against the console's 8 s timeout.
+
+**One run of each type, unattended.** From the runner (`drive.sh`, pinned to `2368f78`), on training bands at
+intensity 0.7 as in M8-2, back to back from 19:23 to 21:04 UTC: a noop, a traffic spike (×6–8), db-throttling
+(3.5–4.5), lambda-degradation (order-service, 800–1100 ms), payment-failure (500–1500 ms) and the cascade
+(`example.json`). The deployed API was read every 15 s, as the console reads it: 413 replies, every one 200, the
+newest minute at most 157 s old, so never `NO_DATA`. The console, served at `http://127.0.0.1:4173`, was
+screenshotted at each change.
+
+| Run | On the console (UTC): incident, diagnosis, healthy | Type shown | Ground truth | Detected after the first fault | `live_check` / `feed` |
+|---|---|---|---|---|---|
+| `exp-20261111T192353Z-7a95` noop | no incident | | | | pass / none to check |
+| `exp-20261111T193954Z-6cf2` traffic spike | 19:50:05, 19:50:50, 19:56:50 | `TRAFFIC_SPIKE` | `TRAFFIC_SPIKE` | 240.2 s | pass / pass |
+| `exp-20261111T195555Z-ccad` db-throttling | 20:06:05, 20:06:50, 20:11:50 | `DATABASE_THROTTLING` | `DATABASE_THROTTLING` | 235.2 s | pass / pass |
+| `exp-20261111T201155Z-efa4` lambda-degradation | 20:21:50, 20:22:35, 20:29:50 | `LAMBDA_DEGRADATION` | `LAMBDA_DEGRADATION` | 234.1 s | pass / pass |
+| `exp-20261111T202756Z-98b7` payment-failure | 20:37:51, 20:38:21, 20:44:51 | `DEPENDENCY_FAILURE` | `DEPENDENCY_FAILURE` | 233.8 s | pass / pass |
+| `exp-20261111T204357Z-8dad` cascade | 20:53:06, 20:53:21, 21:04:51 | `TRAFFIC_SPIKE`, then `DATABASE_THROTTLING`, then `CASCADING_FAILURE` | `CASCADING_FAILURE` | 234.7 s | pass / pass |
+
+- Every incident's ground truth was its own run's manifest, and the type shown when it closed was its run's.
+- "Diagnosis pending" showed for 15 to 45 s before each diagnosis. During the cascade's two type changes it showed
+  again until the new type's diagnosis arrived, so no diagnosis was shown under another type's prediction (M8-4's
+  hold for a diagnosis made for an earlier type, live on the console for the first time).
+- The traffic spike's and the payment failure's first diagnoses were flagged and asked for again. Neither finding
+  holds a diagnosis back, so the console showed the first answer, then the retry's clean answer in its place (15 s
+  and 45 s later), with no "Diagnosis pending" between them.
+- `live_check` counts 2 closes on each run after the spike: the previous run's incident closes in the first minutes
+  of the next run, inside its log window. Each run opened and closed one incident.
+- The dashboard Lambda logged no errors from the deploy to the end of the runs. Each `live_check` found no errors,
+  no failed deliveries and an empty failure queue.
+
+Screenshots: the traffic spike [detected](images/m8-5/spike-1-detected.png),
+[diagnosis pending](images/m8-5/spike-2-diagnosis-pending.png), [its diagnosis](images/m8-5/spike-3-diagnosis.png),
+[prediction vs ground truth](images/m8-5/spike-4-ground-truth.png) and [healthy again](images/m8-5/spike-5-healthy-again.png);
+the cascade [pending after a type change](images/m8-5/cascade-1-type-change-pending.png),
+[its diagnosis](images/m8-5/cascade-2-diagnosis.png) and
+[prediction vs ground truth](images/m8-5/cascade-3-ground-truth.png).
 
 ## Open questions
 

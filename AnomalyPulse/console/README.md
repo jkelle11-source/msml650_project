@@ -1,9 +1,9 @@
-# AnomalyPulse operations console (M7-1)
+# AnomalyPulse operations console (M7-1, M8-5)
 
 The SRE console from PROJECT_PLAN §14: service health, the active incident, Bedrock's diagnosis, and the
 model's prediction beside the injected ground truth. It renders only from the one JSON object the read API
-returns (`GET /dashboard`, Docs/DASHBOARD_CONTRACT.md, M7-2). `mock/` holds snapshots of the API's replies
-for its six scenarios.
+returns (`GET /dashboard`, Docs/DASHBOARD_CONTRACT.md, M7-2), which serves live data since M8-5. `mock/` holds
+snapshots of the API's replies for its six mock scenarios: the demo's offline fallback.
 
 Static HTML, CSS and JavaScript modules: no framework, no build step, nothing to install. It lives apart from the
 read API's code (`AnomalyPulse/dashboard/`), because that whole folder is packaged into the API's Lambda.
@@ -15,9 +15,10 @@ cd AnomalyPulse/console
 npm start                      # = python3 -m http.server 4173 --bind 127.0.0.1
 ```
 
-Open <http://127.0.0.1:4173> (the address the API allows). Opening `index.html` as a file doesn't work: the
-page loads modules and JSON over HTTP. Pick a state from **Scenario**, or open `?scenario=<name>` directly.
-For the demo, run it from the presenting laptop (agreed with Jake in #27).
+Open <http://127.0.0.1:4173> or <http://localhost:4173>: the API's CORS allows only these two addresses, so a
+page on any other port or host can't read it. Opening `index.html` as a file doesn't work: the page loads
+modules and JSON over HTTP. For the demo, run it from the presenting laptop (agreed with Jake in #27); the
+traffic for a live run still comes from the runner host, never the laptop (Docs/DETECTION.md).
 
 ## Test it
 
@@ -30,15 +31,20 @@ the console's reading of each scenario, and how failed requests are reported.
 
 ## Where it reads from
 
-By default it reads M7-2's read API, `https://ffc8nyi6jl.execute-api.us-east-2.amazonaws.com/dashboard`
-(also in SSM at `/anomalypulse/dashboard/url`), and the Scenario picker sends `?scenario=<name>`. That API
-serves mock data until M8-5, with every time placed at the moment of the request, so its timestamps differ from
-the snapshots in `mock/`.
+By default it reads the read API, `https://ffc8nyi6jl.execute-api.us-east-2.amazonaws.com/dashboard` (also in
+SSM at `/anomalypulse/dashboard/url`), which serves live data (M8-5): the newest minute's health, the open incident
+with its diagnosis, and the injected ground truth of the run that caused it. There is no Scenario picker.
 
-| When | In `js/config.js` |
-|---|---|
-| M7 (now): Jake's mock API | `source: "api"`, `scenarios: true` |
-| M8-5: live data | `scenarios: false` (no picker, no `?scenario`) |
+An incident stays on the console while its record is `OPEN`, and the incident store closes it only when later
+minutes arrive. If a run's traffic stops within about 4 minutes of its fault's end, the incident stays on screen
+while the system is idle, until the next run's first window closes it, within about 4 minutes of that run's
+traffic starting (Docs/INCIDENT_STORE.md, "When an incident closes"). Runs keep 5 minutes of traffic after a fault
+by default, and the demo starts its traffic at least 6 minutes before the healthy segment (M10), which covers it.
+
+| When | The API | In `js/config.js` |
+|---|---|---|
+| M8-5 (now): live data | deployed with `DashboardSource=live` (the default) | `scenarios: false` (no picker, no `?scenario`) |
+| M7: the mock scenarios | deployed with `DashboardSource=mock` | `scenarios: true` |
 
 Without editing the file, add to the page's address:
 
@@ -46,7 +52,8 @@ Without editing the file, add to the page's address:
 - `?api=<base URL>` to read another API. The source chip then shows that API's host.
 - `?theme=light` for the light presentation theme (below).
 
-The parameters combine, for example `?source=mock&theme=light&scenario=incident`.
+The parameters combine, for example `?source=mock&theme=light&scenario=incident` (with `?source=mock`, the
+Scenario picker is back).
 
 ## The six states
 
@@ -61,7 +68,7 @@ The parameters combine, for example `?source=mock&theme=light&scenario=incident`
 
 The files in `mock/` are the API's replies, captured on 2026-11-02 (UTC), so the offline fallback tells the same
 story as the API. `mock_source.py` in `AnomalyPulse/dashboard/` is the one place the scenarios are defined; after
-it changes, capture them again:
+it changes, capture them again from an API deployed with `DashboardSource=mock` (the live API ignores `?scenario=`):
 
 ```bash
 cd AnomalyPulse/console/mock

@@ -159,7 +159,7 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [Docs/DETECTION.md](Docs/DETECTION.md) | Anomaly detection (M5-2): the Isolation Forest and the supervised binary detector, the forest's cut-off, healthy vs fault-start false alarms, and the validation results. |
 | [Docs/M5-3_REPORT.md](Docs/M5-3_REPORT.md) | Incident classification (M5-3): Model 0 (the threshold baseline), logistic regression, XGBoost and Random Forest on validation, the cascade margin and time to recognize a cascade, the wrong windows, and the selected model. |
 | [Docs/DIAGNOSIS_CONTRACT.md](Docs/DIAGNOSIS_CONTRACT.md) | The diagnosis contract (M6-1): what Bedrock is given (the classified incident as structured evidence, how `affected_services` is decided) and what it gives back, the wording rules, the severity rubric, the self-check, and the model choice. |
-| [Docs/DASHBOARD_CONTRACT.md](Docs/DASHBOARD_CONTRACT.md) | The dashboard data contract (M7-2): the JSON object the SRE console reads, what every field means, the mock scenarios, and where each value comes from in M8. |
+| [Docs/DASHBOARD_CONTRACT.md](Docs/DASHBOARD_CONTRACT.md) | The dashboard data contract (M7-2): the JSON object the SRE console reads, what every field means, the mock scenarios, where each value comes from in M8, and M8-5's live run (one incident of each type on the console, with screenshots in `Docs/images/m8-5/`). |
 | [Docs/PIPELINE.md](Docs/PIPELINE.md) | The live telemetry pipeline (M8-1): the path from a service's log line to a one-minute window, what it writes (health, windows, the WindowReady event, the Incidents table's health item), when each window is ready, what late telemetry does, its alarms and load tests, the IAM at each hop, and what live windows do differently from training's, measured on validation. |
 | [Docs/LIVE_DIAGNOSIS.md](Docs/LIVE_DIAGNOSIS.md) | Detect + classify on the live path (M8-2): each WindowReady window through the Isolation Forest, then the classifier, in the Diagnosis Lambda; the reply, the Tier-1 guard on the live path, the detection-latency metrics, the open/close rule proposed for M8-3 (`incident.py`) with its results on validation, deploying, and the live Definition of Done checks. |
 | [Docs/INCIDENT_STORE.md](Docs/INCIDENT_STORE.md) | The incident store (M8-3): the path of each diagnosed minute through `anomalypulse-incidents` (grouping into incidents, Bedrock's input, when it is called, the stored record's layout and what the dashboard reads), the baseline and metrics decisions, round-trip latency, its IAM and failure queue, deploying, and what is not verified yet. |
@@ -179,7 +179,7 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [AnomalyPulse/incidents/](AnomalyPulse/incidents/) | M8-3's incident store: `builder.py` (Bedrock's input), `record.py` (the stored record), `core.py` (one diagnosed minute in, records out), `handler.py` (the Lambda's AWS calls), the `Makefile` that bundles it with `genai/` and `incident.py`, `live_check.py` (the read-only check to run after each live run), `feed.py` (M8-4: checks that a stored diagnosis reaches the dashboard intact, worded as an observed sequence and traced to its input; [Docs/INCIDENT_FEED.md](Docs/INCIDENT_FEED.md)), `replay/` (validation's runs replayed as the live stream, offline: `download.sh`, `replay.py`, `analyze.py`), and the tests (`python3 -m pytest incidents`). Its stack is `infra/incidents/`. |
 | [AnomalyPulse/infra/genai/](AnomalyPulse/infra/genai/) | The `anomalypulse-genai` stack (M6-1): the explanation Lambda, its role (`bedrock:InvokeModel` on Claude models only) and log group, and the function name's SSM parameter. |
 | [AnomalyPulse/infra/incidents/](AnomalyPulse/infra/incidents/) | The `anomalypulse-incidents` stack (M8-3): the rule that sends it each diagnosed minute from the pipeline bus, the Lambda (reserved concurrency 1, 150 s timeout) and its least-privilege role, the failure queue `anomalypulse-incidents-failed` and its alarm. |
-| [AnomalyPulse/dashboard/](AnomalyPulse/dashboard/) | M7-2's dashboard read API: `builder.py` (every rule of the dashboard contract), `mock_source.py` (the contract's six mock scenarios), `handler.py` (the Lambda: picks the source, reads the clock), the `Makefile` that bundles it with `incidents/record.py` and its `genai` modules for M8-5's live source, and their tests. |
+| [AnomalyPulse/dashboard/](AnomalyPulse/dashboard/) | M7-2's dashboard read API: `builder.py` (every rule of the dashboard contract), `mock_source.py` (the contract's six mock scenarios), `live_source.py` (M8-5: the health item, the open incident through `incidents.record.to_incident`, and its run's manifest), `handler.py` (the Lambda: picks the source, reads the clock), the `Makefile` that bundles it with `incidents/record.py` and its `genai` modules for the live source, and their tests. |
 | [AnomalyPulse/console/](AnomalyPulse/console/) | M7-1's SRE console: static HTML, CSS and JavaScript modules (no build step) that render the dashboard contract, `mock/` (snapshots of the read API's six scenarios, the demo's offline fallback) and its tests. Run from the presenting laptop; see its [README](AnomalyPulse/console/README.md). Kept out of `dashboard/`, the read API's folder (its Lambda bundle is built by `dashboard/Makefile`). |
 | [AnomalyPulse/infra/dashboard/](AnomalyPulse/infra/dashboard/) | The `anomalypulse-dashboard` stack (M7-2): the read API's Lambda, its HTTP API (`GET /dashboard`, CORS), role and log group, and the URL's SSM parameter. |
 | [AnomalyPulse/pipeline/](AnomalyPulse/pipeline/) | M8-1's live telemetry pipeline, one folder per Lambda, each with `handler.py` and its tests: `forwarder/` (CloudWatch Logs → the pipeline bus), `aggregator/` (the telemetry queue → `pipeline/records/`) and `window_builder/` (every minute: health, the 106-column windows, WindowReady; its `Makefile` packages `features/` and the parts of `simulator/` the guard needs). See [Docs/PIPELINE.md](Docs/PIPELINE.md). |
@@ -385,11 +385,14 @@ sam build
 AWS_PROFILE=admin sam deploy
 ```
 
-`admin`, because the stack creates an IAM role. The function's code is
-`AnomalyPulse/dashboard/`, which needs nothing beyond the Python standard library.
-Its URL is the stack's `DashboardUrl` output and `/anomalypulse/dashboard/url`.
-The function serves the contract's mock scenarios (`DASHBOARD_SOURCE: mock`)
-until M8-5 switches it to live data.
+`admin`, because the stack creates an IAM role. `dashboard/Makefile` builds the
+function: `AnomalyPulse/dashboard/`, with the incident store's `record.py` and the
+modules it imports (boto3 comes with the Lambda runtime). Its URL is the stack's
+`DashboardUrl` output and `/anomalypulse/dashboard/url`. With `DashboardSource=live`,
+the stack's default since M8-5, it serves live data: the newest minute's health and
+the open incident from the Incidents table, and that run's manifest from the
+telemetry bucket. `sam deploy --parameter-overrides DashboardSource=mock` serves the
+contract's mock scenarios instead, and `DashboardSource=live` switches it back.
 
 ### The explanation stack
 

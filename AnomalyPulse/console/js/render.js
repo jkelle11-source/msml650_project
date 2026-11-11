@@ -94,8 +94,8 @@ function renderDiagnosis(vm) {
   if (!vm.incident) { panel.replaceChildren(); return; }
   if (vm.diagnosisPending) {
     panel.replaceChildren(
-      el("div", "diagnosis-head", el("h3", null, "Waiting for Bedrock"), badge("Severity pending", "pending")),
-      el("p", "pending-text", "The incident is classified, but the diagnosis hasn't arrived yet. Nothing is filled in from the injected ground truth."));
+      el("div", "diagnosis-head", el("h3", null, "Diagnosis pending"), badge("Severity pending", "pending")),
+      el("p", "pending-text", "The incident is classified; no diagnosis is ready to show yet. Nothing is filled in from the injected ground truth."));
     return;
   }
   const d = vm.diagnosis;

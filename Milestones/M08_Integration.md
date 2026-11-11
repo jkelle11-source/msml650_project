@@ -285,7 +285,31 @@ once a retry has come back held too. Wording true in every case, such as "The in
 diagnosis is ready to show yet", is a one-line console change (no contract change; no console test checks the
 text).
 
+**Built (2026-11-10, Linu; [`Docs/DASHBOARD_CONTRACT.md`](../Docs/DASHBOARD_CONTRACT.md), "Where each value comes
+from in M8"):** `dashboard/live_source.py` reads the health item, the newest incident record only while it is `OPEN`
+(through `to_incident`), and its run's manifest. The stack's `DashboardSource` parameter is `live` by default
+(`mock` serves the scenarios again), its role only reads (the `HEALTH` and `INCIDENT` partitions and the
+manifests), and CORS allows only the console's two addresses. The console reads the live API with no scenario
+picker; `?source=mock` reads its snapshots offline, the demo's fallback. The pending panel now says "no diagnosis
+is ready to show yet".
+
+**Review (2026-11-11):** two fixes. A failed live read's 503 carried the AWS error's message, which names the
+role's ARN and the account ID, on a public API whose reason the console shows on screen; it now carries the
+error's type and AWS error code, and the log keeps the rest. After a failed refresh, the console said "the last
+successful healthy snapshot" during a live incident (with no picker, the scenario is always `healthy`); it names a
+scenario only while the picker is on. The role's bucket-wide `ListBucket`, which lets a missing manifest read as
+"no ground truth", is accepted, as the window builder's was in M8-1.
+
+**Done, live (2026-11-11; [`Docs/DASHBOARD_CONTRACT.md`](../Docs/DASHBOARD_CONTRACT.md), "The live run"):** deployed
+and checked: the deployed code is the reviewed commit's build, CORS allows only the console, and IAM's policy
+simulator answered 17 of 17 cases as expected. Then one unattended run of each type from the runner, back to back.
+The noop showed no incident. The traffic spike, then db-throttling, lambda-degradation, payment-failure and the
+cascade each showed on the console as their own type, with confidence, a diagnosis and their own run's ground
+truth, then went back to healthy; during the cascade's two type changes the console showed "Diagnosis pending"
+until each new type's diagnosis arrived. `live_check` and `feed` passed on every run, and all 413 reads of the API
+answered 200. The console read only the live API; the mock snapshots stay as the offline fallback.
+
 **Definition of Done**
-- [ ] Console shows a real injected incident with live classification, confidence, diagnosis, and ground truth.
-- [ ] The full `telemetry → ML → classification → Bedrock → dashboard` loop runs unattended for one incident type (MVP), then for the full taxonomy.
-- [ ] Mock feed no longer required for the demo path.
+- [x] Console shows a real injected incident with live classification, confidence, diagnosis, and ground truth.
+- [x] The full `telemetry → ML → classification → Bedrock → dashboard` loop runs unattended for one incident type (MVP), then for the full taxonomy.
+- [x] Mock feed no longer required for the demo path.

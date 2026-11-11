@@ -21,7 +21,7 @@ BUILDS = {
     # M8-5's live source reads stored records through incidents.record.to_incident (Docs/INCIDENT_FEED.md),
     # so the bundle carries it before dashboard/handler.py imports it.
     "anomalypulse-dashboard": ("dashboard/Makefile",
-                               [("dashboard", m) for m in ("handler", "builder", "mock_source")]
+                               [("dashboard", m) for m in ("handler", "builder", "mock_source", "live_source")]
                                + [("incidents", "record")]),
 }
 
@@ -74,12 +74,13 @@ def test_each_bundle_has_every_module_its_code_imports(name):
 
 
 def test_the_bundles_need_what_they_are_known_to_need():
-    # A check on the walk itself: these are the modules each bundle is known to need on 2026-11-09.
+    # A check on the walk itself: these are the modules each bundle is known to need (2026-11-09; the
+    # dashboard's live_source, M8-5).
     assert needed(BUILDS["anomalypulse-incidents"][1]) == {
         ("incidents", m) for m in ("__init__", "builder", "record", "core", "handler", "incident")} | {
         ("genai", m) for m in ("__init__", "contract", "affected", "self_check")}
     assert needed(BUILDS["anomalypulse-dashboard"][1]) == {
-        ("dashboard", m) for m in ("handler", "builder", "mock_source")} | {
+        ("dashboard", m) for m in ("handler", "builder", "mock_source", "live_source")} | {
         ("incidents", m) for m in ("__init__", "record", "builder")} | {
         ("genai", m) for m in ("__init__", "contract", "affected", "self_check")}
 
