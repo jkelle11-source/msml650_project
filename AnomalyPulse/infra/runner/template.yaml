@@ -15,10 +15,13 @@ Parameters:
     # Not a burstable T type: it would run short of CPU credits over days of
     # load. Graviton (arm64), to match the AMI below.
     Description: Non-burstable arm64 instance type for the runner.
+  # Resolved when the stack is created AND on every update: once a newer AMI is out, any update
+  # replaces the instance the dataset is pinned to. Never update this stack; put anything new
+  # beside the runner in a stack of its own (idle-stop.yaml does). Docs/DATASET.md.
   ImageId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
-    Description: Amazon Linux 2023, arm64. Resolved when the stack is created.
+    Description: Amazon Linux 2023, arm64. Re-resolved on every update, so never update this stack.
 
 Resources:
 

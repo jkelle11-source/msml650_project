@@ -235,11 +235,30 @@ experiment lock refuses a second.
 | Connect | `aws ssm start-session --target <instance-id> --profile dev` (needs the Session Manager plugin: `brew install --cask session-manager-plugin`), or EC2 console → Connect → Session Manager. Then `sudo -iu ec2-user`. |
 | Set up, or move to another commit | `bash ~/msml650_project/AnomalyPulse/infra/runner/setup.sh <commit or branch>`. The first time: `git clone https://github.com/jkelle11-source/msml650_project.git ~/msml650_project` first. |
 | Run | `bash ~/msml650_project/AnomalyPulse/infra/runner/in-tmux.sh <session> <simulator arguments>`; logs in `~/logs/`. |
-| Stop between batches | `aws ec2 stop-instances --instance-ids <id> --profile dev` (`start-instances` to resume; the instance id stays, so the dataset's pin holds) |
-| After M10 | `aws cloudformation delete-stack --stack-name anomalypulse-runner --profile admin`. Not after M9-1: the live demo's traffic comes from it too |
+| Stop between batches | `aws ec2 stop-instances --instance-ids <id> --profile dev` (`start-instances` to resume; the instance id stays, so the dataset's pin holds). The idle stop, below, also stops it after an hour without traffic |
+| Idle stop (once) | `aws cloudformation deploy --stack-name anomalypulse-runner-idle-stop --template-file AnomalyPulse/infra/runner/idle-stop.yaml --profile admin` |
+| After M10 | `aws cloudformation delete-stack --stack-name anomalypulse-runner --profile admin`, then the same for `anomalypulse-runner-idle-stop`. Not after M9-1: the live demo's traffic comes from it too |
 
 Run every batch from a commit, not from files you are editing: setup.sh checks out a commit detached, and
 each batch records it.
+
+**Never update the `anomalypulse-runner` stack.** Its `ImageId` parameter is the SSM path to the newest Amazon
+Linux 2023 AMI, and CloudFormation resolves it again on every update, not only when the stack is created. Once
+AWS publishes a newer AMI, any update replaces the instance. By 2026-11-12 there was one: the runner runs
+`ami-08bbae665871c7cfe`, and the path gives `ami-0f119f573d13441ab`. A new instance would break the plan's
+one client for every experiment, training and test (PROJECT_PLAN §6), and `pins.json` would refuse its batches.
+Anything to add beside the runner goes in a stack of its own, as the idle stop does.
+
+**The idle stop** (stack `anomalypulse-runner-idle-stop`, `infra/runner/idle-stop.yaml`; 2026-11-12). A
+CloudWatch alarm stops the runner after an hour in which it sent fewer than 2,000 packets in every 5 minutes.
+Measured 2026-11-09 to 11, a run sends at least 11,822 packets per 5 minutes, and the idle runner at most 358;
+CPU can't tell them apart (0.5–0.7% against 0.1%). **It can't stop a batch:** inside all ten M4 batches
+(2026-10-16 to 25, 121.3 hours, each batch's `started_at` to `ended_at` in `registry/batches/`), no 5-minute
+period fell under 2,000 packets (the lowest was 4,757, in a batch's last minutes), and the alarm needs 12 in a
+row. Every quiet hour in the runner's history came after a batch had ended, before the next began or the
+runner was stopped: the alarm would have stopped it 9 times, cutting 82.6 idle hours (about $6.38). It was
+added after the runner sat idle for about 64 hours (2026-11-09 to 11, about $5). An interactive session, or a setup left waiting, with no run for an hour gets it stopped too:
+`drive.sh start` brings it back with the same instance id. The alarm's history shows when it stopped it.
 
 **A live run from a laptop, through the runner.** `infra/runner/drive.sh` wraps the steps above in
 `ssm send-command`, so nothing needs a Session Manager session, and the laptop only sends commands:
@@ -258,7 +277,7 @@ bash drive.sh stop                      # refuses while a run is going
 Live runs and batches share the runner, one at a time. A run from the CLI is not part of any dataset: the
 registry holds only the experiments a batch launched. The experiment lock refuses a second run while one is
 going, and a batch's setup checks out its own commit, so a live run's `setup` doesn't change what a batch runs.
-Stop the runner after each session.
+Stop the runner after each session; if it is left on, the idle stop stops it an hour after the traffic ends.
 
 **Cost:** about $0.07 an hour for the instance, $0.005 an hour for its public IPv4 address while running,
 and about $1.30 a month for its 16 GB volume. 117 hours of training generation is about $9.
