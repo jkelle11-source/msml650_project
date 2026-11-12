@@ -1,0 +1,1186 @@
+{
+ "oct": [
+  {
+   "service": "AWS CloudFormation",
+   "usage_type": "USE2-Resource-Operation-Count",
+   "cost": 0.0,
+   "qty": 378.0,
+   "unit": "Count"
+  },
+  {
+   "service": "AWS Cost Explorer",
+   "usage_type": "USE1-APIRequest",
+   "cost": 0.02,
+   "qty": 2.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "AWS Glue",
+   "usage_type": "USE2-Catalog-Request",
+   "cost": 0.0,
+   "qty": 63.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "AWS Key Management Service",
+   "usage_type": "ap-south-1-KMS-Requests",
+   "cost": 0.0,
+   "qty": 6.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "AWS Key Management Service",
+   "usage_type": "us-east-2-KMS-Requests",
+   "cost": 0.0,
+   "qty": 148.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "AWS Lambda",
+   "usage_type": "USE2-Lambda-GB-Second-ARM",
+   "cost": 34.6313218605,
+   "qty": 2997336.152842707,
+   "unit": "Lambda-GB-Second"
+  },
+  {
+   "service": "AWS Lambda",
+   "usage_type": "USE2-Request-ARM",
+   "cost": 2.894469,
+   "qty": 15472345.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "AWS Secrets Manager",
+   "usage_type": "USE2-AWSSecretsManager-Secrets",
+   "cost": 0.0004055025,
+   "qty": 0.0010137563,
+   "unit": "Secrets"
+  },
+  {
+   "service": "AWS Secrets Manager",
+   "usage_type": "USE2-AWSSecretsManagerAPIRequest",
+   "cost": 5e-05,
+   "qty": 10.0,
+   "unit": "API Requests"
+  },
+  {
+   "service": "Amazon API Gateway",
+   "usage_type": "USE2-ApiGatewayHttpRequest",
+   "cost": 2e-05,
+   "qty": 20.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon API Gateway",
+   "usage_type": "USE2-ApiGatewayRequest",
+   "cost": 49.258734,
+   "qty": 14073924.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon API Gateway",
+   "usage_type": "USE2-DataTransfer-Out-Bytes",
+   "cost": 0.0,
+   "qty": 23.9516698365,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon DevOps Guru",
+   "usage_type": "USE2-DevOpsGuru-APICalls",
+   "cost": 0.0,
+   "qty": 2.0,
+   "unit": "API Calls"
+  },
+  {
+   "service": "Amazon DevOps Guru",
+   "usage_type": "USE2-RDS-DBInstance-GroupB",
+   "cost": 0.0,
+   "qty": 2.0,
+   "unit": "usagehours"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-ReadCapacityUnit-Hrs",
+   "cost": 8.528,
+   "qty": 84200.0,
+   "unit": "ReadCapacityUnit-Hrs"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-ReadRequestUnits",
+   "cost": 0.166680875,
+   "qty": 1333447.0,
+   "unit": "ReadRequestUnits"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-TimedStorage-ByteHrs",
+   "cost": 0.0,
+   "qty": 0.0522798956,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-WriteCapacityUnit-Hrs",
+   "cost": 0.0,
+   "qty": 2015.0,
+   "unit": "WriteCapacityUnit-Hrs"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-WriteRequestUnits",
+   "cost": 1.28092,
+   "qty": 2049472.0,
+   "unit": "WriteRequestUnits"
+  },
+  {
+   "service": "Amazon EC2 Container Registry (ECR)",
+   "usage_type": "USE2-TimedStorage-ByteHrs",
+   "cost": 0.019263125,
+   "qty": 0.1926312551,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "EC2 - Other",
+   "usage_type": "USE2-DataTransfer-Regional-Bytes",
+   "cost": 0.0,
+   "qty": 0.000479348,
+   "unit": "GB"
+  },
+  {
+   "service": "EC2 - Other",
+   "usage_type": "USE2-EBS:VolumeUsage.gp3",
+   "cost": 0.6593338084,
+   "qty": 8.2416726235,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "EC2 - Other",
+   "usage_type": "USE2-EBSOptimized:t3.micro",
+   "cost": 0.0,
+   "qty": 2.453333,
+   "unit": "Hrs"
+  },
+  {
+   "service": "EC2 - Other",
+   "usage_type": "USE2-USE1-AWS-In-Bytes",
+   "cost": 0.0,
+   "qty": 0.0002440847,
+   "unit": "GB"
+  },
+  {
+   "service": "EC2 - Other",
+   "usage_type": "USE2-USE1-AWS-Out-Bytes",
+   "cost": 2.4412e-06,
+   "qty": 0.0002441047,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-BoxUsage:c7g.large",
+   "cost": 11.4279387771,
+   "qty": 158.062777,
+   "unit": "Hrs"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-BoxUsage:t3.micro",
+   "cost": 0.0255146632,
+   "qty": 2.453333,
+   "unit": "Hrs"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-CloudFront-In-Bytes",
+   "cost": 0.0,
+   "qty": 30.0617409665,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-CloudFront-Out-Bytes",
+   "cost": 0.0,
+   "qty": 3.5580101508,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-DataTransfer-In-Bytes",
+   "cost": 0.0,
+   "qty": 0.025661635,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-DataTransfer-Out-Bytes",
+   "cost": 0.0,
+   "qty": 0.0035814122,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Relational Database Service",
+   "usage_type": "USE2-Aurora:ServerlessV2Usage",
+   "cost": 0.1947,
+   "qty": 1.6225,
+   "unit": "ACU-Hr"
+  },
+  {
+   "service": "Amazon Relational Database Service",
+   "usage_type": "USE2-InstanceUsage:db.m7g.large",
+   "cost": 0.294886368,
+   "qty": 1.755276,
+   "unit": "Hrs"
+  },
+  {
+   "service": "Amazon Relational Database Service",
+   "usage_type": "USE2-RDS:IO2-PIOPS",
+   "cost": 0.7077732973,
+   "qty": 7.0777329732,
+   "unit": "IOPS-Mo"
+  },
+  {
+   "service": "Amazon Relational Database Service",
+   "usage_type": "USE2-RDS:PIOPS-Storage-IO2",
+   "cost": 0.1179622162,
+   "qty": 0.9436977299,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "Amazon Relational Database Service",
+   "usage_type": "USE2-USE1-AWS-In-Bytes",
+   "cost": 0.0,
+   "qty": 1.78267e-05,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Relational Database Service",
+   "usage_type": "USE2-USE1-AWS-Out-Bytes",
+   "cost": 1.783e-07,
+   "qty": 1.78267e-05,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon SageMaker",
+   "usage_type": "USE2-Train:VolumeUsage.gp2",
+   "cost": 0.0006203852,
+   "qty": 0.0044313232,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "Amazon SageMaker",
+   "usage_type": "USE2-Train:ml.m5.large",
+   "cost": 0.0758288286,
+   "qty": 0.65938112,
+   "unit": "Hrs"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "Global-Bucket-Hrs-FreeTier",
+   "cost": 0.0,
+   "qty": 0.1330644894,
+   "unit": "Bucket-Mo"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "Requests-Tier1",
+   "cost": 2.5e-05,
+   "qty": 5.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "Requests-Tier2",
+   "cost": 1e-05,
+   "qty": 25.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE1-USE2-AWS-Out-Bytes",
+   "cost": 1.609e-07,
+   "qty": 1.60808e-05,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-DataTransfer-In-Bytes",
+   "cost": 0.0,
+   "qty": 0.0994302528,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-DataTransfer-Out-Bytes",
+   "cost": 0.0,
+   "qty": 20.0120534807,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-Requests-Tier1",
+   "cost": 3.859585,
+   "qty": 771917.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-Requests-Tier2",
+   "cost": 0.4968384,
+   "qty": 1242096.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-TimedStorage-ByteHrs",
+   "cost": 0.0720895418,
+   "qty": 3.134327926,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-Vectors-Request-Tier1",
+   "cost": 5.5e-05,
+   "qty": 1.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon Virtual Private Cloud",
+   "usage_type": "USE2-PublicIPv4:InUseAddress",
+   "cost": 0.80285,
+   "qty": 160.57,
+   "unit": "Hrs"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-CW:DatabaseInsights-vCPU-Hours",
+   "cost": 0.025,
+   "qty": 2.0,
+   "unit": "vCPU-Hours"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-CW:GMD-Metrics",
+   "cost": 0.00062,
+   "qty": 62.0,
+   "unit": "Metrics"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-CW:MetricMonitorUsage",
+   "cost": 0.0,
+   "qty": 0.0806451609,
+   "unit": "Metrics"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-CW:Requests",
+   "cost": 0.87658,
+   "qty": 1087658.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-DataProcessing-Bytes",
+   "cost": 0.0001174947,
+   "qty": 0.0006832194,
+   "unit": "GB"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-DataScanned-Bytes",
+   "cost": 0.0,
+   "qty": 0.4830437006,
+   "unit": "GB"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-TimedStorage-ByteHrs",
+   "cost": 0.0,
+   "qty": 1.0058992123,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-VendedLog-Bytes",
+   "cost": 2.8740074356,
+   "qty": 10.7475666346,
+   "unit": "GB"
+  }
+ ],
+ "nov": [
+  {
+   "service": "AWS CloudFormation",
+   "usage_type": "USE2-Resource-Operation-Count",
+   "cost": 0.0,
+   "qty": 129.0,
+   "unit": "Count"
+  },
+  {
+   "service": "AWS Cost Explorer",
+   "usage_type": "USE1-APIRequest",
+   "cost": 0.08,
+   "qty": 8.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "AWS Glue",
+   "usage_type": "USE2-Catalog-Request",
+   "cost": 0.0,
+   "qty": 23.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "AWS Key Management Service",
+   "usage_type": "us-east-2-KMS-Requests",
+   "cost": 0.0,
+   "qty": 39.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "AWS Lambda",
+   "usage_type": "USE2-Lambda-GB-Second-ARM",
+   "cost": 0.0,
+   "qty": 113503.9130214249,
+   "unit": "Lambda-GB-Second"
+  },
+  {
+   "service": "AWS Lambda",
+   "usage_type": "USE2-Request-ARM",
+   "cost": 0.0,
+   "qty": 875131.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon API Gateway",
+   "usage_type": "USE2-ApiGatewayHttpRequest",
+   "cost": 0.001111,
+   "qty": 1111.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon API Gateway",
+   "usage_type": "USE2-ApiGatewayRequest",
+   "cost": 2.590833,
+   "qty": 740238.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon API Gateway",
+   "usage_type": "USE2-DataTransfer-Out-Bytes",
+   "cost": 0.0,
+   "qty": 1.2685941741,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-ReadCapacityUnit-Hrs",
+   "cost": 4.654,
+   "qty": 54400.0,
+   "unit": "ReadCapacityUnit-Hrs"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-ReadRequestUnits",
+   "cost": 0.0076445,
+   "qty": 61156.0,
+   "unit": "ReadRequestUnits"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-TimedStorage-ByteHrs",
+   "cost": 0.0,
+   "qty": 0.0614357484,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-WriteCapacityUnit-Hrs",
+   "cost": 0.0,
+   "qty": 1355.0,
+   "unit": "WriteCapacityUnit-Hrs"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-WriteRequestUnits",
+   "cost": 0.07740375,
+   "qty": 123846.0,
+   "unit": "WriteRequestUnits"
+  },
+  {
+   "service": "Amazon EC2 Container Registry (ECR)",
+   "usage_type": "USE2-TimedStorage-ByteHrs",
+   "cost": 0.0726587412,
+   "qty": 0.7265873485,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "EC2 - Other",
+   "usage_type": "USE2-DataTransfer-Regional-Bytes",
+   "cost": 0.0,
+   "qty": 0.0005840658,
+   "unit": "GB"
+  },
+  {
+   "service": "EC2 - Other",
+   "usage_type": "USE2-EBS:VolumeUsage.gp3",
+   "cost": 0.4756016808,
+   "qty": 5.9450210045,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "EC2 - Other",
+   "usage_type": "USE2-EBSOptimized:t3.micro",
+   "cost": 0.0,
+   "qty": 1.041945,
+   "unit": "Hrs"
+  },
+  {
+   "service": "EC2 - Other",
+   "usage_type": "USE2-NatGateway-Bytes",
+   "cost": 5.826e-07,
+   "qty": 1.29472e-05,
+   "unit": "GB"
+  },
+  {
+   "service": "EC2 - Other",
+   "usage_type": "USE2-NatGateway-Hours",
+   "cost": 0.045,
+   "qty": 1.0,
+   "unit": "Hrs"
+  },
+  {
+   "service": "EC2 - Other",
+   "usage_type": "USE2-USE1-AWS-In-Bytes",
+   "cost": 0.0,
+   "qty": 9.93148e-05,
+   "unit": "GB"
+  },
+  {
+   "service": "EC2 - Other",
+   "usage_type": "USE2-USE1-AWS-Out-Bytes",
+   "cost": 9.932e-07,
+   "qty": 9.93148e-05,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-BoxUsage:c7g.large",
+   "cost": 5.0091448494,
+   "qty": 69.282778,
+   "unit": "Hrs"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-BoxUsage:t3.micro",
+   "cost": 0.010836228,
+   "qty": 1.041945,
+   "unit": "Hrs"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-CloudFront-In-Bytes",
+   "cost": 0.0,
+   "qty": 1.1040433378,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-CloudFront-Out-Bytes",
+   "cost": 0.0,
+   "qty": 0.1291720131,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-DataTransfer-In-Bytes",
+   "cost": 0.0,
+   "qty": 0.0031456849,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-DataTransfer-Out-Bytes",
+   "cost": 0.0,
+   "qty": 0.0003536318,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Simple Queue Service",
+   "usage_type": "USE2-DataTransfer-Out-Bytes",
+   "cost": 0.0,
+   "qty": 4.176e-05,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Simple Queue Service",
+   "usage_type": "USE2-Requests-Tier1",
+   "cost": 0.0,
+   "qty": 316917.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "Global-Bucket-Hrs-FreeTier",
+   "cost": 0.0,
+   "qty": 0.0611111116,
+   "unit": "Bucket-Mo"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-DataTransfer-In-Bytes",
+   "cost": 0.0,
+   "qty": 0.1446707117,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-DataTransfer-Out-Bytes",
+   "cost": 0.0,
+   "qty": 2.9434776977,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-Requests-Tier1",
+   "cost": 1.078985,
+   "qty": 215797.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-Requests-Tier2",
+   "cost": 0.1621356,
+   "qty": 405339.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-TimedStorage-ByteHrs",
+   "cost": 0.0899666449,
+   "qty": 3.9115932713,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "Amazon Virtual Private Cloud",
+   "usage_type": "USE2-PublicIPv4:IdleAddress",
+   "cost": 0.000480555,
+   "qty": 0.096111,
+   "unit": "Hrs"
+  },
+  {
+   "service": "Amazon Virtual Private Cloud",
+   "usage_type": "USE2-PublicIPv4:InUseAddress",
+   "cost": 0.352019445,
+   "qty": 70.403889,
+   "unit": "Hrs"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-CW:AlarmMonitorUsage",
+   "cost": 0.0,
+   "qty": 1.3445597161,
+   "unit": "Alarms"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-CW:GMD-Metrics",
+   "cost": 2e-05,
+   "qty": 2.0,
+   "unit": "Metrics"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-CW:MetricMonitorUsage",
+   "cost": 0.0,
+   "qty": 0.1097221999,
+   "unit": "Metrics"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-CW:Requests",
+   "cost": 0.0,
+   "qty": 442955.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-DataScanned-Bytes",
+   "cost": 0.0,
+   "qty": 0.0008093132,
+   "unit": "GB"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-TimedStorage-ByteHrs",
+   "cost": 0.0,
+   "qty": 1.3411520701,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-VendedLog-Bytes",
+   "cost": 0.0,
+   "qty": 0.5840492441,
+   "unit": "GB"
+  },
+  {
+   "service": "Claude Opus 4.6 (Amazon Bedrock Edition)",
+   "usage_type": "USE2-MP:USE2_InputTokenCount_Global-Units",
+   "cost": 0.056855,
+   "qty": 0.011371,
+   "unit": "1M tokens"
+  },
+  {
+   "service": "Claude Opus 4.6 (Amazon Bedrock Edition)",
+   "usage_type": "USE2-MP:USE2_OutputTokenCount_Global-Units",
+   "cost": 0.0741,
+   "qty": 0.002964,
+   "unit": "1M tokens"
+  },
+  {
+   "service": "Claude Sonnet 4.6 (Amazon Bedrock Edition)",
+   "usage_type": "USE2-MP:USE2_InputTokenCount_Global-Units",
+   "cost": 0.497841,
+   "qty": 0.165947,
+   "unit": "1M tokens"
+  },
+  {
+   "service": "Claude Sonnet 4.6 (Amazon Bedrock Edition)",
+   "usage_type": "USE2-MP:USE2_OutputTokenCount_Global-Units",
+   "cost": 1.06245,
+   "qty": 0.07083,
+   "unit": "1M tokens"
+  },
+  {
+   "service": "CloudWatch Events",
+   "usage_type": "USE2-DataTransfer-In-Bytes",
+   "cost": 0.0,
+   "qty": 0.2908548067,
+   "unit": "GB"
+  },
+  {
+   "service": "CloudWatch Events",
+   "usage_type": "USE2-Event-64K-Chunks",
+   "cost": 0.030824,
+   "qty": 30824.0,
+   "unit": "64K-Chunks"
+  }
+ ],
+ "nov11": [
+  {
+   "service": "AWS CloudFormation",
+   "usage_type": "USE2-Resource-Operation-Count",
+   "cost": 0.0,
+   "qty": 6.0,
+   "unit": "Count"
+  },
+  {
+   "service": "AWS Glue",
+   "usage_type": "USE2-Catalog-Request",
+   "cost": 0.0,
+   "qty": 2.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "AWS Key Management Service",
+   "usage_type": "us-east-2-KMS-Requests",
+   "cost": 0.0,
+   "qty": 4.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "AWS Lambda",
+   "usage_type": "USE2-Lambda-GB-Second-ARM",
+   "cost": 0.0,
+   "qty": 36576.82954979,
+   "unit": "Lambda-GB-Second"
+  },
+  {
+   "service": "AWS Lambda",
+   "usage_type": "USE2-Request-ARM",
+   "cost": 0.0,
+   "qty": 238819.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon API Gateway",
+   "usage_type": "USE2-ApiGatewayHttpRequest",
+   "cost": 0.000528,
+   "qty": 528.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon API Gateway",
+   "usage_type": "USE2-ApiGatewayRequest",
+   "cost": 0.7145285,
+   "qty": 204151.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon API Gateway",
+   "usage_type": "USE2-DataTransfer-Out-Bytes",
+   "cost": 0.0,
+   "qty": 0.3504143694,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-ReadCapacityUnit-Hrs",
+   "cost": 0.624,
+   "qty": 4800.0,
+   "unit": "ReadCapacityUnit-Hrs"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-ReadRequestUnits",
+   "cost": 0.0022898125,
+   "qty": 18318.5,
+   "unit": "ReadRequestUnits"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-TimedStorage-ByteHrs",
+   "cost": 0.0,
+   "qty": 0.0056180651,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-WriteCapacityUnit-Hrs",
+   "cost": 0.0,
+   "qty": 120.0,
+   "unit": "WriteCapacityUnit-Hrs"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-WriteRequestUnits",
+   "cost": 0.021313125,
+   "qty": 34101.0,
+   "unit": "WriteRequestUnits"
+  },
+  {
+   "service": "Amazon EC2 Container Registry (ECR)",
+   "usage_type": "USE2-TimedStorage-ByteHrs",
+   "cost": 0.006434736,
+   "qty": 0.0643473612,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "EC2 - Other",
+   "usage_type": "USE2-EBS:VolumeUsage.gp3",
+   "cost": 0.0426666624,
+   "qty": 0.5333332795,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "EC2 - Other",
+   "usage_type": "USE2-USE1-AWS-In-Bytes",
+   "cost": 0.0,
+   "qty": 2.09298e-05,
+   "unit": "GB"
+  },
+  {
+   "service": "EC2 - Other",
+   "usage_type": "USE2-USE1-AWS-Out-Bytes",
+   "cost": 2.093e-07,
+   "qty": 2.09298e-05,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-BoxUsage:c7g.large",
+   "cost": 1.5250881747,
+   "qty": 21.093889,
+   "unit": "Hrs"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-CloudFront-In-Bytes",
+   "cost": 0.0,
+   "qty": 0.4538059047,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-CloudFront-Out-Bytes",
+   "cost": 0.0,
+   "qty": 0.0528572592,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-DataTransfer-In-Bytes",
+   "cost": 0.0,
+   "qty": 7.624e-05,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Elastic Compute Cloud - Compute",
+   "usage_type": "USE2-DataTransfer-Out-Bytes",
+   "cost": 0.0,
+   "qty": 5.4818e-06,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Simple Queue Service",
+   "usage_type": "USE2-Requests-Tier1",
+   "cost": 0.0,
+   "qty": 62326.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "Global-Bucket-Hrs-FreeTier",
+   "cost": 0.0,
+   "qty": 0.0055555556,
+   "unit": "Bucket-Mo"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-DataTransfer-In-Bytes",
+   "cost": 0.0,
+   "qty": 3.11667e-05,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-DataTransfer-Out-Bytes",
+   "cost": 0.0,
+   "qty": 1.47996e-05,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-Requests-Tier1",
+   "cost": 0.163545,
+   "qty": 32709.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-Requests-Tier2",
+   "cost": 0.026154,
+   "qty": 65385.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-TimedStorage-ByteHrs",
+   "cost": 0.0084722848,
+   "qty": 0.36836021,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "Amazon Virtual Private Cloud",
+   "usage_type": "USE2-PublicIPv4:InUseAddress",
+   "cost": 0.10549861,
+   "qty": 21.099722,
+   "unit": "Hrs"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-CW:AlarmMonitorUsage",
+   "cost": 0.0,
+   "qty": 0.1999999192,
+   "unit": "Alarms"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-CW:MetricMonitorUsage",
+   "cost": 0.0,
+   "qty": 0.0375,
+   "unit": "Metrics"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-CW:Requests",
+   "cost": 0.0,
+   "qty": 39619.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-DataScanned-Bytes",
+   "cost": 0.0,
+   "qty": 7.70875e-05,
+   "unit": "GB"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-TimedStorage-ByteHrs",
+   "cost": 0.0,
+   "qty": 0.1142257899,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-VendedLog-Bytes",
+   "cost": 0.0,
+   "qty": 0.1602690205,
+   "unit": "GB"
+  },
+  {
+   "service": "Claude Sonnet 4.6 (Amazon Bedrock Edition)",
+   "usage_type": "USE2-MP:USE2_InputTokenCount_Global-Units",
+   "cost": 0.091035,
+   "qty": 0.030345,
+   "unit": "1M tokens"
+  },
+  {
+   "service": "Claude Sonnet 4.6 (Amazon Bedrock Edition)",
+   "usage_type": "USE2-MP:USE2_OutputTokenCount_Global-Units",
+   "cost": 0.20082,
+   "qty": 0.013388,
+   "unit": "1M tokens"
+  },
+  {
+   "service": "CloudWatch Events",
+   "usage_type": "USE2-DataTransfer-In-Bytes",
+   "cost": 0.0,
+   "qty": 0.07975278,
+   "unit": "GB"
+  },
+  {
+   "service": "CloudWatch Events",
+   "usage_type": "USE2-Event-64K-Chunks",
+   "cost": 0.009189,
+   "qty": 9189.0,
+   "unit": "64K-Chunks"
+  }
+ ],
+ "nov12": [
+  {
+   "service": "AWS Cost Explorer",
+   "usage_type": "USE1-APIRequest",
+   "cost": 0.08,
+   "qty": 8.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "AWS Lambda",
+   "usage_type": "USE2-Lambda-GB-Second-ARM",
+   "cost": 0.0,
+   "qty": 556.6666542969,
+   "unit": "Lambda-GB-Second"
+  },
+  {
+   "service": "AWS Lambda",
+   "usage_type": "USE2-Request-ARM",
+   "cost": 0.0,
+   "qty": 961.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon API Gateway",
+   "usage_type": "USE2-ApiGatewayHttpRequest",
+   "cost": 1e-06,
+   "qty": 1.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon API Gateway",
+   "usage_type": "USE2-DataTransfer-Out-Bytes",
+   "cost": 0.0,
+   "qty": 8.7e-07,
+   "unit": "GB"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-ReadCapacityUnit-Hrs",
+   "cost": 0.208,
+   "qty": 1600.0,
+   "unit": "ReadCapacityUnit-Hrs"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-ReadRequestUnits",
+   "cost": 1.875e-07,
+   "qty": 1.5,
+   "unit": "ReadRequestUnits"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-TimedStorage-ByteHrs",
+   "cost": 0.0,
+   "qty": 0.0013839299,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-WriteCapacityUnit-Hrs",
+   "cost": 0.0,
+   "qty": 35.0,
+   "unit": "WriteCapacityUnit-Hrs"
+  },
+  {
+   "service": "Amazon DynamoDB",
+   "usage_type": "USE2-WriteRequestUnits",
+   "cost": 0.0003,
+   "qty": 480.0,
+   "unit": "WriteRequestUnits"
+  },
+  {
+   "service": "Amazon EC2 Container Registry (ECR)",
+   "usage_type": "USE2-TimedStorage-ByteHrs",
+   "cost": 0.001876798,
+   "qty": 0.0187679803,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "EC2 - Other",
+   "usage_type": "USE2-EBS:VolumeUsage.gp3",
+   "cost": 0.0053333328,
+   "qty": 0.06666666,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "Amazon Simple Queue Service",
+   "usage_type": "USE2-Requests-Tier1",
+   "cost": 0.0,
+   "qty": 7657.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-Requests-Tier1",
+   "cost": 0.033535,
+   "qty": 6707.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "Amazon Simple Storage Service",
+   "usage_type": "USE2-Requests-Tier2",
+   "cost": 0.005756,
+   "qty": 14390.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-CW:AlarmMonitorUsage",
+   "cost": 0.0,
+   "qty": 0.0666666398,
+   "unit": "Alarms"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-CW:Requests",
+   "cost": 0.0,
+   "qty": 12961.0,
+   "unit": "Requests"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-TimedStorage-ByteHrs",
+   "cost": 0.0,
+   "qty": 0.1159130168,
+   "unit": "GB-Month"
+  },
+  {
+   "service": "AmazonCloudWatch",
+   "usage_type": "USE2-VendedLog-Bytes",
+   "cost": 0.0,
+   "qty": 0.0003110203,
+   "unit": "GB"
+  }
+ ]
+}

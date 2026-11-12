@@ -1,0 +1,170 @@
+{
+ "anomalypulse-cart": {
+  "memory_mb": 1769,
+  "arch": "arm64",
+  "nov11": {
+   "invocations": 20505.0,
+   "gb_s": 261.41
+  },
+  "nov12_idle18h": {
+   "invocations": 0,
+   "gb_s": 0.0
+  }
+ },
+ "anomalypulse-dashboard": {
+  "memory_mb": 256,
+  "arch": "arm64",
+  "nov11": {
+   "invocations": 524.0,
+   "gb_s": 5.33
+  },
+  "nov12_idle18h": {
+   "invocations": 1.0,
+   "gb_s": 0.34
+  }
+ },
+ "anomalypulse-diagnosis": {
+  "memory_mb": 1024,
+  "arch": "arm64",
+  "nov11": {
+   "invocations": 116.0,
+   "gb_s": 6.5
+  },
+  "nov12_idle18h": {
+   "invocations": 0,
+   "gb_s": 0.0
+  }
+ },
+ "anomalypulse-explain": {
+  "memory_mb": 512,
+  "arch": "arm64",
+  "nov11": {
+   "invocations": 10.0,
+   "gb_s": 168.33
+  },
+  "nov12_idle18h": {
+   "invocations": 0,
+   "gb_s": 0.0
+  }
+ },
+ "anomalypulse-incidents": {
+  "memory_mb": 512,
+  "arch": "arm64",
+  "nov11": {
+   "invocations": 116.0,
+   "gb_s": 175.0
+  },
+  "nov12_idle18h": {
+   "invocations": 0,
+   "gb_s": 0.0
+  }
+ },
+ "anomalypulse-metrics-extractor": {
+  "memory_mb": 1769,
+  "arch": "arm64",
+  "nov11": {
+   "invocations": 1440.0,
+   "gb_s": 998.35
+  },
+  "nov12_idle18h": {
+   "invocations": 1080.0,
+   "gb_s": 744.6
+  }
+ },
+ "anomalypulse-order": {
+  "memory_mb": 1769,
+  "arch": "arm64",
+  "nov11": {
+   "invocations": 30526.0,
+   "gb_s": 6943.39
+  },
+  "nov12_idle18h": {
+   "invocations": 0,
+   "gb_s": 0.0
+  }
+ },
+ "anomalypulse-payment": {
+  "memory_mb": 1769,
+  "arch": "arm64",
+  "nov11": {
+   "invocations": 10123.0,
+   "gb_s": 1285.94
+  },
+  "nov12_idle18h": {
+   "invocations": 0,
+   "gb_s": 0.0
+  }
+ },
+ "anomalypulse-pipeline-aggregator": {
+  "memory_mb": 256,
+  "arch": "arm64",
+  "nov11": {
+   "invocations": 3151.0,
+   "gb_s": 35.78
+  },
+  "nov12_idle18h": {
+   "invocations": 0,
+   "gb_s": 0.0
+  }
+ },
+ "anomalypulse-pipeline-forwarder": {
+  "memory_mb": 256,
+  "arch": "arm64",
+  "nov11": {
+   "invocations": 8874.0,
+   "gb_s": 44.61
+  },
+  "nov12_idle18h": {
+   "invocations": 0,
+   "gb_s": 0.0
+  }
+ },
+ "anomalypulse-pipeline-window-builder": {
+  "memory_mb": 512,
+  "arch": "arm64",
+  "nov11": {
+   "invocations": 1440.0,
+   "gb_s": 861.57
+  },
+  "nov12_idle18h": {
+   "invocations": 1080.0,
+   "gb_s": 469.3
+  }
+ },
+ "anomalypulse-product": {
+  "memory_mb": 1769,
+  "arch": "arm64",
+  "nov11": {
+   "invocations": 153120.0,
+   "gb_s": 24770.79
+  },
+  "nov12_idle18h": {
+   "invocations": 0,
+   "gb_s": 0.0
+  }
+ },
+ "anomalypulse-stub-501": {
+  "memory_mb": 1769,
+  "arch": "arm64",
+  "nov11": {
+   "invocations": 0,
+   "gb_s": 0.0
+  },
+  "nov12_idle18h": {
+   "invocations": 0,
+   "gb_s": 0.0
+  }
+ },
+ "anomalypulse-telemetry-shipper": {
+  "memory_mb": 1769,
+  "arch": "arm64",
+  "nov11": {
+   "invocations": 8874.0,
+   "gb_s": 498.19
+  },
+  "nov12_idle18h": {
+   "invocations": 0,
+   "gb_s": 0.0
+  }
+ }
+}
