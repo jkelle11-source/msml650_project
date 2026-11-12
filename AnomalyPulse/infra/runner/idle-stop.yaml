@@ -29,8 +29,9 @@ Resources:
   # Network, not CPU: a run's CPU is 0.5-0.7% and the idle runner's 0.1%, too close to tell
   # apart. The threshold sits more than 5-fold from both: 5.9x below the quietest run, 5.6x
   # above the busiest idle 5 minutes. EC2's basic
-  # monitoring (5-minute points, free) is enough for an hour's window. The longest quiet
-  # stretch inside a batch is the export's 10-minute wait for the shipper (simulator/export.py).
+  # monitoring (5-minute points, free) is enough for an hour's window. Inside all ten M4 batches
+  # (121.3 hours), no 5-minute period fell under the threshold (lowest 4,757); every quiet hour in
+  # the runner's history came after a batch had ended (Docs/DATASET.md, "The idle stop").
   #
   # Missing data counts as not idle: while the instance is stopped it sends no metrics, so the
   # alarm goes back to OK, and the next idle hour after a start stops it again (an alarm acts

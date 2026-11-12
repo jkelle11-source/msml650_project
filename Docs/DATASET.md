@@ -252,9 +252,12 @@ Anything to add beside the runner goes in a stack of its own, as the idle stop d
 **The idle stop** (stack `anomalypulse-runner-idle-stop`, `infra/runner/idle-stop.yaml`; 2026-11-12). A
 CloudWatch alarm stops the runner after an hour in which it sent fewer than 2,000 packets in every 5 minutes.
 Measured 2026-11-09 to 11, a run sends at least 11,822 packets per 5 minutes, and the idle runner at most 358;
-CPU can't tell them apart (0.5–0.7% against 0.1%). The longest quiet stretch inside a batch is the export's
-10-minute wait for the shipper. It was added after the runner sat idle for about 64 hours (2026-11-09 to 11,
-about $5). An interactive session, or a setup left waiting, with no run for an hour gets it stopped too:
+CPU can't tell them apart (0.5–0.7% against 0.1%). **It can't stop a batch:** inside all ten M4 batches
+(2026-10-16 to 25, 121.3 hours, each batch's `started_at` to `ended_at` in `registry/batches/`), no 5-minute
+period fell under 2,000 packets (the lowest was 4,757, in a batch's last minutes), and the alarm needs 12 in a
+row. Every quiet hour in the runner's history came after a batch had ended, before the next began or the
+runner was stopped: the alarm would have stopped it 9 times, cutting 82.6 idle hours (about $6.38). It was
+added after the runner sat idle for about 64 hours (2026-11-09 to 11, about $5). An interactive session, or a setup left waiting, with no run for an hour gets it stopped too:
 `drive.sh start` brings it back with the same instance id. The alarm's history shows when it stopped it.
 
 **A live run from a laptop, through the runner.** `infra/runner/drive.sh` wraps the steps above in
