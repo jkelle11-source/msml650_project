@@ -105,6 +105,13 @@
 - Operational performance: Lambda duration, API latency, throughput, SQS backlog.
 - If a managed inference path was prototyped, an explicit **idle-cost comparison** (SageMaker Serverless Inference vs Lambda) per §9.
 
+**Estimated before M9-1 (2026-11-12; [`AnomalyPulse/cost/README.md`](../AnomalyPulse/cost/README.md)):** the rest of
+the plan costs about $127 in November with tax (range $106–$173), $16.43 of it already spent, and $0–$22 in
+December depending on what is deleted after the demo. The student credit ended 2026-10-31, so all of it is billed.
+The model (`AnomalyPulse/cost/estimate.py`) prices the test set run by run from October's measured usage per run
+kind and band, and predicts Nov 11's live batch at 0.96x its API requests and 1.00x its Lambda GB-seconds. Its
+per-run usage is the starting point for this ticket's cost per experiment and per inference once M9-1's runs are in.
+
 **Definition of Done**
 - [ ] Cost-per-inference is a real measured number (near-zero idle demonstrated).
 - [ ] Monthly projections given for at least two request volumes.
