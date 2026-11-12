@@ -1,0 +1,65 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  AnomalyPulse runner idle stop - stops the runner host (anomalypulse-runner) after an
+  hour without traffic, so a runner left on after a run costs at most about an hour.
+  Docs/DATASET.md, "The runner host".
+
+# A stack of its own on purpose. Updating anomalypulse-runner would re-resolve its ImageId
+# parameter, and a newer Amazon Linux AMI would replace the instance the dataset is pinned to
+# (pins.json). This stack only watches the instance and never changes it. Deploy it with:
+#
+#   aws cloudformation deploy --stack-name anomalypulse-runner-idle-stop \
+#     --template-file AnomalyPulse/infra/runner/idle-stop.yaml --profile admin
+
+Parameters:
+  InstanceId:
+    Type: AWS::EC2::Instance::Id
+    Default: i-007066f129be063f9
+    Description: The runner (anomalypulse-runner's InstanceId output).
+  IdlePacketsPerFiveMinutes:
+    Type: Number
+    Default: 2000
+    Description: >-
+      Fewer packets sent than this in each 5 minutes, for an hour, is idle. Measured
+      2026-11-09 to 11: a run sends at least 11,822 per 5 minutes (its traffic, 20 requests
+      a second or more), and the idle runner at most 358 (median 64).
+
+Resources:
+
+  # Network, not CPU: a run's CPU is 0.5-0.7% and the idle runner's 0.1%, too close to tell
+  # apart. The threshold sits more than 5-fold from both: 5.9x below the quietest run, 5.6x
+  # above the busiest idle 5 minutes. EC2's basic
+  # monitoring (5-minute points, free) is enough for an hour's window. The longest quiet
+  # stretch inside a batch is the export's 10-minute wait for the shipper (simulator/export.py).
+  #
+  # Missing data counts as not idle: while the instance is stopped it sends no metrics, so the
+  # alarm goes back to OK, and the next idle hour after a start stops it again (an alarm acts
+  # only when it changes state). CloudWatch performs the stop through its service-linked role,
+  # AWSServiceRoleForCloudWatchEvents, which it creates the first time an alarm has an EC2 action.
+  RunnerIdleStopAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: anomalypulse-runner-idle
+      AlarmDescription: >-
+        The runner sent fewer packets than a run sends for an hour, so no run is going:
+        stops the instance (the stack anomalypulse-runner-idle-stop, Docs/DATASET.md).
+        Start it again with infra/runner/drive.sh start.
+      Namespace: AWS/EC2
+      MetricName: NetworkPacketsOut
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref InstanceId
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 12
+      DatapointsToAlarm: 12
+      Threshold: !Ref IdlePacketsPerFiveMinutes
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Sub 'arn:aws:automate:${AWS::Region}:ec2:stop'
+
+Outputs:
+  AlarmName:
+    Description: Its state and history show when it last stopped the runner
+    Value: !Ref RunnerIdleStopAlarm

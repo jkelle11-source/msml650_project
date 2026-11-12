@@ -10,6 +10,9 @@
 #     bash drive.sh log <session> [lines]           the end of that session's newest log (default 20 lines)
 #     bash drive.sh stop                            stop the instance; refuses while a run is going
 #
+# Stop it after each session. If it is left on, the idle stop (idle-stop.yaml) stops it an hour after
+# its traffic ends; `start` brings it back with the same instance id.
+#
 #     bash drive.sh run spike start-incident --type traffic-spike --intensity 0.7 --band 6 8 \
 #         --duration 300 --baseline 360 --created-by "$USER"
 #
@@ -20,7 +23,7 @@ set -euo pipefail
 export AWS_PROFILE="${AWS_PROFILE:-dev}" AWS_REGION="${AWS_REGION:-us-east-2}"
 CHECKOUT='~/msml650_project/AnomalyPulse/infra/runner'
 
-usage() { sed -n '5,15p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '5,18p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 
 instance_id() {
   aws cloudformation describe-stacks --stack-name anomalypulse-runner \
