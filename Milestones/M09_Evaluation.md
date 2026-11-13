@@ -53,8 +53,9 @@ their heaviest first: four 12-minute faults, a 2-minute throttling fault, the fo
 stress bands, 13 runs, 2.6 h. **Checked 2026-11-12:** `anomalypulse-shared` still reads 2026-10-16T03:17:23Z;
 the simulator diff since `0557121` is only the generator, its tests and queues; `v1`'s registry holds slots
 1–700 and nothing later (last generated 2026-10-25); both promoted models predate any test run (10-29 and
-11-06). **Validation batch (2026-11-13):** the 2-minute throttling run's second attempt opened at :26.969
-and left no labeled window, and its third opened at :27.356, so `run-batch` now starts it so its fault opens at :35–:50. **Not done:** the rest of the validation review, then the test batches, one a day, coordinated with Jake.
+11-06). **Validation batch (2026-11-13):** 12 of 13 accepted with nothing dropped, spot check passed. The
+2-minute throttling run opened at :23.964, :26.969 and :27.356 and never left a labeled window, so `run-batch`
+now starts it so its fault opens at :35–:50. **Not done:** one live 2-minute throttling run with that fix, then the test batches, one a day, coordinated with Jake.
 
 **Definition of Done**
 - [ ] Test set generated on a separate day from training (dates in the registry prove it).

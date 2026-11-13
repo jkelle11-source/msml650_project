@@ -76,7 +76,8 @@ set follows training's rules ("Building a queue"), with its own seed, so the tra
    12-minute fault of each injector, a 2-minute throttling fault, the four confounder pairs and each
    injector's stress band on its own: 13 runs, about 2.6 h. Every entry also passes the `v1` guard, so it
    runs what the test set runs. A rejected run is a finding to fix before `v1-test-1`, not a rerun to wait
-   out.
+   out. Its one, the 2-minute throttling fault, is run again with the fix as `m9-1-throttle-check` (its own
+   dataset, the same entry): one run, about 8 minutes with the wait.
 4. **Tell Jake** before each batch: one run at a time on the runner, and nothing else live while it goes.
 
 ## Running it
@@ -113,7 +114,8 @@ slot order is generation order. Each batch exports when it ends. After each one,
 
 | Queue | Batch | Started (UTC) | Accepted | Exhausted | Spot check | Labels + features |
 |---|---|---|---|---|---|---|
-| m9-1-validation | | | | | | — |
+| m9-1-validation | `batch-20261113T154822Z-a5c3` | 2026-11-13 15:48 (finished 18:37) | 12 of 13, in 15 runs (2 reruns) | 1: slot 705, the 2-minute throttling fault, opened at :23.964, :26.969 and :27.356, so no labeled window (fixed since: "Running it") | Passed | — |
+| m9-1-throttle-check | | | | | | — |
 | v1-test-1 | | | | | | |
 | v1-test-2 | | | | | | |
 | v1-test-3 | | | | | | |
