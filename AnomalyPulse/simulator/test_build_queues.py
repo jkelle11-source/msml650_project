@@ -168,10 +168,10 @@ def test_same_seed_rebuilds_the_same_queues():
 
 def test_four_daily_training_queues_then_validation():
     queues = build_queues.queues()
-    assert list(queues) == ["v1-train-1.json", "v1-train-2.json", "v1-train-3.json",
-                            "v1-train-4.json", "v1-val.json"]
-    assert all(q["dataset"] == "v1" and len(q["experiments"]) == 140 for q in queues.values())
-    assert [e["slot"] for q in queues.values() for e in q["experiments"]] == list(range(1, 701))
+    train_val = ["v1-train-1.json", "v1-train-2.json", "v1-train-3.json", "v1-train-4.json", "v1-val.json"]
+    assert list(queues)[:5] == train_val
+    assert all(queues[n]["dataset"] == "v1" and len(queues[n]["experiments"]) == 140 for n in train_val)
+    assert [e["slot"] for n in train_val for e in queues[n]["experiments"]] == list(range(1, 701))
     assert {e["phase"] for e in queues["v1-val.json"]["experiments"]} == {"val"}
 
 
@@ -186,7 +186,7 @@ def test_committed_queue_files_match_a_rebuild(name):
 def test_committed_queue_files_pass_the_batch_runners_check(name):
     # load_queue resolves every entry as its run would, and runs integrity's guard on v1.
     queue = batch.load_queue(build_queues.QUEUE_DIR / name)
-    assert queue.dataset == "v1" and len(queue.entries) == 140
+    assert queue.dataset == "v1" and len(queue.entries) == len(build_queues.queues()[name]["experiments"])
 
 
 def test_check_mode_reports_a_stale_file(tmp_path, capsys):

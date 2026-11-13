@@ -226,7 +226,7 @@ and about 15 minutes per batch for CloudWatch, the shipper and the export: about
 with daily batches.
 
 The test set follows the same rules in blocks of 70, with the confounder pairs and the varied-duration
-faults in turn as well (M9-1).
+faults in turn as well, from its own seed (M9-1, [`TEST_SET.md`](TEST_SET.md)).
 
 ## Cascade templates
 
@@ -356,5 +356,5 @@ cascades, run on the runner").
 - **Stress upper ends and retry bands** are M4-3's choices (reasons above); revisit if M9 wants a wider slice.
 - **Most test-set kinds haven't run on the runner:** 12-minute faults, confounders, throttling at 6–8× on
   its own (M3-3 ran 8× from a laptop) and the 12× spike (200 rps validated). The test set's heaviest
-  cascades have (batch 3 above). M9-1 should validate the rest in a separate dataset before generating the
-  test set.
+  cascades have (batch 3 above). M9-1's validation queue (`m9-1-validation.json`, never `v1`) runs the rest
+  at their heaviest before the test set ([`TEST_SET.md`](TEST_SET.md), "Before the first test batch").

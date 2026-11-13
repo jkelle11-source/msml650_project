@@ -20,6 +20,7 @@ import importlib.metadata
 import json
 import os
 import platform
+import re
 import sys
 from pathlib import Path
 
@@ -45,6 +46,14 @@ TREES = {"features": "tier1/features", "labels": "tier2/labels"}
 FILES = {"features": "features.jsonl", "labels": "labels.jsonl"}
 KEY = join_labels.KEY
 LABEL = "label"
+
+# No job trains on the test set (M9-1). A run's id starts with its UTC start time
+# (simulator/manifest.py), and every test and stress run (slot 701 on) is generated after
+# training's last day: the batch refuses one on a training day (Docs/EVALUATION_INTEGRITY.md,
+# Control 2). v1-val, the last training queue, ran 2026-10-24 to 10-25 (Docs/TRAINING_SET.md,
+# "Status"). So a run dated later is refused here, whatever the launcher put in the channel.
+LAST_TRAINING_DAY = "20261025"
+RUN_ID = re.compile(r"exp-(\d{8})T\d{6}Z-[0-9a-f]{4}")
 
 FORMAT = 1
 # Install names, as in smoke.py.
@@ -85,13 +94,28 @@ def read_settings(path, known = SETTINGS):
 def read_jsonl(path):
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
+def check_not_test(experiment_id):
+    """Raise TrainError for a run started after LAST_TRAINING_DAY (a test or stress run), or an
+    id that starts like a run's but isn't one. Other names are the tests' own channels."""
+    if not experiment_id.startswith("exp-"):
+        return
+    match = RUN_ID.fullmatch(experiment_id)
+    if not match:
+        raise TrainError(f"run {experiment_id}: not a run id (exp-<YYYYMMDDTHHMMSSZ>-<4 hex>)")
+    if match.group(1) > LAST_TRAINING_DAY:
+        raise TrainError(f"run {experiment_id} started after training's last day ({LAST_TRAINING_DAY}): "
+                         f"a test or stress run, which no job trains on")
+
 def load_runs(channel):
     """[(experiment_id, feature_rows, label_rows)], sorted by id, for every run in a channel.
-    Raises TrainError on a channel with no runs, or a run with only one of its two files."""
+    Raises TrainError on a channel with no runs, a test or stress run (check_not_test), or a
+    run with only one of its two files."""
     ids = sorted({folder.name.split("=", 1)[1]
                   for tree in TREES.values() for folder in (channel / tree).glob("experiment_id=*")})
     if not ids:
         raise TrainError(f"no runs in the {channel.name} channel")
+    for experiment_id in ids:
+        check_not_test(experiment_id)
     runs = []
     for experiment_id in ids:
         paths = {part: channel / TREES[part] / f"experiment_id={experiment_id}" / FILES[part]

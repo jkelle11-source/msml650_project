@@ -42,6 +42,19 @@
 - **Before the first test batch, a training job refuses test runs on its own** (Jake, from M5-1). IAM can't tell test labels from training labels, since both are `tier2/labels/experiment_id=<id>/`, so today only the launcher's channel manifests keep test runs out of a SageMaker job. A check inside `ml/job/train.py`, refusing any run outside slots 1–700, means a launcher bug can't train on the test set.
 - **Before the first test batch, check the system is the one training ran on.** `anomalypulse-shared`'s `LastUpdatedTime` still reads 2026-10-16T03:17:23Z, the time before `v1` was pinned (M5–M8 deploy to their own stack, README "Status"). A `git diff 0557121 -- AnomalyPulse/simulator/` shows only the test set's queue generator, its queues and docs, not the workload, the injectors or the batch's checks. The batch's own pin check covers the service functions, the metrics extractor and the Products table on top of that.
 
+**Built, before the first batch (2026-11-12; [`Docs/TEST_SET.md`](../Docs/TEST_SET.md)):** `build_queues.py`
+writes the test set (701–1050) in 5 blocks of 70 from its own seed, `20261112`, so the training queues are
+unchanged. The queues are `v1-test-1` (701–840), `v1-test-2` (841–980) and `v1-test-3` (981–1050), about 59 h,
+then `v1-stress` (1051–1070, 3.3 h). Each block holds exactly `TEST_BLOCK`, every run is in the shifted mix, and
+bands, Lambda targets, templates, confounder pairs and durations come out half and half or within a run; every
+entry passes the `v1` guard. `ml/job/train.py` refuses any run dated after 2026-10-25, training's last day, so no
+job script can train on a test run. `m9-1-validation.json` (dataset `m9-1-validation`) runs the untried kinds at
+their heaviest first: four 12-minute faults, a 2-minute throttling fault, the four confounder pairs and the four
+stress bands, 13 runs, 2.6 h. **Checked 2026-11-12:** `anomalypulse-shared` still reads 2026-10-16T03:17:23Z;
+the simulator diff since `0557121` is only the generator, its tests and queues; `v1`'s registry holds slots
+1–700 and nothing later (last generated 2026-10-25); both promoted models predate any test run (10-29 and
+11-06). **Not done:** the validation batch, then the test batches, one a day, coordinated with Jake.
+
 **Definition of Done**
 - [ ] Test set generated on a separate day from training (dates in the registry prove it).
 - [ ] Held-out interleaved bands used — no overlap with training bands.
