@@ -354,6 +354,36 @@ def test_a_db_throttling_window_that_ran_on_burst_is_rerun(tmp_path, go, fake_ru
     assert "run on burst capacity" in attempts[0]["reasons"][0]
 
 
+@pytest.mark.parametrize("second, wait_s", [(0, 35), (26.969, 8.031), (35, 0), (49.999, 0), (50, 45), (59, 36)])
+def test_a_short_throttling_fault_waits_to_open_at_35_to_50_s(second, wait_s):
+    plan = batch.plan_for(_entry(1, spec=THROTTLE), "josh")      # opens 60 s in
+    now = FakeClock().now_ms + round(second * 1000)
+    assert batch.start_delay_ms(plan, now) == round(wait_s * 1000)
+
+
+def test_other_runs_never_wait():
+    five_minutes = dict(THROTTLE, duration_s=300)
+    now = FakeClock().now_ms + 20_000
+    for spec in (NOOP, five_minutes):
+        assert batch.start_delay_ms(batch.plan_for(_entry(1, spec=spec), "josh"), now) == 0
+
+
+def test_every_attempt_of_a_short_throttling_run_opens_at_35_to_50_s(tmp_path, go, fake_run, stack, clock):
+    # M9-1's validation: back-to-back whole-minute runs kept slot 705 opening at :27, so its
+    # reruns could never leave a labeled window.
+    clock.now_ms += 26_969
+    fake_run.outcomes[2] = [{"achieved_fraction": 0.9}]
+    go(_queue(tmp_path, [_entry(1), _entry(2, spec=THROTTLE)]))
+    attempts = _registry(stack).slot(2)["attempts"]
+    assert [a["verdict"] for a in attempts] == ["rejected", "accepted"]
+    for a in attempts:
+        opens = (manifest.to_epoch_ms(a["started_at"]) + THROTTLE["baseline_s"] * 1000) % 60_000
+        assert 35_000 <= opens < 50_000
+    assert manifest.to_epoch_ms(_registry(stack).slot(1)["generated_at"]) % 60_000 == 26_969
+    # Only the first attempt waited: the rerun follows whole-minute runs, so it starts in step.
+    assert sum("so its db-throttling fault opens" in line for line in go.log) == 1
+
+
 def test_a_slot_is_given_up_after_max_attempts(tmp_path, go, fake_run, stack):
     fake_run.outcomes[1] = [{"dropped": 3}] * 2
     record = go(_queue(tmp_path, [_entry(1), _entry(2)]), max_attempts=2)

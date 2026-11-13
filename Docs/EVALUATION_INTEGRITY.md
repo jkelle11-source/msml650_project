@@ -141,6 +141,8 @@ Training runs every fault for 5 minutes in the default 60/15/10/10/5 endpoint mi
   minutes (180 + 720 + 120 s). Note for M4-4: a 2-minute throttling fault is labeled only from
   `label_from` (~47 s in), so it leaves one labeled window, or none when `label_from` falls in a minute's
   first 18 s, about 3 runs in 10; `run-batch` reruns such a run (`Docs/LABELING.md`, "Windows per run").
+  Since M9-1, `run-batch` starts such a run so its fault opens at :35–:50, which always leaves one: a
+  rerun alone opens at the same second, as the validation batch found.
 - **Confounders (30 experiments):** two single faults over the same window, labeled with the **first** one's
   type, never `CASCADING_FAILURE`. Pairs: traffic spike + Lambda degradation (the plan's example), traffic
   spike + payment failure, DB throttling + Lambda degradation, Lambda degradation + payment failure.

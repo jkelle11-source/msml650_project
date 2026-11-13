@@ -174,6 +174,19 @@ def test_the_batch_reruns_exactly_the_throttling_runs_that_leave_no_labeled_wind
     assert 0.25 < reruns / len(starts) < 0.35      # about 3 runs in 10
 
 
+def test_a_short_throttling_run_started_when_the_batch_waits_always_leaves_a_window():
+    # M9-1: a rerun opens at the same second, so the batch waits for :35-:50 instead.
+    entry = {"slot": 1, "seed": 1, "incident": integrity.incident_spec("db-throttling", "test", random.Random(1),
+                                                                       duration_s=120)}
+    plan = batch.plan_for(entry, "test")
+    for offset_ms in range(0, 60_000, 250):
+        start = BASE_MS + offset_ms
+        start += batch.start_delay_ms(plan, start)
+        m = completed(entry, 1, start_ms=start)
+        assert not _rerun_for_no_window(m), offset_ms
+        assert "DATABASE_THROTTLING" in {w.label for w in policy.label_experiment(m)}, offset_ms
+
+
 def test_check_run_catches_a_premature_cascade():
     # The check is independent of the labeler: a cascade label one window early fails it.
     name, build = next(k for k in KINDS if k[0].startswith("cascade spike-payment-retry"))

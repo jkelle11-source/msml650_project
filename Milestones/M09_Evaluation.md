@@ -37,7 +37,7 @@
 - Generated from the same EC2 runner host as the training set (`M4-1`), at the same 20 rps baseline. A different client or rate would be a train/test difference that has nothing to do with the incidents.
 - Separate **extreme-extrapolation stress slice** (traffic >10×, latency >1500ms, offered-load >6×, timeout >5000ms) generated and tagged distinctly, as slots 1051 on.
 - The queue is built with `simulator/integrity.py`'s builders; `run-batch` refuses a `v1` entry that breaks a control (`Docs/EVALUATION_INTEGRITY.md`). The test-set kinds (12-minute faults, confounders, the stress bands) haven't run on the runner yet: validate them in a separate dataset first.
-- A 2-minute DB-throttling run that leaves no labeled window (when `label_from` falls in a minute's first 18 s, about 3 runs in 10) is rerun: `run-batch` rejects it (decided in M4-4's review, `Docs/LABELING.md`, "Windows per run"). Expect a few extra reruns among the varied-duration runs.
+- A 2-minute DB-throttling run that leaves no labeled window (when `label_from` falls in a minute's first 18 s, about 3 runs in 10) is rerun: `run-batch` rejects it (decided in M4-4's review, `Docs/LABELING.md`, "Windows per run"). Expect a few extra reruns among the varied-duration runs. *M9-1's validation found a rerun opens at the same second, so it never helps; `run-batch` now starts these runs so the fault opens at :35–:50, which always leaves a window.*
 - Test set registered, dated, and confirmed **not inspected** until all training/validation work was complete.
 - **Before the first test batch, a training job refuses test runs on its own** (Jake, from M5-1). IAM can't tell test labels from training labels, since both are `tier2/labels/experiment_id=<id>/`, so today only the launcher's channel manifests keep test runs out of a SageMaker job. A check inside `ml/job/train.py`, refusing any run outside slots 1–700, means a launcher bug can't train on the test set.
 - **Before the first test batch, check the system is the one training ran on.** `anomalypulse-shared`'s `LastUpdatedTime` still reads 2026-10-16T03:17:23Z, the time before `v1` was pinned (M5–M8 deploy to their own stack, README "Status"). A `git diff 0557121 -- AnomalyPulse/simulator/` shows only the test set's queue generator, its queues and docs, not the workload, the injectors or the batch's checks. The batch's own pin check covers the service functions, the metrics extractor and the Products table on top of that.
@@ -53,7 +53,8 @@ their heaviest first: four 12-minute faults, a 2-minute throttling fault, the fo
 stress bands, 13 runs, 2.6 h. **Checked 2026-11-12:** `anomalypulse-shared` still reads 2026-10-16T03:17:23Z;
 the simulator diff since `0557121` is only the generator, its tests and queues; `v1`'s registry holds slots
 1–700 and nothing later (last generated 2026-10-25); both promoted models predate any test run (10-29 and
-11-06). **Not done:** the validation batch, then the test batches, one a day, coordinated with Jake.
+11-06). **Validation batch (2026-11-13):** the 2-minute throttling run's second attempt opened at :26.969
+and left no labeled window, and its third opened at :27.356, so `run-batch` now starts it so its fault opens at :35–:50. **Not done:** the rest of the validation review, then the test batches, one a day, coordinated with Jake.
 
 **Definition of Done**
 - [ ] Test set generated on a separate day from training (dates in the registry prove it).

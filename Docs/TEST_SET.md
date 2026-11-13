@@ -68,7 +68,9 @@ set follows training's rules ("Building a queue"), with its own seed, so the tra
    **Checked 2026-11-12:** the stack still reads `2026-10-16T03:17:23Z`, and the diff holds only
    `build_queues.py` and its tests (with the new queue files). `v1`'s registry holds the 700 training and
    validation runs and nothing else: slots 1–700, the last generated 2026-10-25
-   (`exp-20261025T102950Z-daf1`), which is `LAST_TRAINING_DAY`.
+   (`exp-20261025T102950Z-daf1`), which is `LAST_TRAINING_DAY`. After the validation batch, `batch.py`
+   changed too, but only to set when a 2-minute throttling run starts (below, "Running it"); nothing it
+   sends or measures.
 3. **The validation queue** (`m9-1-validation`, never `v1`): the test-set kinds that have never run on the
    runner, each at its heaviest, every intensity 0.95 and every test fault in its upper band. That covers a
    12-minute fault of each injector, a 2-minute throttling fault, the four confounder pairs and each
@@ -100,8 +102,11 @@ slot order is generation order. Each batch exports when it ends. After each one,
 `dataset-status` and `spot_check` (`TRAINING_SET.md`), and check the new runs' labels and features exist.
 **Don't open their numbers:** the test set isn't looked at until M9-2.
 
-- **A 2-minute throttling run with no labeled window is rerun** (`Docs/LABELING.md`, "Windows per run"):
-  about 3 in 10 of the five, so a rerun or two in whichever queue holds them.
+- **A 2-minute throttling run waits up to a minute before it starts**, so its fault opens at :35–:50 of a
+  minute and always leaves a labeled window (`Docs/LABELING.md`, "Windows per run"). Without the wait, a
+  fault opening at :12–:29 leaves none, and its reruns open at the same second, since every run lasts
+  whole minutes and starts as the one before ends: the validation batch's slot 705 opened at :26.969, then
+  :27.356 (`batch.SHORT_THROTTLE_OPENS_S`). The rerun check stays in case `label_from` comes later than usual.
 - **An exhausted slot stays empty:** record it below, and the class it leaves short.
 
 ## Status
