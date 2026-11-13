@@ -58,6 +58,9 @@ holding `label_from` is onset, and under half a window is left after it. **`run-
 (decided 2026-10-19, for M9-1): it rejects a `db-throttling` run with under 30 s of the fault past the minute
 holding `label_from` (`batch.labeled_past_onset_ms`), and `test_run_kinds.py` checks that it rejects exactly
 the runs this labeler can't label. A 5-minute fault always leaves at least 3 windows, so training is unaffected.
+**Since M9-1 the batch avoids them:** a rerun opens at the same second as the run it repeats (runs last
+whole minutes, back to back), so it would be rejected again. A 2-minute throttling run now waits until its
+fault opens at :35–:50 (`batch.start_delay_ms`), which `test_run_kinds.py` checks always leaves a window.
 
 ## Validation (2026-10-18)
 

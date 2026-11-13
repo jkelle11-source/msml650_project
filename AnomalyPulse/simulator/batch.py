@@ -64,6 +64,13 @@ MAX_STEADY_SERVED_FACTOR = 1.25
 # set's 2-minute fault doesn't when label_from falls in a minute's first 18 s,
 # about 3 runs in 10, and such a run is rerun (decided in M4-4's review, for M9-1).
 MIN_LABELED_PAST_ONSET_MS = 30_000
+# Which runs those are depends only on the second the fault opens: label_from is
+# ~48 s in, so a fault opening at :12-:29 leaves no window. A rerun can't change
+# that second by itself (M9-1's validation): every run lasts whole minutes and
+# starts as the one before ends, so slot 705 opened at :26.969 and then :27.356.
+# A run with a db-throttling fault shorter than FAULT_S waits until its fault
+# opens in these seconds of a minute, which leaves 35-50 s past the onset minute.
+SHORT_THROTTLE_OPENS_S = (35, 50)
 # CloudWatch's DynamoDB metrics for a run's last minute are in by then.
 SETTLE_S = 300
 # The db-throttling injector's reads in flight when its window closes can take
@@ -148,6 +155,17 @@ def workload_for(entry: dict, base_url: str | None = None) -> workload.Workload:
 
 def run_seconds(plan: runner.Plan) -> float:
     return max(f.offset_s + f.duration_s for f in plan.faults) + plan.recovery_s
+
+
+def start_delay_ms(plan: runner.Plan, now_ms: int) -> int:
+    """How long to wait before starting `plan` now, so a db-throttling fault shorter than FAULT_S
+    opens within SHORT_THROTTLE_OPENS_S seconds of a minute. 0 for every other run."""
+    low, high = (s * 1000 for s in SHORT_THROTTLE_OPENS_S)
+    for fault in plan.faults:
+        if fault.injector == "db-throttling" and fault.duration_s < integrity.FAULT_S:
+            opens = (now_ms + round(fault.offset_s * 1000)) % 60_000
+            return 0 if low <= opens < high else (low - opens) % 60_000
+    return 0
 
 
 def _check_entry(entry) -> None:
@@ -383,6 +401,11 @@ class _Batch:
             attempt["experiment_id"] = experiment_id
         try:
             plan = plan_for(entry, self.created_by)
+            wait_ms = start_delay_ms(plan, self.clock())
+            if wait_ms:
+                low, high = SHORT_THROTTLE_OPENS_S
+                self.log(f"  waiting {wait_ms / 1000:g} s so its db-throttling fault opens at :{low}-:{high}")
+                self.sleep(wait_ms / 1000)
             load = workload_for(entry, self.base_url)
             final = self.run(plan, self.stack, workload=load, log=self.log, on_start=started)
         except (LockHeld, KeyboardInterrupt):

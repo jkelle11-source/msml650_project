@@ -7,6 +7,9 @@
 holding model.joblib and model.json. Prints the comparison report (ml/compare.py), Model 0's
 recall by class, each model's time to recognize a cascade, and where its wrong windows sit.
 Run it in the training image's library versions, so the pickles load as they were written.
+
+The channel may hold test-set runs: M9-2 scores the test set with this script. The job scripts
+refuse those runs (train.check_not_test, M9-1); this script opts out (load_runs' allow_test).
 """
 import argparse
 import json
@@ -34,8 +37,9 @@ class EvalError(Exception):
 
 
 def load_runs(root):
-    """[(experiment_id, feature_rows, label_rows)] for every validation run."""
-    return train.load_runs(Path(root) / "input" / "data" / "validation")
+    """[(experiment_id, feature_rows, label_rows)] for every run in the validation channel,
+    test-set runs included."""
+    return train.load_runs(Path(root) / "input" / "data" / "validation", allow_test=True)
 
 
 def load_validation(root):

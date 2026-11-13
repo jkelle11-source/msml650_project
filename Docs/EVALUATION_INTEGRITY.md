@@ -141,6 +141,8 @@ Training runs every fault for 5 minutes in the default 60/15/10/10/5 endpoint mi
   minutes (180 + 720 + 120 s). Note for M4-4: a 2-minute throttling fault is labeled only from
   `label_from` (~47 s in), so it leaves one labeled window, or none when `label_from` falls in a minute's
   first 18 s, about 3 runs in 10; `run-batch` reruns such a run (`Docs/LABELING.md`, "Windows per run").
+  Since M9-1, `run-batch` starts such a run so its fault opens at :35–:50, which always leaves one: a
+  rerun alone opens at the same second, as the validation batch found.
 - **Confounders (30 experiments):** two single faults over the same window, labeled with the **first** one's
   type, never `CASCADING_FAILURE`. Pairs: traffic spike + Lambda degradation (the plan's example), traffic
   spike + payment failure, DB throttling + Lambda degradation, Lambda degradation + payment failure.
@@ -226,7 +228,7 @@ and about 15 minutes per batch for CloudWatch, the shipper and the export: about
 with daily batches.
 
 The test set follows the same rules in blocks of 70, with the confounder pairs and the varied-duration
-faults in turn as well (M9-1).
+faults in turn as well, from its own seed (M9-1, [`TEST_SET.md`](TEST_SET.md)).
 
 ## Cascade templates
 
@@ -356,5 +358,5 @@ cascades, run on the runner").
 - **Stress upper ends and retry bands** are M4-3's choices (reasons above); revisit if M9 wants a wider slice.
 - **Most test-set kinds haven't run on the runner:** 12-minute faults, confounders, throttling at 6–8× on
   its own (M3-3 ran 8× from a laptop) and the 12× spike (200 rps validated). The test set's heaviest
-  cascades have (batch 3 above). M9-1 should validate the rest in a separate dataset before generating the
-  test set.
+  cascades have (batch 3 above). M9-1's validation queue (`m9-1-validation.json`, never `v1`) runs the rest
+  at their heaviest before the test set ([`TEST_SET.md`](TEST_SET.md), "Before the first test batch").

@@ -52,9 +52,10 @@ of its 2); never S3 event notifications, which change the shared bucket. Nothing
 No edits in the console either: they bypass CloudFormation and the timestamp.
 
 **The simulator's run-time code is frozen too.** M9-1 runs from a commit newer than `0557121` (the one `v1`'s
-training and validation ran from), because it adds the test set's queue generator. Before it starts, diff
-`AnomalyPulse/simulator/` against `0557121`: only the queue generator, its queue files and docs may differ, not
-the workload, the injectors or the batch's checks.
+training and validation ran from), because it adds the test set's queue generator and, since M9-1's validation,
+a start wait in `batch.py` for 2-minute throttling runs (when such a run starts, not what it sends or measures).
+Before it starts, diff `AnomalyPulse/simulator/` against `0557121`: only those two, their tests, the queue files and
+docs may differ, not the workload, the injectors or the batch's checks.
 
 With slots 1–700 done, other experiments can run again, one at a time, but never during a batch. The runner
 host sends their traffic too, never a laptop, stays stopped between sessions, and is terminated only after M10
@@ -153,6 +154,7 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [Docs/DATASET.md](Docs/DATASET.md) | The dataset (M4): batches and their checks, the experiment registry, the `datasets/` S3 layout, the runner host. |
 | [Docs/EVALUATION_INTEGRITY.md](Docs/EVALUATION_INTEGRITY.md) | The leakage controls (M4-3): interleaved bands, the temporal split, the diversity protocol, cascade templates, how a queue is built, and the Evaluation Integrity Statement. |
 | [Docs/TRAINING_SET.md](Docs/TRAINING_SET.md) | `v1`'s training and validation set (M4-2): the train/val cut, what the queues hold, the runbook for each daily batch, and its status. |
+| [Docs/TEST_SET.md](Docs/TEST_SET.md) | `v1`'s test set and stress slice (M9-1): what the queues hold, the checks before the first test batch (the training-job guard, the system pin, the validation queue), the runbook and its status. |
 | [Docs/LABELING.md](Docs/LABELING.md) | Window labels (M4-4): the labeling decisions and the file format. |
 | [Docs/FEATURE_MATRIX.md](Docs/FEATURE_MATRIX.md) | The feature matrix (M4-5): how to build it, and every column with its definition and tier (generated from the code). |
 | [Docs/ML_INFERENCE.md](Docs/ML_INFERENCE.md) | Model packages and the Diagnosis Lambda (M5-1): the package format, promoting a model, calling the Lambda, cold starts, and the cost-per-inference hook for M9. |
@@ -170,7 +172,7 @@ stack (`AnomalyPulse/infra/shared/template.yaml`). The API is deployed to
 | [AnomalyPulse/infra/shared/](AnomalyPulse/infra/shared/) | The SAM stack — `template.yaml` defines the four Lambdas, their API routes, DynamoDB tables, per-service IAM roles, the telemetry layer, the S3 landing bucket, the log groups + subscription filters, and the SSM parameters. Also holds `field_catalog.json` (the full field registry incl. Tier-2) and `shipper/` (the CloudWatch Logs → S3 shipper Lambda). |
 | [AnomalyPulse/layers/telemetry/](AnomalyPulse/layers/telemetry/) | The `anomalypulse-telemetry` Lambda layer — the frozen `telemetry_schema.json` + `schema_validator.py`, plus `fault_config.py` (the reader each handler uses to pick up injected faults, M3), attached to every function and imported by service handlers and tests. |
 | [AnomalyPulse/services/](AnomalyPulse/services/) | The service code: one folder per service (`product/`, `cart/`, `order/`, `payment/`), each with `handler.py` and `test_handler.py`. |
-| [AnomalyPulse/simulator/](AnomalyPulse/simulator/) | The incident simulator (M3) — a local Python package, not deployed to Lambda. The runner and CLI, the experiment manifest schema, the experiment lock, the fault control-plane writer, the baseline workload (`workload.py`), the per-run telemetry report (`telemetry_report.py`), and `injectors/` (the interface, the registry, and one file per injector). M4's batch runner (`batch.py`), registry and layout (`dataset.py`), export (`export.py`), frozen-configuration check (`stack_config.py`), evaluation-integrity controls (`integrity.py`), queue generator (`build_queues.py`), telemetry spot check (`spot_check.py`) and queue files (`queues/`). |
+| [AnomalyPulse/simulator/](AnomalyPulse/simulator/) | The incident simulator (M3) — a local Python package, not deployed to Lambda. The runner and CLI, the experiment manifest schema, the experiment lock, the fault control-plane writer, the baseline workload (`workload.py`), the per-run telemetry report (`telemetry_report.py`), and `injectors/` (the interface, the registry, and one file per injector). M4's batch runner (`batch.py`), registry and layout (`dataset.py`), export (`export.py`), frozen-configuration check (`stack_config.py`), evaluation-integrity controls (`integrity.py`), queue generator (`build_queues.py`: training and validation, and since M9-1 the test set and stress slice), telemetry spot check (`spot_check.py`) and queue files (`queues/`). |
 | [AnomalyPulse/labels/](AnomalyPulse/labels/) | M4-4's window labeler (`python -m labels`): the labeling policy and the labels it writes under `tier2/labels/`. |
 | [AnomalyPulse/features/](AnomalyPulse/features/) | M4-5's feature matrix (`python -m features`): the per-window Tier-1 features, the Feature/Label Boundary guard, and the join to the labels. |
 | [AnomalyPulse/ml/](AnomalyPulse/ml/) | M5's training and inference: the SageMaker launcher (`python -m ml.launch smoke / train / tune / promote`), the job scripts (`job/`), the pinned library versions (`requirements-image.txt`), and the Diagnosis Lambda (`diagnosis/`: `handler.py`, its `Dockerfile`, `forbidden_names.json`, the Tier-1 guard's list copied by `write_forbidden_names.py`, and `incident.py`, M8-2's open/close rule for M8-3). |

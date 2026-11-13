@@ -1,0 +1,6 @@
+{
+  "dataset": "m9-1-throttle-check",
+  "experiments": [
+    {"slot": 705, "phase": "test", "seed": 9105, "mix": [40, 25, 15, 10, 10], "incident": {"injector": "db-throttling", "baseline_s": 180, "duration_s": 120, "recovery_s": 120, "band": {"parameter": "load_ratio", "low": 4.5, "high": 5.5}, "intensity": 0.95}}
+  ]
+}

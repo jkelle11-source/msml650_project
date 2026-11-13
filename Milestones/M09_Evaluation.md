@@ -37,10 +37,28 @@
 - Generated from the same EC2 runner host as the training set (`M4-1`), at the same 20 rps baseline. A different client or rate would be a train/test difference that has nothing to do with the incidents.
 - Separate **extreme-extrapolation stress slice** (traffic >10×, latency >1500ms, offered-load >6×, timeout >5000ms) generated and tagged distinctly, as slots 1051 on.
 - The queue is built with `simulator/integrity.py`'s builders; `run-batch` refuses a `v1` entry that breaks a control (`Docs/EVALUATION_INTEGRITY.md`). The test-set kinds (12-minute faults, confounders, the stress bands) haven't run on the runner yet: validate them in a separate dataset first.
-- A 2-minute DB-throttling run that leaves no labeled window (when `label_from` falls in a minute's first 18 s, about 3 runs in 10) is rerun: `run-batch` rejects it (decided in M4-4's review, `Docs/LABELING.md`, "Windows per run"). Expect a few extra reruns among the varied-duration runs.
+- A 2-minute DB-throttling run that leaves no labeled window (when `label_from` falls in a minute's first 18 s, about 3 runs in 10) is rerun: `run-batch` rejects it (decided in M4-4's review, `Docs/LABELING.md`, "Windows per run"). Expect a few extra reruns among the varied-duration runs. *M9-1's validation found a rerun opens at the same second, so it never helps; `run-batch` now starts these runs so the fault opens at :35–:50, which always leaves a window.*
 - Test set registered, dated, and confirmed **not inspected** until all training/validation work was complete.
-- **Before the first test batch, a training job refuses test runs on its own** (Jake, from M5-1). IAM can't tell test labels from training labels, since both are `tier2/labels/experiment_id=<id>/`, so today only the launcher's channel manifests keep test runs out of a SageMaker job. A check inside `ml/job/train.py`, refusing any run outside slots 1–700, means a launcher bug can't train on the test set.
-- **Before the first test batch, check the system is the one training ran on.** `anomalypulse-shared`'s `LastUpdatedTime` still reads 2026-10-16T03:17:23Z, the time before `v1` was pinned (M5–M8 deploy to their own stack, README "Status"). A `git diff 0557121 -- AnomalyPulse/simulator/` shows only the test set's queue generator, its queues and docs, not the workload, the injectors or the batch's checks. The batch's own pin check covers the service functions, the metrics extractor and the Products table on top of that.
+- **Before the first test batch, a training job refuses test runs on its own** (Jake, from M5-1). IAM can't tell test labels from training labels, since both are `tier2/labels/experiment_id=<id>/`, so today only the launcher's channel manifests keep test runs out of a SageMaker job. A check inside `ml/job/train.py`, refusing any run outside slots 1–700, means a launcher bug can't train on the test set. *Built as a date check, since a job's channel holds only run ids: it refuses any run dated after 2026-10-25, training's last day. `ml/evaluate.py` opts out, as M9-2 scores the test set with it.*
+- **Before the first test batch, check the system is the one training ran on.** `anomalypulse-shared`'s `LastUpdatedTime` still reads 2026-10-16T03:17:23Z, the time before `v1` was pinned (M5–M8 deploy to their own stack, README "Status"). A `git diff 0557121 -- AnomalyPulse/simulator/` shows only the test set's queue generator, its queues and docs, not the workload, the injectors or the batch's checks. *Since M9-1's validation it also shows `batch.py`'s start wait for 2-minute throttling runs, and its tests: it sets when such a run starts, not what it sends or measures.* The batch's own pin check covers the service functions, the metrics extractor and the Products table on top of that.
+
+**Built, before the first batch (2026-11-12; [`Docs/TEST_SET.md`](../Docs/TEST_SET.md)):** `build_queues.py`
+writes the test set (701–1050) in 5 blocks of 70 from its own seed, `20261112`, so the training queues are
+unchanged. The queues are `v1-test-1` (701–840), `v1-test-2` (841–980) and `v1-test-3` (981–1050), about 59 h,
+then `v1-stress` (1051–1070, 3.3 h). Each block holds exactly `TEST_BLOCK`, every run is in the shifted mix, and
+bands, Lambda targets, templates, confounder pairs and durations come out half and half or within a run; every
+entry passes the `v1` guard. `ml/job/train.py` refuses any run dated after 2026-10-25, training's last day, so no
+job script can train on a test run; `ml/evaluate.py` opts out, so M9-2 can score the test set with it. `m9-1-validation.json` (dataset `m9-1-validation`) runs the untried kinds at
+their heaviest first: four 12-minute faults, a 2-minute throttling fault, the four confounder pairs and the four
+stress bands, 13 runs, 2.6 h. **Checked 2026-11-12:** `anomalypulse-shared` still reads 2026-10-16T03:17:23Z;
+the simulator diff since `0557121` is only the generator, its tests and queues; `v1`'s registry holds slots
+1–700 and nothing later (last generated 2026-10-25); both promoted models predate any test run (10-29 and
+11-06). **Validation batch (2026-11-13):** 12 of 13 accepted with nothing dropped, spot check passed. The
+2-minute throttling run opened at :23.964, :26.969 and :27.356 and never left a labeled window, so `run-batch`
+now starts it so its fault opens at :35–:50 (`batch.py`'s only change since `0557121`). Run again with the fix
+(`m9-1-throttle-check`), its fault opened at :35.080 and the run was accepted first time, without needing the wait;
+the first run that waits is slot 829 in `v1-test-1`. **Not done:** the test batches, one a day (`v1-stress` the same
+day as `v1-test-3`), coordinated with Jake.
 
 **Definition of Done**
 - [ ] Test set generated on a separate day from training (dates in the registry prove it).
