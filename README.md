@@ -52,9 +52,10 @@ of its 2); never S3 event notifications, which change the shared bucket. Nothing
 No edits in the console either: they bypass CloudFormation and the timestamp.
 
 **The simulator's run-time code is frozen too.** M9-1 runs from a commit newer than `0557121` (the one `v1`'s
-training and validation ran from), because it adds the test set's queue generator. Before it starts, diff
-`AnomalyPulse/simulator/` against `0557121`: only the queue generator, its queue files and docs may differ, not
-the workload, the injectors or the batch's checks.
+training and validation ran from), because it adds the test set's queue generator and, since M9-1's validation,
+a start wait in `batch.py` for 2-minute throttling runs (when such a run starts, not what it sends or measures).
+Before it starts, diff `AnomalyPulse/simulator/` against `0557121`: only those two, their tests, the queue files and
+docs may differ, not the workload, the injectors or the batch's checks.
 
 With slots 1–700 done, other experiments can run again, one at a time, but never during a batch. The runner
 host sends their traffic too, never a laptop, stays stopped between sessions, and is terminated only after M10

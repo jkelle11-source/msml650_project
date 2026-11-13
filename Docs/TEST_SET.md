@@ -57,20 +57,23 @@ set follows training's rules ("Building a queue"), with its own seed, so the tra
    every job script uses, refuses any run whose id is dated after training's last day (`LAST_TRAINING_DAY`,
    2026-10-25): a run's id starts with its UTC start time, and the batch refuses a test run on a training day,
    so every run from slot 701 on is later. A launcher bug that put a test run in a channel stops the job
-   before it reads a row.
+   before it reads a row. `ml/evaluate.py` opts out (`load_runs(..., allow_test=True)`), since M9-2 scores
+   the test set with it; `ml/test_train_guard.py` checks that all five job scripts refuse a test run and
+   the evaluation script loads one.
 2. **The system is the one training ran on.**
    ```bash
    aws cloudformation describe-stacks --stack-name anomalypulse-shared --profile <profile> \
        --query 'Stacks[0].LastUpdatedTime'        # 2026-10-16T03:17:23Z, from before v1 was pinned
-   git diff --stat 0557121 -- AnomalyPulse/simulator/   # only the queue generator, its tests and queues
+   git diff --stat 0557121 -- AnomalyPulse/simulator/   # the queue generator, batch.py's start wait,
+                                                        # their tests and the queue files only
    ```
    The batch's own pin check covers the service functions, the metrics extractor and the Products table.
    **Checked 2026-11-12:** the stack still reads `2026-10-16T03:17:23Z`, and the diff holds only
    `build_queues.py` and its tests (with the new queue files). `v1`'s registry holds the 700 training and
    validation runs and nothing else: slots 1–700, the last generated 2026-10-25
    (`exp-20261025T102950Z-daf1`), which is `LAST_TRAINING_DAY`. After the validation batch, `batch.py`
-   changed too, but only to set when a 2-minute throttling run starts (below, "Running it"); nothing it
-   sends or measures.
+   (and `test_batch.py`) changed too, but only to set when a 2-minute throttling run starts (below,
+   "Running it"); nothing it sends or measures.
 3. **The validation queue** (`m9-1-validation`, never `v1`): the test-set kinds that have never run on the
    runner, each at its heaviest, every intensity 0.95 and every test fault in its upper band. That covers a
    12-minute fault of each injector, a 2-minute throttling fault, the four confounder pairs and each
@@ -83,7 +86,9 @@ set follows training's rules ("Building a queue"), with its own seed, so the tra
 ## Running it
 
 On the runner host, from the merged commit, one queue a day, as for training (`TRAINING_SET.md`, "Running
-it"). Through `drive.sh` from a laptop (`AnomalyPulse/infra/runner`, `export AWS_PROFILE=<profile>`):
+it"), except `v1-stress`: it follows `v1-test-3` the same day, about 15 h for the two. Start it once
+`v1-test-3` ends (`drive.sh start` first if the runner's idle stop got there before you). Through
+`drive.sh` from a laptop (`AnomalyPulse/infra/runner`, `export AWS_PROFILE=<profile>`):
 
 ```bash
 bash drive.sh start
@@ -94,7 +99,7 @@ bash drive.sh log m9-1-validation
 bash drive.sh run v1-test-1 run-batch --queue simulator/queues/v1-test-1.json
 bash drive.sh run v1-test-2 run-batch --queue simulator/queues/v1-test-2.json
 bash drive.sh run v1-test-3 run-batch --queue simulator/queues/v1-test-3.json
-bash drive.sh run v1-stress run-batch --queue simulator/queues/v1-stress.json
+bash drive.sh run v1-stress run-batch --queue simulator/queues/v1-stress.json   # once v1-test-3 ends
 ```
 
 `run-batch` refuses a `v1` test batch on a day that already has training runs, and a training batch once any
@@ -103,7 +108,7 @@ slot order is generation order. Each batch exports when it ends. After each one,
 `dataset-status` and `spot_check` (`TRAINING_SET.md`), and check the new runs' labels and features exist.
 **Don't open their numbers:** the test set isn't looked at until M9-2.
 
-- **A 2-minute throttling run waits up to a minute before it starts**, so its fault opens at :35–:50 of a
+- **A 2-minute throttling run waits up to 45 s before it starts**, so its fault opens at :35–:50 of a
   minute and always leaves a labeled window (`Docs/LABELING.md`, "Windows per run"). Without the wait, a
   fault opening at :12–:29 leaves none, and its reruns open at the same second, since every run lasts
   whole minutes and starts as the one before ends: the validation batch's slot 705 opened at :26.969, then
