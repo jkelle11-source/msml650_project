@@ -55,7 +55,8 @@ the simulator diff since `0557121` is only the generator, its tests and queues; 
 1–700 and nothing later (last generated 2026-10-25); both promoted models predate any test run (10-29 and
 11-06). **Validation batch (2026-11-13):** 12 of 13 accepted with nothing dropped, spot check passed. The
 2-minute throttling run opened at :23.964, :26.969 and :27.356 and never left a labeled window, so `run-batch`
-now starts it so its fault opens at :35–:50. **Not done:** one live 2-minute throttling run with that fix, then the test batches, one a day, coordinated with Jake.
+now starts it so its fault opens at :35–:50. Run again with the fix (`m9-1-throttle-check`), its fault opened at :35.080
+and the run was accepted first time. **Not done:** the test batches, one a day, coordinated with Jake.
 
 **Definition of Done**
 - [ ] Test set generated on a separate day from training (dates in the registry prove it).
