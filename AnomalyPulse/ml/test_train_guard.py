@@ -1,8 +1,10 @@
 """A training job refuses test and stress runs on its own (M9-1), whatever the launcher put in a
-channel. Every job script loads its runs through train.load_runs. No AWS.
+channel. Every job script loads its runs through train.load_runs; ml/evaluate.py, which scores the
+test set (M9-2), opts out. No AWS.
 
 Run from AnomalyPulse/:  python -m pytest ml/test_train_guard.py -q
 """
+import importlib
 import sys
 from pathlib import Path
 
@@ -13,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent / "job"))
 
 import train  # noqa: E402
 import train_incident_rf  # noqa: E402
+from ml import evaluate  # noqa: E402
 from ml.test_train_incident_rf import make_root, write_run  # noqa: E402
 
 TRAINING_RUN = "exp-20261024T112908Z-a9bf"      # a v1-val run
@@ -57,3 +60,32 @@ def test_a_job_script_stops_on_a_test_run(tmp_path):
     write_run(tmp_path, "train", TEST_RUN)
     with pytest.raises(train.TrainError, match=TEST_RUN):
         train_incident_rf.run(root)
+
+
+# Every job script and its entry point. None may load with allow_test.
+JOBS = [("train", "train"), ("train_binary", "run"), ("train_iforest", "run"),
+        ("train_incident_rf", "run"), ("train_incident_xgb", "run")]
+
+
+@pytest.mark.parametrize("script, entry", JOBS)
+def test_every_job_script_refuses_a_test_run_in_its_validation_channel(tmp_path, script, entry):
+    if script == "train_incident_xgb":
+        pytest.importorskip("xgboost")
+    job = importlib.import_module(script)
+    write_run(tmp_path, "train", TRAINING_RUN)
+    write_run(tmp_path, "validation", TEST_RUN)
+    config = tmp_path / "input" / "config"
+    config.mkdir(parents=True)
+    (config / "hyperparameters.json").write_text("{}")      # each script's defaults
+    with pytest.raises(train.TrainError, match=f"run {TEST_RUN} started after training's last day"):
+        getattr(job, entry)(tmp_path)
+    assert not (tmp_path / "model").exists()
+
+
+def test_the_evaluation_script_loads_a_test_run(tmp_path):
+    # M9-2 scores the test set with ml/evaluate.py, so it opts out of the guard.
+    write_run(tmp_path, "validation", TRAINING_RUN)
+    write_run(tmp_path, "validation", TEST_RUN)
+    assert [r[0] for r in evaluate.load_runs(tmp_path)] == [TRAINING_RUN, TEST_RUN]
+    assert [r[0] for r in train.load_runs(tmp_path / "input" / "data" / "validation", allow_test=True)] == [
+        TRAINING_RUN, TEST_RUN]

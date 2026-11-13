@@ -52,6 +52,7 @@ LABEL = "label"
 # training's last day: the batch refuses one on a training day (Docs/EVALUATION_INTEGRITY.md,
 # Control 2). v1-val, the last training queue, ran 2026-10-24 to 10-25 (Docs/TRAINING_SET.md,
 # "Status"). So a run dated later is refused here, whatever the launcher put in the channel.
+# Only ml/evaluate.py opts out (load_runs' allow_test): M9-2 scores the test set with it.
 LAST_TRAINING_DAY = "20261025"
 RUN_ID = re.compile(r"exp-(\d{8})T\d{6}Z-[0-9a-f]{4}")
 
@@ -106,16 +107,18 @@ def check_not_test(experiment_id):
         raise TrainError(f"run {experiment_id} started after training's last day ({LAST_TRAINING_DAY}): "
                          f"a test or stress run, which no job trains on")
 
-def load_runs(channel):
+def load_runs(channel, allow_test = False):
     """[(experiment_id, feature_rows, label_rows)], sorted by id, for every run in a channel.
     Raises TrainError on a channel with no runs, a test or stress run (check_not_test), or a
-    run with only one of its two files."""
+    run with only one of its two files. Every job script loads with the default, so no job
+    trains on the test set; allow_test=True is for ml/evaluate.py, which scores it."""
     ids = sorted({folder.name.split("=", 1)[1]
                   for tree in TREES.values() for folder in (channel / tree).glob("experiment_id=*")})
     if not ids:
         raise TrainError(f"no runs in the {channel.name} channel")
-    for experiment_id in ids:
-        check_not_test(experiment_id)
+    if not allow_test:
+        for experiment_id in ids:
+            check_not_test(experiment_id)
     runs = []
     for experiment_id in ids:
         paths = {part: channel / TREES[part] / f"experiment_id={experiment_id}" / FILES[part]
