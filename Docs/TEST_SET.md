@@ -121,7 +121,7 @@ slot order is generation order. Each batch exports when it ends. After each one,
 |---|---|---|---|---|---|---|
 | m9-1-validation | `batch-20261113T154822Z-a5c3` | 2026-11-13 15:48 (finished 18:37) | 12 of 13, in 15 runs (2 reruns) | 1: slot 705, the 2-minute throttling fault, opened at :23.964, :26.969 and :27.356, so no labeled window (fixed since: "Running it") | Passed | — |
 | m9-1-throttle-check | `batch-20261113T184934Z-0f91` | 2026-11-13 18:49 (finished 19:06) | 1 of 1, in 1 run: the fault opened at :35.080, so it didn't need to wait | 0 | Passed | — |
-| v1-test-1 | | | | | | |
+| v1-test-1 | `batch-20261113T224227Z-83c9` | 2026-11-13 22:42 (finished 11-14 22:24) | 140 of 140, in 140 runs (0 reruns); slot 829 waited 26.943 s, its fault opened at :35.001, and it has its labeled throttling window | 0 | Passed | Done: all 840 v1 runs labeled and built, 0 test runs with a feature error or a missing snapshot |
 | v1-test-2 | | | | | | |
 | v1-test-3 | | | | | | |
 | v1-stress | | | | | | |
