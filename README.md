@@ -31,18 +31,22 @@ is the front door: what the repo contains, its current status, and how to plug i
 Every M4 run is 10 minutes (3 baseline, 5 fault, 2 recovery) at 20 rps, from the runner host.
 After each daily batch: the spot check, then labels, then features ([Docs/TRAINING_SET.md](Docs/TRAINING_SET.md), "Running it").
 
-**The shared stack (`anomalypulse-shared`) is not deployed until M9-1 has generated `v1`'s test set.** The
-test set must come from the same system as the training set, or its scores partly measure the change. `v1`'s
-pin records only the service functions, the metrics extractor and the Products table, but a deploy can change
-far more that shapes the telemetry without touching a service resource: `Globals` (they apply to every
-function), environment variables, the shipper and its subscription filters, API Gateway, the other tables. The
-stack was last updated 2026-10-16 03:17 UTC, before `v1` was pinned, so all 700 runs came from an undeployed
-stack. M9-1 checks it still is:
+**The shared stack (`anomalypulse-shared`) was not deployed while `v1` was generated**, from 2026-10-20 (slots
+1–700) to 2026-11-16 (M9-1's test set and stress slice, 701–1070). The test set had to come from the same system
+as the training set, or its scores would partly measure the change. `v1`'s pin records only the service
+functions, the metrics extractor and the Products table, but a deploy can change far more that shapes the
+telemetry without touching a service resource: `Globals` (they apply to every function), environment variables,
+the shipper and its subscription filters, API Gateway, the other tables. The stack was last updated 2026-10-16
+03:17 UTC, before `v1` was pinned, and still read that after M9-1's last batch:
 
 ```bash
 aws cloudformation describe-stacks --stack-name anomalypulse-shared --query "Stacks[0].LastUpdatedTime" --output text --profile dev
 # 2026-10-16T03:17:23.356000+00:00
 ```
+
+**With `v1` complete, the shared stack can be deployed again.** A deploy can't change `v1`, whose 1,070 slots are
+all filled. Anything that moves the telemetry does move live traffic away from what the models learned, so a live
+measurement after such a deploy (M9-4, M9-6, the M10 demo) measures the changed system, not `v1`'s.
 
 **Everything M5–M8 add goes in its own stack** (the Diagnosis Lambda, the Incidents table, the event pipeline,
 the dashboard, SageMaker roles), reading the shared stack's SSM parameters below. Read the telemetry from S3,
@@ -51,15 +55,15 @@ of its 2); never S3 event notifications, which change the shared bucket. Nothing
 `metrics/`, `experiments/` or `datasets/`, and nothing calls the app's API or its tables except the simulator.
 No edits in the console either: they bypass CloudFormation and the timestamp.
 
-**The simulator's run-time code is frozen too.** M9-1 runs from a commit newer than `0557121` (the one `v1`'s
+**The simulator's run-time code was frozen too.** M9-1 ran from `80d5932`, newer than `0557121` (the one `v1`'s
 training and validation ran from), because it adds the test set's queue generator and, since M9-1's validation,
 a start wait in `batch.py` for 2-minute throttling runs (when such a run starts, not what it sends or measures).
-Before it starts, diff `AnomalyPulse/simulator/` against `0557121`: only those two, their tests, the queue files and
-docs may differ, not the workload, the injectors or the batch's checks.
+Its diff of `AnomalyPulse/simulator/` against `0557121` showed only those two, their tests, the queue files and
+docs, not the workload, the injectors or the batch's checks.
 
-With slots 1–700 done, other experiments can run again, one at a time, but never during a batch. The runner
-host sends their traffic too, never a laptop, stays stopped between sessions, and is terminated only after M10
-([Docs/DATASET.md](Docs/DATASET.md), "The runner host").
+With `v1` done, other experiments run one at a time. The runner host sends their traffic too, never a laptop,
+stays stopped between sessions, and is terminated only after M10 ([Docs/DATASET.md](Docs/DATASET.md), "The
+runner host").
 
 **Milestone 3 — Incident Simulator** (complete, merged to `main` and validated on the deployed
 stack, 2026-10-15). M3 built the tool that deliberately
@@ -101,9 +105,10 @@ a run's effect in landed telemetry, phase by phase.
 - **M4's batches run on an EC2 instance in us-east-2**, not a laptop (M4-1 in
   [Milestones/M04_Dataset.md](Milestones/M04_Dataset.md)).
 - **Run one experiment at a time.** Don't send other traffic to the API during a run.
-- **Leave the stack's configuration alone.** M4 keeps it as of PR #70 (the list is in
-  [Milestones/M04_Dataset.md](Milestones/M04_Dataset.md)), and `anomalypulse-shared` isn't
-  deployed at all until M9-1 has generated the test set (Status, above).
+- **The stack's configuration is `v1`'s**, as of PR #70 (the list is in
+  [Milestones/M04_Dataset.md](Milestones/M04_Dataset.md)). `anomalypulse-shared` can be
+  deployed again now that `v1` is complete, but a change moves live telemetry away from
+  `v1`'s (Status, above).
 
 **Milestone 2 — Observability** (complete, merged to `main`). Every request emits
 structured telemetry against an enforced schema, and that telemetry lands centrally
@@ -286,9 +291,10 @@ The Products table is `anomalypulse-products-v2`, created provisioned at 200 RCU
 depends on the table's partitions, so the table must never switch billing mode or
 change capacity during M4 ([Docs/DB_THROTTLING_INJECTOR.md](Docs/DB_THROTTLING_INJECTOR.md)).
 
-**Don't change memory, capacity, retries or these handlers' timing until M9-1 has
-generated `v1`'s test set.** They move every latency, duration and read-cost feature,
-so runs before and after a change are not comparable.
+**Memory, capacity, retries and these handlers' timing are `v1`'s.** They can change
+now that `v1` is complete (2026-11-16), but they move every latency, duration and
+read-cost feature, so runs after a change are not comparable with `v1`'s or with what
+the models learned from it.
 
 ### Telemetry landing zone (S3)
 
