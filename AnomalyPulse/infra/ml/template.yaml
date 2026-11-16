@@ -73,8 +73,8 @@ Resources:
   # which hold fault parameters and bands. IAM can't tell test labels from
   # training labels (both are tier2/labels/experiment_id=<id>/): the launcher's
   # channel manifests keep them out, listing only the runs that
-  # integrity.temporal_split puts in train or val. A check inside the job
-  # itself is due before M9-1 writes the first test run (M09_Evaluation.md).
+  # integrity.temporal_split puts in train or val. Since M9-1 the job checks
+  # too: ml/job/train.py refuses any run dated after training's last day.
 
   TrainingRole:
     Type: AWS::IAM::Role

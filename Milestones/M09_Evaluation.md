@@ -57,14 +57,23 @@ the simulator diff since `0557121` is only the generator, its tests and queues; 
 2-minute throttling run opened at :23.964, :26.969 and :27.356 and never left a labeled window, so `run-batch`
 now starts it so its fault opens at :35–:50 (`batch.py`'s only change since `0557121`). Run again with the fix
 (`m9-1-throttle-check`), its fault opened at :35.080 and the run was accepted first time, without needing the wait;
-the first run that waits is slot 829 in `v1-test-1`. **Not done:** the test batches, one a day (`v1-stress` the same
-day as `v1-test-3`), coordinated with Jake.
+the first run that waits is slot 829 in `v1-test-1`. **Generated 2026-11-13 to 11-16** from `80d5932`, in four
+batches (`Docs/TEST_SET.md`, "Status"): all 350 test slots and 20 stress slots accepted, none exhausted, in 371 runs
+(one rerun, stress slot 1069, whose first window ran on burst capacity). Both 2-minute throttling runs waited and
+opened at :35 (slot 829 at :35.001, 945 at :35.000). All 1,070 `v1` runs labeled and built, 0 test runs with a
+feature error or a missing snapshot. Not inspected: only counts were read, no feature values and no scores.
 
 **Definition of Done**
-- [ ] Test set generated on a separate day from training (dates in the registry prove it).
-- [ ] Held-out interleaved bands used — no overlap with training bands.
-- [ ] Extreme slice tagged separately from the core test set.
-- [ ] Confounder and varied-duration experiments present and correctly labeled (confounders **not** cascading).
+- [x] Test set generated on a separate day from training (dates in the registry prove it). *`integrity.temporal_split`
+  accepts the whole registry (560 train, 140 val, 350 test, 20 stress); every test and stress run is dated
+  2026-11-13 to 11-16, after training's last day, 2026-10-25.*
+- [x] Held-out interleaved bands used — no overlap with training bands. *`run-batch`'s `v1` guard checks every
+  entry's bands against `BANDS[...]["test"]`, which `check_bands` proves interleave with training's (#107).*
+- [x] Extreme slice tagged separately from the core test set. *Slots 1051–1070, phase `stress`, in their own queue
+  and batch.*
+- [x] Confounder and varied-duration experiments present and correctly labeled (confounders **not** cascading).
+  *30 of 30 confounders and 20 of 20 varied-duration runs labeled with no errors; no confounder has a
+  `CASCADING_FAILURE` window.*
 
 ---
 
