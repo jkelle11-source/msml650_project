@@ -297,8 +297,29 @@ How it was checked:
   in `errors/`; 133 shipper invocations with no errors, throttles or `AccessDenied`; and the shipper's new
   execution environments created their log streams.
 
-The four services and the metrics extractor still use `AWSLambdaBasicExecutionRole`. Their logs are the
-telemetry, so one wrong ARN in their roles would stop a service's data: narrowing them is a separate change.
+**The services and the metrics extractor (narrowed 2026-11-17, the same day).** They used
+`AWSLambdaBasicExecutionRole` too, so one service could write lines into another's log group, and the shipper and
+the forwarder would carry them as that service's telemetry. Each role now logs only to its own log group
+(`<function>-logs`); their table, fault-config and invoke grants are unchanged. Here a wrong ARN would have been
+worse than for the shipper: a service's logs are its telemetry, so its data would stop while its requests still
+succeeded. How it was checked:
+
+- **The changeset:** the 5 roles modified in place. Eight more rows were `Dynamic` (the 5 functions, the API's
+  body, the extractor's schedule rule and its invoke permission, marked `Conditional`), all from referring to the
+  roles' or the functions' ARNs; with property values they resolved to no change. No function was touched, and all
+  five still match `v1`'s pin.
+- **Access Analyzer** found nothing on the 5 policies.
+- **IAM's policy simulator,** 20 of 20 as expected: each role may create log streams in and write to its own log
+  group, and not to a neighbour's.
+- **Live** (2026-11-17 01:11, 3 minutes at 20 rps from the runner, `exp-20261117T011156Z-4e33`): for each
+  service, its Lambda invocations (CloudWatch's count, which doesn't come from the logs), its records in `raw/` and
+  its records in `pipeline/records/` were equal: 2,746, 361, 564 and 174. Comparing `raw/` with
+  `pipeline/records/` alone can't show lost logging, since both come from the same log lines. No errors, throttles
+  or `AccessDenied`; every function created log streams and wrote one `REPORT` line per invocation; and the
+  extractor wrote every minute's snapshots straight through the deploy.
+
+The stub Lambda (`anomalypulse-stub-501`) keeps the role SAM gives it, with `AWSLambdaBasicExecutionRole`: it is a
+placeholder whose log group feeds nothing.
 
 ## Live windows and training windows (measured 2026-11-01)
 
