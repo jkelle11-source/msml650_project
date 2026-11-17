@@ -66,7 +66,9 @@ subscribes. The newest health is also an item in the Incidents table, for the da
   - A live run after the last change had no errors.
 
   The review added one restriction: each sender may put only its own events on the bus. The window builder's
-  bucket-wide `ListBucket` is accepted, and the shipper's broad grants are left for after M9-1.
+  bucket-wide `ListBucket` is accepted, and the shipper's broad grants are left for after M9-1. *Narrowed
+  2026-11-17, once `v1` was complete: the shipper is invoked only for the 4 service log groups and logs only to its
+  own (`Docs/PIPELINE.md`, "IAM at each hop").*
 
 ---
 
