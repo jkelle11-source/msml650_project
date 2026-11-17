@@ -278,12 +278,27 @@ late alarm and on the DLQ alarm, it gave one answer, not two: `implicitDeny` on 
 - **Every other alarm refused.** No policy of the role names another alarm, and it has no managed policies, so IAM
   refuses the rest by default.
 
-**After M9-1, outside this stack:** the shipper (`anomalypulse-shared`, frozen until M9-1) has two broad grants:
+**The shipper, outside this stack (narrowed 2026-11-17, after M9-1).** It had two broad grants, left until
+`anomalypulse-shared` could be deployed again: it could be invoked from any `/aws/lambda/anomalypulse-*` log group
+(14 matched, the pipeline's and the Diagnosis Lambda's among them), and it used `AWSLambdaBasicExecutionRole`. Now,
+as for the forwarder, it has one invoke permission per service log group, each named, in this account, and its
+role logs only to its own log group (`shipper-logs`). Its `PutObject` under `raw/` and `errors/` is unchanged.
+How it was checked:
 
-- it may be invoked from any `/aws/lambda/anomalypulse-*` log group;
-- it uses `AWSLambdaBasicExecutionRole`.
+- **The changeset** held only those changes: 4 permissions added, the wildcard one removed, the role modified in
+  place. Five more rows (the shipper and the four filters) were marked `Dynamic`, because they refer to the role's
+  and the shipper's ARNs; with property values they resolved to no change, and the shipper's code wasn't touched.
+  The four services and the metrics extractor still match `v1`'s pin.
+- **Access Analyzer** found nothing on `shipper-logs`.
+- **IAM's policy simulator,** 6 of 6 as expected: the shipper may create log streams in and write to its own log
+  group, not the cart service's, and may write `raw/`, not `datasets/`.
+- **Live** (2026-11-17 00:22, 3 minutes at 20 rps from the runner, `exp-20261117T002218Z-4c7a`): all 3,755 records
+  reached `raw/`, with the same request IDs, service by service, as `pipeline/records/`; no duplicates, nothing
+  in `errors/`; 133 shipper invocations with no errors, throttles or `AccessDenied`; and the shipper's new
+  execution environments created their log streams.
 
-Narrow both: name the 4 service log groups, and let it log only to its own.
+The four services and the metrics extractor still use `AWSLambdaBasicExecutionRole`. Their logs are the
+telemetry, so one wrong ARN in their roles would stop a service's data: narrowing them is a separate change.
 
 ## Live windows and training windows (measured 2026-11-01)
 

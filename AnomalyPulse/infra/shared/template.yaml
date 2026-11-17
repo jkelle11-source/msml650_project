@@ -506,7 +506,12 @@ Resources:
               - Effect: Allow
                 Action: dynamodb:Query
                 Resource: !GetAtt FaultConfigTable.Arn
-  
+
+  # Only what the shipper does: write raw/ and errors/, and log to its own log
+  # group. Not AWSLambdaBasicExecutionRole, which may write to any log group,
+  # the services' included, and those feed raw/ and the pipeline. The log group
+  # isn't in this stack: Lambda created it on the shipper's first run.
+
   ShipperRole:
     Type: AWS::IAM::Role
     Properties:
@@ -517,9 +522,16 @@ Resources:
             Principal: 
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
+        - PolicyName: shipper-logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/anomalypulse-telemetry-shipper:*'
         - PolicyName: shipper-s3-write
           PolicyDocument:
             Version: '2012-10-17'
@@ -673,21 +685,52 @@ Resources:
 
 
   # ---- Invoke Permissions ---------------------------------------
+  # CloudWatch Logs may invoke the shipper for the four service log groups only,
+  # one statement each (a statement holds one SourceArn). A wildcard such as
+  # /aws/lambda/anomalypulse-* matched 14 log groups on 2026-11-16, the
+  # pipeline's and the diagnosis Lambda's among them.
 
-  ShipperInvokePermission:
+  ProductShipperPermission:
     Type: AWS::Lambda::Permission
-    Properties: 
+    Properties:
       FunctionName: !Ref ShipperFunction
       Action: lambda:InvokeFunction
       Principal: !Sub 'logs.${AWS::Region}.amazonaws.com'
       SourceAccount: !Ref AWS::AccountId
-      SourceArn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/anomalypulse-*:*'
+      SourceArn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/anomalypulse-product:*'
+
+  PaymentShipperPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ShipperFunction
+      Action: lambda:InvokeFunction
+      Principal: !Sub 'logs.${AWS::Region}.amazonaws.com'
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/anomalypulse-payment:*'
+
+  CartShipperPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ShipperFunction
+      Action: lambda:InvokeFunction
+      Principal: !Sub 'logs.${AWS::Region}.amazonaws.com'
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/anomalypulse-cart:*'
+
+  OrderShipperPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ShipperFunction
+      Action: lambda:InvokeFunction
+      Principal: !Sub 'logs.${AWS::Region}.amazonaws.com'
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/anomalypulse-order:*'
 
   # ---- Subscription Filters ---------------------------------------
 
   ProductSubscription:
     Type: AWS::Logs::SubscriptionFilter
-    DependsOn: ShipperInvokePermission
+    DependsOn: ProductShipperPermission
     Properties:
       LogGroupName: !Ref ProductLogGroup
       DestinationArn: !GetAtt ShipperFunction.Arn
@@ -695,7 +738,7 @@ Resources:
   
   CartSubscription:
     Type: AWS::Logs::SubscriptionFilter
-    DependsOn: ShipperInvokePermission
+    DependsOn: CartShipperPermission
     Properties:
       LogGroupName: !Ref CartLogGroup
       DestinationArn: !GetAtt ShipperFunction.Arn
@@ -703,7 +746,7 @@ Resources:
   
   PaymentSubscription:
     Type: AWS::Logs::SubscriptionFilter
-    DependsOn: ShipperInvokePermission
+    DependsOn: PaymentShipperPermission
     Properties:
       LogGroupName: !Ref PaymentLogGroup
       DestinationArn: !GetAtt ShipperFunction.Arn
@@ -711,7 +754,7 @@ Resources:
   
   OrderSubscription:
     Type: AWS::Logs::SubscriptionFilter
-    DependsOn: ShipperInvokePermission
+    DependsOn: OrderShipperPermission
     Properties:
       LogGroupName: !Ref OrderLogGroup
       DestinationArn: !GetAtt ShipperFunction.Arn
