@@ -382,6 +382,9 @@ Resources:
         Enabled: true
   
   # ---- Per-service IAM Roles ----------------------------------------
+  # Each service logs only to its own log group, which its subscription filters
+  # ship as telemetry. Not AWSLambdaBasicExecutionRole, which may write to any
+  # log group: one service could then write lines into another's.
 
   ProductRole:
     Type: AWS::IAM::Role
@@ -393,9 +396,16 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Policies: 
+      Policies:
+        - PolicyName: product-logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt ProductLogGroup.Arn
         - PolicyName: product-dynamodb-read
           PolicyDocument: 
             Version: '2012-10-17'
@@ -425,9 +435,16 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
+        - PolicyName: cart-logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt CartLogGroup.Arn
         - PolicyName: cart-dynamodb-readwrite
           PolicyDocument: 
             Version: '2012-10-17'
@@ -458,9 +475,16 @@ Resources:
             Principal: 
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
+        - PolicyName: order-logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt OrderLogGroup.Arn
         - PolicyName: order-dynamodb-readwrite
           PolicyDocument: 
             Version: '2012-10-17'
@@ -496,9 +520,16 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
+        - PolicyName: payment-logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt PaymentLogGroup.Arn
         - PolicyName: payment-fault-config-read
           PolicyDocument: 
             Version: '2012-10-17'
@@ -552,9 +583,16 @@ Resources:
             Principal: 
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
+        - PolicyName: metrics-extractor-logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/anomalypulse-metrics-extractor:*'
         - PolicyName: metrics-extractor-cloudwatch-read
           PolicyDocument:
             Version: '2012-10-17'
