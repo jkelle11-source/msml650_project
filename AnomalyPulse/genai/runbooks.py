@@ -5,7 +5,8 @@
 With five types the pick is a lookup, so there is no vector store: a runbook is
 the wrong one exactly when the classification is, and "retrieval quality" is
 the classifier's accuracy (M9-2). The runbooks feed recommended_actions only
-(prompt.user_message), behind ANOMALYPULSE_RUNBOOKS, which is off by default.
+(prompt.user_message), behind ANOMALYPULSE_RUNBOOKS: off when unset, on in
+infra/genai/template.yaml (M9-5).
 
 The texts are written for an on-call engineer on this stack, with its real
 numbers (Handoffs/M6-1_Handoff.md, section 4): every number in a runbook becomes
