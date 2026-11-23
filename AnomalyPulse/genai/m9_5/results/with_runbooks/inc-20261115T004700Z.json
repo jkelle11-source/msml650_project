@@ -1,0 +1,177 @@
+{
+ "diagnosis": {
+  "severity": "HIGH",
+  "summary": "A traffic surge and DynamoDB read throttling on the product-service table are active at the same time, affecting all four services. Product-service p95 latency is at 3196 ms against a baseline of 6.56 ms and its 5xx error rate is 1.56% against a baseline of 0. The incident has been running for approximately 2 minutes.",
+  "root_cause": "A traffic surge across all four services and DynamoDB read throttling on the product-service table, active at the same time, are the most likely root cause.",
+  "evidence": [
+   "Request rate rose on all four services: product-service from 14.98 to 27.87 rps (86% increase), cart-service from 2.05 to 6.15 rps (~3x), order-service from 2.97 to 8.83 rps (~3x), and payment-service from 0.94 to 4.55 rps (~4.8x).",
+   "Product-service read throttle events are at 7031/min and throttled requests at 5223/min, both up from a baseline of 0.",
+   "Product-service db_latency_ms_p95 rose from 5.61 ms to 3196 ms, approximately 570x the baseline.",
+   "Product-service p95_latency_ms rose from 6.56 ms to 3196 ms, approximately a 487x increase from baseline.",
+   "Product-service error_rate_5xx is at 1.56%, up from a baseline of 0.",
+   "Product-service lambda_duration_ms_mean rose from 2.49 ms to 7.49 ms, approximately a 3x increase from baseline."
+  ],
+  "recommended_actions": [
+   "Increase read capacity on the product-service DynamoDB table immediately to reduce the 7031 read throttle events/min and restore p95 latency and error rate; this is the fault with the most direct user impact.",
+   "Set rate and burst limits on the API Gateway stage to cap the traffic surge and prevent further pressure on all services while the throttling fault is being addressed.",
+   "Check Lambda concurrency across all four services to confirm the shared account concurrency limit is not being exhausted given the broad request rate increase.",
+   "Review product-service Lambda logs for timeout and retry patterns during the throttling window to understand the error volume.",
+   "After increasing DynamoDB capacity, recheck all signals including request_rate, read_throttle_events, db_latency_ms_p95, and error_rate_5xx to confirm each fault has cleared before making further changes."
+  ]
+ },
+ "evidence_metrics": [
+  [
+   "product-service.request_rate",
+   "cart-service.request_rate",
+   "order-service.request_rate",
+   "payment-service.request_rate"
+  ],
+  [
+   "product-service.read_throttle_events",
+   "product-service.throttled_requests"
+  ],
+  [
+   "product-service.db_latency_ms_p95"
+  ],
+  [
+   "product-service.p95_latency_ms"
+  ],
+  [
+   "product-service.error_rate_5xx"
+  ],
+  [
+   "product-service.lambda_duration_ms_mean"
+  ]
+ ],
+ "self_check": {
+  "passed": true,
+  "findings": []
+ },
+ "runbook": "cascading_failure",
+ "calls": [
+  {
+   "incident_id": "inc-20261115T004700Z",
+   "diagnosis": {
+    "severity": "HIGH",
+    "summary": "A traffic surge and DynamoDB read throttling on the product-service table are active at the same time, affecting all four services. Product-service p95 latency is at 3196 ms against a baseline of 6.56 ms and its 5xx error rate is 1.56% against a baseline of 0. The incident has been running for approximately 2 minutes.",
+    "root_cause": "A traffic surge across all four services and DynamoDB read throttling on the product-service table, active at the same time, are the most likely root cause.",
+    "evidence": [
+     "Request rate rose on all four services: product-service from 14.98 to 27.87 rps (86% increase), cart-service from 2.05 to 6.15 rps (~3x), order-service from 2.97 to 8.83 rps (~3x), and payment-service from 0.94 to 4.55 rps (~4.8x).",
+     "Product-service read throttle events are at 7031/min and throttled requests at 5223/min, both up from a baseline of 0.",
+     "Product-service db_latency_ms_p95 rose from 5.61 ms to 3196 ms, approximately a 569x increase from baseline.",
+     "Product-service p95_latency_ms rose from 6.56 ms to 3196 ms, approximately a 487x increase from baseline.",
+     "Product-service error_rate_5xx is at 1.56%, up from a baseline of 0.",
+     "Product-service lambda_duration_ms_mean rose from 2.49 ms to 7.49 ms, approximately a 3x increase from baseline."
+    ],
+    "recommended_actions": [
+     "Increase read capacity on the product-service DynamoDB table immediately to reduce the 7031 read throttle events/min and restore p95 latency and error rate; this is the fault with the most direct user impact.",
+     "Set rate and burst limits on the API Gateway stage to cap the traffic surge and prevent further pressure on all services while the throttling fault is being addressed.",
+     "Check Lambda concurrency across all four services to confirm the shared account concurrency limit is not being exhausted given the broad request rate increase.",
+     "Review product-service Lambda logs for timeout and retry patterns during the throttling window to understand the error volume.",
+     "After increasing DynamoDB capacity, recheck all signals including request_rate, read_throttle_events, db_latency_ms_p95, and error_rate_5xx to confirm each fault has cleared before making further changes."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "product-service.request_rate",
+     "cart-service.request_rate",
+     "order-service.request_rate",
+     "payment-service.request_rate"
+    ],
+    [
+     "product-service.read_throttle_events",
+     "product-service.throttled_requests"
+    ],
+    [
+     "product-service.db_latency_ms_p95"
+    ],
+    [
+     "product-service.p95_latency_ms"
+    ],
+    [
+     "product-service.error_rate_5xx"
+    ],
+    [
+     "product-service.lambda_duration_ms_mean"
+    ]
+   ],
+   "runbook": "cascading_failure",
+   "self_check": {
+    "passed": false,
+    "findings": [
+     "evidence[2]: the number 569 is not in or derivable from the input"
+    ]
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 3385,
+    "output_tokens": 2379
+   },
+   "latency_ms": 18148
+  },
+  {
+   "incident_id": "inc-20261115T004700Z",
+   "diagnosis": {
+    "severity": "HIGH",
+    "summary": "A traffic surge and DynamoDB read throttling on the product-service table are active at the same time, affecting all four services. Product-service p95 latency is at 3196 ms against a baseline of 6.56 ms and its 5xx error rate is 1.56% against a baseline of 0. The incident has been running for approximately 2 minutes.",
+    "root_cause": "A traffic surge across all four services and DynamoDB read throttling on the product-service table, active at the same time, are the most likely root cause.",
+    "evidence": [
+     "Request rate rose on all four services: product-service from 14.98 to 27.87 rps (86% increase), cart-service from 2.05 to 6.15 rps (~3x), order-service from 2.97 to 8.83 rps (~3x), and payment-service from 0.94 to 4.55 rps (~4.8x).",
+     "Product-service read throttle events are at 7031/min and throttled requests at 5223/min, both up from a baseline of 0.",
+     "Product-service db_latency_ms_p95 rose from 5.61 ms to 3196 ms, approximately 570x the baseline.",
+     "Product-service p95_latency_ms rose from 6.56 ms to 3196 ms, approximately a 487x increase from baseline.",
+     "Product-service error_rate_5xx is at 1.56%, up from a baseline of 0.",
+     "Product-service lambda_duration_ms_mean rose from 2.49 ms to 7.49 ms, approximately a 3x increase from baseline."
+    ],
+    "recommended_actions": [
+     "Increase read capacity on the product-service DynamoDB table immediately to reduce the 7031 read throttle events/min and restore p95 latency and error rate; this is the fault with the most direct user impact.",
+     "Set rate and burst limits on the API Gateway stage to cap the traffic surge and prevent further pressure on all services while the throttling fault is being addressed.",
+     "Check Lambda concurrency across all four services to confirm the shared account concurrency limit is not being exhausted given the broad request rate increase.",
+     "Review product-service Lambda logs for timeout and retry patterns during the throttling window to understand the error volume.",
+     "After increasing DynamoDB capacity, recheck all signals including request_rate, read_throttle_events, db_latency_ms_p95, and error_rate_5xx to confirm each fault has cleared before making further changes."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "product-service.request_rate",
+     "cart-service.request_rate",
+     "order-service.request_rate",
+     "payment-service.request_rate"
+    ],
+    [
+     "product-service.read_throttle_events",
+     "product-service.throttled_requests"
+    ],
+    [
+     "product-service.db_latency_ms_p95"
+    ],
+    [
+     "product-service.p95_latency_ms"
+    ],
+    [
+     "product-service.error_rate_5xx"
+    ],
+    [
+     "product-service.lambda_duration_ms_mean"
+    ]
+   ],
+   "runbook": "cascading_failure",
+   "self_check": {
+    "passed": true,
+    "findings": []
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 4258,
+    "output_tokens": 1198
+   },
+   "latency_ms": 7386
+  }
+ ]
+}

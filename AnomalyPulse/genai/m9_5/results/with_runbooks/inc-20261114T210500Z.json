@@ -1,0 +1,110 @@
+{
+ "diagnosis": {
+  "severity": "LOW",
+  "summary": "Cart-service has been classified as a DATABASE_THROTTLING incident. In this one-minute window all DynamoDB throttle counts are zero, p95 end-to-end latency is 8.33 ms against a baseline of 8.87 ms, and 5xx error rate is zero. Request rate has risen from 2.05 to 3.57 rps, a 74% increase.",
+  "root_cause": "DynamoDB throttling on the cart-service table is the most likely root cause, though in this window throttled_requests, read_throttle_events, and write_throttle_events all remain at zero with no latency elevation or 5xx errors present.",
+  "evidence": [
+   "All three DynamoDB throttle counters \u2014 throttled_requests, read_throttle_events, and write_throttle_events \u2014 are at 0, unchanged from their baseline of 0.",
+   "db_latency_ms_p95 is 5.63 ms, slightly below its baseline of 6.58 ms, showing no tail-latency elevation in DynamoDB calls.",
+   "error_rate_5xx is 0, identical to its baseline of 0, with no failed requests in this window.",
+   "p95_latency_ms is 8.33 ms against a baseline of 8.87 ms, within normal range and not elevated.",
+   "request_rate rose from 2.05 rps to 3.57 rps, a 74% increase above baseline.",
+   "db_consumed_read_capacity is 0 in both baseline and current, indicating no read capacity was consumed in this window."
+  ],
+  "recommended_actions": [
+   "Monitor read_throttle_events and throttled_requests on the cart-service table closely over the next several minutes given the 74% rise in request_rate, as throttling may emerge if the elevated rate persists.",
+   "Check db_consumed_read_capacity in the next window to confirm whether the increased request rate is driving higher DynamoDB read consumption.",
+   "Recheck db_latency_ms_p95 and p95_latency_ms for any tail-latency growth that would indicate SDK retries beginning to accumulate inside DynamoDB calls.",
+   "If throttle counts rise, review the cart-service DynamoDB table capacity mode and consider whether the table's current configuration can sustain the observed request rate.",
+   "Watch error_rate_5xx for any increase, which would indicate requests exhausting all retry attempts against DynamoDB."
+  ]
+ },
+ "evidence_metrics": [
+  [
+   "cart-service.throttled_requests",
+   "cart-service.read_throttle_events",
+   "cart-service.write_throttle_events"
+  ],
+  [
+   "cart-service.db_latency_ms_p95"
+  ],
+  [
+   "cart-service.error_rate_5xx"
+  ],
+  [
+   "cart-service.p95_latency_ms"
+  ],
+  [
+   "cart-service.request_rate"
+  ],
+  [
+   "cart-service.db_consumed_read_capacity"
+  ]
+ ],
+ "self_check": {
+  "passed": true,
+  "findings": []
+ },
+ "runbook": "database_throttling",
+ "calls": [
+  {
+   "incident_id": "inc-20261114T210500Z",
+   "diagnosis": {
+    "severity": "LOW",
+    "summary": "Cart-service has been classified as a DATABASE_THROTTLING incident. In this one-minute window all DynamoDB throttle counts are zero, p95 end-to-end latency is 8.33 ms against a baseline of 8.87 ms, and 5xx error rate is zero. Request rate has risen from 2.05 to 3.57 rps, a 74% increase.",
+    "root_cause": "DynamoDB throttling on the cart-service table is the most likely root cause, though in this window throttled_requests, read_throttle_events, and write_throttle_events all remain at zero with no latency elevation or 5xx errors present.",
+    "evidence": [
+     "All three DynamoDB throttle counters \u2014 throttled_requests, read_throttle_events, and write_throttle_events \u2014 are at 0, unchanged from their baseline of 0.",
+     "db_latency_ms_p95 is 5.63 ms, slightly below its baseline of 6.58 ms, showing no tail-latency elevation in DynamoDB calls.",
+     "error_rate_5xx is 0, identical to its baseline of 0, with no failed requests in this window.",
+     "p95_latency_ms is 8.33 ms against a baseline of 8.87 ms, within normal range and not elevated.",
+     "request_rate rose from 2.05 rps to 3.57 rps, a 74% increase above baseline.",
+     "db_consumed_read_capacity is 0 in both baseline and current, indicating no read capacity was consumed in this window."
+    ],
+    "recommended_actions": [
+     "Monitor read_throttle_events and throttled_requests on the cart-service table closely over the next several minutes given the 74% rise in request_rate, as throttling may emerge if the elevated rate persists.",
+     "Check db_consumed_read_capacity in the next window to confirm whether the increased request rate is driving higher DynamoDB read consumption.",
+     "Recheck db_latency_ms_p95 and p95_latency_ms for any tail-latency growth that would indicate SDK retries beginning to accumulate inside DynamoDB calls.",
+     "If throttle counts rise, review the cart-service DynamoDB table capacity mode and consider whether the table's current configuration can sustain the observed request rate.",
+     "Watch error_rate_5xx for any increase, which would indicate requests exhausting all retry attempts against DynamoDB."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "cart-service.throttled_requests",
+     "cart-service.read_throttle_events",
+     "cart-service.write_throttle_events"
+    ],
+    [
+     "cart-service.db_latency_ms_p95"
+    ],
+    [
+     "cart-service.error_rate_5xx"
+    ],
+    [
+     "cart-service.p95_latency_ms"
+    ],
+    [
+     "cart-service.request_rate"
+    ],
+    [
+     "cart-service.db_consumed_read_capacity"
+    ]
+   ],
+   "runbook": "database_throttling",
+   "self_check": {
+    "passed": true,
+    "findings": []
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 3329,
+    "output_tokens": 2016
+   },
+   "latency_ms": 18487
+  }
+ ]
+}

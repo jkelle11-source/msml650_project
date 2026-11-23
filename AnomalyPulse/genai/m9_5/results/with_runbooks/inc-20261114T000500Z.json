@@ -1,0 +1,186 @@
+{
+ "diagnosis": {
+  "severity": "LOW",
+  "summary": "A traffic spike is active across all four services simultaneously. Request rates have risen 2.6x to 6.6x above baseline on product-service, cart-service, order-service, and payment-service. No 5xx errors have been recorded and order-service median latency remains in the low-millisecond range, indicating the stack is absorbing the load so far.",
+  "root_cause": "A broad traffic surge across all services is the most likely root cause, with higher-than-proportional load reaching order-service and payment-service.",
+  "evidence": [
+   "Request rates rose sharply on all four services: product-service from 14.98 to 38.52 rps (2.6x), cart-service from 2.05 to 8.13 rps (4.0x), order-service from 2.97 to 12.18 rps (4.1x), and payment-service from 0.94 to 6.25 rps (6.6x).",
+   "product-service DynamoDB read consumption rose from 449.3 to 1155.5 RCU/min (2.6x), tracking the increase in product-service request rate.",
+   "cart-service DynamoDB write consumption rose from 122.8 to 488.0 WCU/min (4.0x), in line with its request rate increase.",
+   "order-service DynamoDB write consumption rose from 56.6 to 375.0 WCU/min (6.6x) and read consumption rose from 60.8 to 178.5 RCU/min (2.9x), with writes growing disproportionately relative to the request rate increase.",
+   "order-service p50 latency rose from 3.6 ms to 14.1 ms (4.0x), remaining in the low-millisecond range.",
+   "product-service error_rate_5xx remains at 0, with no errors recorded despite the traffic increase."
+  ],
+  "recommended_actions": [
+   "Monitor lambda_throttle_count on all four services to detect whether the shared Lambda concurrency limit is being approached under the elevated load.",
+   "Watch product-service db_consumed_read_capacity and read_throttle_events closely, as reads are already at 1155.5 RCU/min and further traffic growth could approach provisioned capacity; be prepared to raise provisioned read capacity or switch the Products table to on-demand.",
+   "Check whether the traffic surge is expected (a promotion, a launch, or a client retrying) before making any infrastructure changes, since latency and errors are currently within acceptable bounds.",
+   "If latency or error rates begin to climb, set rate and burst limits on the API Gateway stage to protect the stack while the source of traffic is investigated.",
+   "If lambda_throttle_count rises, request a higher account concurrency quota or use reserved concurrency to protect critical functions such as order-service and payment-service."
+  ]
+ },
+ "evidence_metrics": [
+  [
+   "product-service.request_rate",
+   "cart-service.request_rate",
+   "order-service.request_rate",
+   "payment-service.request_rate"
+  ],
+  [
+   "product-service.db_consumed_read_capacity",
+   "product-service.request_rate"
+  ],
+  [
+   "cart-service.db_consumed_write_capacity",
+   "cart-service.request_rate"
+  ],
+  [
+   "order-service.db_consumed_write_capacity",
+   "order-service.db_consumed_read_capacity",
+   "order-service.request_rate"
+  ],
+  [
+   "order-service.p50_latency_ms"
+  ],
+  [
+   "product-service.error_rate_5xx"
+  ]
+ ],
+ "self_check": {
+  "passed": true,
+  "findings": []
+ },
+ "runbook": "traffic_spike",
+ "calls": [
+  {
+   "incident_id": "inc-20261114T000500Z",
+   "diagnosis": {
+    "severity": "LOW",
+    "summary": "A traffic spike is active across all four services simultaneously. Request rates have risen 2.6x to 6.6x above baseline on product-service, cart-service, order-service, and payment-service. No 5xx errors have been recorded and order-service median latency remains in the low-millisecond range, indicating the stack is absorbing the load so far.",
+    "root_cause": "A broad traffic surge across all services is the most likely root cause, with higher-than-proportional load reaching order-service and payment-service.",
+    "evidence": [
+     "Request rates rose sharply on all four services: product-service from 14.98 to 38.52 rps (2.6x), cart-service from 2.05 to 8.13 rps (4.0x), order-service from 2.97 to 12.18 rps (4.1x), and payment-service from 0.94 to 6.25 rps (6.6x).",
+     "product-service DynamoDB read consumption rose from 449.3 to 1155.5 RCU/min (2.6x), tracking the increase in product-service request rate.",
+     "cart-service DynamoDB write consumption rose from 122.8 to 488.0 WCU/min (4.0x), in line with its request rate increase.",
+     "order-service DynamoDB write consumption rose from 56.6 to 375.0 WCU/min (6.6x) and read consumption rose from 60.8 to 178.5 RCU/min (2.9x), with writes growing disproportionately relative to the request rate increase.",
+     "order-service p50 latency rose from 3.6 ms to 14.1 ms (3.9x), remaining in the low-millisecond range.",
+     "product-service error_rate_5xx remains at 0, with no errors recorded despite the traffic increase."
+    ],
+    "recommended_actions": [
+     "Monitor lambda_throttle_count on all four services to detect whether the shared Lambda concurrency limit is being approached under the elevated load.",
+     "Watch product-service db_consumed_read_capacity and read_throttle_events closely, as reads are already at 1155.5 RCU/min and further traffic growth could approach provisioned capacity; be prepared to raise provisioned read capacity or switch the Products table to on-demand.",
+     "Check whether the traffic surge is expected (a promotion, a launch, or a client retrying) before making any infrastructure changes, since latency and errors are currently within acceptable bounds.",
+     "If latency or error rates begin to climb, set rate and burst limits on the API Gateway stage to protect the stack while the source of traffic is investigated.",
+     "If lambda_throttle_count rises, request a higher account concurrency quota or use reserved concurrency to protect critical functions such as order-service and payment-service."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "product-service.request_rate",
+     "cart-service.request_rate",
+     "order-service.request_rate",
+     "payment-service.request_rate"
+    ],
+    [
+     "product-service.db_consumed_read_capacity",
+     "product-service.request_rate"
+    ],
+    [
+     "cart-service.db_consumed_write_capacity",
+     "cart-service.request_rate"
+    ],
+    [
+     "order-service.db_consumed_write_capacity",
+     "order-service.db_consumed_read_capacity",
+     "order-service.request_rate"
+    ],
+    [
+     "order-service.p50_latency_ms"
+    ],
+    [
+     "product-service.error_rate_5xx"
+    ]
+   ],
+   "runbook": "traffic_spike",
+   "self_check": {
+    "passed": false,
+    "findings": [
+     "evidence[4]: the number 3.9 is not in or derivable from the input"
+    ]
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 3446,
+    "output_tokens": 1503
+   },
+   "latency_ms": 12502
+  },
+  {
+   "incident_id": "inc-20261114T000500Z",
+   "diagnosis": {
+    "severity": "LOW",
+    "summary": "A traffic spike is active across all four services simultaneously. Request rates have risen 2.6x to 6.6x above baseline on product-service, cart-service, order-service, and payment-service. No 5xx errors have been recorded and order-service median latency remains in the low-millisecond range, indicating the stack is absorbing the load so far.",
+    "root_cause": "A broad traffic surge across all services is the most likely root cause, with higher-than-proportional load reaching order-service and payment-service.",
+    "evidence": [
+     "Request rates rose sharply on all four services: product-service from 14.98 to 38.52 rps (2.6x), cart-service from 2.05 to 8.13 rps (4.0x), order-service from 2.97 to 12.18 rps (4.1x), and payment-service from 0.94 to 6.25 rps (6.6x).",
+     "product-service DynamoDB read consumption rose from 449.3 to 1155.5 RCU/min (2.6x), tracking the increase in product-service request rate.",
+     "cart-service DynamoDB write consumption rose from 122.8 to 488.0 WCU/min (4.0x), in line with its request rate increase.",
+     "order-service DynamoDB write consumption rose from 56.6 to 375.0 WCU/min (6.6x) and read consumption rose from 60.8 to 178.5 RCU/min (2.9x), with writes growing disproportionately relative to the request rate increase.",
+     "order-service p50 latency rose from 3.6 ms to 14.1 ms (4.0x), remaining in the low-millisecond range.",
+     "product-service error_rate_5xx remains at 0, with no errors recorded despite the traffic increase."
+    ],
+    "recommended_actions": [
+     "Monitor lambda_throttle_count on all four services to detect whether the shared Lambda concurrency limit is being approached under the elevated load.",
+     "Watch product-service db_consumed_read_capacity and read_throttle_events closely, as reads are already at 1155.5 RCU/min and further traffic growth could approach provisioned capacity; be prepared to raise provisioned read capacity or switch the Products table to on-demand.",
+     "Check whether the traffic surge is expected (a promotion, a launch, or a client retrying) before making any infrastructure changes, since latency and errors are currently within acceptable bounds.",
+     "If latency or error rates begin to climb, set rate and burst limits on the API Gateway stage to protect the stack while the source of traffic is investigated.",
+     "If lambda_throttle_count rises, request a higher account concurrency quota or use reserved concurrency to protect critical functions such as order-service and payment-service."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "product-service.request_rate",
+     "cart-service.request_rate",
+     "order-service.request_rate",
+     "payment-service.request_rate"
+    ],
+    [
+     "product-service.db_consumed_read_capacity",
+     "product-service.request_rate"
+    ],
+    [
+     "cart-service.db_consumed_write_capacity",
+     "cart-service.request_rate"
+    ],
+    [
+     "order-service.db_consumed_write_capacity",
+     "order-service.db_consumed_read_capacity",
+     "order-service.request_rate"
+    ],
+    [
+     "order-service.p50_latency_ms"
+    ],
+    [
+     "product-service.error_rate_5xx"
+    ]
+   ],
+   "runbook": "traffic_spike",
+   "self_check": {
+    "passed": true,
+    "findings": []
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 4421,
+    "output_tokens": 1019
+   },
+   "latency_ms": 5543
+  }
+ ]
+}

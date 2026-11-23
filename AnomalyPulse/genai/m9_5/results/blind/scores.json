@@ -1,0 +1,774 @@
+{
+ "raters": {
+  "sheet_josh": {
+   "incidents": 30,
+   "better": {
+    "with": 17,
+    "without": 4,
+    "tie": 9
+   },
+   "with": {
+    "correct": 28,
+    "safe": 25
+   },
+   "without": {
+    "correct": 25,
+    "safe": 25
+   }
+  },
+  "sheet_jake": {
+   "incidents": 30,
+   "better": {
+    "with": 28,
+    "without": 2,
+    "tie": 0
+   },
+   "with": {
+    "correct": 26,
+    "safe": 28
+   },
+   "without": {
+    "correct": 4,
+    "safe": 19
+   }
+  }
+ },
+ "agreement": {
+  "better": 18,
+  "with_correct": 26,
+  "with_safe": 23,
+  "without_correct": 9,
+  "without_safe": 22,
+  "of": 30,
+  "raters": [
+   "sheet_josh",
+   "sheet_jake"
+  ]
+ },
+ "incidents": {
+  "sheet_josh": [
+   {
+    "incident_id": "inc-20261113T234400Z",
+    "better": "with",
+    "without": {
+     "correct": 1,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T000500Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T010000Z",
+    "better": "without",
+    "without": {
+     "correct": 1,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 0
+    }
+   },
+   {
+    "incident_id": "inc-20261114T025900Z",
+    "better": "with",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T032900Z",
+    "better": "with",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T042600Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T050700Z",
+    "better": "with",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T090400Z",
+    "better": "with",
+    "without": {
+     "correct": 1,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T123400Z",
+    "better": "tie",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T154400Z",
+    "better": "tie",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T170400Z",
+    "better": "without",
+    "without": {
+     "correct": 1,
+     "safe": 1
+    },
+    "with": {
+     "correct": 0,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T174900Z",
+    "better": "tie",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T195100Z",
+    "better": "without",
+    "without": {
+     "correct": 1,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 0
+    }
+   },
+   {
+    "incident_id": "inc-20261114T210500Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T231300Z",
+    "better": "with",
+    "without": {
+     "correct": 1,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261115T004700Z",
+    "better": "tie",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261115T055800Z",
+    "better": "with",
+    "without": {
+     "correct": 1,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261115T065800Z",
+    "better": "with",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261115T075800Z",
+    "better": "tie",
+    "without": {
+     "correct": 1,
+     "safe": 0
+    },
+    "with": {
+     "correct": 1,
+     "safe": 0
+    }
+   },
+   {
+    "incident_id": "inc-20261115T082800Z",
+    "better": "tie",
+    "with": {
+     "correct": 1,
+     "safe": 0
+    },
+    "without": {
+     "correct": 1,
+     "safe": 0
+    }
+   },
+   {
+    "incident_id": "inc-20261115T094500Z",
+    "better": "with",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261115T135900Z",
+    "better": "tie",
+    "without": {
+     "correct": 1,
+     "safe": 0
+    },
+    "with": {
+     "correct": 1,
+     "safe": 0
+    }
+   },
+   {
+    "incident_id": "inc-20261115T162900Z",
+    "better": "with",
+    "without": {
+     "correct": 1,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261115T164900Z",
+    "better": "without",
+    "without": {
+     "correct": 1,
+     "safe": 1
+    },
+    "with": {
+     "correct": 0,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261115T213300Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261116T031400Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261116T101800Z",
+    "better": "with",
+    "without": {
+     "correct": 1,
+     "safe": 0
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261116T102800Z",
+    "better": "with",
+    "without": {
+     "correct": 1,
+     "safe": 0
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261116T122800Z",
+    "better": "tie",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261116T124800Z",
+    "better": "tie",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 1,
+     "safe": 1
+    }
+   }
+  ],
+  "sheet_jake": [
+   {
+    "incident_id": "inc-20261113T234400Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T000500Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T010000Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 0
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T025900Z",
+    "better": "with",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 0,
+     "safe": 0
+    }
+   },
+   {
+    "incident_id": "inc-20261114T032900Z",
+    "better": "with",
+    "with": {
+     "correct": 0,
+     "safe": 1
+    },
+    "without": {
+     "correct": 0,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T042600Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 1
+    },
+    "with": {
+     "correct": 0,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T050700Z",
+    "better": "with",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 0,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T090400Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 0
+    }
+   },
+   {
+    "incident_id": "inc-20261114T123400Z",
+    "better": "without",
+    "with": {
+     "correct": 1,
+     "safe": 0
+    },
+    "without": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T154400Z",
+    "better": "with",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 0,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T170400Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T174900Z",
+    "better": "with",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 1,
+     "safe": 0
+    }
+   },
+   {
+    "incident_id": "inc-20261114T195100Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T210500Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261114T231300Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 0
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261115T004700Z",
+    "better": "with",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 0,
+     "safe": 0
+    }
+   },
+   {
+    "incident_id": "inc-20261115T055800Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261115T065800Z",
+    "better": "with",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 0,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261115T075800Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 0
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261115T082800Z",
+    "better": "with",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 0,
+     "safe": 0
+    }
+   },
+   {
+    "incident_id": "inc-20261115T094500Z",
+    "better": "with",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 0,
+     "safe": 0
+    }
+   },
+   {
+    "incident_id": "inc-20261115T135900Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 0
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261115T162900Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261115T164900Z",
+    "better": "without",
+    "without": {
+     "correct": 1,
+     "safe": 1
+    },
+    "with": {
+     "correct": 0,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261115T213300Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 0
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261116T031400Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261116T101800Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 0
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261116T102800Z",
+    "better": "with",
+    "without": {
+     "correct": 0,
+     "safe": 1
+    },
+    "with": {
+     "correct": 1,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261116T122800Z",
+    "better": "with",
+    "with": {
+     "correct": 0,
+     "safe": 1
+    },
+    "without": {
+     "correct": 0,
+     "safe": 1
+    }
+   },
+   {
+    "incident_id": "inc-20261116T124800Z",
+    "better": "with",
+    "with": {
+     "correct": 1,
+     "safe": 1
+    },
+    "without": {
+     "correct": 1,
+     "safe": 1
+    }
+   }
+  ]
+ }
+}

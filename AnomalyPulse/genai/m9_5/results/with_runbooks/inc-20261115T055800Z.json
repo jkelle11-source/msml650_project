@@ -1,0 +1,112 @@
+{
+ "diagnosis": {
+  "severity": "HIGH",
+  "summary": "Product-service is experiencing severe DynamoDB read throttling, with 3,333 read throttle events per minute and p95 end-to-end latency at 3,195.7 ms against a baseline of 6.6 ms, a roughly 487x increase. The 5xx error rate on product-service stands at 2.81%, up from a baseline of 0. Payment-service request rate has also risen above its baseline at 2.03 rps versus 0.94 rps.",
+  "root_cause": "DynamoDB read throttling on the Products table is the most likely root cause, with consumed read capacity and throttle counts far above baseline while write throttle events remain at zero.",
+  "evidence": [
+   "product-service read_throttle_events rose from 0 to 3,333/min and throttled_requests rose from 0 to 2,181/min, both from a baseline of zero.",
+   "product-service db_consumed_read_capacity rose from 449.3 to 59,267.5 RCU/min, approximately 132x its baseline.",
+   "product-service db_latency_ms_p95 rose from 5.6 ms to 3,195.1 ms (roughly 569x baseline) and db_latency_ms_mean rose from 4.0 ms to 509.3 ms (roughly 126x baseline).",
+   "product-service p95_latency_ms rose from 6.6 ms to 3,195.7 ms, roughly 487x its baseline, and error_rate_5xx stands at 2.81% against a baseline of 0.",
+   "product-service write_throttle_events remain at 0, the same as baseline, indicating throttling is confined to reads.",
+   "payment-service request_rate is 2.03 rps against a baseline of 0.94 rps, roughly 2.15x its baseline."
+  ],
+  "recommended_actions": [
+   "Raise the Products table provisioned read capacity or switch it to on-demand mode to relieve the read throttling immediately.",
+   "After changing capacity, recheck read_throttle_events and db_latency_ms_p95 to confirm the throttle counts and tail latency are returning toward baseline.",
+   "Reduce the read cost of GET /products by returning one page per call with a limit and next-page token instead of scanning the whole table, or cache the product list inside the Lambda function between invocations.",
+   "Keep SDK retry settings unchanged during the incident; reducing retry attempts would convert the current tail latency into a higher 5xx error rate.",
+   "Investigate the payment-service request rate increase in parallel, as it has risen to 2.03 rps from a baseline of 0.94 rps and may warrant separate attention."
+  ]
+ },
+ "evidence_metrics": [
+  [
+   "product-service.throttled_requests",
+   "product-service.read_throttle_events"
+  ],
+  [
+   "product-service.db_consumed_read_capacity"
+  ],
+  [
+   "product-service.db_latency_ms_p95",
+   "product-service.db_latency_ms_mean"
+  ],
+  [
+   "product-service.p95_latency_ms",
+   "product-service.error_rate_5xx"
+  ],
+  [
+   "product-service.write_throttle_events"
+  ],
+  [
+   "payment-service.request_rate"
+  ]
+ ],
+ "self_check": {
+  "passed": true,
+  "findings": []
+ },
+ "runbook": "database_throttling",
+ "calls": [
+  {
+   "incident_id": "inc-20261115T055800Z",
+   "diagnosis": {
+    "severity": "HIGH",
+    "summary": "Product-service is experiencing severe DynamoDB read throttling, with 3,333 read throttle events per minute and p95 end-to-end latency at 3,195.7 ms against a baseline of 6.6 ms, a roughly 487x increase. The 5xx error rate on product-service stands at 2.81%, up from a baseline of 0. Payment-service request rate has also risen above its baseline at 2.03 rps versus 0.94 rps.",
+    "root_cause": "DynamoDB read throttling on the Products table is the most likely root cause, with consumed read capacity and throttle counts far above baseline while write throttle events remain at zero.",
+    "evidence": [
+     "product-service read_throttle_events rose from 0 to 3,333/min and throttled_requests rose from 0 to 2,181/min, both from a baseline of zero.",
+     "product-service db_consumed_read_capacity rose from 449.3 to 59,267.5 RCU/min, approximately 132x its baseline.",
+     "product-service db_latency_ms_p95 rose from 5.6 ms to 3,195.1 ms (roughly 569x baseline) and db_latency_ms_mean rose from 4.0 ms to 509.3 ms (roughly 126x baseline).",
+     "product-service p95_latency_ms rose from 6.6 ms to 3,195.7 ms, roughly 487x its baseline, and error_rate_5xx stands at 2.81% against a baseline of 0.",
+     "product-service write_throttle_events remain at 0, the same as baseline, indicating throttling is confined to reads.",
+     "payment-service request_rate is 2.03 rps against a baseline of 0.94 rps, roughly 2.15x its baseline."
+    ],
+    "recommended_actions": [
+     "Raise the Products table provisioned read capacity or switch it to on-demand mode to relieve the read throttling immediately.",
+     "After changing capacity, recheck read_throttle_events and db_latency_ms_p95 to confirm the throttle counts and tail latency are returning toward baseline.",
+     "Reduce the read cost of GET /products by returning one page per call with a limit and next-page token instead of scanning the whole table, or cache the product list inside the Lambda function between invocations.",
+     "Keep SDK retry settings unchanged during the incident; reducing retry attempts would convert the current tail latency into a higher 5xx error rate.",
+     "Investigate the payment-service request rate increase in parallel, as it has risen to 2.03 rps from a baseline of 0.94 rps and may warrant separate attention."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "product-service.throttled_requests",
+     "product-service.read_throttle_events"
+    ],
+    [
+     "product-service.db_consumed_read_capacity"
+    ],
+    [
+     "product-service.db_latency_ms_p95",
+     "product-service.db_latency_ms_mean"
+    ],
+    [
+     "product-service.p95_latency_ms",
+     "product-service.error_rate_5xx"
+    ],
+    [
+     "product-service.write_throttle_events"
+    ],
+    [
+     "payment-service.request_rate"
+    ]
+   ],
+   "runbook": "database_throttling",
+   "self_check": {
+    "passed": true,
+    "findings": []
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 3502,
+    "output_tokens": 2272
+   },
+   "latency_ms": 18770
+  }
+ ]
+}

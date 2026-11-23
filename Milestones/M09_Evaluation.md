@@ -181,10 +181,27 @@ per-run usage is the starting point for this ticket's cost per experiment and pe
   shown. Score the stored diagnoses (`diagnosis`, `self_check`, `evidence_metrics`, `diagnosis_input` in the
   record), and the store's `incident_retry` log lines give how often a retry was kept and what it still found.
 
+**Scored 2026-11-19** ([`Docs/GENAI_EVALUATION.md`](../Docs/GENAI_EVALUATION.md); `AnomalyPulse/genai/m9_5/`), over
+the 296 stored test-set diagnoses (runbooks off, as deployed): evidence fidelity 97.6% (50 of 2,095 claims
+unsupported), hallucination 0.46% of mentions, 94.5% of moved metrics cited. 47 of the 50 unsupported claims are
+`DATABASE_THROTTLING` diagnoses whose input held only payment-service, which the test mix makes look affected:
+Bedrock restated the type with no metric for it, and retries couldn't fix that. 128 of 296 diagnoses have an action
+that's wrong about this stack: the capacity slip in 82 (68 of 77 traffic spikes), and X-Ray, which the stack doesn't
+run, in 50 (43 of 60 Lambda degradations). The runbook comparison ran on 30 incidents (38 Bedrock calls): stack errors
+15 → 2, one runbook-only fact in 211 claims. **Rated blind 2026-11-22** by two raters: both preferred the runbook
+lists on 17 of 30 (one called 8 more a tie, the other picked runbooks), both preferred the lists without on 1.
+**`ANOMALYPULSE_RUNBOOKS` goes on for the demo.** The raters split on how many lists without runbooks were incorrect
+(5 vs 26): Jake also marked down X-Ray, which the sheet's stack facts don't rule out.
+
 **Definition of Done**
-- [ ] Evidence fidelity and hallucination rate computed over test-set diagnoses.
-- [ ] Actionability scored against a written rubric by ≥1 human rater.
-- [ ] Root-cause correctness explicitly **not** used as the headline GenAI metric (documented why).
+- [x] Evidence fidelity and hallucination rate computed over test-set diagnoses. *296 diagnoses: 97.6% of claims
+  supported, 0.46% of mentions hallucinated; the stress slice's 20 on their own line.*
+- [x] Actionability scored against a written rubric by ≥1 human rater. *Two raters, blind, on 30 test incidents
+  with and without runbooks (`sheet.py`'s rubric: better list, Correct, Safe); `GENAI_EVALUATION.md`,
+  "With and without runbooks, blind".*
+- [x] Root-cause correctness explicitly **not** used as the headline GenAI metric (documented why). *Bedrock is
+  handed the type, so it restates the classifier; 26 of 29 throttling diagnoses with no database metric still
+  named throttling as the root cause (`GENAI_EVALUATION.md`, "Why root-cause correctness isn't the headline").*
 
 ---
 

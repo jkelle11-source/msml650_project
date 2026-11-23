@@ -1,0 +1,88 @@
+{"event": "incident_retry", "incident_id": "inc-20261113T224500Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261113T230500Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261113T232500Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261113T234400Z", "for_type": "DEPENDENCY_FAILURE", "flagged": ["wording"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T002200Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261114T003900Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["metric"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T014900Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric", "number"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261114T021900Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["number", "severity"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T032900Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric", "number"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261114T041700Z", "for_type": "CASCADING_FAILURE", "flagged": ["wording"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T042600Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261114T043600Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261114T054700Z", "for_type": "DEPENDENCY_FAILURE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T055600Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261114T062700Z", "for_type": "DEPENDENCY_FAILURE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T064400Z", "for_type": "DEPENDENCY_FAILURE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T072300Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261114T074300Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261114T080400Z", "for_type": "LAMBDA_DEGRADATION", "flagged": ["wording"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T091400Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["number", "severity"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T101400Z", "for_type": "CASCADING_FAILURE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T105300Z", "for_type": "LAMBDA_DEGRADATION", "flagged": ["number"], "kept": false, "found": ["number"]}
+{"event": "incident_retry", "incident_id": "inc-20261114T112400Z", "for_type": "CASCADING_FAILURE", "flagged": ["number", "wording"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T114400Z", "for_type": "CASCADING_FAILURE", "flagged": ["wording"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T115400Z", "for_type": "DEPENDENCY_FAILURE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T121400Z", "for_type": "LAMBDA_DEGRADATION", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T124300Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["metric", "severity"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T161400Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T171400Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["metric"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T182100Z", "for_type": "CASCADING_FAILURE", "flagged": ["number", "wording"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T202100Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T202800Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric", "number"]}
+{"event": "incident_retry", "incident_id": "inc-20261114T205500Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["metric", "severity"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261114T212500Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261114T214500Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261114T215500Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261114T235300Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["number", "severity"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T000300Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261115T003000Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261115T010700Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T011700Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261115T045700Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["number", "severity"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T081800Z", "for_type": "DEPENDENCY_FAILURE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T090500Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["metric"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T094500Z", "for_type": "CASCADING_FAILURE", "flagged": ["number", "wording"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T112200Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["metric"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T122900Z", "for_type": "DEPENDENCY_FAILURE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T125900Z", "for_type": "LAMBDA_DEGRADATION", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T134900Z", "for_type": "CASCADING_FAILURE", "flagged": ["wording"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T140900Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["metric", "number", "severity"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T145900Z", "for_type": "CASCADING_FAILURE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T154900Z", "for_type": "CASCADING_FAILURE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T162900Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["metric", "number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T164900Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T170600Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric", "number"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261115T172700Z", "for_type": "LAMBDA_DEGRADATION", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T175300Z", "for_type": "CASCADING_FAILURE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T182300Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["number", "severity"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T183300Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261115T191300Z", "for_type": "CASCADING_FAILURE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T192400Z", "for_type": "DEPENDENCY_FAILURE", "flagged": ["wording"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T193300Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261115T194300Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261115T195300Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T201300Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261115T202300Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["metric", "number", "severity"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261115T204300Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261115T210300Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261115T220000Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": false, "found": ["metric"]}
+{"event": "incident_retry", "incident_id": "inc-20261115T222100Z", "for_type": "DEPENDENCY_FAILURE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T020000Z", "for_type": "CASCADING_FAILURE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T020000Z", "for_type": "DEPENDENCY_FAILURE", "flagged": ["wording"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T021700Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T023700Z", "for_type": "DEPENDENCY_FAILURE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T024700Z", "for_type": "CASCADING_FAILURE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T025700Z", "for_type": "DATABASE_THROTTLING", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T032400Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["metric"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T040400Z", "for_type": "CASCADING_FAILURE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T092800Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["metric"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T093800Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T104800Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T124800Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T133500Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["metric"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T144500Z", "for_type": "LAMBDA_DEGRADATION", "flagged": ["number"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T152500Z", "for_type": "TRAFFIC_SPIKE", "flagged": ["metric", "severity"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T153500Z", "for_type": "DATABASE_THROTTLING", "flagged": ["metric"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T155500Z", "for_type": "DATABASE_THROTTLING", "flagged": ["wording"], "kept": true, "found": []}
+{"event": "incident_retry", "incident_id": "inc-20261116T160500Z", "for_type": "DEPENDENCY_FAILURE", "flagged": ["number"], "kept": true, "found": []}
