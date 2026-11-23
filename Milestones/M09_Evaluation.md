@@ -92,10 +92,22 @@ feature error or a missing snapshot. Not inspected: only counts were read, no fe
 - **Extreme-extrapolation slice reported separately** from core metrics.
 - **Confounder accuracy:** how often co-occurring-but-not-cascading incidents are handled correctly. Over the confounder windows with both faults active, report three shares: predicted as either fault's type, as the labeled (first) type, and as `CASCADING_FAILURE`. Confounders are a test-only probe: the model never sees one in training, so a high `CASCADING_FAILURE` share is a finding to report, not a data error (`Docs/EVALUATION_INTEGRITY.md`, "Confounders").
 
+**Scored 2026-11-18, regenerated from a clean commit 2026-11-23 ([`Docs/M9-2_REPORT.md`](../Docs/M9-2_REPORT.md);
+results in `AnomalyPulse/ml/m9_2_results/`).** The deployed rule (the forest flags a window and the classifier names a
+fault), applied offline, has recall 0.999 and precision 0.956, with false alarms on 18 of 740 healthy windows. The
+classifier has accuracy 0.910 and macro-F1 0.869. **The Isolation Forest flags all 2,280 test windows,** because the
+test set's shifted endpoint mix moved the healthy baseline past its cut-off. **Dependency-failure recall is 0.54**
+(validation 0.99), in both bands, because the same shift changes Order's median latency. No model or cut-off was
+changed after scoring.
+
 **Definition of Done**
-- [ ] All metrics computed on test set (701–1050) only.
-- [ ] Per-band breakdown shows no sharp degradation on held-out bands (or the degradation is reported honestly).
-- [ ] Extreme slice is a separate line item, not folded into headline numbers.
+- [x] All metrics computed on test set (701–1050) only. *The headline is 320 runs without confounders, with all 350
+  beside it; the extreme slice and the validation reference are labeled apart.*
+- [x] Per-band breakdown shows no sharp degradation on held-out bands (or the degradation is reported honestly).
+  *Both dependency-failure bands are reported as degraded against validation, with the cause; the other three faults
+  hold.*
+- [x] Extreme slice is a separate line item, not folded into headline numbers. *Its own section (slots 1051–1070),
+  which also notes that it differs from the test set in traffic mix as well as severity.*
 
 ---
 
@@ -111,6 +123,10 @@ feature error or a missing snapshot. Not inspected: only counts were read, no fe
 - Threshold-baseline metrics reported **beside** every ML metric; margin called out, especially on cascades.
 - **Train/test gap** on held-out bands reported as the overfitting signal (distinct from baseline margin, per §8).
 - The Evaluation Integrity Statement (§6b) finalized, stating the claim boundary: generalization across held-out simulator regions, **not** to real-world incidents.
+
+**From `M9-2`** ([`Docs/M9-2_REPORT.md`](../Docs/M9-2_REPORT.md)): state the workload-shift weakness beside the band
+result. The classifier holds across held-out bands for three of the four fault types, but the shifted endpoint mix
+alone breaks the forest's cut-off and drops dependency-failure recall to 0.54.
 
 **Definition of Done**
 - [ ] Every ML result has its baseline shown next to it.
@@ -217,6 +233,9 @@ lists on 17 of 30 (one called 8 more a tie, the other picked runbooks), both pre
 - Detection latency, diagnosis latency, end-to-end latency measured on the live path.
 - Detection latency reported as **window-dominated (~1 min)** by design (§16); if the 15-second-window stretch experiment ran, include the latency/stability tradeoff.
 - Report-ready visualizations: confusion matrix, per-band performance, baseline-vs-ML margins, cost curves, latency breakdown.
+
+**From `M9-2`:** build the figures from `AnomalyPulse/ml/m9_2_results/metrics_m9_2.json`. Don't plot the Isolation
+Forest's recall or latency as a success: it flags every test window ([`Docs/M9-2_REPORT.md`](../Docs/M9-2_REPORT.md)).
 
 **Definition of Done**
 - [ ] Full latency chain measured and attributed (how much is the aggregation window).
