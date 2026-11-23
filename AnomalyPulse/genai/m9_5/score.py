@@ -20,6 +20,9 @@ root cause and evidence are claims; actions are scored by people (sheet.py).
   bullet cites it, and a service when a claim names it.
 - **The capacity slip** (M8-4): an action about a table's capacity that names the Carts or Orders table,
   both on-demand, or payment-service, which has none.
+- **The X-Ray slip:** an action that sends the engineer to X-Ray traces or a service map. Tracing is off on
+  every function and the API stage, so there is nothing to read. Suggesting to enable it is not a slip.
+- A **stack error** is an action with either slip.
 """
 import json
 import re
@@ -28,7 +31,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from genai import contract, runbooks, self_check
-from incidents import builder
+from incidents import builder, record
 
 HERE = Path(__file__).parent
 DATA, RESULTS = HERE / "data", HERE / "results"
@@ -38,6 +41,12 @@ CLAIM_FIELDS = ("summary", "root_cause", "evidence")
 UNSUPPORTED = {"number", "time", "service", "metric", "citation"}
 _SERVICE_WORD = re.compile(r"\b(product|cart|order|payment)(?:-service)?\b", re.IGNORECASE)
 _MISATTRIBUTED = "is not from the metrics it cites"
+_CITES_MISSING = "cites a metric the input lacks"
+# Read claim by claim on 2026-11-23: with-runbooks claims stating a fact only the runbook holds. The rules
+# catch a runbook's numbers and capacity modes only, so a fact like this one has to be listed.
+RUNBOOK_ONLY_CLAIMS = {("inc-20261116T124800Z", "evidence[4]")}     # "no requests have yet exhausted retries"
+_XRAY = re.compile(r"\bx-?ray\b", re.IGNORECASE)
+_ENABLE_XRAY = re.compile(r"\b(enable|turn on|activate)\b[^.;]{0,30}\bx-?ray\b", re.IGNORECASE)
 # Setting a table's capacity: provisioned capacity or throughput (not Lambda's provisioned concurrency),
 # auto-scaling, a capacity mode or limit, or raising capacity. Watching consumed capacity is not one.
 _SETTING = re.compile(r"\bprovisioned\b(?! concurrency)|auto-?scal|capacity mode|capacity (limits?|ceilings?)|"
@@ -99,7 +108,7 @@ def score_record(rec):
     # "evidence cites X, which is not in the input": every bullet citing X traces to nothing real.
     for field, _, cites in claims(rec):
         if cites is not None and set(cites) - inputs:
-            by_field[field].append(f"{field}: cites a metric the input lacks")
+            by_field[field].append(f"{field}: {_CITES_MISSING}")
     out = {"claims": Counter(), "unsupported": Counter(), "mentions": Counter(), "hallucinated": Counter(),
            "misattributed": 0, "unsupported_kinds": Counter()}
     for field, text, _ in claims(rec):
@@ -108,7 +117,7 @@ def score_record(rec):
         out["mentions"].update(mentions(text))
         kinds = set()
         for f in by_field[field]:
-            k = "citation" if "cites" in f else self_check.kind(f)
+            k = "citation" if f.endswith(_CITES_MISSING) else self_check.kind(f)
             if k in UNSUPPORTED:
                 kinds.add(k)
                 if _MISATTRIBUTED in f:
@@ -121,6 +130,7 @@ def score_record(rec):
     out["findings"] = found
     out["completeness"] = completeness(rec)
     out["capacity_slips"] = capacity_slips(rec)
+    out["xray_slips"] = xray_slips(rec)
     return out
 
 
@@ -142,6 +152,11 @@ def capacity_slips(rec):
     """The recommended actions that check or change capacity on a table that has none to set."""
     return [a for a in rec["diagnosis"]["recommended_actions"]
             if _SETTING.search(a) and _TABLE.search(a) and _ON_DEMAND.search(a)]
+
+
+def xray_slips(rec):
+    """The recommended actions that send the engineer to X-Ray, which this stack doesn't run."""
+    return [a for a in rec["diagnosis"]["recommended_actions"] if _XRAY.search(a) and not _ENABLE_XRAY.search(a)]
 
 
 def _rate(part, whole):
@@ -171,7 +186,7 @@ def summarize(records):
             "evidence_fidelity": _rate(n_claims - n_unsup, n_claims),
             "by_field": {f: {"claims": claims_[f], "unsupported": unsupported[f],
                              "rate": _rate(unsupported[f], claims_[f])} for f in CLAIM_FIELDS},
-            "by_kind": dict(kinds),
+            "by_kind": dict(sorted(kinds.items())),
             "diagnoses_with_unsupported": sum(bool(s["unsupported"]) for s in scored),
             "misattributed_numbers": sum(s["misattributed"] for s in scored),
         },
@@ -191,6 +206,10 @@ def summarize(records):
         },
         "capacity_slips": {"diagnoses": sum(bool(s["capacity_slips"]) for s in scored),
                            "actions": sum(len(s["capacity_slips"]) for s in scored)},
+        "xray_slips": {"diagnoses": sum(bool(s["xray_slips"]) for s in scored),
+                       "actions": sum(len(s["xray_slips"]) for s in scored)},
+        "stack_errors": {"diagnoses": sum(bool(s["capacity_slips"] or s["xray_slips"]) for s in scored),
+                         "actions": sum(len(set(s["capacity_slips"] + s["xray_slips"])) for s in scored)},
         # The stored diagnosis carries the rubric's severity, so only the stored self-check knows Bedrock's own.
         "severity_disagreements": sum(any(self_check.kind(f) == "severity"
                                           for f in (r.get("self_check") or {}).get("findings") or [])
@@ -223,10 +242,25 @@ def report(records, lines):
         "retries_test": retry_summary([line for line in lines if line["incident_id"] in ids]),
         "held_back_now": sum(bool(set(self_check.kind(f) for f in (r["self_check"] or {}).get("findings", []))
                                   & {"wording", "citation"}) for r in test),
+        # Held back, or made for an earlier type than the incident's last one: the console shows neither.
+        "not_shown_on_console": sum(record.shown_diagnosis(r) is None for r in test),
+        "on_healthy_runs": {"diagnoses": sum(r["labeled_type"] == "NORMAL" for r in test),
+                            "runs": len({r["experiment_id"] for r in test if r["labeled_type"] == "NORMAL"})},
     }
 
 
-def runbook_sample(records, results_dir):
+def after_reading(with_records, listed=RUNBOOK_ONLY_CLAIMS):
+    """Fidelity once the runbook-only claims found by reading count as unsupported, each counted once."""
+    found = [{"incident_id": r["incident_id"], "field": field, "text": text}
+             for r in with_records for field, text, _ in claims(r)
+             if (r["incident_id"], field) in listed
+             and not any(_field(f) == field and self_check.kind(f) in UNSUPPORTED for f in findings(r))]
+    fidelity = summarize(with_records)["fidelity"]
+    return {"runbook_only_claims": found, "claims": fidelity["claims"],
+            "supported": fidelity["claims"] - fidelity["unsupported"] - len(found)}
+
+
+def runbook_sample(records, results_dir, listed=RUNBOOK_ONLY_CLAIMS):
     """The comparison's incidents scored both ways: the stored diagnosis, and compare.py's with runbooks
     (scored against the same input, with the runbook's text, so a runbook number is allowed in actions only)."""
     by_id = {r["incident_id"]: r for r in records}
@@ -234,6 +268,7 @@ def runbook_sample(records, results_dir):
     with_ = [{**rec, "diagnosis": on["diagnosis"], "evidence_metrics": on["evidence_metrics"],
               "self_check": on["self_check"], "runbook": on["runbook"]} for rec, on in pairs]
     return {"without": summarize([rec for rec, _ in pairs]), "with": summarize(with_),
+            "with_after_reading": after_reading(with_, listed),
             "bedrock_calls": sum(len(on["calls"]) for _, on in pairs)}
 
 
@@ -253,7 +288,8 @@ def main(argv=None):
           f"({t['hallucination']['hallucinated']} of {t['hallucination']['mentions']} mentions)")
     print(f"  completeness {t['completeness']['rate']:.1%} of moved metrics cited, "
           f"{t['completeness']['services_rate']:.1%} of affected services named")
-    print(f"  capacity slip in {t['capacity_slips']['diagnoses']} diagnoses")
+    print(f"  stack error in {t['stack_errors']['diagnoses']} diagnoses (capacity slip "
+          f"{t['capacity_slips']['diagnoses']}, X-Ray {t['xray_slips']['diagnoses']})")
     print(f"written to {RESULTS / 'scores.json'}")
     return 0
 

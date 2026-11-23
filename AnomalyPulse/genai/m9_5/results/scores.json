@@ -25,9 +25,8 @@
       },
       "by_kind": {
         "metric": 47,
-        "number": 4,
-        "service": 1,
-        "citation": 1
+        "number": 5,
+        "service": 1
       },
       "diagnoses_with_unsupported": 29,
       "misattributed_numbers": 1
@@ -74,6 +73,14 @@
       "diagnoses": 82,
       "actions": 90
     },
+    "xray_slips": {
+      "diagnoses": 50,
+      "actions": 53
+    },
+    "stack_errors": {
+      "diagnoses": 128,
+      "actions": 143
+    },
     "severity_disagreements": 35
   },
   "test_by_classified_type": {
@@ -102,7 +109,7 @@
           }
         },
         "by_kind": {
-          "citation": 1
+          "number": 1
         },
         "diagnoses_with_unsupported": 1,
         "misattributed_numbers": 1
@@ -146,6 +153,14 @@
         "services_rate": 1.0
       },
       "capacity_slips": {
+        "diagnoses": 68,
+        "actions": 75
+      },
+      "xray_slips": {
+        "diagnoses": 0,
+        "actions": 0
+      },
+      "stack_errors": {
         "diagnoses": 68,
         "actions": 75
       },
@@ -224,6 +239,14 @@
         "diagnoses": 7,
         "actions": 8
       },
+      "xray_slips": {
+        "diagnoses": 5,
+        "actions": 5
+      },
+      "stack_errors": {
+        "diagnoses": 9,
+        "actions": 13
+      },
       "severity_disagreements": 0
     },
     "LAMBDA_DEGRADATION": {
@@ -297,6 +320,14 @@
       "capacity_slips": {
         "diagnoses": 2,
         "actions": 2
+      },
+      "xray_slips": {
+        "diagnoses": 43,
+        "actions": 46
+      },
+      "stack_errors": {
+        "diagnoses": 44,
+        "actions": 48
       },
       "severity_disagreements": 11
     },
@@ -372,6 +403,14 @@
         "diagnoses": 0,
         "actions": 0
       },
+      "xray_slips": {
+        "diagnoses": 1,
+        "actions": 1
+      },
+      "stack_errors": {
+        "diagnoses": 1,
+        "actions": 1
+      },
       "severity_disagreements": 0
     },
     "CASCADING_FAILURE": {
@@ -443,6 +482,14 @@
       "capacity_slips": {
         "diagnoses": 5,
         "actions": 5
+      },
+      "xray_slips": {
+        "diagnoses": 1,
+        "actions": 1
+      },
+      "stack_errors": {
+        "diagnoses": 6,
+        "actions": 6
       },
       "severity_disagreements": 0
     }
@@ -522,6 +569,14 @@
         "diagnoses": 76,
         "actions": 84
       },
+      "xray_slips": {
+        "diagnoses": 46,
+        "actions": 49
+      },
+      "stack_errors": {
+        "diagnoses": 118,
+        "actions": 133
+      },
       "severity_disagreements": 35
     },
     "disagrees": {
@@ -549,8 +604,7 @@
           }
         },
         "by_kind": {
-          "number": 1,
-          "citation": 1
+          "number": 2
         },
         "diagnoses_with_unsupported": 2,
         "misattributed_numbers": 1
@@ -596,6 +650,14 @@
       "capacity_slips": {
         "diagnoses": 6,
         "actions": 6
+      },
+      "xray_slips": {
+        "diagnoses": 4,
+        "actions": 4
+      },
+      "stack_errors": {
+        "diagnoses": 10,
+        "actions": 10
       },
       "severity_disagreements": 0
     }
@@ -670,6 +732,14 @@
       "diagnoses": 4,
       "actions": 4
     },
+    "xray_slips": {
+      "diagnoses": 4,
+      "actions": 4
+    },
+    "stack_errors": {
+      "diagnoses": 8,
+      "actions": 8
+    },
     "severity_disagreements": 2
   },
   "retries_test": {
@@ -689,6 +759,11 @@
     }
   },
   "held_back_now": 0,
+  "not_shown_on_console": 3,
+  "on_healthy_runs": {
+    "diagnoses": 8,
+    "runs": 7
+  },
   "runbook_sample": {
     "without": {
       "diagnoses": 30,
@@ -715,8 +790,8 @@
           }
         },
         "by_kind": {
-          "number": 1,
-          "metric": 4
+          "metric": 4,
+          "number": 1
         },
         "diagnoses_with_unsupported": 2,
         "misattributed_numbers": 0
@@ -762,6 +837,14 @@
       "capacity_slips": {
         "diagnoses": 8,
         "actions": 10
+      },
+      "xray_slips": {
+        "diagnoses": 8,
+        "actions": 8
+      },
+      "stack_errors": {
+        "diagnoses": 15,
+        "actions": 18
       },
       "severity_disagreements": 6
     },
@@ -837,7 +920,26 @@
         "diagnoses": 2,
         "actions": 2
       },
+      "xray_slips": {
+        "diagnoses": 0,
+        "actions": 0
+      },
+      "stack_errors": {
+        "diagnoses": 2,
+        "actions": 2
+      },
       "severity_disagreements": 1
+    },
+    "with_after_reading": {
+      "runbook_only_claims": [
+        {
+          "incident_id": "inc-20261116T124800Z",
+          "field": "evidence[4]",
+          "text": "error_rate_5xx is 0 for both product-service and payment-service, indicating no requests have yet exhausted retries."
+        }
+      ],
+      "claims": 211,
+      "supported": 204
     },
     "bedrock_calls": 38
   }

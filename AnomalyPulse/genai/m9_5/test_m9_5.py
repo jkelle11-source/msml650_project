@@ -34,8 +34,9 @@ CITES = [["payment-service.p95_latency_ms"], ["order-service.error_rate_5xx"],
 
 
 def rec(phase="test", **diagnosis):
-    return {"incident_id": "inc-1", "phase": phase, "labeled_type": "DEPENDENCY_FAILURE", "runbook": None,
-            "diagnosis_input": copy.deepcopy(INPUT), "diagnosis": {**copy.deepcopy(GOOD), **diagnosis},
+    return {"incident_id": "inc-1", "experiment_id": "exp-1", "phase": phase, "labeled_type": "DEPENDENCY_FAILURE",
+            "runbook": None, "prediction": {"incident_type": "DEPENDENCY_FAILURE"},
+            "diagnosis_for_type": "DEPENDENCY_FAILURE", "diagnosis_input": copy.deepcopy(INPUT), "diagnosis": {**copy.deepcopy(GOOD), **diagnosis},
             "evidence_metrics": copy.deepcopy(CITES), "self_check": {"passed": True, "findings": []}}
 
 
@@ -65,12 +66,20 @@ def test_a_real_number_on_the_wrong_metric_is_misattributed_not_hallucinated():
     r["diagnosis"]["evidence"][1] = "Order's 5xx share rose to 16.7%, with 57 failed calls."
     s = score.score_record(r)
     assert s["unsupported"] == {"evidence": 1} and s["misattributed"] == 1 and not s["hallucinated"]
+    assert s["unsupported_kinds"] == {"number": 1}   # the word "cites" in its finding doesn't make it a citation
 
 
 def test_a_bullet_citing_a_metric_the_input_lacks_is_unsupported():
     r = rec()
     r["evidence_metrics"][2] = ["order-service.db_latency_ms_p95"]
-    assert score.score_record(r)["unsupported"] == {"evidence": 1}
+    s = score.score_record(r)
+    assert s["unsupported"] == {"evidence": 1} and s["unsupported_kinds"]["citation"] == 1
+
+
+def test_the_kinds_are_written_in_a_fixed_order():
+    r = rec(summary=GOOD["summary"] + " Cart-service is unaffected.")
+    r["diagnosis"]["evidence"][1] = "Order's 5xx share rose to 16.7%, with 57 failed calls."
+    assert list(score.summarize([r])["fidelity"]["by_kind"]) == ["number", "service"]
 
 
 def test_today_s_self_check_is_used_not_the_stored_one():
@@ -100,6 +109,38 @@ def test_the_capacity_slip(action, slip):
     assert bool(score.capacity_slips(rec(recommended_actions=[action]))) is slip
 
 
+@pytest.mark.parametrize("action, slip", [
+    # Real actions from the test set's diagnoses.
+    ("Inspect order-service Lambda CloudWatch Logs and X-Ray traces from the incident window.", True),
+    ("Verify payment-service dependency latency using X-Ray service map segments.", True),
+    ("Check xray traces for the slow handler.", True),
+    ("Enable AWS X-Ray active tracing on the order-service Lambda.", False),
+    ("Enable or review AWS X-Ray tracing on payment-service Lambda.", False),
+    ("Turn on X-Ray for the order-service function.", False),
+    ("Inspect payment-service CloudWatch Logs for errors.", False),
+    ("Review the gray failure pattern in order-service.", False),
+])
+def test_the_xray_slip(action, slip):
+    assert bool(score.xray_slips(rec(recommended_actions=[action]))) is slip
+
+
+def test_an_enable_in_another_sentence_does_not_excuse_reading_xray():
+    action = "Enable detailed metrics. Then read the X-Ray traces for order-service."
+    assert score.xray_slips(rec(recommended_actions=[action])) == [action]
+
+
+def test_stack_errors_count_a_diagnosis_and_an_action_with_both_slips_once():
+    both = "Check X-Ray traces and provisioned capacity on the Orders table."
+    capacity = "Raise write capacity on the order-service DynamoDB table."
+    xray = "Read the X-Ray service map."
+    out = score.summarize([rec(recommended_actions=[both, capacity, "Inspect the logs."]),
+                           rec(recommended_actions=[xray, "Inspect the logs.", "Check the metrics."]),
+                           rec()])
+    assert out["capacity_slips"] == {"diagnoses": 1, "actions": 2}
+    assert out["xray_slips"] == {"diagnoses": 2, "actions": 2}
+    assert out["stack_errors"] == {"diagnoses": 2, "actions": 3}
+
+
 # --- the summary and the retries ----------------------------------------------------------------
 
 def test_summarize_counts_rates_and_takes_severity_from_the_stored_check():
@@ -118,6 +159,15 @@ def test_the_report_keeps_the_stress_slice_apart():
     assert out["test_when_the_type_agrees_with_the_run"]["agrees"]["diagnoses"] == 1
 
 
+def test_the_report_counts_what_the_console_hid_and_diagnoses_on_healthy_runs():
+    shown = rec()
+    earlier_type = {**rec(), "experiment_id": "exp-2", "diagnosis_for_type": "LAMBDA_DEGRADATION"}
+    healthy = [{**rec(), "experiment_id": "exp-3", "labeled_type": "NORMAL"} for _ in range(2)]
+    out = score.report([shown, earlier_type, *healthy], [])
+    assert out["not_shown_on_console"] == 1
+    assert out["on_healthy_runs"] == {"diagnoses": 2, "runs": 1}
+
+
 def test_retry_summary():
     lines = [{"incident_id": "a", "for_type": "X", "flagged": ["metric"], "kept": False, "found": ["metric"]},
              {"incident_id": "b", "for_type": "X", "flagged": ["number"], "kept": True, "found": []}]
@@ -134,6 +184,18 @@ def test_the_runbook_sample_scores_a_runbook_only_fact_in_a_claim_as_unsupported
     assert out["without"]["fidelity"]["unsupported"] == 0
     assert out["with"]["fidelity"]["by_field"]["root_cause"]["unsupported"] == 1
     assert out["bedrock_calls"] == 1
+
+
+def test_a_claim_found_by_reading_counts_against_fidelity_once(tmp_path):
+    on = _reply()
+    on["diagnosis"]["root_cause"] = "The provisioned table is the most likely root cause."    # the rules flag this
+    (tmp_path / "inc-1.json").write_text(json.dumps({**on, "calls": [on]}))
+    read = score.runbook_sample([rec()], tmp_path, listed={("inc-1", "evidence[1]")})["with_after_reading"]
+    assert [c["field"] for c in read["runbook_only_claims"]] == ["evidence[1]"]
+    assert read["claims"] == 5 and read["supported"] == 3
+    # A listed claim the rules already flag isn't counted a second time.
+    again = score.runbook_sample([rec()], tmp_path, listed={("inc-1", "root_cause")})["with_after_reading"]
+    assert again["runbook_only_claims"] == [] and again["supported"] == 4
 
 
 # --- the comparison ----------------------------------------------------------------------------

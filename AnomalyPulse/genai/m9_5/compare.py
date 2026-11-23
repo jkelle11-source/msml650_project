@@ -2,7 +2,7 @@
 
     cd AnomalyPulse
     python -m genai.m9_5.compare --profile <profile> --dry-run    # the sample and what it would cost
-    python -m genai.m9_5.compare --profile <profile>              # calls Bedrock, about 3 cents a call
+    python -m genai.m9_5.compare --profile <profile>              # calls Bedrock, about 4 cents a call
 
 Without runbooks is the stored diagnosis: what the live store kept for the test set, retry included, from
 the request the switch off sends (byte-for-byte M6-1's, Docs/DIAGNOSIS_CONTRACT.md). With runbooks is a new
@@ -25,7 +25,7 @@ from incidents import record
 SAMPLE_PER_TYPE = 6
 SEED = 20261119
 OUT = score.RESULTS / "with_runbooks"
-COST_PER_CALL = 0.029     # M9-4's measured average (AnomalyPulse/cost/README.md)
+COST_PER_CALL = 0.038     # The 38 with-runbooks calls' own tokens, at Sonnet 4.6's $3 in / $15 out per million
 
 
 def sample(records):
