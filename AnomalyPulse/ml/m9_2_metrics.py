@@ -4,11 +4,13 @@
     python -m ml.m9_2_metrics --dataset ~/v1 \\
         --classifier incident_type=~/pkgs/incident_type \\
         --detector iforest=~/pkgs/iforest --detector binary=~/pkgs/binary \\
+        --job iforest=<training job> --job binary=<training job> --job incident_type=<training job> \\
         --out ~/m9-2-results [--with-validation-reference]
 
 --dataset is a local copy of `datasets/v1/` (tier1/features, tier2/labels, tier2/experiments.jsonl).
 Each --classifier / --detector is a folder holding model.joblib and model.json, the same packages
-ml/evaluate.py scores on validation (run in the training image's library versions).
+ml/evaluate.py scores on validation (run in the training image's library versions; the report
+records whether they match). --job records which training job a package came from.
 
 What it reports (Milestones/M09_Evaluation.md, M9-2). Everything is from the test set, slots 701-1050,
 except the extreme slice (slots 1051+, phase `stress`) which is its own section:
@@ -24,13 +26,19 @@ except the extreme slice (slots 1051+, phase `stress`) which is its own section:
                   the labeled (first) type, and as CASCADING_FAILURE.
     varied length 2- and 12-minute faults.
 
+With one Isolation Forest and one classifier, a third detector, `deployed`, applies the live path's
+rule to the stored windows: the forest flags the window AND the classifier names a fault
+(ml/diagnosis/handler.py). A detector that flags nearly every healthy window is called out as
+uninformative, since its recall and latency then follow from flagging everything.
+
 Definitions are the validation ones: ml/job/detection.py (window-level; anything but NORMAL is
 ANOMALY; latency from the fault's onset to the end of the first flagged labeled window) and
 ml/compare.py (six-class view). Nothing here fits or tunes anything: the Isolation Forest's cut-off
 is the package's, set on validation. The test set is scored once: the output files are not
-overwritten without --force.
+overwritten without --force. Why the results look as they do is ml/m9_2_diagnostics.py's job.
 """
 import argparse
+import hashlib
 import json
 import platform
 import subprocess
@@ -39,6 +47,7 @@ import zlib
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from importlib import metadata
 from pathlib import Path
 
 import numpy as np
@@ -66,7 +75,9 @@ LAST_TRAINING_DAY = "2026-10-25"
 STANDARD_DURATION_S = 300
 HALF_WINDOW_MS = 30_000             # labels/policy.py: a fault labels a window at >= 30 s of it
 HEADLINE_EXCLUDES = ("confounder",)  # a test-only probe with no clean single label; reported apart
-DEGRADATION_POINTS = 0.10           # a band this far below its reference is flagged (band_status)
+DEGRADATION_POINTS = 0.10           # a band more than this far below its reference is flagged (band_status)
+DEPLOYED = "deployed"               # the live rule: the forest flags the window AND the classifier names a fault
+UNINFORMATIVE_SHARE = 0.95          # a detector flagging this share of healthy windows can't tell them from faults
 OUT_JSON, OUT_MD = "metrics_m9_2.json", "metrics_m9_2.md"
 QUEUES = ("v1-test-1", "v1-test-2", "v1-test-3", "v1-stress")
 CHUNK = 200
@@ -192,6 +203,8 @@ class Package:
     role: str       # "classifier" (six classes), "iforest" or "binary" (the two detectors)
     model: object
     meta: dict
+    sha256: str = ""    # of model.joblib: which exact file was scored
+    job: str = None     # the training job it came from (--job)
 
 
 def package_role(meta):
@@ -200,14 +213,15 @@ def package_role(meta):
     return "binary" if meta.get("task") == "anomaly_binary" else "classifier"
 
 
-def load_package(name, directory, wanted):
+def load_package(name, directory, wanted, job=None):
     """wanted: "classifier" for a six-class package, "detector" for an Isolation Forest or binary one."""
     model, meta = evaluate.load_package(directory)
     role = package_role(meta)
     if (role == "classifier") != (wanted == "classifier"):
         raise MetricsError(f"{name}: {directory} is a {meta.get('task')} package, not a "
                            f"{'six-class classifier' if wanted == 'classifier' else 'detector'}")
-    return Package(name, role, model, meta)
+    digest = hashlib.sha256((Path(directory) / "model.joblib").read_bytes()).hexdigest()
+    return Package(name, role, model, meta, digest, job)
 
 
 def load_runs(dataset, eids):
@@ -271,7 +285,16 @@ def score_runs(dataset, meta, detectors, classifiers):
             scored.anomaly_scores[p.name] = np.asarray(p.model.predict_proba(X)[:, column], float)
     for p in classifiers:
         scored.preds[p.name] = evaluate.predict(p.model, p.meta, rows)
+    forests = [p for p in detectors if p.role == "iforest"]
+    if len(forests) == 1 and len(classifiers) == 1:
+        scored.flags[DEPLOYED] = deployed_flags(scored.flags[forests[0].name], scored.preds[classifiers[0].name])
     return scored
+
+
+def deployed_flags(forest_flags, predictions):
+    """The live path's decision for each window (ml/diagnosis/handler.py, detect_then_classify): an
+    incident when the forest flags the window AND the classifier names a fault."""
+    return np.asarray(forest_flags, bool) & np.asarray([p != NORMAL for p in predictions], bool)
 
 
 # --- slices and the bootstrap over runs ---
@@ -398,13 +421,18 @@ def detection_block(scored, name, eids, key):
     (detection.evaluate), with run-bootstrap CIs. Returns (block, per-run latency entries)."""
     sub = subset(scored, eids)
     flagged = scored.flags[name][sub.idx]
-    metrics, evaluation = detection.evaluate(sub.runs, sub.rows, sub.labels, flagged, scored.anomaly_scores[name][sub.idx])
+    ranked = name in scored.anomaly_scores      # the deployed rule is a yes/no, with no score to rank by
+    scores = scored.anomaly_scores[name][sub.idx] if ranked else flagged.astype(float)
+    metrics, evaluation = detection.evaluate(sub.runs, sub.rows, sub.labels, flagged, scores)
     counts = evaluation["confusion"]
     tp, fp, fn, tn = counts["tp"], counts["fp"], counts["fn"], counts["tn"]
-    defined = {"precision": tp + fp > 0, "recall": tp + fn > 0, "f1": tp + fp + fn > 0, "fpr": fp + tn > 0}
+    defined = {"precision": tp + fp > 0, "recall": tp + fn > 0, "f1": tp + fp + fn > 0, "fpr": fp + tn > 0,
+               "roc_auc": ranked, "average_precision": ranked}
+    # detection.evaluate's recall_at_healthy_fpr_1 is left out: it picks a cut-off from these windows,
+    # and on the test set that would be a cut-off tuned on test data.
     reported = {k: (metrics[k] if defined.get(k, True) else None) for k in
                 ("precision", "recall", "f1", "fpr", "fpr_healthy", "fault_start_flagged", "roc_auc",
-                 "average_precision", "recall_at_healthy_fpr_1")}
+                 "average_precision")}
     runs = evaluation["latency"]["runs"]
     latency = {k: v for k, v in evaluation["latency"].items() if k != "runs"}
     latency["median_ci95"] = bootstrap_median([e["latency_s"] for e in runs if e["detected"]], f"{key}/latency/{name}")
@@ -672,10 +700,32 @@ def git_state(root):
             "dirty": bool(dirty.stdout.strip()) if dirty.returncode == 0 else None}
 
 
-def package_summary(p):
+def library_versions():
+    """The versions this run used, named as a package's `libraries` names them."""
+    return {"python": platform.python_version(),
+            **{name: metadata.version(name) for name in ("numpy", "scikit-learn", "scipy", "joblib")}}
+
+
+def package_summary(p, environment):
     keep = ("format", "kind", "task", "estimator", "threshold", "settings", "rows", "runs", "metrics", "libraries")
+    trained = p.meta.get("libraries")
     return {"role": p.role, "columns": len(p.meta["columns"]), "classes": p.meta.get("classes"),
+            "job": p.job, "sha256": p.sha256,
+            "libraries_match": all(environment.get(k) == v for k, v in trained.items()) if trained else None,
             **{k: p.meta[k] for k in keep if k in p.meta}}
+
+
+def uninformative_detectors(detection_report):
+    """{detector: what it flagged} for each detector that flags nearly every healthy test window. Its
+    recall, latency and per-band rows then follow from flagging everything."""
+    out = {}
+    for name, blocks in detection_report.items():
+        share = blocks["headline"]["metrics"]["fpr_healthy"]
+        if share is not None and share >= UNINFORMATIVE_SHARE:
+            all_test = blocks["with_confounders"]
+            out[name] = {"healthy_flagged_share": share, "windows": all_test["windows"],
+                         "windows_flagged": all_test["counts"]["tp"] + all_test["counts"]["fp"]}
+    return out
 
 
 def build_report(dataset, queues, detectors, classifiers, seed=SEED, resamples=BOOTSTRAP, with_validation=False,
@@ -688,6 +738,7 @@ def build_report(dataset, queues, detectors, classifiers, seed=SEED, resamples=B
 
     test = [e for e, m in meta.items() if m["phase"] == "test"]
     headline = [e for e in test if meta[e]["kind"] not in HEADLINE_EXCLUDES]
+    environment = library_versions()
     report = {
         "provenance": {
             "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -700,18 +751,21 @@ def build_report(dataset, queues, detectors, classifiers, seed=SEED, resamples=B
                        "stress_runs": len(meta) - len(test),
                        "test_runs_by_kind": dict(Counter(meta[e]["kind"] for e in test))},
             "headline_excludes": list(HEADLINE_EXCLUDES),
-            "packages": {p.name: package_summary(p) for p in [*detectors, *classifiers]},
+            "packages": {p.name: package_summary(p, environment) for p in [*detectors, *classifiers]},
             "git": git_state(repo_root or Path(__file__).resolve().parents[2]),
-            "environment": {"python": platform.python_version(), "numpy": np.__version__},
+            "environment": environment,
             "definitions": {
                 "detection": "window-level; every label but NORMAL is ANOMALY (ml/job/detection.py). fpr counts any flagged "
                              "NORMAL window; fpr_healthy only windows with no fault active; fault_start_flagged the NORMAL "
                              "fault-start minutes flagged (faults caught early, which the labels count as false positives).",
+                "deployed": "the live path's rule applied offline to the stored labeled windows: the forest flags the window "
+                            "AND the classifier names a fault. Window-level, so not a count of live incidents, and a yes/no "
+                            "with no score, so it has no ROC AUC.",
                 "latency": "per incident run, from the fault's onset to the end of the first flagged labeled anomalous "
                            "window; missed runs are counted apart and left out of the median.",
                 "classification": "labeled windows only, six-class; macro-F1 over classes in the truth or the predictions.",
                 "per_band": f"standard-length ({STANDARD_DURATION_S}s) single-fault test runs; recall on the fault's windows; "
-                            f"flagged when {DEGRADATION_POINTS:.0%} or more below its reference.",
+                            f"flagged when more than {_points()} percentage points below its reference.",
                 "confounder_windows": f"labeled non-NORMAL windows with multi_fault_ms >= {HALF_WINDOW_MS} (both faults active).",
             },
         },
@@ -721,6 +775,7 @@ def build_report(dataset, queues, detectors, classifiers, seed=SEED, resamples=B
         block, runs = detection_block(scored, name, headline, "headline")
         report["detection"][name] = {"headline": block, "with_confounders": detection_block(scored, name, test, "all-test")[0]}
         report["latency_runs"][name] = _clean(runs)
+    report["uninformative_detectors"] = uninformative_detectors(report["detection"])
     for name in scored.preds:
         full = classification_block(scored, name, test, "all-test")
         report["classification"][name] = {
@@ -739,6 +794,10 @@ def build_report(dataset, queues, detectors, classifiers, seed=SEED, resamples=B
 
 
 # --- markdown ---------
+
+def _points():
+    return round(DEGRADATION_POINTS * 100)
+
 
 def _n(value, digits=3):
     return "n/a" if value is None else f"{value:.{digits}f}"
@@ -770,24 +829,43 @@ def _recall_table(by_injector, indent=""):
     return lines
 
 
+def _uninformative_note(report):
+    """One line for each section whose detector rows an uninformative detector makes meaningless."""
+    names = ", ".join(f"`{n}`" for n in report.get("uninformative_detectors", {}))
+    return [f"⚠ {names}: these rows follow from flagging nearly every window (see \"Read this first\").", ""] if names else []
+
+
 def render_markdown(report):
     L, prov = [], report["provenance"]
-    L += ["# M9-2 Detection + classification metrics (test set)", "", "## Scope and provenance", "",
+    L += ["# M9-2 Detection + classification metrics (test set)", ""]
+    if report.get("uninformative_detectors"):
+        L += ["## Read this first", ""]
+        for name, u in report["uninformative_detectors"].items():
+            L.append(f"- **`{name}` cannot tell healthy windows from faulty ones on this test set.** It flags "
+                     f"{u['healthy_flagged_share']:.1%} of healthy windows and {u['windows_flagged']} of the {u['windows']} test "
+                     "windows. Its recall, detection latency, per-band, confounder and varied-duration rows are what flagging "
+                     "everything produces, not evidence that it detects faults. Its cut-off was not retuned on test data; "
+                     "`Docs/M9-2_REPORT.md` explains the cause.")
+        L.append("")
+    L += ["## Scope and provenance", "",
           f"- **Split:** test = slots {prov['split']['test_slots'][0]}–{prov['split']['test_slots'][1]} "
           f"({prov['counts']['test_runs']} runs, {prov['counts']['test_windows']} labeled windows), all generated after "
           f"{prov['split']['last_training_day']}. The extreme slice (slots {prov['split']['stress_first_slot']}+, "
           f"{prov['counts']['stress_runs']} runs) is section 4 and is in no other number.",
           f"- **Headline:** {prov['counts']['headline_runs']} test runs, the test set without "
           f"{', '.join(prov['headline_excludes'])} (a test-only probe with no clean single label; section 5). "
-          "\"With confounders\" lines show what including them does. Test runs by kind: "
+          "The \"all test runs\" lines show the same metrics with them included. Test runs by kind: "
           + ", ".join(f"{k} {v}" for k, v in sorted(prov["counts"]["test_runs_by_kind"].items())) + ".",
           f"- **Intervals:** 95% percentile bootstrap, {prov['bootstrap_resamples']} resamples of whole runs, seed {prov['seed']}. "
           "Windows of one run are correlated, so resampling windows would make every interval too narrow.",
           f"- **Code:** commit `{prov['git']['commit']}`{' (uncommitted changes present)' if prov['git']['dirty'] else ''}; "
-          f"generated {prov['generated_at']}."]
+          f"generated {prov['generated_at']}.",
+          "- **Libraries:** " + ", ".join(f"{k} {v}" for k, v in prov["environment"].items()) + "."]
     for name, p in prov["packages"].items():
         extra = f", threshold {p['threshold']:.4f}" if "threshold" in p else ""
-        L.append(f"- **Package `{name}`:** {p.get('estimator')} ({p.get('task')}{extra}), {p['columns']} columns.")
+        match = {True: "match", False: "DIFFER FROM", None: "not recorded for"}[p["libraries_match"]]
+        L.append(f"- **Package `{name}`:** {p.get('estimator')} ({p.get('task')}{extra}), {p['columns']} columns; "
+                 f"job `{p['job'] or 'not given'}`, model.joblib sha256 `{p['sha256'][:16]}`; this run's libraries {match} its training image.")
     L += ["", "Definitions:", ""] + [f"- *{k.replace('_', ' ')}:* {v}" for k, v in prov["definitions"].items()]
 
     det = report["detection"]
@@ -800,8 +878,12 @@ def render_markdown(report):
             L.append(f"| {label} | " + " | ".join(
                 _ci(det[n]["headline"]["metrics"][key], det[n]["headline"]["ci95"].get(key)) for n in names) + " |")
         L += ["", "Counts (windows): " + "; ".join(
-            f"{n}: " + ", ".join(f"{k} {v}" for k, v in det[n]["headline"]["counts"].items()) for n in names) + ".", "",
-              "**Detection latency** (incident runs; from the fault's onset to the end of the first flagged labeled window):", "",
+            f"{n}: " + ", ".join(f"{k} {v}" for k, v in det[n]["headline"]["counts"].items()) for n in names) + ".", ""]
+        L += _uninformative_note(report)
+        if DEPLOYED in det:
+            L += [f"`{DEPLOYED}` is the live path's rule applied offline: the forest flags the window AND the classifier names a "
+                  "fault. It is window-level, so it is not a count of live incidents.", ""]
+        L += ["**Detection latency** (incident runs; from the fault's onset to the end of the first flagged labeled window):", "",
               "| | " + " | ".join(names) + " |", "|---|" + "---|" * len(names)]
         for key, label in (("incident_runs", "Incident runs"), ("detected_runs", "Detected"), ("missed_runs", "Missed"),
                            ("median_s", "Median (s) [95% CI]"), ("p90_s", "p90 (s)"), ("max_s", "Max (s)"),
@@ -817,16 +899,21 @@ def render_markdown(report):
               "**Share flagged, by label** (NORMAL = FPR):", "", "| Label | " + " | ".join(names) + " |", "|---|" + "---|" * len(names)]
         for label in sorted({k for n in names for k in det[n]["headline"]["recall_by_label"]}):
             L.append(f"| {label} | " + " | ".join(_n(det[n]["headline"]["recall_by_label"].get(label)) for n in names) + " |")
-        L += ["", "With confounders included: " + "; ".join(
-            f"{n}: precision {_n(det[n]['with_confounders']['metrics']['precision'])}, recall {_n(det[n]['with_confounders']['metrics']['recall'])}, "
-            f"FPR {_n(det[n]['with_confounders']['metrics']['fpr'])}" for n in names) + "."]
+        L += ["", f"**All test runs** ({prov['counts']['test_runs']} runs, confounders included, each scored against its labeled first fault):", "",
+              "| Metric | " + " | ".join(names) + " |", "|---|" + "---|" * len(names)]
+        for key, label in (("precision", "Precision"), ("recall", "Recall"), ("f1", "F1"), ("fpr", "FPR, against the labels"),
+                           ("fpr_healthy", "FPR, healthy windows only")):
+            L.append(f"| {label} | " + " | ".join(
+                _ci(det[n]["with_confounders"]["metrics"][key], det[n]["with_confounders"]["ci95"].get(key)) for n in names) + " |")
 
     for name, c in report["classification"].items():
         h = c["headline"]
         L += ["", f"## 2. Classification (headline): `{name}`", "",
               f"- Accuracy {_ci(h['accuracy'], h['ci95'].get('accuracy'))}; macro-F1 {_ci(h['macro_f1'], h['ci95'].get('macro_f1'))} "
               f"({h['runs']} runs, {h['windows']} windows).",
-              f"- With confounders included: accuracy {_n(c['with_confounders']['accuracy'])}, macro-F1 {_n(c['with_confounders']['macro_f1'])}.",
+              f"- All test runs, confounders included: accuracy {_ci(c['with_confounders']['accuracy'], c['with_confounders']['ci95'].get('accuracy'))}; "
+              f"macro-F1 {_ci(c['with_confounders']['macro_f1'], c['with_confounders']['ci95'].get('macro_f1'))} "
+              f"({c['with_confounders']['runs']} runs, {c['with_confounders']['windows']} windows).",
               "", "| Class | Precision | Recall | F1 | Support |", "|---|---|---|---|---|"]
         for cls in h["classes"]:
             p = h["per_class"][cls]
@@ -842,10 +929,12 @@ def render_markdown(report):
           f"Recall on each injector's fault windows, {STANDARD_DURATION_S}-second single-fault runs only. Each injector has two test bands: "
           "the lower lies between training bands (interpolation), the upper just above the highest training band (mild extrapolation; "
           "`Docs/EVALUATION_INTEGRITY.md`, \"An honest caveat\"). A band is flagged when its recall is more than "
-          f"{DEGRADATION_POINTS:.0%} below its reference: *possible* if the intervals overlap, *degraded* if they do not. "
-          + ("References: the injector's other test band, and validation (training bands; optimistic, since validation tuned the packages)."
+          f"{_points()} percentage points below its reference: *possible* if the intervals overlap, *degraded* if they do not. "
+          + ("References: the injector's other test band, and validation (training bands; optimistic, since validation tuned the packages). "
+             "Every test band also runs in the shifted endpoint mix, so a gap to validation can come from the mix rather than the band."
              if pb["validation_reference"] else
-             "Reference: the injector's other test band (add `--with-validation-reference` for validation's training bands).")]
+             "Reference: the injector's other test band (add `--with-validation-reference` for validation's training bands)."), ""]
+    L += _uninformative_note(report)
     for family in ("detection", "classification"):
         for model in sorted({r["model"] for r in pb["rows"] if r["family"] == family}):
             L += ["", f"**{family}: `{model}`**", "",
@@ -864,7 +953,7 @@ def render_markdown(report):
             f"{f['model']} {f['injector']} {_band(f['band'])} ({f['family']}, {f['status']} vs {f['against'][3:].replace('_', ' ')})"
             for f in pb["flagged"]) + ". Report these as findings; do not tune around them.")
     else:
-        L.append(f"**No band is flagged:** no held-out band falls more than {DEGRADATION_POINTS:.0%} below its reference for any detector or classifier.")
+        L.append(f"**No band is flagged:** no held-out band falls more than {_points()} percentage points below its reference for any detector or classifier.")
 
     ex = report["extreme_slice"]
     L += ["", "## 4. Extreme-extrapolation slice (reported separately; not in any number above)", ""]
@@ -873,7 +962,9 @@ def render_markdown(report):
     else:
         L += [f"{ex['runs']} runs (traffic >10×, latency >1500 ms, load >6×, timeout >5000 ms), the default endpoint mix. "
               "More extreme incidents are easier, so these numbers say nothing about interpolation and must not be averaged into the "
-              "headline. With about five runs per injector the intervals are wide.", ""]
+              "headline. With about five runs per injector the intervals are wide. These runs differ from the test set in two ways at "
+              "once, more extreme faults and the default endpoint mix instead of the shifted one, so comparing them with the headline "
+              "does not isolate the effect of severity.", ""]
         for name, b in ex["detection"].items():
             m = b["metrics"]
             L.append(f"- `{name}` detection: precision {_n(m['precision'])}, recall {_ci(m['recall'], b['ci95'].get('recall'))}, F1 {_n(m['f1'])}, "
@@ -893,6 +984,7 @@ def render_markdown(report):
               "(`Docs/EVALUATION_INTEGRITY.md`, \"Confounders\"). "
               f"Windows scored: {cf['windows_both_active']} with both faults active (multi_fault_ms ≥ {HALF_WINDOW_MS // 1000} s). "
               "The shares overlap by design (the labeled type is one of the two), so they do not sum to 1; \"neither\" is everything else, NORMAL included.", ""]
+        L += _uninformative_note(report)
         if cf["runs_with_no_both_active_window"]:
             L += [f"⚠ {len(cf['runs_with_no_both_active_window'])} confounder run(s) have no both-active window and are not in these shares: "
                   + ", ".join(cf["runs_with_no_both_active_window"][:6]) + ".", ""]
@@ -913,6 +1005,7 @@ def render_markdown(report):
             L.append(f"`{name}` flagged {_ci(d['flagged_share'], d['ci95'])} of the both-active windows as anomalous.")
 
     L += ["", "## 6. Varied-duration faults (2 and 12 minutes)", ""]
+    L += _uninformative_note(report)
     if not report["varied_duration"]:
         L.append("No varied-duration runs.")
     for duration, block in report["varied_duration"].items():
@@ -923,21 +1016,22 @@ def render_markdown(report):
           "- Bands are the simulator's held-out *parameter regions*. The claim is generalization across them, not to production incidents (`Docs/EVALUATION_INTEGRITY.md`).",
           "- DB throttling's bands are separated by throttle counts, not latency (the retry ladder sets Product's p95), so read its per-band rows with that in mind.",
           "- The Isolation Forest's cut-off is the package's, set on validation; nothing was fitted or tuned on the test set.",
+          "- Why the forest and the dependency-failure results look as they do is diagnosed separately, after scoring (`Docs/M9-2_REPORT.md`).",
           "- The threshold baseline sits beside these numbers in M9-3."]
     return "\n".join(L) + "\n"
 
 
 # --- command line ------
 
-def _pairs(parser, items, flag):
+def _pairs(parser, items, flag, as_path=True):
     out = {}
     for item in items:
-        name, sep, directory = item.partition("=")
-        if not sep or not name or not directory:
-            parser.error(f"{flag} takes NAME=DIR, got {item!r}")
+        name, sep, value = item.partition("=")
+        if not sep or not name or not value:
+            parser.error(f"{flag} takes NAME={'DIR' if as_path else 'VALUE'}, got {item!r}")
         if name in out:
             parser.error(f"{flag}: {name!r} given twice")
-        out[name] = Path(directory).expanduser()
+        out[name] = Path(value).expanduser() if as_path else value
     return out
 
 
@@ -958,6 +1052,7 @@ def main(argv=None):
                         help="the folder with v1-test-1..3.json and v1-stress.json (default: simulator/queues)")
     parser.add_argument("--classifier", action="append", default=[], metavar="NAME=DIR", help="a six-class package folder")
     parser.add_argument("--detector", action="append", default=[], metavar="NAME=DIR", help="an Isolation Forest or binary package folder")
+    parser.add_argument("--job", action="append", default=[], metavar="NAME=JOB", help="the training job a package came from")
     parser.add_argument("--out", required=True, help="write metrics_m9_2.json and metrics_m9_2.md here")
     parser.add_argument("--with-validation-reference", action="store_true",
                         help="also score validation's single-fault runs, as a training-band reference for the per-band table")
@@ -969,6 +1064,12 @@ def main(argv=None):
     classifiers, detectors = _pairs(parser, args.classifier, "--classifier"), _pairs(parser, args.detector, "--detector")
     if not classifiers and not detectors:
         parser.error("give at least one --classifier or --detector")
+    if DEPLOYED in classifiers or DEPLOYED in detectors:
+        parser.error(f"{DEPLOYED!r} is the name of the live rule's column; call the package something else")
+    jobs = _pairs(parser, args.job, "--job", as_path=False)
+    unknown = sorted(set(jobs) - set(classifiers) - set(detectors))
+    if unknown:
+        parser.error(f"--job names no package: {unknown}")
     if args.bootstrap < 100:
         parser.error("--bootstrap must be at least 100")
     out = Path(args.out).expanduser()
@@ -978,8 +1079,8 @@ def main(argv=None):
                                f"and keep and mention the earlier result)")
         report = build_report(
             Path(args.dataset).expanduser(), Path(args.queues).expanduser(),
-            [load_package(n, d, "detector") for n, d in detectors.items()],
-            [load_package(n, d, "classifier") for n, d in classifiers.items()],
+            [load_package(n, d, "detector", jobs.get(n)) for n, d in detectors.items()],
+            [load_package(n, d, "classifier", jobs.get(n)) for n, d in classifiers.items()],
             seed=args.seed, resamples=args.bootstrap, with_validation=args.with_validation_reference,
             allow_partial=args.allow_partial)
         paths = write_outputs(report, out)

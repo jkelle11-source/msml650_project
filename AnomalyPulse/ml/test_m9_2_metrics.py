@@ -7,7 +7,9 @@ run, and queue files holding the entries the script reads (incident, cascade, pl
 features copy the signature of the class it "looks like", so a test decides what the models will say
 by choosing `looks`; the models are fitted on separate synthetic windows, never on the dataset.
 """
+import hashlib
 import json
+import zlib
 from pathlib import Path
 
 import joblib
@@ -309,7 +311,7 @@ def test_the_upper_band_is_flagged_when_it_falls_off(tmp_path):
 def test_a_healthy_set_flags_no_band(tmp_path):
     report, *_ = report_for(tmp_path)
     assert report["per_band"]["flagged"] == []
-    assert len(report["per_band"]["rows"]) == 4 * 2 * 3         # 4 injectors x 2 bands x (2 detectors + 1 classifier)
+    assert len(report["per_band"]["rows"]) == 4 * 2 * 4         # 4 injectors x 2 bands x (2 detectors + deployed + 1 classifier)
     assert "No band is flagged" in m.render_markdown(report)
 
 
@@ -522,3 +524,142 @@ def test_only_the_test_stress_and_reference_runs_are_read(tmp_path):
     _, classifiers = models(train_packages(tmp_path))
     report = m.build_report(world.root, qdir, [], classifiers, resamples=200, allow_partial=True)
     assert report["provenance"]["counts"]["test_runs"] == 26
+
+
+# --- ranking, intervals and references ------
+
+def test_detector_scores_rank_faults_above_healthy_windows(tmp_path):
+    report, *_ = report_for(tmp_path)
+    for name in ("iforest", "binary"):
+        assert report["detection"][name]["headline"]["metrics"]["roc_auc"] == 1.0
+
+
+def test_macro_f1_leaves_out_a_class_nobody_has():
+    # A: 3 right, 1 called B. B: 2 right. C never appears. F1(A) = 6/7, F1(B) = 4/5, mean 29/35.
+    stats = m.clf_stats(np.array([[3, 1, 0], [0, 2, 0], [0, 0, 0]], float))
+    assert abs(float(stats["macro_f1"]) - 29 / 35) < 1e-12
+
+
+def test_the_intervals_are_95_percent():
+    per_run = np.stack([np.arange(20), np.full(20, 40)], axis=1).astype(float)
+    values = np.arange(30.0)
+    try:
+        m.CONFIG.update(seed=5, resamples=400)
+        ratio = m.bootstrap(per_run, m.ratio_stats, "k")["ratio"]
+        median = m.bootstrap_median(values, "k")
+    finally:
+        m.CONFIG.update(seed=m.SEED, resamples=m.BOOTSTRAP)
+    rng, draws = np.random.default_rng([5, zlib.crc32(b"k")]), []
+    for start in range(0, 400, m.CHUNK):
+        sums = per_run[rng.integers(0, 20, size=(min(m.CHUNK, 400 - start), 20))].sum(axis=1)
+        draws.append(sums[:, 0] / sums[:, 1])
+    assert ratio == pytest.approx(np.quantile(np.concatenate(draws), [0.025, 0.975]).tolist())
+    rng = np.random.default_rng([5, zlib.crc32(b"k")])
+    medians = np.median(values[rng.integers(0, 30, size=(400, 30))], axis=1)
+    assert median == pytest.approx(np.quantile(medians, [0.025, 0.975]).tolist())
+
+
+def test_a_band_called_the_wrong_fault_is_a_classification_miss_but_still_detected(tmp_path):
+    wrong = lambda t: "LAMBDA_DEGRADATION" if (t["injector"], t["band"]) == ("traffic-spike", (8, 10)) else None  # noqa: E731
+    report, *_ = report_for(tmp_path, looks=wrong)
+    low, high = rows_of(report, "classification", "incident_type", "traffic-spike")
+    assert (low["recall"], high["recall"]) == (1.0, 0.0)
+    assert high["top_errors"] == [["LAMBDA_DEGRADATION", 10]]
+    assert rows_of(report, "detection", "binary", "traffic-spike")[1]["recall"] == 1.0
+
+
+def test_the_validation_reference_never_reads_a_training_run(tmp_path):
+    world, qdir = build(tmp_path)
+    world.registry.append({"slot": 5, "phase": "train", "incident_type": "TRAFFIC_SPIKE",
+                           "experiment_id": "exp-20261001T000000Z-dead", "generation_date": "2026-10-01"})
+    world.finish()
+    folder = world.root / "tier1/features/experiment_id=exp-20261001T000000Z-dead"
+    folder.mkdir(parents=True)
+    (folder / "features.jsonl").write_text("not json")          # reading this run would fail
+    detectors, classifiers = models(train_packages(tmp_path))
+    report = m.build_report(world.root, qdir, detectors, classifiers, resamples=200, with_validation=True,
+                            allow_partial=True, repo_root=tmp_path)
+    assert all(r["vs_validation"] is not None for r in report["per_band"]["rows"])
+
+
+# --- the deployed rule and uninformative detectors ------
+
+def flag_everything(pk):
+    path = pk["iforest"] / "model.json"
+    path.write_text(json.dumps({**json.loads(path.read_text()), "threshold": 1.0}))     # scores are all below 0
+
+
+def test_the_deployed_rule_needs_both_the_forest_and_the_classifier():
+    flags = m.deployed_flags([True, True, False, False], ["NORMAL", "TRAFFIC_SPIKE", "NORMAL", "TRAFFIC_SPIKE"])
+    assert flags.tolist() == [False, True, False, False]
+
+
+def test_the_deployed_column_has_the_expected_counts(tmp_path):
+    # Upper-band spikes look NORMAL to both models: 2 runs x 5 windows missed, of 103 fault windows.
+    report, *_ = report_for(tmp_path, looks=UPPER_SPIKE_MISSED)
+    d = report["detection"][m.DEPLOYED]["headline"]
+    assert (d["counts"]["tp"], d["counts"]["fn"], d["counts"]["fp"]) == (93, 10, 0)
+    assert d["metrics"]["roc_auc"] is None and d["metrics"]["average_precision"] is None
+    assert f"`{m.DEPLOYED}` is the live path's rule" in m.render_markdown(report)
+
+
+def test_a_detector_that_flags_everything_is_called_out(tmp_path):
+    world, qdir = build(tmp_path, looks=UPPER_SPIKE_MISSED)
+    pk = train_packages(tmp_path)
+    flag_everything(pk)
+    detectors, classifiers = models(pk)
+    report = m.build_report(world.root, qdir, detectors, classifiers, resamples=200, allow_partial=True, repo_root=tmp_path)
+    u = report["uninformative_detectors"]
+    assert set(u) == {"iforest"} and u["iforest"]["healthy_flagged_share"] == 1.0
+    assert u["iforest"]["windows_flagged"] == u["iforest"]["windows"] == report["provenance"]["counts"]["test_windows"]
+    assert report["detection"]["iforest"]["headline"]["counts"]["tn"] == 0
+    text = m.render_markdown(report)
+    assert "## Read this first" in text and text.count('(see "Read this first")') == 4     # sections 1, 3, 5, 6
+    # With the forest passing everything, the classifier alone decides: it still misses the 10 upper-band windows.
+    d = report["detection"][m.DEPLOYED]["headline"]["counts"]
+    assert (d["tp"], d["fn"], d["fp"]) == (93, 10, 0)
+
+
+def test_a_working_detector_is_not_called_out(tmp_path):
+    report, *_ = report_for(tmp_path)
+    assert report["uninformative_detectors"] == {}
+    assert "Read this first" not in m.render_markdown(report)
+
+
+def test_no_metric_picks_its_cut_off_from_the_test_windows(tmp_path):
+    report, *_ = report_for(tmp_path)
+    assert "recall_at_healthy_fpr_1" not in json.dumps(report)
+
+
+def test_the_markdown_carries_the_all_test_lines_and_the_stress_caveat(tmp_path):
+    report, *_ = report_for(tmp_path)
+    text = m.render_markdown(report)
+    assert "**All test runs** (26 runs" in text and "All test runs, confounders included: accuracy" in text
+    assert "does not isolate the effect of severity" in text
+    assert "more than 10 percentage points" in text and "10% or more" not in text
+
+
+# --- provenance ------
+
+def test_the_report_records_which_model_files_and_libraries_it_used(tmp_path):
+    out = tmp_path / "results"
+    assert m.main(cli_args(tmp_path, out, ("--job", "iforest=job-123"))) == 0
+    prov = json.loads((out / "metrics_m9_2.json").read_text())["provenance"]
+    forest = prov["packages"]["iforest"]
+    assert forest["job"] == "job-123" and prov["packages"]["binary"]["job"] is None
+    assert forest["sha256"] == hashlib.sha256((tmp_path / "pkgs/iforest/model.joblib").read_bytes()).hexdigest()
+    assert set(prov["environment"]) == {"python", "numpy", "scikit-learn", "scipy", "joblib"}
+
+
+def test_libraries_match_compares_the_training_image_with_this_run():
+    package = m.Package("x", "classifier", None, {"columns": ["a"], "libraries": {"python": "3.10.22"}})
+    assert m.package_summary(package, {"python": "3.10.22"})["libraries_match"] is True
+    assert m.package_summary(package, {"python": "3.12.16"})["libraries_match"] is False
+    unrecorded = m.Package("x", "classifier", None, {"columns": ["a"]})
+    assert m.package_summary(unrecorded, {"python": "3.10.22"})["libraries_match"] is None
+
+
+@pytest.mark.parametrize("extra", (["--job", "nobody=job-1"], ["--detector", "deployed=x"]))
+def test_bad_job_or_reserved_package_names_are_refused(tmp_path, extra):
+    with pytest.raises(SystemExit):
+        m.main(cli_args(tmp_path, tmp_path / "results", extra))
