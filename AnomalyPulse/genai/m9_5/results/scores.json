@@ -1,0 +1,844 @@
+{
+  "test": {
+    "diagnoses": 296,
+    "fidelity": {
+      "claims": 2095,
+      "unsupported": 50,
+      "unsupported_rate": 0.0239,
+      "evidence_fidelity": 0.9761,
+      "by_field": {
+        "summary": {
+          "claims": 296,
+          "unsupported": 22,
+          "rate": 0.0743
+        },
+        "root_cause": {
+          "claims": 296,
+          "unsupported": 27,
+          "rate": 0.0912
+        },
+        "evidence": {
+          "claims": 1503,
+          "unsupported": 1,
+          "rate": 0.0007
+        }
+      },
+      "by_kind": {
+        "metric": 47,
+        "number": 4,
+        "service": 1,
+        "citation": 1
+      },
+      "diagnoses_with_unsupported": 29,
+      "misattributed_numbers": 1
+    },
+    "hallucination": {
+      "mentions": 14844,
+      "hallucinated": 68,
+      "rate": 0.0046,
+      "by_kind": {
+        "service": {
+          "mentions": 3304,
+          "hallucinated": 1,
+          "rate": 0.0003
+        },
+        "metric": {
+          "mentions": 3692,
+          "hallucinated": 63,
+          "rate": 0.0171
+        },
+        "number": {
+          "mentions": 7846,
+          "hallucinated": 4,
+          "rate": 0.0005
+        },
+        "time": {
+          "mentions": 2,
+          "hallucinated": 0,
+          "rate": 0.0
+        }
+      },
+      "diagnoses_with_any": 28
+    },
+    "completeness": {
+      "moved_metrics": 2207,
+      "moved_cited": 2085,
+      "rate": 0.9447,
+      "diagnoses_citing_every_moved_metric": 196,
+      "diagnoses_with_a_moved_metric": 293,
+      "services": 736,
+      "services_named": 736,
+      "services_rate": 1.0
+    },
+    "capacity_slips": {
+      "diagnoses": 82,
+      "actions": 90
+    },
+    "severity_disagreements": 35
+  },
+  "test_by_classified_type": {
+    "TRAFFIC_SPIKE": {
+      "diagnoses": 77,
+      "fidelity": {
+        "claims": 556,
+        "unsupported": 1,
+        "unsupported_rate": 0.0018,
+        "evidence_fidelity": 0.9982,
+        "by_field": {
+          "summary": {
+            "claims": 77,
+            "unsupported": 0,
+            "rate": 0.0
+          },
+          "root_cause": {
+            "claims": 77,
+            "unsupported": 0,
+            "rate": 0.0
+          },
+          "evidence": {
+            "claims": 402,
+            "unsupported": 1,
+            "rate": 0.0025
+          }
+        },
+        "by_kind": {
+          "citation": 1
+        },
+        "diagnoses_with_unsupported": 1,
+        "misattributed_numbers": 1
+      },
+      "hallucination": {
+        "mentions": 4042,
+        "hallucinated": 0,
+        "rate": 0.0,
+        "by_kind": {
+          "service": {
+            "mentions": 1020,
+            "hallucinated": 0,
+            "rate": 0.0
+          },
+          "metric": {
+            "mentions": 1032,
+            "hallucinated": 0,
+            "rate": 0.0
+          },
+          "number": {
+            "mentions": 1990,
+            "hallucinated": 0,
+            "rate": 0.0
+          },
+          "time": {
+            "mentions": 0,
+            "hallucinated": 0,
+            "rate": null
+          }
+        },
+        "diagnoses_with_any": 0
+      },
+      "completeness": {
+        "moved_metrics": 564,
+        "moved_cited": 560,
+        "rate": 0.9929,
+        "diagnoses_citing_every_moved_metric": 73,
+        "diagnoses_with_a_moved_metric": 77,
+        "services": 271,
+        "services_named": 271,
+        "services_rate": 1.0
+      },
+      "capacity_slips": {
+        "diagnoses": 68,
+        "actions": 75
+      },
+      "severity_disagreements": 24
+    },
+    "DATABASE_THROTTLING": {
+      "diagnoses": 68,
+      "fidelity": {
+        "claims": 447,
+        "unsupported": 47,
+        "unsupported_rate": 0.1051,
+        "evidence_fidelity": 0.8949,
+        "by_field": {
+          "summary": {
+            "claims": 68,
+            "unsupported": 21,
+            "rate": 0.3088
+          },
+          "root_cause": {
+            "claims": 68,
+            "unsupported": 26,
+            "rate": 0.3824
+          },
+          "evidence": {
+            "claims": 311,
+            "unsupported": 0,
+            "rate": 0.0
+          }
+        },
+        "by_kind": {
+          "metric": 47,
+          "number": 3
+        },
+        "diagnoses_with_unsupported": 26,
+        "misattributed_numbers": 0
+      },
+      "hallucination": {
+        "mentions": 2861,
+        "hallucinated": 66,
+        "rate": 0.0231,
+        "by_kind": {
+          "service": {
+            "mentions": 481,
+            "hallucinated": 0,
+            "rate": 0.0
+          },
+          "metric": {
+            "mentions": 897,
+            "hallucinated": 63,
+            "rate": 0.0702
+          },
+          "number": {
+            "mentions": 1482,
+            "hallucinated": 3,
+            "rate": 0.002
+          },
+          "time": {
+            "mentions": 1,
+            "hallucinated": 0,
+            "rate": 0.0
+          }
+        },
+        "diagnoses_with_any": 26
+      },
+      "completeness": {
+        "moved_metrics": 357,
+        "moved_cited": 331,
+        "rate": 0.9272,
+        "diagnoses_citing_every_moved_metric": 41,
+        "diagnoses_with_a_moved_metric": 65,
+        "services": 105,
+        "services_named": 105,
+        "services_rate": 1.0
+      },
+      "capacity_slips": {
+        "diagnoses": 7,
+        "actions": 8
+      },
+      "severity_disagreements": 0
+    },
+    "LAMBDA_DEGRADATION": {
+      "diagnoses": 60,
+      "fidelity": {
+        "claims": 436,
+        "unsupported": 1,
+        "unsupported_rate": 0.0023,
+        "evidence_fidelity": 0.9977,
+        "by_field": {
+          "summary": {
+            "claims": 60,
+            "unsupported": 1,
+            "rate": 0.0167
+          },
+          "root_cause": {
+            "claims": 60,
+            "unsupported": 0,
+            "rate": 0.0
+          },
+          "evidence": {
+            "claims": 316,
+            "unsupported": 0,
+            "rate": 0.0
+          }
+        },
+        "by_kind": {
+          "number": 1
+        },
+        "diagnoses_with_unsupported": 1,
+        "misattributed_numbers": 0
+      },
+      "hallucination": {
+        "mentions": 2978,
+        "hallucinated": 1,
+        "rate": 0.0003,
+        "by_kind": {
+          "service": {
+            "mentions": 673,
+            "hallucinated": 0,
+            "rate": 0.0
+          },
+          "metric": {
+            "mentions": 671,
+            "hallucinated": 0,
+            "rate": 0.0
+          },
+          "number": {
+            "mentions": 1634,
+            "hallucinated": 1,
+            "rate": 0.0006
+          },
+          "time": {
+            "mentions": 0,
+            "hallucinated": 0,
+            "rate": null
+          }
+        },
+        "diagnoses_with_any": 1
+      },
+      "completeness": {
+        "moved_metrics": 414,
+        "moved_cited": 391,
+        "rate": 0.9444,
+        "diagnoses_citing_every_moved_metric": 37,
+        "diagnoses_with_a_moved_metric": 60,
+        "services": 123,
+        "services_named": 123,
+        "services_rate": 1.0
+      },
+      "capacity_slips": {
+        "diagnoses": 2,
+        "actions": 2
+      },
+      "severity_disagreements": 11
+    },
+    "DEPENDENCY_FAILURE": {
+      "diagnoses": 38,
+      "fidelity": {
+        "claims": 279,
+        "unsupported": 1,
+        "unsupported_rate": 0.0036,
+        "evidence_fidelity": 0.9964,
+        "by_field": {
+          "summary": {
+            "claims": 38,
+            "unsupported": 0,
+            "rate": 0.0
+          },
+          "root_cause": {
+            "claims": 38,
+            "unsupported": 1,
+            "rate": 0.0263
+          },
+          "evidence": {
+            "claims": 203,
+            "unsupported": 0,
+            "rate": 0.0
+          }
+        },
+        "by_kind": {
+          "service": 1
+        },
+        "diagnoses_with_unsupported": 1,
+        "misattributed_numbers": 0
+      },
+      "hallucination": {
+        "mentions": 1949,
+        "hallucinated": 1,
+        "rate": 0.0005,
+        "by_kind": {
+          "service": {
+            "mentions": 458,
+            "hallucinated": 1,
+            "rate": 0.0022
+          },
+          "metric": {
+            "mentions": 414,
+            "hallucinated": 0,
+            "rate": 0.0
+          },
+          "number": {
+            "mentions": 1077,
+            "hallucinated": 0,
+            "rate": 0.0
+          },
+          "time": {
+            "mentions": 0,
+            "hallucinated": 0,
+            "rate": null
+          }
+        },
+        "diagnoses_with_any": 1
+      },
+      "completeness": {
+        "moved_metrics": 352,
+        "moved_cited": 300,
+        "rate": 0.8523,
+        "diagnoses_citing_every_moved_metric": 8,
+        "diagnoses_with_a_moved_metric": 38,
+        "services": 73,
+        "services_named": 73,
+        "services_rate": 1.0
+      },
+      "capacity_slips": {
+        "diagnoses": 0,
+        "actions": 0
+      },
+      "severity_disagreements": 0
+    },
+    "CASCADING_FAILURE": {
+      "diagnoses": 53,
+      "fidelity": {
+        "claims": 377,
+        "unsupported": 0,
+        "unsupported_rate": 0.0,
+        "evidence_fidelity": 1.0,
+        "by_field": {
+          "summary": {
+            "claims": 53,
+            "unsupported": 0,
+            "rate": 0.0
+          },
+          "root_cause": {
+            "claims": 53,
+            "unsupported": 0,
+            "rate": 0.0
+          },
+          "evidence": {
+            "claims": 271,
+            "unsupported": 0,
+            "rate": 0.0
+          }
+        },
+        "by_kind": {},
+        "diagnoses_with_unsupported": 0,
+        "misattributed_numbers": 0
+      },
+      "hallucination": {
+        "mentions": 3014,
+        "hallucinated": 0,
+        "rate": 0.0,
+        "by_kind": {
+          "service": {
+            "mentions": 672,
+            "hallucinated": 0,
+            "rate": 0.0
+          },
+          "metric": {
+            "mentions": 678,
+            "hallucinated": 0,
+            "rate": 0.0
+          },
+          "number": {
+            "mentions": 1663,
+            "hallucinated": 0,
+            "rate": 0.0
+          },
+          "time": {
+            "mentions": 1,
+            "hallucinated": 0,
+            "rate": 0.0
+          }
+        },
+        "diagnoses_with_any": 0
+      },
+      "completeness": {
+        "moved_metrics": 520,
+        "moved_cited": 503,
+        "rate": 0.9673,
+        "diagnoses_citing_every_moved_metric": 37,
+        "diagnoses_with_a_moved_metric": 53,
+        "services": 164,
+        "services_named": 164,
+        "services_rate": 1.0
+      },
+      "capacity_slips": {
+        "diagnoses": 5,
+        "actions": 5
+      },
+      "severity_disagreements": 0
+    }
+  },
+  "test_when_the_type_agrees_with_the_run": {
+    "agrees": {
+      "diagnoses": 256,
+      "fidelity": {
+        "claims": 1819,
+        "unsupported": 48,
+        "unsupported_rate": 0.0264,
+        "evidence_fidelity": 0.9736,
+        "by_field": {
+          "summary": {
+            "claims": 256,
+            "unsupported": 21,
+            "rate": 0.082
+          },
+          "root_cause": {
+            "claims": 256,
+            "unsupported": 27,
+            "rate": 0.1055
+          },
+          "evidence": {
+            "claims": 1307,
+            "unsupported": 0,
+            "rate": 0.0
+          }
+        },
+        "by_kind": {
+          "metric": 47,
+          "number": 3,
+          "service": 1
+        },
+        "diagnoses_with_unsupported": 27,
+        "misattributed_numbers": 0
+      },
+      "hallucination": {
+        "mentions": 12856,
+        "hallucinated": 67,
+        "rate": 0.0052,
+        "by_kind": {
+          "service": {
+            "mentions": 2855,
+            "hallucinated": 1,
+            "rate": 0.0004
+          },
+          "metric": {
+            "mentions": 3236,
+            "hallucinated": 63,
+            "rate": 0.0195
+          },
+          "number": {
+            "mentions": 6764,
+            "hallucinated": 3,
+            "rate": 0.0004
+          },
+          "time": {
+            "mentions": 1,
+            "hallucinated": 0,
+            "rate": 0.0
+          }
+        },
+        "diagnoses_with_any": 27
+      },
+      "completeness": {
+        "moved_metrics": 1912,
+        "moved_cited": 1799,
+        "rate": 0.9409,
+        "diagnoses_citing_every_moved_metric": 162,
+        "diagnoses_with_a_moved_metric": 253,
+        "services": 638,
+        "services_named": 638,
+        "services_rate": 1.0
+      },
+      "capacity_slips": {
+        "diagnoses": 76,
+        "actions": 84
+      },
+      "severity_disagreements": 35
+    },
+    "disagrees": {
+      "diagnoses": 40,
+      "fidelity": {
+        "claims": 276,
+        "unsupported": 2,
+        "unsupported_rate": 0.0072,
+        "evidence_fidelity": 0.9928,
+        "by_field": {
+          "summary": {
+            "claims": 40,
+            "unsupported": 1,
+            "rate": 0.025
+          },
+          "root_cause": {
+            "claims": 40,
+            "unsupported": 0,
+            "rate": 0.0
+          },
+          "evidence": {
+            "claims": 196,
+            "unsupported": 1,
+            "rate": 0.0051
+          }
+        },
+        "by_kind": {
+          "number": 1,
+          "citation": 1
+        },
+        "diagnoses_with_unsupported": 2,
+        "misattributed_numbers": 1
+      },
+      "hallucination": {
+        "mentions": 1988,
+        "hallucinated": 1,
+        "rate": 0.0005,
+        "by_kind": {
+          "service": {
+            "mentions": 449,
+            "hallucinated": 0,
+            "rate": 0.0
+          },
+          "metric": {
+            "mentions": 456,
+            "hallucinated": 0,
+            "rate": 0.0
+          },
+          "number": {
+            "mentions": 1082,
+            "hallucinated": 1,
+            "rate": 0.0009
+          },
+          "time": {
+            "mentions": 1,
+            "hallucinated": 0,
+            "rate": 0.0
+          }
+        },
+        "diagnoses_with_any": 1
+      },
+      "completeness": {
+        "moved_metrics": 295,
+        "moved_cited": 286,
+        "rate": 0.9695,
+        "diagnoses_citing_every_moved_metric": 34,
+        "diagnoses_with_a_moved_metric": 40,
+        "services": 98,
+        "services_named": 98,
+        "services_rate": 1.0
+      },
+      "capacity_slips": {
+        "diagnoses": 6,
+        "actions": 6
+      },
+      "severity_disagreements": 0
+    }
+  },
+  "stress": {
+    "diagnoses": 20,
+    "fidelity": {
+      "claims": 151,
+      "unsupported": 0,
+      "unsupported_rate": 0.0,
+      "evidence_fidelity": 1.0,
+      "by_field": {
+        "summary": {
+          "claims": 20,
+          "unsupported": 0,
+          "rate": 0.0
+        },
+        "root_cause": {
+          "claims": 20,
+          "unsupported": 0,
+          "rate": 0.0
+        },
+        "evidence": {
+          "claims": 111,
+          "unsupported": 0,
+          "rate": 0.0
+        }
+      },
+      "by_kind": {},
+      "diagnoses_with_unsupported": 0,
+      "misattributed_numbers": 0
+    },
+    "hallucination": {
+      "mentions": 1011,
+      "hallucinated": 0,
+      "rate": 0.0,
+      "by_kind": {
+        "service": {
+          "mentions": 176,
+          "hallucinated": 0,
+          "rate": 0.0
+        },
+        "metric": {
+          "mentions": 281,
+          "hallucinated": 0,
+          "rate": 0.0
+        },
+        "number": {
+          "mentions": 554,
+          "hallucinated": 0,
+          "rate": 0.0
+        },
+        "time": {
+          "mentions": 0,
+          "hallucinated": 0,
+          "rate": null
+        }
+      },
+      "diagnoses_with_any": 0
+    },
+    "completeness": {
+      "moved_metrics": 168,
+      "moved_cited": 154,
+      "rate": 0.9167,
+      "diagnoses_citing_every_moved_metric": 13,
+      "diagnoses_with_a_moved_metric": 20,
+      "services": 41,
+      "services_named": 40,
+      "services_rate": 0.9756
+    },
+    "capacity_slips": {
+      "diagnoses": 4,
+      "actions": 4
+    },
+    "severity_disagreements": 2
+  },
+  "retries_test": {
+    "retries": 82,
+    "kept": 55,
+    "errors": 0,
+    "flagged_for": {
+      "metric": 42,
+      "wording": 10,
+      "number": 39,
+      "severity": 9
+    },
+    "kept_still_found": {},
+    "dropped_found": {
+      "metric": 26,
+      "number": 2
+    }
+  },
+  "held_back_now": 0,
+  "runbook_sample": {
+    "without": {
+      "diagnoses": 30,
+      "fidelity": {
+        "claims": 208,
+        "unsupported": 4,
+        "unsupported_rate": 0.0192,
+        "evidence_fidelity": 0.9808,
+        "by_field": {
+          "summary": {
+            "claims": 30,
+            "unsupported": 2,
+            "rate": 0.0667
+          },
+          "root_cause": {
+            "claims": 30,
+            "unsupported": 2,
+            "rate": 0.0667
+          },
+          "evidence": {
+            "claims": 148,
+            "unsupported": 0,
+            "rate": 0.0
+          }
+        },
+        "by_kind": {
+          "number": 1,
+          "metric": 4
+        },
+        "diagnoses_with_unsupported": 2,
+        "misattributed_numbers": 0
+      },
+      "hallucination": {
+        "mentions": 1462,
+        "hallucinated": 9,
+        "rate": 0.0062,
+        "by_kind": {
+          "service": {
+            "mentions": 313,
+            "hallucinated": 0,
+            "rate": 0.0
+          },
+          "metric": {
+            "mentions": 351,
+            "hallucinated": 8,
+            "rate": 0.0228
+          },
+          "number": {
+            "mentions": 798,
+            "hallucinated": 1,
+            "rate": 0.0013
+          },
+          "time": {
+            "mentions": 0,
+            "hallucinated": 0,
+            "rate": null
+          }
+        },
+        "diagnoses_with_any": 2
+      },
+      "completeness": {
+        "moved_metrics": 220,
+        "moved_cited": 206,
+        "rate": 0.9364,
+        "diagnoses_citing_every_moved_metric": 19,
+        "diagnoses_with_a_moved_metric": 29,
+        "services": 74,
+        "services_named": 74,
+        "services_rate": 1.0
+      },
+      "capacity_slips": {
+        "diagnoses": 8,
+        "actions": 10
+      },
+      "severity_disagreements": 6
+    },
+    "with": {
+      "diagnoses": 30,
+      "fidelity": {
+        "claims": 211,
+        "unsupported": 6,
+        "unsupported_rate": 0.0284,
+        "evidence_fidelity": 0.9716,
+        "by_field": {
+          "summary": {
+            "claims": 30,
+            "unsupported": 3,
+            "rate": 0.1
+          },
+          "root_cause": {
+            "claims": 30,
+            "unsupported": 3,
+            "rate": 0.1
+          },
+          "evidence": {
+            "claims": 151,
+            "unsupported": 0,
+            "rate": 0.0
+          }
+        },
+        "by_kind": {
+          "metric": 6
+        },
+        "diagnoses_with_unsupported": 3,
+        "misattributed_numbers": 0
+      },
+      "hallucination": {
+        "mentions": 1482,
+        "hallucinated": 8,
+        "rate": 0.0054,
+        "by_kind": {
+          "service": {
+            "mentions": 333,
+            "hallucinated": 0,
+            "rate": 0.0
+          },
+          "metric": {
+            "mentions": 347,
+            "hallucinated": 8,
+            "rate": 0.0231
+          },
+          "number": {
+            "mentions": 802,
+            "hallucinated": 0,
+            "rate": 0.0
+          },
+          "time": {
+            "mentions": 0,
+            "hallucinated": 0,
+            "rate": null
+          }
+        },
+        "diagnoses_with_any": 3
+      },
+      "completeness": {
+        "moved_metrics": 220,
+        "moved_cited": 203,
+        "rate": 0.9227,
+        "diagnoses_citing_every_moved_metric": 19,
+        "diagnoses_with_a_moved_metric": 29,
+        "services": 74,
+        "services_named": 74,
+        "services_rate": 1.0
+      },
+      "capacity_slips": {
+        "diagnoses": 2,
+        "actions": 2
+      },
+      "severity_disagreements": 1
+    },
+    "bedrock_calls": 38
+  }
+}

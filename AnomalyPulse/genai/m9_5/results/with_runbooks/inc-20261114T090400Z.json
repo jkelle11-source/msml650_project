@@ -1,0 +1,106 @@
+{
+ "diagnosis": {
+  "severity": "HIGH",
+  "summary": "Payment-service is returning 5xx errors on 100% of requests with p95 latency at 4245.6 ms, up from a 4.5 ms baseline. Order-service is simultaneously returning 5xx errors on 50.4% of requests and shows 120 dependency errors per minute against payment-service, with p95 latency at 4257.5 ms. Both services are degraded in the current one-minute window.",
+  "root_cause": "A complete failure in payment-service and a concurrent elevated failure rate in order-service, active at the same time, are the most likely root cause.",
+  "evidence": [
+   "Payment-service 5xx error rate is 1.0 (100%) against a 0 baseline, and p95 latency rose from 4.5 ms to 4245.6 ms, approximately a 942x increase.",
+   "Order-service 5xx error rate is 0.5042 (50.4%) against a 0 baseline, and p95 latency rose from 25.1 ms to 4257.5 ms, approximately a 170x increase.",
+   "Order-service dependency error count is 120 per minute against a 0 baseline, and dependency p95 latency rose from 22.1 ms to 4715.4 ms, approximately a 213x increase; mean dependency latency rose from 16.2 ms to 4276.3 ms, approximately a 263x increase.",
+   "Payment-service lambda_duration_ms_mean rose from 0.59 ms to 2.59 ms, approximately a 4.4x increase.",
+   "Order-service db_latency_ms_p95 rose from 5.3 ms to 17.7 ms, approximately a 3.4x increase."
+  ],
+  "recommended_actions": [
+   "Inspect payment-service Lambda logs and invocation errors immediately to identify what is producing its 100% 5xx error rate and near-4.25 s p95 latency.",
+   "Check payment-service Lambda concurrency and throttle counts at the account level, as lambda_duration_ms_mean has risen and every request is currently failing.",
+   "After stabilizing payment-service, recheck order-service error rate and dependency error count to determine whether its 50.4% 5xx rate and 120 dependency errors per minute persist independently.",
+   "Investigate order-service DynamoDB latency, which rose from 5.3 ms to 17.7 ms, as a potentially independent fault that may remain after payment-service is restored.",
+   "Consider applying rate and burst limits on the API Gateway stage while both faults are being worked to protect the rest of the stack."
+  ]
+ },
+ "evidence_metrics": [
+  [
+   "payment-service.error_rate_5xx",
+   "payment-service.p95_latency_ms"
+  ],
+  [
+   "order-service.error_rate_5xx",
+   "order-service.p95_latency_ms"
+  ],
+  [
+   "order-service.dependency_error_count",
+   "order-service.dependency_latency_ms_p95",
+   "order-service.dependency_latency_ms_mean"
+  ],
+  [
+   "payment-service.lambda_duration_ms_mean"
+  ],
+  [
+   "order-service.db_latency_ms_p95"
+  ]
+ ],
+ "self_check": {
+  "passed": true,
+  "findings": []
+ },
+ "runbook": "cascading_failure",
+ "calls": [
+  {
+   "incident_id": "inc-20261114T090400Z",
+   "diagnosis": {
+    "severity": "HIGH",
+    "summary": "Payment-service is returning 5xx errors on 100% of requests with p95 latency at 4245.6 ms, up from a 4.5 ms baseline. Order-service is simultaneously returning 5xx errors on 50.4% of requests and shows 120 dependency errors per minute against payment-service, with p95 latency at 4257.5 ms. Both services are degraded in the current one-minute window.",
+    "root_cause": "A complete failure in payment-service and a concurrent elevated failure rate in order-service, active at the same time, are the most likely root cause.",
+    "evidence": [
+     "Payment-service 5xx error rate is 1.0 (100%) against a 0 baseline, and p95 latency rose from 4.5 ms to 4245.6 ms, approximately a 942x increase.",
+     "Order-service 5xx error rate is 0.5042 (50.4%) against a 0 baseline, and p95 latency rose from 25.1 ms to 4257.5 ms, approximately a 170x increase.",
+     "Order-service dependency error count is 120 per minute against a 0 baseline, and dependency p95 latency rose from 22.1 ms to 4715.4 ms, approximately a 213x increase; mean dependency latency rose from 16.2 ms to 4276.3 ms, approximately a 263x increase.",
+     "Payment-service lambda_duration_ms_mean rose from 0.59 ms to 2.59 ms, approximately a 4.4x increase.",
+     "Order-service db_latency_ms_p95 rose from 5.3 ms to 17.7 ms, approximately a 3.4x increase."
+    ],
+    "recommended_actions": [
+     "Inspect payment-service Lambda logs and invocation errors immediately to identify what is producing its 100% 5xx error rate and near-4.25 s p95 latency.",
+     "Check payment-service Lambda concurrency and throttle counts at the account level, as lambda_duration_ms_mean has risen and every request is currently failing.",
+     "After stabilizing payment-service, recheck order-service error rate and dependency error count to determine whether its 50.4% 5xx rate and 120 dependency errors per minute persist independently.",
+     "Investigate order-service DynamoDB latency, which rose from 5.3 ms to 17.7 ms, as a potentially independent fault that may remain after payment-service is restored.",
+     "Consider applying rate and burst limits on the API Gateway stage while both faults are being worked to protect the rest of the stack."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "payment-service.error_rate_5xx",
+     "payment-service.p95_latency_ms"
+    ],
+    [
+     "order-service.error_rate_5xx",
+     "order-service.p95_latency_ms"
+    ],
+    [
+     "order-service.dependency_error_count",
+     "order-service.dependency_latency_ms_p95",
+     "order-service.dependency_latency_ms_mean"
+    ],
+    [
+     "payment-service.lambda_duration_ms_mean"
+    ],
+    [
+     "order-service.db_latency_ms_p95"
+    ]
+   ],
+   "runbook": "cascading_failure",
+   "self_check": {
+    "passed": true,
+    "findings": []
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 3399,
+    "output_tokens": 2642
+   },
+   "latency_ms": 20870
+  }
+ ]
+}
