@@ -98,7 +98,7 @@ def load_m9_2_reference(path):
 
 
 def build_report(dataset, queues, classifiers, seed=m.SEED, resamples=m.BOOTSTRAP, allow_partial=False,
-                 repo_root=None, m9_2_results=None):
+                 repo_root=None, m9_2_results=None, commit=None):
     if len(classifiers) != 1:
         raise m.MetricsError("give exactly one classifier (the live one M9-2 scored)")
     m.CONFIG.update(seed=seed, resamples=resamples)
@@ -132,7 +132,7 @@ def build_report(dataset, queues, classifiers, seed=m.SEED, resamples=m.BOOTSTRA
                        "headline_windows": sum(1 for e, _ in scored.rows if e in headline_set),
                        "validation_runs": len(val_eids), "validation_windows": len(val_scored.rows)},
             "classifier": m.package_summary(package, environment),
-            "git": m.git_state(repo_root or Path(__file__).resolve().parents[2]),
+            "git": {**m.git_state(repo_root or Path(__file__).resolve().parents[2]), **({"commit": commit} if commit else {})},
             "environment": environment,
             "model0": {"p95_ratio": model0.RATIO, "error_limit": model0.ERROR_LIMIT,
                        "earlier_windows": model0.EARLIER, "tuned": False,
@@ -182,6 +182,10 @@ def _det_table(blocks):
     for label, key in (("False-positive rate, healthy windows only", "fpr_healthy"),
                        ("Fault-start windows flagged", "fault_start_flagged")):
         rows.append([label] + [_n(blocks[n]["metrics"].get(key)) for n in MODELS])
+    rows.append(["Median detection latency, s [95% CI]"] + [
+        _ci(blocks[n]["latency"].get("median_s"), blocks[n]["latency"].get("median_ci95"), 1) for n in MODELS])
+    rows.append(["Incident runs never flagged"] + [
+        f"{blocks[n]['latency'].get('missed_runs')} of {blocks[n]['latency'].get('incident_runs')}" for n in MODELS])
     return _table(["Metric"] + [NAME[n] for n in MODELS], rows)
 
 
@@ -233,7 +237,9 @@ def render_markdown(report):
          f"- **Code:** commit `{p['git'].get('commit')}` (dirty: {p['git'].get('dirty')}); generated {p['generated_at']}.", "",
          "## 1. Detection beside the baseline (headline)", ""]
     L += _det_table(head)
-    L += ["", f"Classification (the classifier alone; Model 0 cannot name a class): accuracy "
+    L += ["", "The latency median covers only the incident runs a detector flagged at all; the last row counts the runs it "
+              "never flagged, which a median would hide.", "",
+          f"Classification (the classifier alone; Model 0 cannot name a class): accuracy "
               f"{_ci(cls['accuracy'], cls['ci95'].get('accuracy'))}, macro-F1 {_ci(cls['macro_f1'], cls['ci95'].get('macro_f1'))}; "
               "Model 0: n/a.", "", "### The margin", ""]
     L += _margin_table(mg)
@@ -278,6 +284,14 @@ def render_markdown(report):
     L += ["", "## 6. Varied durations", ""]
     for duration, block in report["varied_duration"].items():
         L += [f"**{duration} s faults ({block['runs']} runs)**", ""] + _cells_table(block["by_injector"], c) + [""]
+    L += ["## What Model 0 cannot be compared on", "",
+          "- **Confounders (30 runs).** M9-2 scores them by which class the classifier names (either fault's type, the "
+          "labeled first type, or `CASCADING_FAILURE`). A rule names no class, so there is nothing to put beside them. The "
+          "headline leaves them out; the JSON's `all_test` slice includes them in the anomaly view only.",
+          "- **Time to recognize a cascade, accuracy, macro-F1 and per-class precision** all need a class name, so they are "
+          "n/a for Model 0.",
+          "- **ROC AUC, average precision and recall at a fixed false-alarm rate** need a score, and a rule has none.",
+          "- **XGBoost and Random Forest** were not scored on the test set (M9-2 scored only the live classifier).", ""]
     if report.get("m9_2_reference"):
         L += ["## 7. M9-2's detectors, for reference (headline)", ""]
         rows = []
@@ -310,6 +324,8 @@ def main(argv=None):
     parser.add_argument("--out", required=True, help=f"write {OUT_JSON} and {OUT_MD} here")
     parser.add_argument("--seed", type=int, default=m.SEED)
     parser.add_argument("--bootstrap", type=int, default=m.BOOTSTRAP)
+    parser.add_argument("--job", default=None, help="the training job the classifier came from")
+    parser.add_argument("--commit", default=None, help="the commit this ran from (git rev-parse HEAD; the container has no git)")
     parser.add_argument("--allow-partial", action="store_true")
     parser.add_argument("--force", action="store_true", help="overwrite an earlier result")
     args = parser.parse_args(argv)
@@ -321,9 +337,9 @@ def main(argv=None):
         print(f"error: {out} already holds a result (--force to overwrite)", file=sys.stderr)
         return 1
     try:
-        package = m.load_package(name, Path(directory).expanduser(), "classifier")
+        package = m.load_package(name, Path(directory).expanduser(), "classifier", job=args.job)
         report = build_report(args.dataset, args.queues, [package], seed=args.seed, resamples=args.bootstrap,
-                              allow_partial=args.allow_partial, m9_2_results=args.m9_2_results)
+                              allow_partial=args.allow_partial, m9_2_results=args.m9_2_results, commit=args.commit)
     except (m.MetricsError, evaluate.EvalError, m.TrainError) as err:
         print(f"error: {err}", file=sys.stderr)
         return 1

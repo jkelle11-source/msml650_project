@@ -136,3 +136,31 @@ def test_m9_2s_detectors_are_shown_beside_model0_when_given(world, tmp_path):
         "metrics": {"precision": 0.6, "recall": 1.0, "f1": 0.75, "fpr": 1.0}, "ci95": {}, "runs": 320}}}}))
     report, _ = build(world, m9_2_results=str(ref))
     assert report["m9_2_reference"]["iforest"]["metrics"]["recall"] == 1.0
+
+def run_main(world, tmp_path, *extra):
+    w, qdir, pkg = world
+    out = tmp_path / "out"
+    code = r.main(["--dataset", str(w.root), "--queues", str(qdir), "--classifier", f"incident_type={pkg}",
+                   "--out", str(out), "--bootstrap", "200", "--allow-partial", *extra])
+    assert code == 0
+    return out
+
+
+def test_the_job_and_commit_are_recorded(world, tmp_path):
+    out = run_main(world, tmp_path, "--job", "job-1", "--commit", "abc123")
+    provenance = json.loads((out / r.OUT_JSON).read_text())["provenance"]
+    assert provenance["classifier"]["job"] == "job-1" and provenance["git"]["commit"] == "abc123"
+    assert "job `job-1`" in (out / r.OUT_MD).read_text()
+
+
+def test_the_markdown_shows_latency_and_the_runs_never_flagged(world, tmp_path):
+    text = (run_main(world, tmp_path) / r.OUT_MD).read_text()
+    assert "Median detection latency" in text and "Incident runs never flagged" in text
+    assert "which a median would hide" in text
+
+
+def test_the_markdown_lists_what_model0_cannot_be_compared_on(world, tmp_path):
+    text = (run_main(world, tmp_path) / r.OUT_MD).read_text()
+    for needle in ("What Model 0 cannot be compared on", "Confounders (30 runs)", "Time to recognize a cascade",
+                   "XGBoost and Random Forest"):
+        assert needle in text, needle
