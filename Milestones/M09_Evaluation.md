@@ -198,7 +198,7 @@ per-run usage is the starting point for this ticket's cost per experiment and pe
   record), and the store's `incident_retry` log lines give how often a retry was kept and what it still found.
 
 **Scored 2026-11-19** ([`Docs/GENAI_EVALUATION.md`](../Docs/GENAI_EVALUATION.md); `AnomalyPulse/genai/m9_5/`), over
-the 296 stored test-set diagnoses (runbooks off, as deployed): evidence fidelity 97.6% (50 of 2,095 claims
+the 296 stored test-set diagnoses (runbooks off, as deployed at the time): evidence fidelity 97.6% (50 of 2,095 claims
 unsupported), hallucination 0.46% of mentions, 94.5% of moved metrics cited. 47 of the 50 unsupported claims are
 `DATABASE_THROTTLING` diagnoses whose input held only payment-service, which the test mix makes look affected:
 Bedrock restated the type with no metric for it, and retries couldn't fix that. 128 of 296 diagnoses have an action
@@ -208,6 +208,10 @@ run, in 50 (43 of 60 Lambda degradations). The runbook comparison ran on 30 inci
 lists on 17 of 30 (one called 8 more a tie, the other picked runbooks), both preferred the lists without on 1.
 **`ANOMALYPULSE_RUNBOOKS` goes on for the demo.** The raters split on how many lists without runbooks were incorrect
 (5 vs 26): Jake also marked down X-Ray, which the sheet's stack facts don't rule out.
+
+**Deployed 2026-11-23** (05:49 UTC, runbooks on). One live traffic spike (`exp-20261123T055215Z-c61d`,
+`inc-20261123T055800Z`) stored the `traffic_spike` runbook and passed `live_check` and the feed check, with every
+claim supported and no capacity or X-Ray slip. The scores above still describe the runbooks-off test set.
 
 **Definition of Done**
 - [x] Evidence fidelity and hallucination rate computed over test-set diagnoses. *296 diagnoses: 97.6% of claims
