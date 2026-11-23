@@ -185,11 +185,13 @@ per-run usage is the starting point for this ticket's cost per experiment and pe
 the 296 stored test-set diagnoses (runbooks off, as deployed): evidence fidelity 97.6% (50 of 2,095 claims
 unsupported), hallucination 0.46% of mentions, 94.5% of moved metrics cited. 47 of the 50 unsupported claims are
 `DATABASE_THROTTLING` diagnoses whose input held only payment-service, which the test mix makes look affected:
-Bedrock restated the type with no metric for it, and retries couldn't fix that. The capacity slip is in 82 of 296
-diagnoses (68 of 77 traffic spikes). The runbook comparison ran on 30 incidents (38 Bedrock calls): slips 8 → 2,
-no runbook fact in a claim. **Rated blind 2026-11-22** by two raters: both preferred the runbook lists on 17 of 30
-(one called 8 more a tie, the other picked runbooks), both preferred the lists without on 1. **`ANOMALYPULSE_RUNBOOKS`
-goes on for the demo.** The raters split on how many lists without runbooks were incorrect (5 vs 26).
+Bedrock restated the type with no metric for it, and retries couldn't fix that. 128 of 296 diagnoses have an action
+that's wrong about this stack: the capacity slip in 82 (68 of 77 traffic spikes), and X-Ray, which the stack doesn't
+run, in 50 (43 of 60 Lambda degradations). The runbook comparison ran on 30 incidents (38 Bedrock calls): stack errors
+15 → 2, one runbook-only fact in 211 claims. **Rated blind 2026-11-22** by two raters: both preferred the runbook
+lists on 17 of 30 (one called 8 more a tie, the other picked runbooks), both preferred the lists without on 1.
+**`ANOMALYPULSE_RUNBOOKS` goes on for the demo.** The raters split on how many lists without runbooks were incorrect
+(5 vs 26): Jake also marked down X-Ray, which the sheet's stack facts don't rule out.
 
 **Definition of Done**
 - [x] Evidence fidelity and hallucination rate computed over test-set diagnoses. *296 diagnoses: 97.6% of claims

@@ -29,6 +29,11 @@ that tells you whether an engineer can trust the explanation, so it's the headli
   (`diagnosis_input`), the metrics each evidence bullet cites (`evidence_metrics`) and its self-check.
   Downloaded read-only by `fetch.py` from the Incidents table, matched to runs by `experiment_id`. The
   stress slice's 20 are reported on their own line.
+- **Which runs they cover:** 292 of the 350 test runs, 285 of the 290 fault runs and 7 of the 60 healthy ones.
+  The other 5 fault runs opened no incident, so they have no diagnosis to score. The 8 diagnoses on the 7
+  healthy runs are false alarms. 40 of the 296, those 8 included, were handed a type other than the run's
+  label. Their evidence fidelity is 99.3%, because fidelity checks a claim against the input Bedrock got,
+  whether or not the type in it was right; M9-2 scores the type.
 - **Runbooks were off** for all of them (`ANOMALYPULSE_RUNBOOKS=off`), as deployed.
 - **One set of rules:** each diagnosis is checked again with today's self-check against its stored input,
   as the feed check does (`incidents/feed.py`).
@@ -49,17 +54,18 @@ Definitions (`score.py`):
 
 ## Results
 
-| Test set | Diagnoses | Evidence fidelity (claims supported) | Hallucination (mentions) | Completeness (moved metrics cited) | Capacity slip in actions |
+| Test set | Diagnoses | Evidence fidelity (claims supported) | Hallucination (mentions) | Completeness (moved metrics cited) | Stack error in actions (capacity / X-Ray) |
 |---|---|---|---|---|---|
-| **All** | **296** | **2,045 of 2,095 (97.6%)** | **68 of 14,844 (0.46%)** | **2,085 of 2,207 (94.5%)** | **82** |
-| TRAFFIC_SPIKE | 77 | 555 of 556 (99.8%) | 0 of 4,042 (0.00%) | 560 of 564 (99.3%) | 68 |
-| DATABASE_THROTTLING | 68 | 400 of 447 (89.5%) | 66 of 2,861 (2.31%) | 331 of 357 (92.7%) | 7 |
-| LAMBDA_DEGRADATION | 60 | 435 of 436 (99.8%) | 1 of 2,978 (0.03%) | 391 of 414 (94.4%) | 2 |
-| DEPENDENCY_FAILURE | 38 | 278 of 279 (99.6%) | 1 of 1,949 (0.05%) | 300 of 352 (85.2%) | 0 |
-| CASCADING_FAILURE | 53 | 377 of 377 (100%) | 0 of 3,014 (0.00%) | 503 of 520 (96.7%) | 5 |
-| *Stress slice* | *20* | *151 of 151 (100%)* | *0 of 1,011 (0.00%)* | *154 of 168 (91.7%)* | *4* |
+| **All** | **296** | **2,045 of 2,095 (97.6%)** | **68 of 14,844 (0.46%)** | **2,085 of 2,207 (94.5%)** | **128 (82 / 50)** |
+| TRAFFIC_SPIKE | 77 | 555 of 556 (99.8%) | 0 of 4,042 (0.00%) | 560 of 564 (99.3%) | 68 (68 / 0) |
+| DATABASE_THROTTLING | 68 | 400 of 447 (89.5%) | 66 of 2,861 (2.31%) | 331 of 357 (92.7%) | 9 (7 / 5) |
+| LAMBDA_DEGRADATION | 60 | 435 of 436 (99.8%) | 1 of 2,978 (0.03%) | 391 of 414 (94.4%) | 44 (2 / 43) |
+| DEPENDENCY_FAILURE | 38 | 278 of 279 (99.6%) | 1 of 1,949 (0.05%) | 300 of 352 (85.2%) | 1 (0 / 1) |
+| CASCADING_FAILURE | 53 | 377 of 377 (100%) | 0 of 3,014 (0.00%) | 503 of 520 (96.7%) | 6 (5 / 1) |
+| *Stress slice* | *20* | *151 of 151 (100%)* | *0 of 1,011 (0.00%)* | *154 of 168 (91.7%)* | *8 (4 / 4)* |
 
-Rows are by the classified type, the one Bedrock was given.
+Rows are by the classified type, the one Bedrock was given. A diagnosis with both stack errors counts once in
+the total.
 
 - **Unsupported-claim rate 2.4%** (50 of 2,095), in 29 of the 296 diagnoses. By field: summary 22 of 296
   (7.4%), root cause 27 of 296 (9.1%), evidence bullets 1 of 1,503 (0.07%). The bullets are almost always
@@ -80,9 +86,9 @@ Rows are by the classified type, the one Bedrock was given.
 47 of the 50 are in `DATABASE_THROTTLING` diagnoses, all from the 29 whose input held only payment-service
 (no table, so no database metric) and nothing from product-service. Bedrock was told the type is database
 throttling and repeated it ("payment-service is flagged for a DATABASE_THROTTLING incident"; "DATABASE_THROTTLING
-on payment-service is the most likely root cause") with no metric to show it. The other three: a confidence
-written "99.99%" where the input's is 0.99999985 (truncated, not rounded), a "490" that isn't in the input,
-and one bullet naming order-service where the input had only payment-service.
+on payment-service is the most likely root cause") with no metric to show it. The other three: a summary's
+"490" that isn't in the input, a root cause naming order-service when the input has none of it, and an
+evidence bullet putting an "8" on a metric it doesn't cite.
 
 Why the input held only payment-service: payment's request rate is above its baseline in nearly every test
 incident (about 0.94 → 2 rps), because the test set's endpoint mix doubles `POST /orders` (5% → 10%) and
@@ -100,21 +106,32 @@ it ran. Two things for others to weigh:
 The incident store retries a flagged diagnosis once per type with its findings (M8-3). Over the test set's
 incidents: **82 retries, 55 kept** (their self-check came back clean), 0 errors. Of the 27 not kept, 26 still
 claimed throttling without a metric for it (the case above: a retry can't add evidence the input lacks) and
-2 still had a number off. No test diagnosis ended held back ("Severity pending"): none finished with causal
-wording or a bullet citing nothing, so the console showed every stored diagnosis.
+2 still had a number off. No test diagnosis ended held back for causal wording or a bullet citing nothing.
+
+**The console showed 293 of the 296.** The other three (slots 877, 934 and 1031) used all 5 of their Bedrock
+calls, then changed type once more, to `DEPENDENCY_FAILURE`. Their stored diagnosis was for the earlier type,
+so the console ended on "Severity pending" (`record.shown_diagnosis`). They are still scored here, against
+the input and type Bedrock was given.
 
 ## Actionability
 
-### The capacity slip (M8-4), counted in every diagnosis
+### Stack errors, counted in every diagnosis
 
-An action that checks or raises a table's capacity on the Carts or Orders table (both on-demand) or on a
-payment-service table (it has none) is an actionability error (`score.capacity_slips`). **82 of the 296
-diagnoses (27.7%) have one, 68 of them traffic spikes** (68 of 77), for example: "Check DynamoDB auto-scaling
-policies and provisioned capacity on the product-service, cart-service, and order-service tables". The
-input never says how a table's capacity is set; the runbooks do.
+**128 of the 296 diagnoses (43.2%) have an action that is wrong about this stack**, in one of two ways. Both
+counts are pattern matches, so they're approximate; `test_m9_5.py` holds the cases each leaves out.
 
-This count is a pattern match, so it's approximate. It was tuned against the actions it matched to leave out
-Lambda's provisioned concurrency and watching consumed capacity (`test_m9_5.py` holds both).
+- **The capacity slip (M8-4), 82 diagnoses (27.7%), 68 of them traffic spikes** (68 of 77). An action that
+  checks or raises a table's capacity on the Carts or Orders table (both on-demand) or on a payment-service
+  table (it has none) (`score.capacity_slips`), for example: "Check DynamoDB auto-scaling policies and
+  provisioned capacity on the product-service, cart-service, and order-service tables". The input never says
+  how a table's capacity is set; the runbooks do. The count leaves out Lambda's provisioned concurrency and
+  watching consumed capacity.
+- **The X-Ray slip, 50 diagnoses (16.9%), 43 of them Lambda degradations** (43 of 60). An action that sends
+  the engineer to X-Ray traces or a service map (`score.xray_slips`), for example: "Inspect payment-service
+  Lambda logs and X-Ray traces from the incident window". Active tracing is off on the four service
+  functions and the explain function, and tracing is off on the API stage (checked 2026-11-23), so there
+  are no traces to read. The two actions that suggest enabling X-Ray are a possible change, not a false
+  fact, and aren't counted.
 
 ### With and without runbooks, blind
 
@@ -124,14 +141,18 @@ classified type (`compare.py`, seed 20261119):
 - **Without runbooks:** the stored diagnosis, what the live store kept, retry included. With the switch off
   the request is byte-for-byte M6-1's, so this is exactly what runbooks-off produces.
 - **With runbooks:** a new call on the same stored input, through the store's own retry rule, same model
-  (Claude Sonnet 4.6) and effort. 38 calls for the 30 (8 retries), 2026-11-19, about $1.10.
+  (Claude Sonnet 4.6) and effort. 38 calls for the 30 (8 retries), 2026-11-19, $1.44 from
+  their recorded tokens at $3 in / $15 out per million.
 
 **Scored by people, blind** (`sheet.py`): each incident's two action lists as A and B in a shuffled order
 (seed 20261120; runbooks are A in 12 of 30), with the input's metrics and the stack facts M6-2's scorer had.
 Each rater picks the better list (ties allowed) and scores each list 0/1 on Correct and Safe. Two raters,
-Josh and Jake, each on their own copy, neither having read the runbooks; both are informed non-specialists
-(no cloud-operations background), working from the sheet's stack facts. Scored 2026-11-22
-(`results/blind/scores.json`).
+Josh and Jake, each on their own copy; both are informed non-specialists (no cloud-operations background),
+working from the sheet's stack facts. Jake's committed copy leaves out the sheet's instructions and stack
+facts, which Jake had in view while scoring. Scored 2026-11-22 (`results/blind/scores.json`).
+
+**Neither rater came to the runbooks cold.** Josh wrote them (M6-2) and Jake corrected them in that review, so
+a rater could recognize their style even with the lists unlabeled and shuffled.
 
 | Of 30 incidents | Josh | Jake | Both agree |
 |---|---|---|---|
@@ -148,27 +169,38 @@ Josh and Jake, each on their own copy, neither having read the runbooks; both ar
   24); on 3 more the raters split outright. Neither rater favored a position: runbooks were list A in 12 of 30,
   and the picks follow the list, not the letter.
 - **The lists without runbooks are where the raters differ most, on Correct.** Josh marked 5 incorrect, each one
-  an incident the automatic count also flags for the capacity slip. Jake marked 26 incorrect: all 8 with the slip, and 18
-  with none, and left no notes. So the two raters agree runbooks help, but not on how much was wrong
-  without them. Jake's count isn't explained here.
-- **Decision:** `ANOMALYPULSE_RUNBOOKS` goes **on** for the demo. Both raters' preference and the automatic slip
-  count (8 → 2) point the same way, and no runbook fact reached a claim. The switch itself is flipped in the
-  deploy, not here.
+  an incident the capacity-slip count also flags. Jake marked 26 incorrect and, asked afterward, named two
+  reasons: pointing to X-Ray, which this stack doesn't run, and checking capacity on on-demand tables. The
+  automatic count finds one of those two errors in 15 of the 30 lists. Jake marked all 15 incorrect. Josh marked
+  5 of them and none of the 7 whose only error is X-Ray; the sheet's stack facts never say X-Ray is off. The
+  other 11 of Jake's 26 have neither error and weren't itemized. So the raters agree runbooks help, but applied
+  "no false fact about this stack" differently.
+- **Decision:** `ANOMALYPULSE_RUNBOOKS` goes **on** for the demo. Both raters' preference and the automatic
+  stack-error count (15 → 2) point the same way. One caveat: one runbook-only fact reached a claim (1 of 211,
+  below). The switch itself is flipped in the deploy, not here.
 
 **Scored automatically, the same 30:**
 
 | | Without runbooks | With runbooks |
 |---|---|---|
-| Diagnoses with a capacity slip in an action | 8 | 2 |
-| Evidence fidelity (claims supported) | 204 of 208 | 205 of 211 |
+| Diagnoses with a stack error in an action | 15 | 2 |
+| … with a capacity slip | 8 | 2 |
+| … with an X-Ray slip | 8 | 0 |
+| Evidence fidelity (claims supported) | 204 of 208 (98.1%) | 204 of 211 (96.7%) |
 | Hallucinated mentions | 9 of 1,462 | 8 of 1,482 |
 | Moved metrics cited | 206 of 220 | 203 of 220 |
 
-- **The capacity slip mostly goes away.** The two left with runbooks are milder: "whether capacity limits are
-  being approached" on the order-service table, and "review the cart-service DynamoDB table capacity mode".
-- **No runbook fact reached a claim.** M6-2 asked that a runbook-only fact in a summary, root cause or evidence
-  bullet count as unsupported; none did. Every unsupported claim on either side is the throttling-without-a-metric
-  case above (two incidents on both sides, a third only with runbooks, whose live retry had come back clean).
+- **Stack errors mostly go away.** X-Ray drops from 8 lists to none. The two capacity slips left with runbooks
+  are milder: "whether capacity limits are being approached" on the order-service table, and "review the
+  cart-service DynamoDB table capacity mode".
+- **One runbook-only fact reached a claim.** M6-2 asked that a runbook-only fact in a summary, root cause or
+  evidence bullet count as unsupported. Reading all 211 with-runbooks claims found one: a throttling bullet
+  saying "no requests have yet exhausted retries" (`inc-20261116T124800Z`), which the throttling runbook says
+  and neither the input nor the prompt does. The rules can't see it, so it's listed in
+  `score.RUNBOOK_ONLY_CLAIMS` and counted in the table (205 of 211 by the rules alone).
+- **Fidelity is slightly lower with runbooks,** by three claims over the 30 incidents. Every other unsupported
+  claim on either side is the throttling-without-a-metric case above (two incidents on both sides, a third only
+  with runbooks, whose live retry had come back clean).
 
 ### Retrieval quality
 
@@ -181,7 +213,9 @@ accuracy, reported in M9-2.** It isn't a number of its own.
 - **They come from rules, not a reader.** The self-check is the same rule set the live store retried
   against, so a slip it can't see is invisible here too. To bound that, 10 diagnoses it passed (2 per type,
   drawn with seed 20261119; 64 claims) were read claim by claim against their inputs on 2026-11-19, by
-  Claude Code, not a person. It found no unsupported claim the rules missed. That's a small sample.
+  Claude Code, not a person. It found no unsupported claim the rules missed. That's a small sample. The 211
+  claims made with runbooks were read the same way on 2026-11-23, for facts only the runbook holds, and that
+  read found the one above.
 - **The rules can be stricter than a reader.** "99.99%" for 0.99999985 counts as unsupported, and so does
   "throttling" wherever the input has no throttling metric, even as the restated label.
 - **Test set only for the headline.** The stress slice is the separate line in the table.
@@ -193,7 +227,7 @@ cd AnomalyPulse
 python -m genai.m9_5.fetch --profile <profile>              # read-only: data/records.json, data/retries.jsonl
 python -m genai.m9_5.score                                  # results/scores.json
 python -m genai.m9_5.compare --profile <profile> --dry-run  # the 30 incidents and the cost
-python -m genai.m9_5.compare --profile <profile>            # Bedrock with runbooks, about $1
+python -m genai.m9_5.compare --profile <profile>            # Bedrock with runbooks, about $1.50
 python -m genai.m9_5.sheet build                            # results/blind/sheet.md, key.json
 python -m genai.m9_5.sheet score <filled sheet>...          # results/blind/scores.json
 python -m pytest -q genai/m9_5
