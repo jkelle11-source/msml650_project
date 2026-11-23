@@ -1,0 +1,110 @@
+{
+ "diagnosis": {
+  "severity": "HIGH",
+  "summary": "payment-service is returning errors on 45.7% of requests and its p95 latency has risen from 4.5 ms to 4053.9 ms, a roughly 900x increase. order-service, which calls payment-service on every POST /orders, is seeing its dependency p95 call time at 4580.6 ms with 43 dependency errors per minute, and its own 5xx rate has risen to 20.8%. Both services have been in this state for 2 minutes.",
+  "root_cause": "A failure within payment-service producing high 5xx rates and extreme response latency is the most likely root cause, with order-service's elevated errors and latency reflecting that degraded dependency.",
+  "evidence": [
+   "payment-service p95 latency rose from 4.5 ms at baseline to 4053.9 ms, an increase of roughly 900x.",
+   "payment-service 5xx error rate is 45.7%, up from a baseline of 0.",
+   "order-service dependency p95 call time to payment-service is 4580.6 ms, up from 22.1 ms at baseline (roughly 207x), closely tracking payment-service's own p95 latency.",
+   "order-service recorded 43 dependency errors per minute against payment-service, up from 0 at baseline.",
+   "order-service 5xx error rate is 20.8%, up from a baseline of 0, concurrent with the payment-service degradation.",
+   "order-service p95 latency rose from 25.1 ms to 4055.6 ms, roughly 162x its baseline, while its own lambda p95 duration moved only from 4.8 ms to 9.8 ms, indicating the latency increase is in the external call rather than local compute."
+  ],
+  "recommended_actions": [
+   "Check payment-service CloudWatch Logs at /aws/lambda/anomalypulse-payment for errors or panics to identify what is failing inside the handler.",
+   "Check payment-service lambda_throttle_count in CloudWatch to determine whether Lambda throttling is contributing to the dependency error count.",
+   "If payment-service is throttled, assign it reserved concurrency to protect its capacity from other functions.",
+   "After identifying and addressing the fault in payment-service, recheck order-service dependency_error_count and error_rate_5xx to confirm recovery before making further changes.",
+   "Consider a shorter read timeout on order-service's call to payment-service to fail fast and free waiting connections while payment-service remains degraded."
+  ]
+ },
+ "evidence_metrics": [
+  [
+   "payment-service.p95_latency_ms"
+  ],
+  [
+   "payment-service.error_rate_5xx"
+  ],
+  [
+   "order-service.dependency_latency_ms_p95",
+   "order-service.dependency_latency_ms_mean"
+  ],
+  [
+   "order-service.dependency_error_count"
+  ],
+  [
+   "order-service.error_rate_5xx"
+  ],
+  [
+   "order-service.p95_latency_ms",
+   "order-service.lambda_duration_ms_p95"
+  ]
+ ],
+ "self_check": {
+  "passed": true,
+  "findings": []
+ },
+ "runbook": "dependency_failure",
+ "calls": [
+  {
+   "incident_id": "inc-20261113T234400Z",
+   "diagnosis": {
+    "severity": "HIGH",
+    "summary": "payment-service is returning errors on 45.7% of requests and its p95 latency has risen from 4.5 ms to 4053.9 ms, a roughly 900x increase. order-service, which calls payment-service on every POST /orders, is seeing its dependency p95 call time at 4580.6 ms with 43 dependency errors per minute, and its own 5xx rate has risen to 20.8%. Both services have been in this state for 2 minutes.",
+    "root_cause": "A failure within payment-service producing high 5xx rates and extreme response latency is the most likely root cause, with order-service's elevated errors and latency reflecting that degraded dependency.",
+    "evidence": [
+     "payment-service p95 latency rose from 4.5 ms at baseline to 4053.9 ms, an increase of roughly 900x.",
+     "payment-service 5xx error rate is 45.7%, up from a baseline of 0.",
+     "order-service dependency p95 call time to payment-service is 4580.6 ms, up from 22.1 ms at baseline (roughly 207x), closely tracking payment-service's own p95 latency.",
+     "order-service recorded 43 dependency errors per minute against payment-service, up from 0 at baseline.",
+     "order-service 5xx error rate is 20.8%, up from a baseline of 0, concurrent with the payment-service degradation.",
+     "order-service p95 latency rose from 25.1 ms to 4055.6 ms, roughly 162x its baseline, while its own lambda p95 duration moved only from 4.8 ms to 9.8 ms, indicating the latency increase is in the external call rather than local compute."
+    ],
+    "recommended_actions": [
+     "Check payment-service CloudWatch Logs at /aws/lambda/anomalypulse-payment for errors or panics to identify what is failing inside the handler.",
+     "Check payment-service lambda_throttle_count in CloudWatch to determine whether Lambda throttling is contributing to the dependency error count.",
+     "If payment-service is throttled, assign it reserved concurrency to protect its capacity from other functions.",
+     "After identifying and addressing the fault in payment-service, recheck order-service dependency_error_count and error_rate_5xx to confirm recovery before making further changes.",
+     "Consider a shorter read timeout on order-service's call to payment-service to fail fast and free waiting connections while payment-service remains degraded."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "payment-service.p95_latency_ms"
+    ],
+    [
+     "payment-service.error_rate_5xx"
+    ],
+    [
+     "order-service.dependency_latency_ms_p95",
+     "order-service.dependency_latency_ms_mean"
+    ],
+    [
+     "order-service.dependency_error_count"
+    ],
+    [
+     "order-service.error_rate_5xx"
+    ],
+    [
+     "order-service.p95_latency_ms",
+     "order-service.lambda_duration_ms_p95"
+    ]
+   ],
+   "runbook": "dependency_failure",
+   "self_check": {
+    "passed": true,
+    "findings": []
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 3548,
+    "output_tokens": 1683
+   },
+   "latency_ms": 16329
+  }
+ ]
+}

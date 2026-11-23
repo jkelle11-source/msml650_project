@@ -162,7 +162,7 @@ like any other, and the reply has the same shape. Without `revise`, the request 
   keeps it beside the bullets, and M8-4 checks every shown bullet against it and the stored input
   ([`INCIDENT_FEED.md`](INCIDENT_FEED.md)).
 - **`runbook`** (M6-2): the name of the runbook the diagnosis was given (`"dependency_failure"`), or `null`
-  when runbooks are off, the default. It sits beside `diagnosis`, not in it, so the dashboard contract is
+  when runbooks are off. It sits beside `diagnosis`, not in it, so the dashboard contract is
   unchanged. See "Runbooks (M6-2)" below.
 - **`self_check`**: the smoke-level fidelity check below. A diagnosis that fails it is still returned, with
   `passed: false` and its findings, so M8-3 can store it flagged rather than lose it. The findings are
@@ -246,7 +246,8 @@ A runbook per incident type (`genai/runbooks/<type>.md`), picked by the classifi
 contract's metric names, and what to do. Scope decided 2026-11-02: five runbooks and no Bedrock Knowledge Base
 (with five types the pick is a lookup).
 
-- **Off by default:** `ANOMALYPULSE_RUNBOOKS` (`on`/`off`, `off` in `infra/genai/template.yaml`), or
+- **On in the template, off when unset:** `ANOMALYPULSE_RUNBOOKS` (`on`/`off`; `'on'` in
+  `infra/genai/template.yaml` by M9-5's blind comparison, quoted because a bare `on` is a YAML boolean), or
   `diagnose(..., runbooks=True)`. With it off, the request is byte-for-byte the M6-1 request; a test holds it
   to a fixture saved before M6-2 changed any code (`genai/test_data/`).
 - **In the user turn only,** after the evidence, under "Runbook for this incident type. Use it only for
@@ -271,7 +272,7 @@ contract's metric names, and what to do. Scope decided 2026-11-02: five runbooks
 - **Retrieval quality** ("does the retrieved runbook match the incident type?") equals the classifier's
   accuracy (M9-2), since the runbook is picked by the classified type: report it that way. What M6-2 measures
   instead is whether the actions get better, by a blind comparison with and without runbooks (M06), repeated
-  in M9-5 on the test set, which decides whether the switch is on for the demo.
+  in M9-5 on the test set, which decided that the switch goes on for the demo.
 
 ## Running it
 

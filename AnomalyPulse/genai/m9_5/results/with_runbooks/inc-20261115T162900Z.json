@@ -1,0 +1,177 @@
+{
+ "diagnosis": {
+  "severity": "LOW",
+  "summary": "Request rates across all four services have risen sharply above baseline in the current one-minute window, with product-service up 6.4x, cart-service up 11.3x, order-service up 10.3x, and payment-service up 16.3x. DynamoDB capacity consumption has risen on all three tables in proportion with the higher request rates. Product-service error_rate_5xx remains at 0 and order-service p50 latency, while elevated, is still in the low milliseconds.",
+  "root_cause": "A broad, simultaneous traffic spike across all four services is the most likely root cause, with no single service isolated.",
+  "evidence": [
+   "Request rates rose across all four services: product-service from 14.98 to 96.23 rps (6.4x), cart-service from 2.05 to 23.2 rps (11.3x), order-service from 2.97 to 30.45 rps (10.3x), and payment-service from 0.94 to 15.35 rps (16.3x).",
+   "Product-service DynamoDB read capacity rose from 449 to 2,887 RCU/min, a 6.4x increase.",
+   "Order-service DynamoDB read capacity rose from 60.8 to 453 RCU/min and write capacity rose from 56.6 to 921 WCU/min (16.3x).",
+   "Cart-service DynamoDB write capacity rose from 122.8 to 1,392 WCU/min, an 11.3x increase.",
+   "Order-service p50 latency rose from 3.6 ms to 12.4 ms, a 3.5x increase above baseline.",
+   "Product-service error_rate_5xx is 0, unchanged from its baseline of 0."
+  ],
+  "recommended_actions": [
+   "Determine whether the traffic spike is expected (a promotion, a launch, or a client stuck retrying) before making any configuration changes.",
+   "Monitor lambda_throttle_count on all four services to detect whether the shared Lambda concurrency limit is being reached; throttled invocations would not appear in the recorded request rates.",
+   "Watch product-service read_throttle_events and db_consumed_read_capacity closely; if reads continue rising toward table capacity limits, raise the Products table provisioned read capacity or switch it to on-demand.",
+   "If latency and error rates hold near baseline as they currently do, continue monitoring without immediate changes.",
+   "To protect the stack while investigating the traffic source, consider setting rate and burst limits on the API Gateway stage."
+  ]
+ },
+ "evidence_metrics": [
+  [
+   "product-service.request_rate",
+   "cart-service.request_rate",
+   "order-service.request_rate",
+   "payment-service.request_rate"
+  ],
+  [
+   "product-service.db_consumed_read_capacity"
+  ],
+  [
+   "order-service.db_consumed_read_capacity",
+   "order-service.db_consumed_write_capacity"
+  ],
+  [
+   "cart-service.db_consumed_write_capacity"
+  ],
+  [
+   "order-service.p50_latency_ms"
+  ],
+  [
+   "product-service.error_rate_5xx"
+  ]
+ ],
+ "self_check": {
+  "passed": true,
+  "findings": []
+ },
+ "runbook": "traffic_spike",
+ "calls": [
+  {
+   "incident_id": "inc-20261115T162900Z",
+   "diagnosis": {
+    "severity": "LOW",
+    "summary": "Request rates across all four services have risen sharply above baseline in the current one-minute window, with product-service up 6.4x, cart-service up 11.3x, order-service up 10.3x, and payment-service up 16.3x. DynamoDB capacity consumption has risen on all three tables in proportion with the higher request rates. Product-service error_rate_5xx remains at 0 and order-service p50 latency, while elevated, is still in the low milliseconds.",
+    "root_cause": "A broad, simultaneous traffic spike across all four services is the most likely root cause, with no single service isolated.",
+    "evidence": [
+     "Request rates rose across all four services: product-service from 14.98 to 96.23 rps (6.4x), cart-service from 2.05 to 23.2 rps (11.3x), order-service from 2.97 to 30.45 rps (10.3x), and payment-service from 0.94 to 15.35 rps (16.3x).",
+     "Product-service DynamoDB read capacity rose from 449 to 2,887 RCU/min, a 6.4x increase.",
+     "Order-service DynamoDB read capacity rose from 60.8 to 453 RCU/min (7.4x) and write capacity rose from 56.6 to 921 WCU/min (16.3x).",
+     "Cart-service DynamoDB write capacity rose from 122.8 to 1,392 WCU/min, an 11.3x increase.",
+     "Order-service p50 latency rose from 3.6 ms to 12.4 ms, a 3.5x increase above baseline.",
+     "Product-service error_rate_5xx is 0, unchanged from its baseline of 0."
+    ],
+    "recommended_actions": [
+     "Determine whether the traffic spike is expected (a promotion, a launch, or a client stuck retrying) before making any configuration changes.",
+     "Monitor lambda_throttle_count on all four services to detect whether the shared Lambda concurrency limit is being reached; throttled invocations would not appear in the recorded request rates.",
+     "Watch product-service read_throttle_events and db_consumed_read_capacity closely; if reads continue rising toward table capacity limits, raise the Products table provisioned read capacity or switch it to on-demand.",
+     "If latency and error rates hold near baseline as they currently do, continue monitoring without immediate changes.",
+     "To protect the stack while investigating the traffic source, consider setting rate and burst limits on the API Gateway stage."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "product-service.request_rate",
+     "cart-service.request_rate",
+     "order-service.request_rate",
+     "payment-service.request_rate"
+    ],
+    [
+     "product-service.db_consumed_read_capacity"
+    ],
+    [
+     "order-service.db_consumed_read_capacity",
+     "order-service.db_consumed_write_capacity"
+    ],
+    [
+     "cart-service.db_consumed_write_capacity"
+    ],
+    [
+     "order-service.p50_latency_ms"
+    ],
+    [
+     "product-service.error_rate_5xx"
+    ]
+   ],
+   "runbook": "traffic_spike",
+   "self_check": {
+    "passed": false,
+    "findings": [
+     "evidence[2]: the number 7.4 is not in or derivable from the input"
+    ]
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 3441,
+    "output_tokens": 2437
+   },
+   "latency_ms": 18094
+  },
+  {
+   "incident_id": "inc-20261115T162900Z",
+   "diagnosis": {
+    "severity": "LOW",
+    "summary": "Request rates across all four services have risen sharply above baseline in the current one-minute window, with product-service up 6.4x, cart-service up 11.3x, order-service up 10.3x, and payment-service up 16.3x. DynamoDB capacity consumption has risen on all three tables in proportion with the higher request rates. Product-service error_rate_5xx remains at 0 and order-service p50 latency, while elevated, is still in the low milliseconds.",
+    "root_cause": "A broad, simultaneous traffic spike across all four services is the most likely root cause, with no single service isolated.",
+    "evidence": [
+     "Request rates rose across all four services: product-service from 14.98 to 96.23 rps (6.4x), cart-service from 2.05 to 23.2 rps (11.3x), order-service from 2.97 to 30.45 rps (10.3x), and payment-service from 0.94 to 15.35 rps (16.3x).",
+     "Product-service DynamoDB read capacity rose from 449 to 2,887 RCU/min, a 6.4x increase.",
+     "Order-service DynamoDB read capacity rose from 60.8 to 453 RCU/min and write capacity rose from 56.6 to 921 WCU/min (16.3x).",
+     "Cart-service DynamoDB write capacity rose from 122.8 to 1,392 WCU/min, an 11.3x increase.",
+     "Order-service p50 latency rose from 3.6 ms to 12.4 ms, a 3.5x increase above baseline.",
+     "Product-service error_rate_5xx is 0, unchanged from its baseline of 0."
+    ],
+    "recommended_actions": [
+     "Determine whether the traffic spike is expected (a promotion, a launch, or a client stuck retrying) before making any configuration changes.",
+     "Monitor lambda_throttle_count on all four services to detect whether the shared Lambda concurrency limit is being reached; throttled invocations would not appear in the recorded request rates.",
+     "Watch product-service read_throttle_events and db_consumed_read_capacity closely; if reads continue rising toward table capacity limits, raise the Products table provisioned read capacity or switch it to on-demand.",
+     "If latency and error rates hold near baseline as they currently do, continue monitoring without immediate changes.",
+     "To protect the stack while investigating the traffic source, consider setting rate and burst limits on the API Gateway stage."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "product-service.request_rate",
+     "cart-service.request_rate",
+     "order-service.request_rate",
+     "payment-service.request_rate"
+    ],
+    [
+     "product-service.db_consumed_read_capacity"
+    ],
+    [
+     "order-service.db_consumed_read_capacity",
+     "order-service.db_consumed_write_capacity"
+    ],
+    [
+     "cart-service.db_consumed_write_capacity"
+    ],
+    [
+     "order-service.p50_latency_ms"
+    ],
+    [
+     "product-service.error_rate_5xx"
+    ]
+   ],
+   "runbook": "traffic_spike",
+   "self_check": {
+    "passed": true,
+    "findings": []
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 4331,
+    "output_tokens": 994
+   },
+   "latency_ms": 6030
+  }
+ ]
+}

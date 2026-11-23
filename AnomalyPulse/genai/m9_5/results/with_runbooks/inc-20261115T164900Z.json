@@ -1,0 +1,139 @@
+{
+ "diagnosis": {
+  "severity": "LOW",
+  "summary": "payment-service is the only affected service, with its request rate rising from 0.94 rps to 1.87 rps while p95 latency held nearly flat at 4.63 ms against a baseline of 4.51 ms. The 5xx error rate remains at 0. The classifier identifies this as a DATABASE_THROTTLING incident with very high confidence.",
+  "root_cause": "Database throttling on a dependency upstream of payment-service is the most likely root cause, consistent with the near-doubling of request rate and stable latency tail that has not yet surfaced errors.",
+  "evidence": [
+   "Request rate to payment-service rose from 0.94 rps to 1.87 rps, an increase of approximately 98%.",
+   "p95 latency moved only marginally, from 4.51 ms to 4.63 ms, a change of about 2.7%.",
+   "5xx error rate is 0 at both baseline and current, with no errors surfacing despite the elevated request rate."
+  ],
+  "recommended_actions": [
+   "Check read_throttle_events and throttled_requests on the DynamoDB tables accessed along the call path that reaches payment-service, particularly on the Orders table, to confirm which table is throttling.",
+   "Review db_latency_ms_p95 on order-service to determine whether tail latency is rising there, since order-service calls payment-service on every POST /orders.",
+   "Monitor payment-service p95_latency_ms and error_rate_5xx over the next several minutes; if the request rate remains elevated, 5xx errors may appear as retries are exhausted.",
+   "After identifying the throttled table, raise its provisioned capacity or switch it to on-demand mode to relieve the throttle.",
+   "Recheck read_throttle_events and db_latency_ms_p95 on the affected table after each capacity change to confirm improvement."
+  ]
+ },
+ "evidence_metrics": [
+  [
+   "payment-service.request_rate"
+  ],
+  [
+   "payment-service.p95_latency_ms"
+  ],
+  [
+   "payment-service.error_rate_5xx"
+  ]
+ ],
+ "self_check": {
+  "passed": false,
+  "findings": [
+   "summary: claims 'THROTTL', but the input has no metric for it",
+   "root_cause: claims 'throttl', but the input has no metric for it",
+   "root_cause: claims 'Database', but the input has no metric for it"
+  ]
+ },
+ "runbook": "database_throttling",
+ "calls": [
+  {
+   "incident_id": "inc-20261115T164900Z",
+   "diagnosis": {
+    "severity": "LOW",
+    "summary": "payment-service is the only affected service, with its request rate rising from 0.94 rps to 1.87 rps while p95 latency held nearly flat at 4.63 ms against a baseline of 4.51 ms. The 5xx error rate remains at 0. The classifier identifies this as a DATABASE_THROTTLING incident with very high confidence.",
+    "root_cause": "Database throttling on a dependency upstream of payment-service is the most likely root cause, consistent with the near-doubling of request rate and stable latency tail that has not yet surfaced errors.",
+    "evidence": [
+     "Request rate to payment-service rose from 0.94 rps to 1.87 rps, an increase of approximately 98%.",
+     "p95 latency moved only marginally, from 4.51 ms to 4.63 ms, a change of about 2.7%.",
+     "5xx error rate is 0 at both baseline and current, with no errors surfacing despite the elevated request rate."
+    ],
+    "recommended_actions": [
+     "Check read_throttle_events and throttled_requests on the DynamoDB tables accessed along the call path that reaches payment-service, particularly on the Orders table, to confirm which table is throttling.",
+     "Review db_latency_ms_p95 on order-service to determine whether tail latency is rising there, since order-service calls payment-service on every POST /orders.",
+     "Monitor payment-service p95_latency_ms and error_rate_5xx over the next several minutes; if the request rate remains elevated, 5xx errors may appear as retries are exhausted.",
+     "After identifying the throttled table, raise its provisioned capacity or switch it to on-demand mode to relieve the throttle.",
+     "Recheck read_throttle_events and db_latency_ms_p95 on the affected table after each capacity change to confirm improvement."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "payment-service.request_rate"
+    ],
+    [
+     "payment-service.p95_latency_ms"
+    ],
+    [
+     "payment-service.error_rate_5xx"
+    ]
+   ],
+   "runbook": "database_throttling",
+   "self_check": {
+    "passed": false,
+    "findings": [
+     "summary: claims 'THROTTL', but the input has no metric for it",
+     "root_cause: claims 'throttl', but the input has no metric for it",
+     "root_cause: claims 'Database', but the input has no metric for it"
+    ]
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 2974,
+    "output_tokens": 1353
+   },
+   "latency_ms": 14231
+  },
+  {
+   "incident_id": "inc-20261115T164900Z",
+   "diagnosis": {
+    "severity": "LOW",
+    "summary": "payment-service is the only affected service, with its request rate rising from 0.94 rps to 1.87 rps while p95 latency remained nearly flat at 4.63 ms against a 4.51 ms baseline. The 5xx error rate is 0 in both the current and baseline windows, and no latency or error degradation has emerged despite the near-doubling of request volume.",
+    "root_cause": "Read or write capacity pressure on a DynamoDB table in the call path is the most likely root cause, consistent with the classifier output at 0.9999 confidence.",
+    "evidence": [
+     "Request rate to payment-service rose from 0.94 rps to 1.87 rps, an increase of approximately 98%.",
+     "p95 latency moved only marginally, from 4.51 ms to 4.63 ms, a change of about 2.7%.",
+     "5xx error rate is 0 at both baseline and current, with no errors surfacing despite the elevated request rate."
+    ],
+    "recommended_actions": [
+     "Check read_throttle_events and throttled_requests on the DynamoDB tables accessed along the call path that reaches payment-service, particularly the Orders table, to identify which table is under pressure.",
+     "Review db_latency_ms_p95 on order-service to determine whether tail latency is rising there, since order-service calls payment-service on every POST /orders.",
+     "Monitor payment-service p95_latency_ms and error_rate_5xx over the next several minutes to detect whether elevated request rate produces latency growth or errors.",
+     "If a specific table is identified as saturated, raise its provisioned read or write capacity or switch it to on-demand mode.",
+     "Recheck read_throttle_events and db_latency_ms_p95 on the affected table after each capacity change to confirm improvement."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "payment-service.request_rate"
+    ],
+    [
+     "payment-service.p95_latency_ms"
+    ],
+    [
+     "payment-service.error_rate_5xx"
+    ]
+   ],
+   "runbook": "database_throttling",
+   "self_check": {
+    "passed": false,
+    "findings": [
+     "root_cause: the number 0.9999 is not in or derivable from the input",
+     "root_cause: claims 'capacity', but the input has no metric for it",
+     "root_cause: claims 'DynamoDB', but the input has no metric for it"
+    ]
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 3626,
+    "output_tokens": 4518
+   },
+   "latency_ms": 39576
+  }
+ ]
+}

@@ -1,0 +1,182 @@
+[
+ {
+  "n": 1,
+  "incident_id": "inc-20261113T234400Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 2,
+  "incident_id": "inc-20261114T000500Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 3,
+  "incident_id": "inc-20261114T010000Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 4,
+  "incident_id": "inc-20261114T025900Z",
+  "A": "with",
+  "B": "without"
+ },
+ {
+  "n": 5,
+  "incident_id": "inc-20261114T032900Z",
+  "A": "with",
+  "B": "without"
+ },
+ {
+  "n": 6,
+  "incident_id": "inc-20261114T042600Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 7,
+  "incident_id": "inc-20261114T050700Z",
+  "A": "with",
+  "B": "without"
+ },
+ {
+  "n": 8,
+  "incident_id": "inc-20261114T090400Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 9,
+  "incident_id": "inc-20261114T123400Z",
+  "A": "with",
+  "B": "without"
+ },
+ {
+  "n": 10,
+  "incident_id": "inc-20261114T154400Z",
+  "A": "with",
+  "B": "without"
+ },
+ {
+  "n": 11,
+  "incident_id": "inc-20261114T170400Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 12,
+  "incident_id": "inc-20261114T174900Z",
+  "A": "with",
+  "B": "without"
+ },
+ {
+  "n": 13,
+  "incident_id": "inc-20261114T195100Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 14,
+  "incident_id": "inc-20261114T210500Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 15,
+  "incident_id": "inc-20261114T231300Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 16,
+  "incident_id": "inc-20261115T004700Z",
+  "A": "with",
+  "B": "without"
+ },
+ {
+  "n": 17,
+  "incident_id": "inc-20261115T055800Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 18,
+  "incident_id": "inc-20261115T065800Z",
+  "A": "with",
+  "B": "without"
+ },
+ {
+  "n": 19,
+  "incident_id": "inc-20261115T075800Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 20,
+  "incident_id": "inc-20261115T082800Z",
+  "A": "with",
+  "B": "without"
+ },
+ {
+  "n": 21,
+  "incident_id": "inc-20261115T094500Z",
+  "A": "with",
+  "B": "without"
+ },
+ {
+  "n": 22,
+  "incident_id": "inc-20261115T135900Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 23,
+  "incident_id": "inc-20261115T162900Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 24,
+  "incident_id": "inc-20261115T164900Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 25,
+  "incident_id": "inc-20261115T213300Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 26,
+  "incident_id": "inc-20261116T031400Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 27,
+  "incident_id": "inc-20261116T101800Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 28,
+  "incident_id": "inc-20261116T102800Z",
+  "A": "without",
+  "B": "with"
+ },
+ {
+  "n": 29,
+  "incident_id": "inc-20261116T122800Z",
+  "A": "with",
+  "B": "without"
+ },
+ {
+  "n": 30,
+  "incident_id": "inc-20261116T124800Z",
+  "A": "with",
+  "B": "without"
+ }
+]

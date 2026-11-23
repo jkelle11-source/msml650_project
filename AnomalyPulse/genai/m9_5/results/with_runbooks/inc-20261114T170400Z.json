@@ -1,0 +1,108 @@
+{
+ "diagnosis": {
+  "severity": "HIGH",
+  "summary": "Cart-service is experiencing severe Lambda handler degradation, with mean handler CPU time rising approximately 63x and p95 end-to-end latency reaching 1,614.99 ms against a baseline of 8.87 ms. Product-service shows a sharp latency increase to 1,587.93 ms at p99 alongside DynamoDB read throttling at 155 events per minute, while its handler CPU time remains near baseline. Payment-service request rate has nearly doubled from 0.94 rps to 1.92 rps.",
+  "root_cause": "Lambda handler degradation in cart-service, where mean handler CPU time rose approximately 63x and p95 handler duration approximately 310x from baseline, is the most likely root cause of cart-service latency. On product-service, handler CPU time stayed near baseline while DynamoDB read throttle events reached 155 per minute and db_latency_ms_mean rose approximately 11.7x, most likely accounting for that service's separate latency elevation independent of handler CPU time.",
+  "evidence": [
+   "Cart-service mean handler CPU time rose from 2.28 ms to 143.34 ms, approximately 63x above baseline, and p95 handler duration rose from 4.42 ms to 1,370.92 ms, approximately 310x above baseline.",
+   "Cart-service p95 end-to-end latency rose from 8.87 ms to 1,614.99 ms, approximately 182x above baseline.",
+   "Product-service p99 end-to-end latency rose from 9.59 ms to 1,587.93 ms, approximately 166x above baseline, while handler CPU time (lambda_duration_ms_mean) moved from 2.49 ms to 2.26 ms, remaining near baseline.",
+   "Product-service DynamoDB read throttling is active: throttled_requests reached 118/min and read_throttle_events reached 155/min, both from a baseline of 0, while db_latency_ms_mean rose from 4.04 ms to 47.23 ms, approximately 11.7x above baseline.",
+   "Payment-service request rate nearly doubled from 0.94 rps to 1.92 rps, while its handler CPU time (lambda_duration_ms_mean) decreased from 0.59 ms to 0.23 ms."
+  ],
+  "recommended_actions": [
+   "Inspect CloudWatch Logs at /aws/lambda/anomalypulse-cart for slow code paths in the cart-service handler to identify what is consuming CPU time.",
+   "Check the CloudWatch Errors metric for anomalypulse-cart to identify any invocations hitting the timeout cutoff, which would not appear in error_rate_5xx or latency percentiles.",
+   "Review any recent changes to the cart-service Lambda function code, layers, or configuration, and roll back only if logs confirm the slow path is in code or configuration that change touched.",
+   "Investigate the product-service DynamoDB table for read capacity provisioning or on-demand scaling limits given read_throttle_events at 155/min and throttled_requests at 118/min.",
+   "Recheck cart-service lambda_duration_ms_mean and p95_latency_ms, and product-service db_latency_ms_mean and read_throttle_events, after each remediation step."
+  ]
+ },
+ "evidence_metrics": [
+  [
+   "cart-service.lambda_duration_ms_mean",
+   "cart-service.lambda_duration_ms_p95"
+  ],
+  [
+   "cart-service.p95_latency_ms"
+  ],
+  [
+   "product-service.p99_latency_ms",
+   "product-service.lambda_duration_ms_mean"
+  ],
+  [
+   "product-service.throttled_requests",
+   "product-service.read_throttle_events",
+   "product-service.db_latency_ms_mean"
+  ],
+  [
+   "payment-service.request_rate",
+   "payment-service.lambda_duration_ms_mean"
+  ]
+ ],
+ "self_check": {
+  "passed": true,
+  "findings": []
+ },
+ "runbook": "lambda_degradation",
+ "calls": [
+  {
+   "incident_id": "inc-20261114T170400Z",
+   "diagnosis": {
+    "severity": "HIGH",
+    "summary": "Cart-service is experiencing severe Lambda handler degradation, with mean handler CPU time rising approximately 63x and p95 end-to-end latency reaching 1,614.99 ms against a baseline of 8.87 ms. Product-service shows a sharp latency increase to 1,587.93 ms at p99 alongside DynamoDB read throttling at 155 events per minute, while its handler CPU time remains near baseline. Payment-service request rate has nearly doubled from 0.94 rps to 1.92 rps.",
+    "root_cause": "Lambda handler degradation in cart-service, where mean handler CPU time rose approximately 63x and p95 handler duration approximately 310x from baseline, is the most likely root cause of cart-service latency. On product-service, handler CPU time stayed near baseline while DynamoDB read throttle events reached 155 per minute and db_latency_ms_mean rose approximately 11.7x, most likely accounting for that service's separate latency elevation independent of handler CPU time.",
+    "evidence": [
+     "Cart-service mean handler CPU time rose from 2.28 ms to 143.34 ms, approximately 63x above baseline, and p95 handler duration rose from 4.42 ms to 1,370.92 ms, approximately 310x above baseline.",
+     "Cart-service p95 end-to-end latency rose from 8.87 ms to 1,614.99 ms, approximately 182x above baseline.",
+     "Product-service p99 end-to-end latency rose from 9.59 ms to 1,587.93 ms, approximately 166x above baseline, while handler CPU time (lambda_duration_ms_mean) moved from 2.49 ms to 2.26 ms, remaining near baseline.",
+     "Product-service DynamoDB read throttling is active: throttled_requests reached 118/min and read_throttle_events reached 155/min, both from a baseline of 0, while db_latency_ms_mean rose from 4.04 ms to 47.23 ms, approximately 11.7x above baseline.",
+     "Payment-service request rate nearly doubled from 0.94 rps to 1.92 rps, while its handler CPU time (lambda_duration_ms_mean) decreased from 0.59 ms to 0.23 ms."
+    ],
+    "recommended_actions": [
+     "Inspect CloudWatch Logs at /aws/lambda/anomalypulse-cart for slow code paths in the cart-service handler to identify what is consuming CPU time.",
+     "Check the CloudWatch Errors metric for anomalypulse-cart to identify any invocations hitting the timeout cutoff, which would not appear in error_rate_5xx or latency percentiles.",
+     "Review any recent changes to the cart-service Lambda function code, layers, or configuration, and roll back only if logs confirm the slow path is in code or configuration that change touched.",
+     "Investigate the product-service DynamoDB table for read capacity provisioning or on-demand scaling limits given read_throttle_events at 155/min and throttled_requests at 118/min.",
+     "Recheck cart-service lambda_duration_ms_mean and p95_latency_ms, and product-service db_latency_ms_mean and read_throttle_events, after each remediation step."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "cart-service.lambda_duration_ms_mean",
+     "cart-service.lambda_duration_ms_p95"
+    ],
+    [
+     "cart-service.p95_latency_ms"
+    ],
+    [
+     "product-service.p99_latency_ms",
+     "product-service.lambda_duration_ms_mean"
+    ],
+    [
+     "product-service.throttled_requests",
+     "product-service.read_throttle_events",
+     "product-service.db_latency_ms_mean"
+    ],
+    [
+     "payment-service.request_rate",
+     "payment-service.lambda_duration_ms_mean"
+    ]
+   ],
+   "runbook": "lambda_degradation",
+   "self_check": {
+    "passed": true,
+    "findings": []
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 3528,
+    "output_tokens": 3553
+   },
+   "latency_ms": 27730
+  }
+ ]
+}

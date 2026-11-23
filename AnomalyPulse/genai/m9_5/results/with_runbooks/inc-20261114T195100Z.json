@@ -1,0 +1,108 @@
+{
+ "diagnosis": {
+  "severity": "HIGH",
+  "summary": "The product-service Lambda handler is running far slower than its baseline, with all end-to-end latency percentiles elevated by roughly 100x to 173x. No 5xx errors are present on either service. Payment-service shows no handler degradation, though its request rate is elevated above baseline.",
+  "root_cause": "Slow execution within the product-service Lambda handler is the most likely root cause. Payment-service Lambda duration is at or below baseline, making it an unlikely contributor to this incident.",
+  "evidence": [
+   "product-service lambda_duration_ms_mean rose from 2.486 ms to 529.74 ms, an increase of roughly 213x, and lambda_duration_ms_p95 rose from 3.12 ms to 604.64 ms, roughly 194x.",
+   "product-service end-to-end latency rose across all measured percentiles: p50 from 4.09 ms to 708.27 ms (~173x), p95 from 6.56 ms to 718.75 ms (~110x), and p99 from 9.59 ms to 748.83 ms (~78x).",
+   "error_rate_5xx for both product-service and payment-service remains at 0, so no requests are currently returning server errors.",
+   "payment-service lambda_duration_ms_mean is 0.2554 ms, below its baseline of 0.5855 ms, and its p95 latency is 3.63 ms against a baseline of 4.51 ms, showing no handler slowdown.",
+   "payment-service request_rate is 2.1 rps against a baseline of 0.9433 rps, roughly 2.2x higher than normal."
+  ],
+  "recommended_actions": [
+   "Check CloudWatch Logs at /aws/lambda/anomalypulse-product for slow code paths, exceptions, or any log lines showing unexpectedly long operations within the current incident window.",
+   "Review the CloudWatch Duration and Errors metrics for anomalypulse-product to determine whether any invocations are approaching or hitting the 10 s timeout, as those would not appear in error_rate_5xx or latency percentiles.",
+   "If a recent code, layer, or configuration change was deployed to anomalypulse-product, compare logs before and after to determine whether the slow path is in code that change touched before deciding to roll back.",
+   "After any remediation, recheck lambda_duration_ms_mean and p95_latency_ms for product-service to confirm the handler has returned to baseline.",
+   "Investigate why payment-service request_rate has risen to 2.1 rps from a baseline of 0.9433 rps to determine whether upstream call patterns have shifted."
+  ]
+ },
+ "evidence_metrics": [
+  [
+   "product-service.lambda_duration_ms_mean",
+   "product-service.lambda_duration_ms_p95"
+  ],
+  [
+   "product-service.p50_latency_ms",
+   "product-service.p95_latency_ms",
+   "product-service.p99_latency_ms"
+  ],
+  [
+   "product-service.error_rate_5xx",
+   "payment-service.error_rate_5xx"
+  ],
+  [
+   "payment-service.lambda_duration_ms_mean",
+   "payment-service.p95_latency_ms"
+  ],
+  [
+   "payment-service.request_rate"
+  ]
+ ],
+ "self_check": {
+  "passed": true,
+  "findings": []
+ },
+ "runbook": "lambda_degradation",
+ "calls": [
+  {
+   "incident_id": "inc-20261114T195100Z",
+   "diagnosis": {
+    "severity": "HIGH",
+    "summary": "The product-service Lambda handler is running far slower than its baseline, with all end-to-end latency percentiles elevated by roughly 100x to 173x. No 5xx errors are present on either service. Payment-service shows no handler degradation, though its request rate is elevated above baseline.",
+    "root_cause": "Slow execution within the product-service Lambda handler is the most likely root cause. Payment-service Lambda duration is at or below baseline, making it an unlikely contributor to this incident.",
+    "evidence": [
+     "product-service lambda_duration_ms_mean rose from 2.486 ms to 529.74 ms, an increase of roughly 213x, and lambda_duration_ms_p95 rose from 3.12 ms to 604.64 ms, roughly 194x.",
+     "product-service end-to-end latency rose across all measured percentiles: p50 from 4.09 ms to 708.27 ms (~173x), p95 from 6.56 ms to 718.75 ms (~110x), and p99 from 9.59 ms to 748.83 ms (~78x).",
+     "error_rate_5xx for both product-service and payment-service remains at 0, so no requests are currently returning server errors.",
+     "payment-service lambda_duration_ms_mean is 0.2554 ms, below its baseline of 0.5855 ms, and its p95 latency is 3.63 ms against a baseline of 4.51 ms, showing no handler slowdown.",
+     "payment-service request_rate is 2.1 rps against a baseline of 0.9433 rps, roughly 2.2x higher than normal."
+    ],
+    "recommended_actions": [
+     "Check CloudWatch Logs at /aws/lambda/anomalypulse-product for slow code paths, exceptions, or any log lines showing unexpectedly long operations within the current incident window.",
+     "Review the CloudWatch Duration and Errors metrics for anomalypulse-product to determine whether any invocations are approaching or hitting the 10 s timeout, as those would not appear in error_rate_5xx or latency percentiles.",
+     "If a recent code, layer, or configuration change was deployed to anomalypulse-product, compare logs before and after to determine whether the slow path is in code that change touched before deciding to roll back.",
+     "After any remediation, recheck lambda_duration_ms_mean and p95_latency_ms for product-service to confirm the handler has returned to baseline.",
+     "Investigate why payment-service request_rate has risen to 2.1 rps from a baseline of 0.9433 rps to determine whether upstream call patterns have shifted."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "product-service.lambda_duration_ms_mean",
+     "product-service.lambda_duration_ms_p95"
+    ],
+    [
+     "product-service.p50_latency_ms",
+     "product-service.p95_latency_ms",
+     "product-service.p99_latency_ms"
+    ],
+    [
+     "product-service.error_rate_5xx",
+     "payment-service.error_rate_5xx"
+    ],
+    [
+     "payment-service.lambda_duration_ms_mean",
+     "payment-service.p95_latency_ms"
+    ],
+    [
+     "payment-service.request_rate"
+    ]
+   ],
+   "runbook": "lambda_degradation",
+   "self_check": {
+    "passed": true,
+    "findings": []
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 3515,
+    "output_tokens": 1992
+   },
+   "latency_ms": 16665
+  }
+ ]
+}
