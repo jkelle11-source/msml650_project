@@ -157,7 +157,7 @@ showed, and the explicit workload limit. The three controls and the claim bounda
 | Every test run belongs to its queue entry | `tag_runs` raised no error: each registry run has a queue entry whose phase matches | Verified at run time |
 | Diversity protocol applied | The 30 confounders, 20 varied-duration runs and shifted mix are in the queue files and registry ([`TEST_SET.md`](TEST_SET.md)); the varied-duration and confounder results above come from them | Documented; counts match |
 | Extreme slice kept apart | Slots 1051-1070, phase `stress`, its own section in every table above; it is in no headline number | Verified in the results |
-| Feature/Label Boundary on the data the models read | The guard ran over the training and validation features in M5-3 (700 files, 106 columns, no forbidden names) | **Not yet checked on the test features** |
+| Feature/Label Boundary on the data the models read | The guard ran over the training and validation features in M5-3 (700 files, 106 columns, no forbidden names), and again over every downloaded features file for this report: validation, test and stress, 510 files, 106 columns, no forbidden names (2026-11-23, `features.guard.check_columns` in the training image; column names only) | Verified |
 | Results reported per band, and the claim bounded | Per-band tables above and in M9-2 | Done |
 
 ## What this report does not show
