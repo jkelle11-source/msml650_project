@@ -57,6 +57,7 @@ def registry_attempts(s3, bucket):
                 rows.append({"dataset": slot["dataset"], "slot": slot["slot"], "phase": slot.get("phase"),
                              "label": slot.get("incident_type"), "spec": slot.get("spec"),
                              "experiment_id": a["experiment_id"], "verdict": a.get("verdict"),
+                             "batch_id": a.get("batch_id"),
                              "started_at": a.get("started_at"), "ended_at": a.get("ended_at"),
                              "sent": (a.get("client") or {}).get("sent")})
     return rows
