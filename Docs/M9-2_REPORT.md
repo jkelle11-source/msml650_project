@@ -13,6 +13,8 @@
   of 740 healthy windows (2.4%), against 0 of 336 in validation.
 - **The Isolation Forest fails on this test set.** It flags all 2,280 test windows, so its perfect recall means
   nothing. The test set's shifted traffic mix moved the healthy baseline past the forest's fixed cut-off.
+- **The forest isn't reliable on live default-mix traffic either.** A later live healthy check had it flagging 10 of 16
+  healthy minutes, while the classifier kept the run clean (see "The live healthy check").
 - **The classifier holds up across the held-out bands for three of the four fault types.** Accuracy is 0.910 and
   macro-F1 0.869.
 - **Dependency failure is the exception.** Its recall is 0.54, against 0.99 in validation, because the shifted mix
@@ -119,13 +121,28 @@ requests.
 - Replacing only `order_p50_latency_ms` with validation values takes dependency recall from 0.540 to 1.000. The same swap
   leaves the real cascades at 1.000.
 
+## The live healthy check
+
+This check came after the test-set scoring and changes none of the numbers above. Run `exp-20261123T070939Z-ac0c`
+(2026-11-23, 07:09 to 07:32 UTC) sent 27,693 requests from the runner in the default mix, with a 6-minute warm-up.
+
+- **It passed.** No incident opened, Bedrock wasn't called, and the classifier said `NORMAL` for all 23 minutes.
+- **The forest flagged 10 of the 16 full minutes after the warm-up,** against 2.3% on the same kind of run on
+  2026-11-07 ([`DETECTION.md`](DETECTION.md), "Where live traffic comes from").
+- **Healthy latency ran slightly high.** Product's mean Lambda duration was 2.90 ms (validation 2.23) and Order's mean
+  DynamoDB latency 4.35 ms (3.48). Healthy scores sit close to the cut-off, so about 1 ms is enough to cross it. Why the
+  latency rose isn't known: no service's code has changed since 2026-10-16.
+
+So the classifier is what kept this run clean. Don't count on the forest as a second filter on stage.
+
 ## What this means for the other tickets
 
 - **M9-3:** report the workload-shift weakness beside the band result. The band claim holds for three of four fault
   types, and dependency failure's drop is explained by the mix, not its bands.
 - **M9-6:** use `m9_2_results/metrics_m9_2.json` for the figures, and don't plot the forest's recall or latency as a
   success.
-- **M10:** the demo runs the default mix from the runner, where the forest works. Keep it that way
+- **M10:** the demo runs the default mix from the runner, the conditions closest to training, but that doesn't guarantee
+  the forest behaves. Each healthy check records its flagged share
   ([`M10_Final_Demo.md`](../Milestones/M10_Final_Demo.md), M10-1 and M10-6).
 - **Future work:** a real deployment must recalibrate the forest's cut-off when normal traffic changes. Any new cut-off
   or retrained model needs fresh data and a new held-out set, because this test set has now been seen.
