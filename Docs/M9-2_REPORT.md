@@ -13,6 +13,8 @@
   of 740 healthy windows (2.4%), against 0 of 336 in validation.
 - **The Isolation Forest fails on this test set.** It flags all 2,280 test windows, so its perfect recall means
   nothing. The test set's shifted traffic mix moved the healthy baseline past the forest's fixed cut-off.
+- **The forest isn't reliable on live default-mix traffic either.** Two later live healthy checks on the same day had it
+  flagging 10 of 16 healthy minutes, then 0 of 16. No incident opened in either (see "The live healthy checks").
 - **The classifier holds up across the held-out bands for three of the four fault types.** Accuracy is 0.910 and
   macro-F1 0.869.
 - **Dependency failure is the exception.** Its recall is 0.54, against 0.99 in validation, because the shifted mix
@@ -119,13 +121,38 @@ requests.
 - Replacing only `order_p50_latency_ms` with validation values takes dependency recall from 0.540 to 1.000. The same swap
   leaves the real cascades at 1.000.
 
+## The live healthy checks
+
+These checks came after the test-set scoring and change none of the numbers above. Both ran on 2026-11-23 from the
+runner in the default mix, with a 6-minute warm-up and 23 minutes of traffic in all.
+
+| | `exp-20261123T070939Z-ac0c` (07:09 UTC) | `exp-20261123T211018Z-7dbe` (21:10 UTC) | Validation |
+|---|---|---|---|
+| Requests sent | 27,693 | 27,408 | |
+| Incidents opened | 0 | 0 | |
+| Minutes the classifier called `NORMAL` | 23 of 23 | 23 of 23 | |
+| Forest flagged, full minutes after the warm-up | **10 of 16** | **0 of 16** | 4 of 336 |
+| Median forest score (cut-off -0.3695) | -0.372 | -0.356 | |
+| Product mean Lambda duration (ms) | 2.90 | 2.42 | 2.23 |
+| Order mean DynamoDB latency (ms) | 4.35 | 3.97 | 3.48 |
+
+- **Both passed.** No incident opened and Bedrock wasn't called.
+- **The forest's result changed between two runs of the same check.** The run with more flags also had slower healthy
+  latency. Healthy scores sit close to the cut-off, so a shift of under 1 ms can move many minutes across it.
+- **The cause isn't known.** No service's code has changed since 2026-10-16, and two runs can't separate time of day
+  from other causes.
+
+So one clean check doesn't show the forest will behave on stage. Don't count on it as a second filter there: in the
+first run, the classifier is what kept the system from opening an incident.
+
 ## What this means for the other tickets
 
 - **M9-3:** report the workload-shift weakness beside the band result. The band claim holds for three of four fault
   types, and dependency failure's drop is explained by the mix, not its bands.
 - **M9-6:** use `m9_2_results/metrics_m9_2.json` for the figures, and don't plot the forest's recall or latency as a
   success.
-- **M10:** the demo runs the default mix from the runner, where the forest works. Keep it that way
+- **M10:** the demo runs the default mix from the runner, the conditions closest to training, but that doesn't guarantee
+  the forest behaves. Each healthy check records its flagged share
   ([`M10_Final_Demo.md`](../Milestones/M10_Final_Demo.md), M10-1 and M10-6).
 - **Future work:** a real deployment must recalibrate the forest's cut-off when normal traffic changes. Any new cut-off
   or retrained model needs fresh data and a new held-out set, because this test set has now been seen.
