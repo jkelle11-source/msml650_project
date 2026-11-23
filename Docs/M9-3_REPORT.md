@@ -121,8 +121,8 @@ Headline (320 runs). Model 0's rows are from this report's run; M9-2's three row
 | Deployed rule: forest AND classifier (M9-2) | 0.956 [0.945, 0.966] | 0.999 [0.997, 1.000] | 0.977 [0.971, 0.982] | 0.069 [0.051, 0.088] |
 
 - **The Isolation Forest has no margin to report.** It flags every test window, so its recall of 1.000 and its
-  false-positive rate of 1.000 are what flagging everything produces (`M9-2_REPORT.md`). Its precision is below
-  Model 0's for the same reason.
+  false-positive rate of 1.000 are what flagging everything produces (`M9-2_REPORT.md`). Its precision of 0.596 is the share of windows that are
+  faults, which is what flagging everything gives (`M9-2_REPORT.md`); it is below Model 0's.
 - **The binary detector and the deployed rule** have recall near 0.999 against Model 0's 0.472, with intervals far
   apart, and false-positive rates that overlap Model 0's. These margins are read from two separate intervals, not
   paired, because their packages were not scored again for this report, so only a difference between non-overlapping
