@@ -177,7 +177,9 @@ a rater could recognize their style even with the lists unlabeled and shuffled.
   "no false fact about this stack" differently.
 - **Decision:** `ANOMALYPULSE_RUNBOOKS` goes **on** for the demo. Both raters' preference and the automatic
   stack-error count (15 → 2) point the same way. One caveat: one runbook-only fact reached a claim (1 of 211,
-  below). The switch itself is flipped in the deploy, not here.
+  below). `infra/genai/template.yaml` sets the switch, and it takes effect when `anomalypulse-genai` is
+  deployed. The tables above still describe the runbooks-off system the test set ran on; the evidence for
+  runbooks on is this 30-incident sample.
 
 **Scored automatically, the same 30:**
 

@@ -111,12 +111,17 @@ def test_the_fixture_catches_a_one_character_change(monkeypatch):
     assert _off_request() != OFF_FIXTURE
 
 
-def test_off_is_the_default(monkeypatch):
+def test_off_when_the_variable_is_unset(monkeypatch):
     # The module reads the switch when it loads, so reload it with the variable unset.
     monkeypatch.delenv("ANOMALYPULSE_RUNBOOKS", raising=False)
     assert importlib.reload(explain).RUNBOOKS is False
+
+
+def test_the_deployed_lambda_has_runbooks_on():
+    # M9-5's blind comparison decided this. The quotes matter: a bare on is a YAML boolean, which
+    # reaches the Lambda as "true", and explain.RUNBOOKS would silently stay False.
     template = (HERE.parent / "infra" / "genai" / "template.yaml").read_text()
-    assert re.search(r"ANOMALYPULSE_RUNBOOKS: 'off'", template)
+    assert re.findall(r"^\s*ANOMALYPULSE_RUNBOOKS:\s*(.+?)\s*$", template, re.MULTILINE) == ["'on'"]
 
 
 def test_the_switch_turns_runbooks_on(monkeypatch):
