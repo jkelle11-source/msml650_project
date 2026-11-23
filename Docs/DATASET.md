@@ -216,7 +216,7 @@ One `c7g.large` in us-east-2 (Amazon Linux 2023, arm64), stack `anomalypulse-run
 (`infra/runner/template.yaml`). It runs every batch, training and test: a change of client partway
 through would track the train/test split. **It also sends every live run's traffic** (checks, smoke tests, the
 M10 demo), never a laptop: with laptop traffic, the Isolation Forest flagged about half of the healthy live
-minutes; with the runner's, 2.3% on 2026-11-07, as on `v1`, though a later run from the runner was higher
+minutes; with the runner's, 2.3% on 2026-11-07, as on `v1`, though one of two later runs from the runner was much higher
 ([`DETECTION.md`](DETECTION.md), "Where live traffic comes from"). It has no inbound port; it is reached through Session Manager.
 Its role can only assume `anomalypulse-simulator`, which trusts it by name (`infra/shared/template.yaml`).
 On the instance the simulator runs as `--profile sim`, as on a laptop, but the credentials come from the

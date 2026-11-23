@@ -13,8 +13,8 @@
   of 740 healthy windows (2.4%), against 0 of 336 in validation.
 - **The Isolation Forest fails on this test set.** It flags all 2,280 test windows, so its perfect recall means
   nothing. The test set's shifted traffic mix moved the healthy baseline past the forest's fixed cut-off.
-- **The forest isn't reliable on live default-mix traffic either.** A later live healthy check had it flagging 10 of 16
-  healthy minutes, while the classifier kept the run clean (see "The live healthy check").
+- **The forest isn't reliable on live default-mix traffic either.** Two later live healthy checks on the same day had it
+  flagging 10 of 16 healthy minutes, then 0 of 16. No incident opened in either (see "The live healthy checks").
 - **The classifier holds up across the held-out bands for three of the four fault types.** Accuracy is 0.910 and
   macro-F1 0.869.
 - **Dependency failure is the exception.** Its recall is 0.54, against 0.99 in validation, because the shifted mix
@@ -121,19 +121,29 @@ requests.
 - Replacing only `order_p50_latency_ms` with validation values takes dependency recall from 0.540 to 1.000. The same swap
   leaves the real cascades at 1.000.
 
-## The live healthy check
+## The live healthy checks
 
-This check came after the test-set scoring and changes none of the numbers above. Run `exp-20261123T070939Z-ac0c`
-(2026-11-23, 07:09 to 07:32 UTC) sent 27,693 requests from the runner in the default mix, with a 6-minute warm-up.
+These checks came after the test-set scoring and change none of the numbers above. Both ran on 2026-11-23 from the
+runner in the default mix, with a 6-minute warm-up and 23 minutes of traffic in all.
 
-- **It passed.** No incident opened, Bedrock wasn't called, and the classifier said `NORMAL` for all 23 minutes.
-- **The forest flagged 10 of the 16 full minutes after the warm-up,** against 2.3% on the same kind of run on
-  2026-11-07 ([`DETECTION.md`](DETECTION.md), "Where live traffic comes from").
-- **Healthy latency ran slightly high.** Product's mean Lambda duration was 2.90 ms (validation 2.23) and Order's mean
-  DynamoDB latency 4.35 ms (3.48). Healthy scores sit close to the cut-off, so about 1 ms is enough to cross it. Why the
-  latency rose isn't known: no service's code has changed since 2026-10-16.
+| | `exp-20261123T070939Z-ac0c` (07:09 UTC) | `exp-20261123T211018Z-7dbe` (21:10 UTC) | Validation |
+|---|---|---|---|
+| Requests sent | 27,693 | 27,408 | |
+| Incidents opened | 0 | 0 | |
+| Minutes the classifier called `NORMAL` | 23 of 23 | 23 of 23 | |
+| Forest flagged, full minutes after the warm-up | **10 of 16** | **0 of 16** | 4 of 336 |
+| Median forest score (cut-off -0.3695) | -0.372 | -0.356 | |
+| Product mean Lambda duration (ms) | 2.90 | 2.42 | 2.23 |
+| Order mean DynamoDB latency (ms) | 4.35 | 3.97 | 3.48 |
 
-So the classifier is what kept this run clean. Don't count on the forest as a second filter on stage.
+- **Both passed.** No incident opened and Bedrock wasn't called.
+- **The forest's result changed between two runs of the same check.** The run with more flags also had slower healthy
+  latency. Healthy scores sit close to the cut-off, so a shift of under 1 ms can move many minutes across it.
+- **The cause isn't known.** No service's code has changed since 2026-10-16, and two runs can't separate time of day
+  from other causes.
+
+So one clean check doesn't show the forest will behave on stage. Don't count on it as a second filter there: in the
+first run, the classifier is what kept the system from opening an incident.
 
 ## What this means for the other tickets
 

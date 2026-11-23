@@ -150,14 +150,17 @@ about half of their healthy minutes. The same 90-minute NORMAL run from the runn
 | `exp-20261107T221455Z-febb`, NORMAL, 90 minutes | the runner | 88 | 2 (2.3%) | −0.344 |
 | M8-2's six live checks | laptops | 33 | 16 (48.5%) | −0.367 |
 | `exp-20261123T070939Z-ac0c`, NORMAL, 23 minutes (M10's healthy check) | the runner | 21 | 15 (71.4%) | −0.376 |
+| `exp-20261123T211018Z-7dbe`, NORMAL, 23 minutes (the same check, repeated) | the runner | 21 | 1 (4.8%) | −0.357 |
 
 "Healthy" is the table above's rule: for a live run, from the manifest, its full minutes after the startup minute
 and before the fault starts. A live window scores the same in the Diagnosis Lambda as here.
 
-- **The runner doesn't guarantee the 2.3%.** The 2026-11-23 healthy check ran from the runner in the default mix, and
-  the forest flagged 15 of its 21 healthy minutes, 10 of them among the 16 after the 6-minute warm-up. The classifier
-  called every minute `NORMAL`, so no incident opened. Product's mean Lambda duration was 2.90 ms (validation 2.23) and
-  Order's mean DynamoDB latency 4.35 ms (3.48). The cause isn't known: no service's code has changed since 2026-10-16.
+- **The runner doesn't guarantee the 2.3%.** Two healthy checks on 2026-11-23 ran from the runner in the default mix,
+  14 hours apart. At 07:09 UTC the forest flagged 15 of 21 healthy minutes, 10 of them among the 16 after the 6-minute
+  warm-up. At 21:10 UTC it flagged 1 of 21, and none of those 16. The classifier called every minute `NORMAL` in both,
+  so no incident opened. After the warm-up, Product's mean Lambda duration was 2.90 ms in the first run and 2.42 in the
+  second (validation 2.23), and Order's mean DynamoDB latency 4.35 and 3.97 ms (3.48). Why it varies isn't known: no
+  service's code has changed since 2026-10-16, and two runs can't separate time of day from other causes.
 - **What differs is the services' tail latency.** With laptop traffic, Product's p95 latency was 7.4 ms (runner
   6.2, `v1` 6.1), Order's p50 4.0 ms (runner and `v1` 3.3), and Order's DynamoDB latency and both Lambdas' p95
   duration were higher. These are measured inside the services, so the client changes what they see; why is not
