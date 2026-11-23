@@ -1,0 +1,3763 @@
+{
+  "provenance": {
+    "generated_at": "2026-11-23T23:33:25+00:00",
+    "seed": 20261118,
+    "bootstrap_resamples": 1000,
+    "bootstrap_unit": "run (the windows of a run are resampled together; a margin resamples the same runs for both detectors)",
+    "split": {
+      "test_slots": [
+        701,
+        1050
+      ],
+      "stress_first_slot": 1051,
+      "test_runs": 350,
+      "stress_runs": 20,
+      "missing_test_slots": 0,
+      "first_missing": []
+    },
+    "counts": {
+      "test_runs": 350,
+      "headline_runs": 320,
+      "stress_runs": 20,
+      "headline_windows": 2092,
+      "validation_runs": 140,
+      "validation_windows": 885
+    },
+    "classifier": {
+      "role": "classifier",
+      "columns": 106,
+      "classes": [
+        "CASCADING_FAILURE",
+        "DATABASE_THROTTLING",
+        "DEPENDENCY_FAILURE",
+        "LAMBDA_DEGRADATION",
+        "NORMAL",
+        "TRAFFIC_SPIKE"
+      ],
+      "job": "anomalypulse-hpo-261028173159-003-28af89d1",
+      "sha256": "4bfcdab0a08c92a9ef8a4413c1672be075b92965a97cbdeee947c6a871f0bbad",
+      "libraries_match": true,
+      "format": 1,
+      "task": "incident_type",
+      "estimator": "logistic_regression",
+      "settings": {
+        "C": 25.818801896635723,
+        "max_iter": 1000
+      },
+      "rows": {
+        "train": 3553,
+        "validation": 885
+      },
+      "runs": {
+        "train": 560,
+        "validation": 140
+      },
+      "metrics": {
+        "train": {
+          "macro_f1": 0.9951700138751054,
+          "accuracy": 0.9932451449479314
+        },
+        "validation": {
+          "macro_f1": 0.9923470358173319,
+          "accuracy": 0.9898305084745763
+        }
+      },
+      "libraries": {
+        "python": "3.10.22",
+        "scikit-learn": "1.5.2",
+        "numpy": "2.1.0",
+        "scipy": "1.15.0",
+        "joblib": "1.6.0"
+      }
+    },
+    "git": {
+      "commit": "f7ae0bf469904d2dfd6a09425ae966ea5836e233",
+      "dirty": null
+    },
+    "environment": {
+      "python": "3.10.22",
+      "numpy": "2.1.0",
+      "scikit-learn": "1.5.2",
+      "scipy": "1.15.0",
+      "joblib": "1.6.0"
+    },
+    "model0": {
+      "p95_ratio": 2.0,
+      "error_limit": 0.05,
+      "earlier_windows": 3,
+      "tuned": false,
+      "floors": [
+        "model0_previous_window",
+        "model0_earlier_mean_3"
+      ]
+    }
+  },
+  "detection": {
+    "headline": {
+      "model0_previous_window": {
+        "runs": 320,
+        "windows": 2092,
+        "counts": {
+          "tp": 465,
+          "fp": 54,
+          "fn": 782,
+          "tn": 791
+        },
+        "metrics": {
+          "precision": 0.8959537572254336,
+          "recall": 0.37289494787489974,
+          "f1": 0.5266138165345413,
+          "fpr": 0.06390532544378698,
+          "fpr_healthy": 0.0,
+          "fault_start_flagged": 0.5142857142857142,
+          "roc_auc": null,
+          "average_precision": null,
+          "recall_at_healthy_fpr_1": null
+        },
+        "ci95": {
+          "precision": [
+            0.8683493834153994,
+            0.9184907179938815
+          ],
+          "recall": [
+            0.3202719832368629,
+            0.4241894716088328
+          ],
+          "f1": [
+            0.46773934919589955,
+            0.5773388947773771
+          ],
+          "fpr": [
+            0.04746798816221285,
+            0.08383762317022471
+          ]
+        },
+        "normal_windows": {
+          "healthy": 740,
+          "fault_start": 105
+        },
+        "recall_by_label": {
+          "CASCADING_FAILURE": 0.8389830508474576,
+          "DATABASE_THROTTLING": 0.24621212121212122,
+          "DEPENDENCY_FAILURE": 1.0,
+          "LAMBDA_DEGRADATION": 0.1183206106870229,
+          "NORMAL": 0.06390532544378698,
+          "TRAFFIC_SPIKE": 0.014792899408284023
+        },
+        "latency": {
+          "incident_runs": 260,
+          "detected_runs": 172,
+          "missed_runs": 88,
+          "median_s": 73.1665,
+          "mean_s": 76.39222674418605,
+          "p90_s": 102.7171,
+          "max_s": 327.206,
+          "first_window_share": 0.9593023255813954,
+          "median_ci95": [
+            69.11506250000001,
+            77.328
+          ]
+        }
+      },
+      "model0_earlier_mean_3": {
+        "runs": 320,
+        "windows": 2092,
+        "counts": {
+          "tp": 588,
+          "fp": 54,
+          "fn": 659,
+          "tn": 791
+        },
+        "metrics": {
+          "precision": 0.9158878504672897,
+          "recall": 0.4715316760224539,
+          "f1": 0.6225516146109052,
+          "fpr": 0.06390532544378698,
+          "fpr_healthy": 0.0,
+          "fault_start_flagged": 0.5142857142857142,
+          "roc_auc": null,
+          "average_precision": null,
+          "recall_at_healthy_fpr_1": null
+        },
+        "ci95": {
+          "precision": [
+            0.8966008180510607,
+            0.934973946002448
+          ],
+          "recall": [
+            0.4192215997769652,
+            0.521452162479227
+          ],
+          "f1": [
+            0.5738284036253448,
+            0.665303700290483
+          ],
+          "fpr": [
+            0.04661427328221168,
+            0.08196772222787903
+          ]
+        },
+        "normal_windows": {
+          "healthy": 740,
+          "fault_start": 105
+        },
+        "recall_by_label": {
+          "CASCADING_FAILURE": 0.9067796610169492,
+          "DATABASE_THROTTLING": 0.48484848484848486,
+          "DEPENDENCY_FAILURE": 1.0,
+          "LAMBDA_DEGRADATION": 0.31679389312977096,
+          "NORMAL": 0.06390532544378698,
+          "TRAFFIC_SPIKE": 0.014792899408284023
+        },
+        "latency": {
+          "incident_runs": 260,
+          "detected_runs": 196,
+          "missed_runs": 64,
+          "median_s": 74.22200000000001,
+          "mean_s": 75.89333163265306,
+          "p90_s": 97.65299999999999,
+          "max_s": 327.206,
+          "first_window_share": 0.9744897959183674,
+          "median_ci95": [
+            70.714,
+            77.282
+          ]
+        }
+      },
+      "classifier_as_detector": {
+        "runs": 320,
+        "windows": 2092,
+        "counts": {
+          "tp": 1246,
+          "fp": 58,
+          "fn": 1,
+          "tn": 787
+        },
+        "metrics": {
+          "precision": 0.9555214723926381,
+          "recall": 0.9991980753809142,
+          "f1": 0.9768718149745198,
+          "fpr": 0.06863905325443787,
+          "fpr_healthy": 0.024324324324324326,
+          "fault_start_flagged": 0.38095238095238093,
+          "roc_auc": null,
+          "average_precision": null,
+          "recall_at_healthy_fpr_1": null
+        },
+        "ci95": {
+          "precision": [
+            0.9439520128761237,
+            0.9650802879291251
+          ],
+          "recall": [
+            0.9974486525379382,
+            1.0
+          ],
+          "f1": [
+            0.9705633422530798,
+            0.9817762198302447
+          ],
+          "fpr": [
+            0.05201416218153342,
+            0.08876132527980102
+          ]
+        },
+        "normal_windows": {
+          "healthy": 740,
+          "fault_start": 105
+        },
+        "recall_by_label": {
+          "CASCADING_FAILURE": 1.0,
+          "DATABASE_THROTTLING": 1.0,
+          "DEPENDENCY_FAILURE": 1.0,
+          "LAMBDA_DEGRADATION": 0.9961832061068703,
+          "NORMAL": 0.06863905325443787,
+          "TRAFFIC_SPIKE": 1.0
+        },
+        "latency": {
+          "incident_runs": 260,
+          "detected_runs": 260,
+          "missed_runs": 0,
+          "median_s": 70.6195,
+          "mean_s": 71.26367307692308,
+          "p90_s": 93.8029,
+          "max_s": 119.8,
+          "first_window_share": 0.9961538461538462,
+          "median_ci95": [
+            67.1488,
+            73.8009375
+          ]
+        }
+      }
+    },
+    "all_test": {
+      "model0_previous_window": {
+        "runs": 350,
+        "windows": 2280,
+        "counts": {
+          "tp": 549,
+          "fp": 67,
+          "fn": 841,
+          "tn": 823
+        },
+        "metrics": {
+          "precision": 0.8912337662337663,
+          "recall": 0.3949640287769784,
+          "f1": 0.5473579262213359,
+          "fpr": 0.07528089887640449,
+          "fpr_healthy": 0.0,
+          "fault_start_flagged": 0.5583333333333333,
+          "roc_auc": null,
+          "average_precision": null,
+          "recall_at_healthy_fpr_1": null
+        },
+        "ci95": {
+          "precision": [
+            0.8672213026624792,
+            0.9121638635037915
+          ],
+          "recall": [
+            0.3394578484246381,
+            0.446666054890445
+          ],
+          "f1": [
+            0.4895386501881087,
+            0.597844328890526
+          ],
+          "fpr": [
+            0.05633723512244639,
+            0.09470909892105543
+          ]
+        },
+        "normal_windows": {
+          "healthy": 770,
+          "fault_start": 120
+        },
+        "recall_by_label": {
+          "CASCADING_FAILURE": 0.8389830508474576,
+          "DATABASE_THROTTLING": 0.2465753424657534,
+          "DEPENDENCY_FAILURE": 1.0,
+          "LAMBDA_DEGRADATION": 0.2222222222222222,
+          "NORMAL": 0.07528089887640449,
+          "TRAFFIC_SPIKE": 0.11244019138755981
+        },
+        "latency": {
+          "incident_runs": 290,
+          "detected_runs": 196,
+          "missed_runs": 94,
+          "median_s": 73.1665,
+          "mean_s": 77.07627551020407,
+          "p90_s": 110.95150000000001,
+          "max_s": 327.206,
+          "first_window_share": 0.9642857142857143,
+          "median_ci95": [
+            69.7975,
+            77.328
+          ]
+        }
+      },
+      "model0_earlier_mean_3": {
+        "runs": 350,
+        "windows": 2280,
+        "counts": {
+          "tp": 687,
+          "fp": 67,
+          "fn": 703,
+          "tn": 823
+        },
+        "metrics": {
+          "precision": 0.9111405835543767,
+          "recall": 0.49424460431654677,
+          "f1": 0.6408582089552239,
+          "fpr": 0.07528089887640449,
+          "fpr_healthy": 0.0,
+          "fault_start_flagged": 0.5583333333333333,
+          "roc_auc": null,
+          "average_precision": null,
+          "recall_at_healthy_fpr_1": null
+        },
+        "ci95": {
+          "precision": [
+            0.8943739017954749,
+            0.9285714285714286
+          ],
+          "recall": [
+            0.44388849929873775,
+            0.5435294417285621
+          ],
+          "f1": [
+            0.5964588096681301,
+            0.6828509495023509
+          ],
+          "fpr": [
+            0.056925288057806854,
+            0.09517903591206578
+          ]
+        },
+        "normal_windows": {
+          "healthy": 770,
+          "fault_start": 120
+        },
+        "recall_by_label": {
+          "CASCADING_FAILURE": 0.9067796610169492,
+          "DATABASE_THROTTLING": 0.4863013698630137,
+          "DEPENDENCY_FAILURE": 1.0,
+          "LAMBDA_DEGRADATION": 0.39730639730639733,
+          "NORMAL": 0.07528089887640449,
+          "TRAFFIC_SPIKE": 0.13157894736842105
+        },
+        "latency": {
+          "incident_runs": 290,
+          "detected_runs": 226,
+          "missed_runs": 64,
+          "median_s": 74.213,
+          "mean_s": 76.5063982300885,
+          "p90_s": 102.47749999999999,
+          "max_s": 327.206,
+          "first_window_share": 0.9778761061946902,
+          "median_ci95": [
+            70.8842625,
+            76.747
+          ]
+        }
+      },
+      "classifier_as_detector": {
+        "runs": 350,
+        "windows": 2280,
+        "counts": {
+          "tp": 1389,
+          "fp": 66,
+          "fn": 1,
+          "tn": 824
+        },
+        "metrics": {
+          "precision": 0.954639175257732,
+          "recall": 0.9992805755395684,
+          "f1": 0.9764499121265379,
+          "fpr": 0.07415730337078652,
+          "fpr_healthy": 0.023376623376623377,
+          "fault_start_flagged": 0.4,
+          "roc_auc": null,
+          "average_precision": null,
+          "recall_at_healthy_fpr_1": null
+        },
+        "ci95": {
+          "precision": [
+            0.9449527242089496,
+            0.9641464972897399
+          ],
+          "recall": [
+            0.9977426211618483,
+            1.0
+          ],
+          "f1": [
+            0.9712148589184446,
+            0.9814367263730414
+          ],
+          "fpr": [
+            0.056947118854735274,
+            0.09363850506342491
+          ]
+        },
+        "normal_windows": {
+          "healthy": 770,
+          "fault_start": 120
+        },
+        "recall_by_label": {
+          "CASCADING_FAILURE": 1.0,
+          "DATABASE_THROTTLING": 1.0,
+          "DEPENDENCY_FAILURE": 1.0,
+          "LAMBDA_DEGRADATION": 0.9966329966329966,
+          "NORMAL": 0.07415730337078652,
+          "TRAFFIC_SPIKE": 1.0
+        },
+        "latency": {
+          "incident_runs": 290,
+          "detected_runs": 290,
+          "missed_runs": 0,
+          "median_s": 70.9465,
+          "mean_s": 72.2203724137931,
+          "p90_s": 94.8782,
+          "max_s": 144.012,
+          "first_window_share": 0.996551724137931,
+          "median_ci95": [
+            67.82,
+            74.213275
+          ]
+        }
+      }
+    },
+    "stress": {
+      "model0_previous_window": {
+        "runs": 20,
+        "windows": 119,
+        "counts": {
+          "tp": 40,
+          "fp": 0,
+          "fn": 55,
+          "tn": 24
+        },
+        "metrics": {
+          "precision": 1.0,
+          "recall": 0.42105263157894735,
+          "f1": 0.5925925925925926,
+          "fpr": 0.0,
+          "fpr_healthy": 0.0,
+          "fault_start_flagged": 0.0,
+          "roc_auc": null,
+          "average_precision": null,
+          "recall_at_healthy_fpr_1": null
+        },
+        "ci95": {
+          "precision": [
+            1.0,
+            1.0
+          ],
+          "recall": [
+            0.23467759444203215,
+            0.6020435593592276
+          ],
+          "f1": [
+            0.38014391564548305,
+            0.7515944940794255
+          ],
+          "fpr": [
+            0.0,
+            0.0
+          ]
+        },
+        "normal_windows": {
+          "healthy": 20,
+          "fault_start": 4
+        },
+        "recall_by_label": {
+          "DATABASE_THROTTLING": 0.5,
+          "DEPENDENCY_FAILURE": 1.0,
+          "LAMBDA_DEGRADATION": 0.2,
+          "NORMAL": 0.0,
+          "TRAFFIC_SPIKE": 0.0
+        },
+        "latency": {
+          "incident_runs": 20,
+          "detected_runs": 15,
+          "missed_runs": 5,
+          "median_s": 59.914,
+          "mean_s": 61.7948,
+          "p90_s": 69.4846,
+          "max_s": 69.972,
+          "first_window_share": 1.0,
+          "median_ci95": [
+            58.085,
+            67.892
+          ]
+        }
+      },
+      "model0_earlier_mean_3": {
+        "runs": 20,
+        "windows": 119,
+        "counts": {
+          "tp": 48,
+          "fp": 0,
+          "fn": 47,
+          "tn": 24
+        },
+        "metrics": {
+          "precision": 1.0,
+          "recall": 0.5052631578947369,
+          "f1": 0.6713286713286714,
+          "fpr": 0.0,
+          "fpr_healthy": 0.0,
+          "fault_start_flagged": 0.0,
+          "roc_auc": null,
+          "average_precision": null,
+          "recall_at_healthy_fpr_1": null
+        },
+        "ci95": {
+          "precision": [
+            1.0,
+            1.0
+          ],
+          "recall": [
+            0.3402061855670103,
+            0.6632456140350876
+          ],
+          "f1": [
+            0.5076923076923077,
+            0.7975316455696202
+          ],
+          "fpr": [
+            0.0,
+            0.0
+          ]
+        },
+        "normal_windows": {
+          "healthy": 20,
+          "fault_start": 4
+        },
+        "recall_by_label": {
+          "DATABASE_THROTTLING": 0.65,
+          "DEPENDENCY_FAILURE": 1.0,
+          "LAMBDA_DEGRADATION": 0.4,
+          "NORMAL": 0.0,
+          "TRAFFIC_SPIKE": 0.0
+        },
+        "latency": {
+          "incident_runs": 20,
+          "detected_runs": 15,
+          "missed_runs": 5,
+          "median_s": 59.914,
+          "mean_s": 61.7948,
+          "p90_s": 69.4846,
+          "max_s": 69.972,
+          "first_window_share": 1.0,
+          "median_ci95": [
+            59.035,
+            67.892
+          ]
+        }
+      },
+      "classifier_as_detector": {
+        "runs": 20,
+        "windows": 119,
+        "counts": {
+          "tp": 95,
+          "fp": 0,
+          "fn": 0,
+          "tn": 24
+        },
+        "metrics": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "fpr": 0.0,
+          "fpr_healthy": 0.0,
+          "fault_start_flagged": 0.0,
+          "roc_auc": null,
+          "average_precision": null,
+          "recall_at_healthy_fpr_1": null
+        },
+        "ci95": {
+          "precision": [
+            1.0,
+            1.0
+          ],
+          "recall": [
+            1.0,
+            1.0
+          ],
+          "f1": [
+            1.0,
+            1.0
+          ],
+          "fpr": [
+            0.0,
+            0.0
+          ]
+        },
+        "normal_windows": {
+          "healthy": 20,
+          "fault_start": 4
+        },
+        "recall_by_label": {
+          "DATABASE_THROTTLING": 1.0,
+          "DEPENDENCY_FAILURE": 1.0,
+          "LAMBDA_DEGRADATION": 1.0,
+          "NORMAL": 0.0,
+          "TRAFFIC_SPIKE": 1.0
+        },
+        "latency": {
+          "incident_runs": 20,
+          "detected_runs": 20,
+          "missed_runs": 0,
+          "median_s": 59.7695,
+          "mean_s": 61.15880000000001,
+          "p90_s": 69.3341,
+          "max_s": 69.972,
+          "first_window_share": 1.0,
+          "median_ci95": [
+            58.541,
+            60.876999999999995
+          ]
+        }
+      }
+    }
+  },
+  "margins": {
+    "headline": {
+      "model0_previous_window": {
+        "runs": 320,
+        "difference": {
+          "precision": 0.059567715167204494,
+          "recall": 0.6263031275060145,
+          "f1": 0.4502579984399785,
+          "fpr": 0.004733727810650887
+        },
+        "ci95": {
+          "precision": [
+            0.034912118059277894,
+            0.08659372212646312
+          ],
+          "recall": [
+            0.5755682993934836,
+            0.6786147257972243
+          ],
+          "f1": [
+            0.40035855403519904,
+            0.5065777249632492
+          ],
+          "fpr": [
+            -0.019280917495203213,
+            0.02883564230917844
+          ]
+        }
+      },
+      "model0_earlier_mean_3": {
+        "runs": 320,
+        "difference": {
+          "precision": 0.03963362192534836,
+          "recall": 0.5276663993584603,
+          "f1": 0.35432020036361456,
+          "fpr": 0.004733727810650887
+        },
+        "ci95": {
+          "precision": [
+            0.018336373241027392,
+            0.06044963414935239
+          ],
+          "recall": [
+            0.4785971804131387,
+            0.5757187779649747
+          ],
+          "f1": [
+            0.3104638805195484,
+            0.39954076722155446
+          ],
+          "fpr": [
+            -0.017045827368169893,
+            0.028503630656226554
+          ]
+        }
+      }
+    },
+    "all_test": {
+      "model0_previous_window": {
+        "runs": 350,
+        "difference": {
+          "precision": 0.06340540902396574,
+          "recall": 0.60431654676259,
+          "f1": 0.4290919859052018,
+          "fpr": -0.0011235955056179692
+        },
+        "ci95": {
+          "precision": [
+            0.04014735930645507,
+            0.0870229598592287
+          ],
+          "recall": [
+            0.5501426417285845,
+            0.6522392918984301
+          ],
+          "f1": [
+            0.3778110031490148,
+            0.478935982774622
+          ],
+          "fpr": [
+            -0.024452127739361305,
+            0.02222876516773733
+          ]
+        }
+      },
+      "model0_earlier_mean_3": {
+        "runs": 350,
+        "difference": {
+          "precision": 0.04349859170335535,
+          "recall": 0.5050359712230217,
+          "f1": 0.3355917031713139,
+          "fpr": -0.0011235955056179692
+        },
+        "ci95": {
+          "precision": [
+            0.023503304842750213,
+            0.0623366849694955
+          ],
+          "recall": [
+            0.45660221732451745,
+            0.5546073164702975
+          ],
+          "f1": [
+            0.2938561891402574,
+            0.3800750496951726
+          ],
+          "fpr": [
+            -0.024820689150058722,
+            0.02249927428426286
+          ]
+        }
+      }
+    },
+    "stress": {
+      "model0_previous_window": {
+        "runs": 20,
+        "difference": {
+          "precision": 0.0,
+          "recall": 0.5789473684210527,
+          "f1": 0.40740740740740744,
+          "fpr": 0.0
+        },
+        "ci95": {
+          "precision": [
+            0.0,
+            0.0
+          ],
+          "recall": [
+            0.3999489795918368,
+            0.7579577850877193
+          ],
+          "f1": [
+            0.24996019108280254,
+            0.6102513886910695
+          ],
+          "fpr": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "model0_earlier_mean_3": {
+        "runs": 20,
+        "difference": {
+          "precision": 0.0,
+          "recall": 0.49473684210526314,
+          "f1": 0.32867132867132864,
+          "fpr": 0.0
+        },
+        "ci95": {
+          "precision": [
+            0.0,
+            0.0
+          ],
+          "recall": [
+            0.32242429229756425,
+            0.6631578947368422
+          ],
+          "f1": [
+            0.1921969696969697,
+            0.49606299212598426
+          ],
+          "fpr": [
+            0.0,
+            0.0
+          ]
+        }
+      }
+    }
+  },
+  "share_flagged": {
+    "headline": {
+      "CASCADING_FAILURE": {
+        "windows": 118,
+        "model0_previous_window": {
+          "share": 0.8389830508474576,
+          "ci95": [
+            0.7333168316831683,
+            0.9263560929350403
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 0.9067796610169492,
+          "ci95": [
+            0.8461538461538461,
+            0.9615458015267175
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "DATABASE_THROTTLING": {
+        "windows": 264,
+        "model0_previous_window": {
+          "share": 0.24621212121212122,
+          "ci95": [
+            0.22297189705629197,
+            0.2692307692307692
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 0.48484848484848486,
+          "ci95": [
+            0.43920183686857645,
+            0.532341539057957
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "DEPENDENCY_FAILURE": {
+        "windows": 265,
+        "model0_previous_window": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "LAMBDA_DEGRADATION": {
+        "windows": 262,
+        "model0_previous_window": {
+          "share": 0.1183206106870229,
+          "ci95": [
+            0.08581545095534003,
+            0.1532605146290491
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 0.31679389312977096,
+          "ci95": [
+            0.27352711397058826,
+            0.36329883560823756
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 0.9961832061068703,
+          "ci95": [
+            0.9870960789766406,
+            1.0
+          ]
+        }
+      },
+      "NORMAL": {
+        "windows": 845,
+        "model0_previous_window": {
+          "share": 0.06390532544378698,
+          "ci95": [
+            0.046907753188873524,
+            0.08272589982381072
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 0.06390532544378698,
+          "ci95": [
+            0.046872390033407575,
+            0.08376651558241496
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 0.06863905325443787,
+          "ci95": [
+            0.05058823529411765,
+            0.08642778466198539
+          ]
+        }
+      },
+      "TRAFFIC_SPIKE": {
+        "windows": 338,
+        "model0_previous_window": {
+          "share": 0.014792899408284023,
+          "ci95": [
+            0.0029585798816568047,
+            0.029510623382226056
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 0.014792899408284023,
+          "ci95": [
+            0.002984852523098792,
+            0.02941447796830909
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        }
+      }
+    },
+    "all_test": {
+      "CASCADING_FAILURE": {
+        "windows": 118,
+        "model0_previous_window": {
+          "share": 0.8389830508474576,
+          "ci95": [
+            0.7378518191624988,
+            0.931552511415525
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 0.9067796610169492,
+          "ci95": [
+            0.8392857142857143,
+            0.9639876718824087
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "DATABASE_THROTTLING": {
+        "windows": 292,
+        "model0_previous_window": {
+          "share": 0.2465753424657534,
+          "ci95": [
+            0.2254070012311281,
+            0.26891214667685254
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 0.4863013698630137,
+          "ci95": [
+            0.44405367231638415,
+            0.5251638951071315
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "DEPENDENCY_FAILURE": {
+        "windows": 265,
+        "model0_previous_window": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "LAMBDA_DEGRADATION": {
+        "windows": 297,
+        "model0_previous_window": {
+          "share": 0.2222222222222222,
+          "ci95": [
+            0.15104350857339166,
+            0.3065137813243998
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 0.39730639730639733,
+          "ci95": [
+            0.3333333333333333,
+            0.47957804277506877
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 0.9966329966329966,
+          "ci95": [
+            0.9881866329208849,
+            1.0
+          ]
+        }
+      },
+      "NORMAL": {
+        "windows": 890,
+        "model0_previous_window": {
+          "share": 0.07528089887640449,
+          "ci95": [
+            0.05767083907360985,
+            0.09512331457748
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 0.07528089887640449,
+          "ci95": [
+            0.05821481879306977,
+            0.09461237288736138
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 0.07415730337078652,
+          "ci95": [
+            0.056121733955345664,
+            0.09261628995864785
+          ]
+        }
+      },
+      "TRAFFIC_SPIKE": {
+        "windows": 418,
+        "model0_previous_window": {
+          "share": 0.11244019138755981,
+          "ci95": [
+            0.05347499171126794,
+            0.18313856894570948
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 0.13157894736842105,
+          "ci95": [
+            0.0727539829138767,
+            0.19496095195795396
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        }
+      }
+    },
+    "stress": {
+      "DATABASE_THROTTLING": {
+        "windows": 20,
+        "model0_previous_window": {
+          "share": 0.5,
+          "ci95": [
+            0.25,
+            0.75
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 0.65,
+          "ci95": [
+            0.5,
+            0.75
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "DEPENDENCY_FAILURE": {
+        "windows": 25,
+        "model0_previous_window": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "LAMBDA_DEGRADATION": {
+        "windows": 25,
+        "model0_previous_window": {
+          "share": 0.2,
+          "ci95": [
+            0.2,
+            0.2
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 0.4,
+          "ci95": [
+            0.4,
+            0.4
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "NORMAL": {
+        "windows": 24,
+        "model0_previous_window": {
+          "share": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "TRAFFIC_SPIKE": {
+        "windows": 25,
+        "model0_previous_window": {
+          "share": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ]
+        },
+        "model0_earlier_mean_3": {
+          "share": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ]
+        },
+        "classifier_as_detector": {
+          "share": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        }
+      }
+    }
+  },
+  "classification": {
+    "headline": {
+      "runs": 320,
+      "windows": 2092,
+      "accuracy": 0.9096558317399618,
+      "macro_f1": 0.8688863781443187,
+      "ci95": {
+        "accuracy": [
+          0.8918915728759922,
+          0.9270886120654418
+        ],
+        "macro_f1": [
+          0.8449480495026505,
+          0.889905661348543
+        ]
+      },
+      "classes": [
+        "CASCADING_FAILURE",
+        "DATABASE_THROTTLING",
+        "DEPENDENCY_FAILURE",
+        "LAMBDA_DEGRADATION",
+        "NORMAL",
+        "TRAFFIC_SPIKE"
+      ],
+      "per_class": {
+        "CASCADING_FAILURE": {
+          "precision": 0.4738955823293173,
+          "recall": 1.0,
+          "f1": 0.6430517711171662,
+          "support": 118,
+          "predicted": 249
+        },
+        "DATABASE_THROTTLING": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 264,
+          "predicted": 264
+        },
+        "DEPENDENCY_FAILURE": {
+          "precision": 0.9862068965517241,
+          "recall": 0.539622641509434,
+          "f1": 0.697560975609756,
+          "support": 265,
+          "predicted": 145
+        },
+        "LAMBDA_DEGRADATION": {
+          "precision": 0.9923371647509579,
+          "recall": 0.9885496183206107,
+          "f1": 0.9904397705544934,
+          "support": 262,
+          "predicted": 261
+        },
+        "NORMAL": {
+          "precision": 0.998730964467005,
+          "recall": 0.9313609467455621,
+          "f1": 0.9638701775872627,
+          "support": 845,
+          "predicted": 788
+        },
+        "TRAFFIC_SPIKE": {
+          "precision": 0.8623376623376623,
+          "recall": 0.9822485207100592,
+          "f1": 0.9183955739972337,
+          "support": 338,
+          "predicted": 385
+        }
+      },
+      "confusion": [
+        [
+          118,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          264,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          122,
+          0,
+          143,
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          0,
+          259,
+          1,
+          0
+        ],
+        [
+          1,
+          0,
+          2,
+          2,
+          787,
+          53
+        ],
+        [
+          6,
+          0,
+          0,
+          0,
+          0,
+          332
+        ]
+      ],
+      "as_detector": {
+        "precision": 0.9555214723926381,
+        "recall": 0.9991980753809142,
+        "f1": 0.9768718149745198,
+        "fpr": 0.06863905325443787
+      }
+    },
+    "all_test": {
+      "runs": 350,
+      "windows": 2280,
+      "accuracy": 0.8723684210526316,
+      "macro_f1": 0.822900656274529,
+      "ci95": {
+        "accuracy": [
+          0.8502391825819935,
+          0.8961590644997627
+        ],
+        "macro_f1": [
+          0.7962397075690939,
+          0.8508407401567433
+        ]
+      },
+      "classes": [
+        "CASCADING_FAILURE",
+        "DATABASE_THROTTLING",
+        "DEPENDENCY_FAILURE",
+        "LAMBDA_DEGRADATION",
+        "NORMAL",
+        "TRAFFIC_SPIKE"
+      ],
+      "per_class": {
+        "CASCADING_FAILURE": {
+          "precision": 0.3597560975609756,
+          "recall": 1.0,
+          "f1": 0.5291479820627802,
+          "support": 118,
+          "predicted": 328
+        },
+        "DATABASE_THROTTLING": {
+          "precision": 1.0,
+          "recall": 0.934931506849315,
+          "f1": 0.9663716814159291,
+          "support": 292,
+          "predicted": 273
+        },
+        "DEPENDENCY_FAILURE": {
+          "precision": 0.9662162162162162,
+          "recall": 0.539622641509434,
+          "f1": 0.6924939467312348,
+          "support": 265,
+          "predicted": 148
+        },
+        "LAMBDA_DEGRADATION": {
+          "precision": 0.935374149659864,
+          "recall": 0.9259259259259259,
+          "f1": 0.9306260575296108,
+          "support": 297,
+          "predicted": 294
+        },
+        "NORMAL": {
+          "precision": 0.9987878787878788,
+          "recall": 0.9258426966292135,
+          "f1": 0.960932944606414,
+          "support": 890,
+          "predicted": 825
+        },
+        "TRAFFIC_SPIKE": {
+          "precision": 0.8640776699029126,
+          "recall": 0.8516746411483254,
+          "f1": 0.8578313253012049,
+          "support": 418,
+          "predicted": 412
+        }
+      },
+      "confusion": [
+        [
+          118,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          5,
+          273,
+          0,
+          14,
+          0,
+          0
+        ],
+        [
+          122,
+          0,
+          143,
+          0,
+          0,
+          0
+        ],
+        [
+          18,
+          0,
+          3,
+          275,
+          1,
+          0
+        ],
+        [
+          4,
+          0,
+          2,
+          4,
+          824,
+          56
+        ],
+        [
+          61,
+          0,
+          0,
+          1,
+          0,
+          356
+        ]
+      ],
+      "as_detector": {
+        "precision": 0.954639175257732,
+        "recall": 0.9992805755395684,
+        "f1": 0.9764499121265379,
+        "fpr": 0.07415730337078652
+      }
+    }
+  },
+  "validation": {
+    "runs": 140,
+    "windows": 885,
+    "detection": {
+      "model0_previous_window": {
+        "runs": 140,
+        "windows": 885,
+        "counts": {
+          "tp": 200,
+          "fp": 23,
+          "fn": 310,
+          "tn": 352
+        },
+        "metrics": {
+          "precision": 0.8968609865470852,
+          "recall": 0.39215686274509803,
+          "f1": 0.5457025920873124,
+          "fpr": 0.06133333333333333,
+          "fpr_healthy": 0.0,
+          "fault_start_flagged": 0.5897435897435898,
+          "roc_auc": null,
+          "average_precision": null,
+          "recall_at_healthy_fpr_1": null
+        },
+        "ci95": {
+          "precision": [
+            0.8607425639422827,
+            0.9282775768535262
+          ],
+          "recall": [
+            0.3094649612858963,
+            0.4671308950245529
+          ],
+          "f1": [
+            0.4590115718418515,
+            0.6174896807581075
+          ],
+          "fpr": [
+            0.03911882078520642,
+            0.09173076923076921
+          ]
+        },
+        "normal_windows": {
+          "healthy": 336,
+          "fault_start": 39
+        },
+        "recall_by_label": {
+          "CASCADING_FAILURE": 0.8301886792452831,
+          "DATABASE_THROTTLING": 0.29,
+          "DEPENDENCY_FAILURE": 1.0,
+          "LAMBDA_DEGRADATION": 0.1111111111111111,
+          "NORMAL": 0.06133333333333333,
+          "TRAFFIC_SPIKE": 0.06944444444444445
+        },
+        "latency": {
+          "incident_runs": 112,
+          "detected_runs": 79,
+          "missed_runs": 33,
+          "median_s": 85.009,
+          "mean_s": 96.92691139240506,
+          "p90_s": 118.08160000000001,
+          "max_s": 326.916,
+          "first_window_share": 0.8860759493670886,
+          "median_ci95": [
+            78.968,
+            91.639
+          ]
+        }
+      },
+      "model0_earlier_mean_3": {
+        "runs": 140,
+        "windows": 885,
+        "counts": {
+          "tp": 249,
+          "fp": 23,
+          "fn": 261,
+          "tn": 352
+        },
+        "metrics": {
+          "precision": 0.9154411764705882,
+          "recall": 0.48823529411764705,
+          "f1": 0.6368286445012789,
+          "fpr": 0.06133333333333333,
+          "fpr_healthy": 0.0,
+          "fault_start_flagged": 0.5897435897435898,
+          "roc_auc": null,
+          "average_precision": null,
+          "recall_at_healthy_fpr_1": null
+        },
+        "ci95": {
+          "precision": [
+            0.8881232146257856,
+            0.9434800140252454
+          ],
+          "recall": [
+            0.4206440472938697,
+            0.5627696814252732
+          ],
+          "f1": [
+            0.5745739626917712,
+            0.6980933017774036
+          ],
+          "fpr": [
+            0.03873528205729014,
+            0.09091556591556592
+          ]
+        },
+        "normal_windows": {
+          "healthy": 336,
+          "fault_start": 39
+        },
+        "recall_by_label": {
+          "CASCADING_FAILURE": 0.9056603773584906,
+          "DATABASE_THROTTLING": 0.54,
+          "DEPENDENCY_FAILURE": 1.0,
+          "LAMBDA_DEGRADATION": 0.3055555555555556,
+          "NORMAL": 0.06133333333333333,
+          "TRAFFIC_SPIKE": 0.0625
+        },
+        "latency": {
+          "incident_runs": 112,
+          "detected_runs": 90,
+          "missed_runs": 22,
+          "median_s": 84.7705,
+          "mean_s": 92.96494444444446,
+          "p90_s": 116.5135,
+          "max_s": 326.916,
+          "first_window_share": 0.9111111111111111,
+          "median_ci95": [
+            78.8295,
+            88.79
+          ]
+        }
+      },
+      "classifier_as_detector": {
+        "runs": 140,
+        "windows": 885,
+        "counts": {
+          "tp": 503,
+          "fp": 2,
+          "fn": 7,
+          "tn": 373
+        },
+        "metrics": {
+          "precision": 0.996039603960396,
+          "recall": 0.9862745098039216,
+          "f1": 0.9911330049261085,
+          "fpr": 0.005333333333333333,
+          "fpr_healthy": 0.0,
+          "fault_start_flagged": 0.05128205128205128,
+          "roc_auc": null,
+          "average_precision": null,
+          "recall_at_healthy_fpr_1": null
+        },
+        "ci95": {
+          "precision": [
+            0.9899375971855474,
+            1.0
+          ],
+          "recall": [
+            0.9758353062933964,
+            0.9945958011583013
+          ],
+          "f1": [
+            0.9853245369258157,
+            0.9962121212121212
+          ],
+          "fpr": [
+            0.0,
+            0.013888888888888888
+          ]
+        },
+        "normal_windows": {
+          "healthy": 336,
+          "fault_start": 39
+        },
+        "recall_by_label": {
+          "CASCADING_FAILURE": 1.0,
+          "DATABASE_THROTTLING": 1.0,
+          "DEPENDENCY_FAILURE": 0.9904761904761905,
+          "LAMBDA_DEGRADATION": 0.9907407407407407,
+          "NORMAL": 0.005333333333333333,
+          "TRAFFIC_SPIKE": 0.9652777777777778
+        },
+        "latency": {
+          "incident_runs": 112,
+          "detected_runs": 112,
+          "missed_runs": 0,
+          "median_s": 81.31049999999999,
+          "mean_s": 75.93008035714286,
+          "p90_s": 108.23920000000001,
+          "max_s": 119.264,
+          "first_window_share": 0.9375,
+          "median_ci95": [
+            76.4365,
+            85.639225
+          ]
+        }
+      }
+    },
+    "classification": {
+      "runs": 140,
+      "windows": 885,
+      "accuracy": 0.9898305084745763,
+      "macro_f1": 0.9923470358173319,
+      "ci95": {
+        "accuracy": [
+          0.9830508474576272,
+          0.9955657777069986
+        ],
+        "macro_f1": [
+          0.9871202128520004,
+          0.9966993871111305
+        ]
+      },
+      "classes": [
+        "CASCADING_FAILURE",
+        "DATABASE_THROTTLING",
+        "DEPENDENCY_FAILURE",
+        "LAMBDA_DEGRADATION",
+        "NORMAL",
+        "TRAFFIC_SPIKE"
+      ],
+      "per_class": {
+        "CASCADING_FAILURE": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 53,
+          "predicted": 53
+        },
+        "DATABASE_THROTTLING": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 100,
+          "predicted": 100
+        },
+        "DEPENDENCY_FAILURE": {
+          "precision": 1.0,
+          "recall": 0.9904761904761905,
+          "f1": 0.9952153110047847,
+          "support": 105,
+          "predicted": 104
+        },
+        "LAMBDA_DEGRADATION": {
+          "precision": 1.0,
+          "recall": 0.9907407407407407,
+          "f1": 0.9953488372093023,
+          "support": 108,
+          "predicted": 107
+        },
+        "NORMAL": {
+          "precision": 0.9815789473684211,
+          "recall": 0.9946666666666667,
+          "f1": 0.9880794701986756,
+          "support": 375,
+          "predicted": 380
+        },
+        "TRAFFIC_SPIKE": {
+          "precision": 0.9858156028368794,
+          "recall": 0.9652777777777778,
+          "f1": 0.9754385964912281,
+          "support": 144,
+          "predicted": 141
+        }
+      },
+      "confusion": [
+        [
+          53,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          100,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          104,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          107,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          373,
+          2
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          5,
+          139
+        ]
+      ],
+      "as_detector": {
+        "precision": 0.996039603960396,
+        "recall": 0.9862745098039216,
+        "f1": 0.9911330049261085,
+        "fpr": 0.005333333333333333
+      }
+    }
+  },
+  "per_band": [
+    {
+      "family": "classification",
+      "model": "incident_type",
+      "injector": "db-throttling",
+      "label": "DATABASE_THROTTLING",
+      "band": [
+        2.5,
+        3.5
+      ],
+      "role": "interpolation",
+      "runs": 30,
+      "windows": 114,
+      "recall": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "top_errors": [],
+      "vs_other_band": {
+        "ref_band": [
+          4.5,
+          5.5
+        ],
+        "ref_recall": 1.0,
+        "gap": 0.0,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 1.0,
+        "ref_ci95": [
+          1.0,
+          1.0
+        ],
+        "gap": 0.0,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "classification",
+      "model": "incident_type",
+      "injector": "db-throttling",
+      "label": "DATABASE_THROTTLING",
+      "band": [
+        4.5,
+        5.5
+      ],
+      "role": "mild extrapolation",
+      "runs": 30,
+      "windows": 115,
+      "recall": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "top_errors": [],
+      "vs_other_band": {
+        "ref_band": [
+          2.5,
+          3.5
+        ],
+        "ref_recall": 1.0,
+        "gap": 0.0,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 1.0,
+        "ref_ci95": [
+          1.0,
+          1.0
+        ],
+        "gap": 0.0,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "classification",
+      "model": "incident_type",
+      "injector": "lambda-degradation",
+      "label": "LAMBDA_DEGRADATION",
+      "band": [
+        500,
+        800
+      ],
+      "role": "interpolation",
+      "runs": 23,
+      "windows": 115,
+      "recall": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "top_errors": [],
+      "vs_other_band": {
+        "ref_band": [
+          1100,
+          1400
+        ],
+        "ref_recall": 0.990909090909091,
+        "gap": -0.009090909090909038,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.9904761904761905,
+        "ref_ci95": [
+          0.9714285714285714,
+          1.0
+        ],
+        "gap": -0.00952380952380949,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "classification",
+      "model": "incident_type",
+      "injector": "lambda-degradation",
+      "label": "LAMBDA_DEGRADATION",
+      "band": [
+        1100,
+        1400
+      ],
+      "role": "mild extrapolation",
+      "runs": 22,
+      "windows": 110,
+      "recall": 0.990909090909091,
+      "ci95": [
+        0.9727272727272728,
+        1.0
+      ],
+      "top_errors": [
+        [
+          "NORMAL",
+          1
+        ]
+      ],
+      "vs_other_band": {
+        "ref_band": [
+          500,
+          800
+        ],
+        "ref_recall": 1.0,
+        "gap": 0.009090909090909038,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.9904761904761905,
+        "ref_ci95": [
+          0.9714285714285714,
+          1.0
+        ],
+        "gap": -0.00043290043290045155,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "classification",
+      "model": "incident_type",
+      "injector": "payment-failure",
+      "label": "DEPENDENCY_FAILURE",
+      "band": [
+        1500,
+        2500
+      ],
+      "role": "interpolation",
+      "runs": 22,
+      "windows": 110,
+      "recall": 0.5545454545454546,
+      "ci95": [
+        0.4909090909090909,
+        0.6272727272727273
+      ],
+      "top_errors": [
+        [
+          "CASCADING_FAILURE",
+          49
+        ]
+      ],
+      "vs_other_band": {
+        "ref_band": [
+          3500,
+          4500
+        ],
+        "ref_recall": 0.5652173913043478,
+        "gap": 0.010671936758893219,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.9904761904761905,
+        "ref_ci95": [
+          0.9714285714285714,
+          1.0
+        ],
+        "gap": 0.43593073593073595,
+        "status": "degraded"
+      }
+    },
+    {
+      "family": "classification",
+      "model": "incident_type",
+      "injector": "payment-failure",
+      "label": "DEPENDENCY_FAILURE",
+      "band": [
+        3500,
+        4500
+      ],
+      "role": "mild extrapolation",
+      "runs": 23,
+      "windows": 115,
+      "recall": 0.5652173913043478,
+      "ci95": [
+        0.46956521739130436,
+        0.6521739130434783
+      ],
+      "top_errors": [
+        [
+          "CASCADING_FAILURE",
+          50
+        ]
+      ],
+      "vs_other_band": {
+        "ref_band": [
+          1500,
+          2500
+        ],
+        "ref_recall": 0.5545454545454546,
+        "gap": -0.010671936758893219,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.9904761904761905,
+        "ref_ci95": [
+          0.9714285714285714,
+          1.0
+        ],
+        "gap": 0.4252587991718427,
+        "status": "degraded"
+      }
+    },
+    {
+      "family": "classification",
+      "model": "incident_type",
+      "injector": "traffic-spike",
+      "label": "TRAFFIC_SPIKE",
+      "band": [
+        4,
+        6
+      ],
+      "role": "interpolation",
+      "runs": 30,
+      "windows": 150,
+      "recall": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "top_errors": [],
+      "vs_other_band": {
+        "ref_band": [
+          8,
+          10
+        ],
+        "ref_recall": 0.9866666666666667,
+        "gap": -0.013333333333333308,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.9714285714285714,
+        "ref_ci95": [
+          0.9428571428571428,
+          0.9928571428571429
+        ],
+        "gap": -0.02857142857142858,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "classification",
+      "model": "incident_type",
+      "injector": "traffic-spike",
+      "label": "TRAFFIC_SPIKE",
+      "band": [
+        8,
+        10
+      ],
+      "role": "mild extrapolation",
+      "runs": 30,
+      "windows": 150,
+      "recall": 0.9866666666666667,
+      "ci95": [
+        0.9666666666666667,
+        1.0
+      ],
+      "top_errors": [
+        [
+          "CASCADING_FAILURE",
+          2
+        ]
+      ],
+      "vs_other_band": {
+        "ref_band": [
+          4,
+          6
+        ],
+        "ref_recall": 1.0,
+        "gap": 0.013333333333333308,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.9714285714285714,
+        "ref_ci95": [
+          0.9428571428571428,
+          0.9928571428571429
+        ],
+        "gap": -0.015238095238095273,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "classifier_as_detector",
+      "injector": "db-throttling",
+      "label": "DATABASE_THROTTLING",
+      "band": [
+        2.5,
+        3.5
+      ],
+      "role": "interpolation",
+      "runs": 30,
+      "windows": 114,
+      "recall": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "latency_median_s": 89.2125,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          4.5,
+          5.5
+        ],
+        "ref_recall": 1.0,
+        "gap": 0.0,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 1.0,
+        "ref_ci95": [
+          1.0,
+          1.0
+        ],
+        "gap": 0.0,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "classifier_as_detector",
+      "injector": "db-throttling",
+      "label": "DATABASE_THROTTLING",
+      "band": [
+        4.5,
+        5.5
+      ],
+      "role": "mild extrapolation",
+      "runs": 30,
+      "windows": 115,
+      "recall": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "latency_median_s": 87.0875,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          2.5,
+          3.5
+        ],
+        "ref_recall": 1.0,
+        "gap": 0.0,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 1.0,
+        "ref_ci95": [
+          1.0,
+          1.0
+        ],
+        "gap": 0.0,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "classifier_as_detector",
+      "injector": "lambda-degradation",
+      "label": "LAMBDA_DEGRADATION",
+      "band": [
+        500,
+        800
+      ],
+      "role": "interpolation",
+      "runs": 23,
+      "windows": 115,
+      "recall": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "latency_median_s": 61.075,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          1100,
+          1400
+        ],
+        "ref_recall": 0.990909090909091,
+        "gap": -0.009090909090909038,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.9904761904761905,
+        "ref_ci95": [
+          0.9714285714285714,
+          1.0
+        ],
+        "gap": -0.00952380952380949,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "classifier_as_detector",
+      "injector": "lambda-degradation",
+      "label": "LAMBDA_DEGRADATION",
+      "band": [
+        1100,
+        1400
+      ],
+      "role": "mild extrapolation",
+      "runs": 22,
+      "windows": 110,
+      "recall": 0.990909090909091,
+      "ci95": [
+        0.9727272727272728,
+        1.0
+      ],
+      "latency_median_s": 65.7595,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          500,
+          800
+        ],
+        "ref_recall": 1.0,
+        "gap": 0.009090909090909038,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.9904761904761905,
+        "ref_ci95": [
+          0.9714285714285714,
+          1.0
+        ],
+        "gap": -0.00043290043290045155,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "classifier_as_detector",
+      "injector": "payment-failure",
+      "label": "DEPENDENCY_FAILURE",
+      "band": [
+        1500,
+        2500
+      ],
+      "role": "interpolation",
+      "runs": 22,
+      "windows": 110,
+      "recall": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "latency_median_s": 65.4375,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          3500,
+          4500
+        ],
+        "ref_recall": 1.0,
+        "gap": 0.0,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.9904761904761905,
+        "ref_ci95": [
+          0.9714285714285714,
+          1.0
+        ],
+        "gap": -0.00952380952380949,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "classifier_as_detector",
+      "injector": "payment-failure",
+      "label": "DEPENDENCY_FAILURE",
+      "band": [
+        3500,
+        4500
+      ],
+      "role": "mild extrapolation",
+      "runs": 23,
+      "windows": 115,
+      "recall": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "latency_median_s": 62.213,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          1500,
+          2500
+        ],
+        "ref_recall": 1.0,
+        "gap": 0.0,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.9904761904761905,
+        "ref_ci95": [
+          0.9714285714285714,
+          1.0
+        ],
+        "gap": -0.00952380952380949,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "classifier_as_detector",
+      "injector": "traffic-spike",
+      "label": "TRAFFIC_SPIKE",
+      "band": [
+        4,
+        6
+      ],
+      "role": "interpolation",
+      "runs": 30,
+      "windows": 150,
+      "recall": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "latency_median_s": 63.682,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          8,
+          10
+        ],
+        "ref_recall": 1.0,
+        "gap": 0.0,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.9714285714285714,
+        "ref_ci95": [
+          0.9428571428571428,
+          0.9928571428571429
+        ],
+        "gap": -0.02857142857142858,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "classifier_as_detector",
+      "injector": "traffic-spike",
+      "label": "TRAFFIC_SPIKE",
+      "band": [
+        8,
+        10
+      ],
+      "role": "mild extrapolation",
+      "runs": 30,
+      "windows": 150,
+      "recall": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "latency_median_s": 63.673500000000004,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          4,
+          6
+        ],
+        "ref_recall": 1.0,
+        "gap": 0.0,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.9714285714285714,
+        "ref_ci95": [
+          0.9428571428571428,
+          0.9928571428571429
+        ],
+        "gap": -0.02857142857142858,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "model0_earlier_mean_3",
+      "injector": "db-throttling",
+      "label": "DATABASE_THROTTLING",
+      "band": [
+        2.5,
+        3.5
+      ],
+      "role": "interpolation",
+      "runs": 30,
+      "windows": 114,
+      "recall": 0.5263157894736842,
+      "ci95": [
+        0.5084745762711864,
+        0.5455796497080899
+      ],
+      "latency_median_s": 89.2125,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          4.5,
+          5.5
+        ],
+        "ref_recall": 0.5217391304347826,
+        "gap": -0.004576659038901587,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.54,
+        "ref_ci95": [
+          0.49504950495049505,
+          0.59
+        ],
+        "gap": 0.013684210526315854,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "model0_earlier_mean_3",
+      "injector": "db-throttling",
+      "label": "DATABASE_THROTTLING",
+      "band": [
+        4.5,
+        5.5
+      ],
+      "role": "mild extrapolation",
+      "runs": 30,
+      "windows": 115,
+      "recall": 0.5217391304347826,
+      "ci95": [
+        0.5042016806722689,
+        0.5405405405405406
+      ],
+      "latency_median_s": 87.0875,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          2.5,
+          3.5
+        ],
+        "ref_recall": 0.5263157894736842,
+        "gap": 0.004576659038901587,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.54,
+        "ref_ci95": [
+          0.49504950495049505,
+          0.59
+        ],
+        "gap": 0.01826086956521744,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "model0_earlier_mean_3",
+      "injector": "lambda-degradation",
+      "label": "LAMBDA_DEGRADATION",
+      "band": [
+        500,
+        800
+      ],
+      "role": "interpolation",
+      "runs": 23,
+      "windows": 115,
+      "recall": 0.3130434782608696,
+      "ci95": [
+        0.26956521739130435,
+        0.34782608695652173
+      ],
+      "latency_median_s": 61.075,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          1100,
+          1400
+        ],
+        "ref_recall": 0.3,
+        "gap": -0.013043478260869601,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.2857142857142857,
+        "ref_ci95": [
+          0.2473809523809524,
+          0.3238095238095238
+        ],
+        "gap": -0.02732919254658389,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "model0_earlier_mean_3",
+      "injector": "lambda-degradation",
+      "label": "LAMBDA_DEGRADATION",
+      "band": [
+        1100,
+        1400
+      ],
+      "role": "mild extrapolation",
+      "runs": 22,
+      "windows": 110,
+      "recall": 0.3,
+      "ci95": [
+        0.2636363636363636,
+        0.34545454545454546
+      ],
+      "latency_median_s": 64.8125,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          500,
+          800
+        ],
+        "ref_recall": 0.3130434782608696,
+        "gap": 0.013043478260869601,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.2857142857142857,
+        "ref_ci95": [
+          0.2473809523809524,
+          0.3238095238095238
+        ],
+        "gap": -0.01428571428571429,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "model0_earlier_mean_3",
+      "injector": "payment-failure",
+      "label": "DEPENDENCY_FAILURE",
+      "band": [
+        1500,
+        2500
+      ],
+      "role": "interpolation",
+      "runs": 22,
+      "windows": 110,
+      "recall": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "latency_median_s": 65.4375,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          3500,
+          4500
+        ],
+        "ref_recall": 1.0,
+        "gap": 0.0,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 1.0,
+        "ref_ci95": [
+          1.0,
+          1.0
+        ],
+        "gap": 0.0,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "model0_earlier_mean_3",
+      "injector": "payment-failure",
+      "label": "DEPENDENCY_FAILURE",
+      "band": [
+        3500,
+        4500
+      ],
+      "role": "mild extrapolation",
+      "runs": 23,
+      "windows": 115,
+      "recall": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "latency_median_s": 62.213,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          1500,
+          2500
+        ],
+        "ref_recall": 1.0,
+        "gap": 0.0,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 1.0,
+        "ref_ci95": [
+          1.0,
+          1.0
+        ],
+        "gap": 0.0,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "model0_earlier_mean_3",
+      "injector": "traffic-spike",
+      "label": "TRAFFIC_SPIKE",
+      "band": [
+        4,
+        6
+      ],
+      "role": "interpolation",
+      "runs": 30,
+      "windows": 150,
+      "recall": 0.006666666666666667,
+      "ci95": [
+        0.0,
+        0.02
+      ],
+      "latency_median_s": 327.206,
+      "missed_runs": 29,
+      "vs_other_band": {
+        "ref_band": [
+          8,
+          10
+        ],
+        "ref_recall": 0.0,
+        "gap": -0.006666666666666667,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.05,
+        "ref_ci95": [
+          0.014285714285714285,
+          0.09285714285714286
+        ],
+        "gap": 0.043333333333333335,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "model0_earlier_mean_3",
+      "injector": "traffic-spike",
+      "label": "TRAFFIC_SPIKE",
+      "band": [
+        8,
+        10
+      ],
+      "role": "mild extrapolation",
+      "runs": 30,
+      "windows": 150,
+      "recall": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ],
+      "latency_median_s": null,
+      "missed_runs": 30,
+      "vs_other_band": {
+        "ref_band": [
+          4,
+          6
+        ],
+        "ref_recall": 0.006666666666666667,
+        "gap": 0.006666666666666667,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.05,
+        "ref_ci95": [
+          0.014285714285714285,
+          0.09285714285714286
+        ],
+        "gap": 0.05,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "model0_previous_window",
+      "injector": "db-throttling",
+      "label": "DATABASE_THROTTLING",
+      "band": [
+        2.5,
+        3.5
+      ],
+      "role": "interpolation",
+      "runs": 30,
+      "windows": 114,
+      "recall": 0.2631578947368421,
+      "ci95": [
+        0.2542372881355932,
+        0.27522935779816515
+      ],
+      "latency_median_s": 89.2125,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          4.5,
+          5.5
+        ],
+        "ref_recall": 0.2608695652173913,
+        "gap": -0.0022883295194507935,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.29,
+        "ref_ci95": [
+          0.27184466019417475,
+          0.3131461675579323
+        ],
+        "gap": 0.02684210526315789,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "model0_previous_window",
+      "injector": "db-throttling",
+      "label": "DATABASE_THROTTLING",
+      "band": [
+        4.5,
+        5.5
+      ],
+      "role": "mild extrapolation",
+      "runs": 30,
+      "windows": 115,
+      "recall": 0.2608695652173913,
+      "ci95": [
+        0.2542372881355932,
+        0.2702702702702703
+      ],
+      "latency_median_s": 87.0875,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          2.5,
+          3.5
+        ],
+        "ref_recall": 0.2631578947368421,
+        "gap": 0.0022883295194507935,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.29,
+        "ref_ci95": [
+          0.27184466019417475,
+          0.3131461675579323
+        ],
+        "gap": 0.029130434782608683,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "model0_previous_window",
+      "injector": "lambda-degradation",
+      "label": "LAMBDA_DEGRADATION",
+      "band": [
+        500,
+        800
+      ],
+      "role": "interpolation",
+      "runs": 23,
+      "windows": 115,
+      "recall": 0.11304347826086956,
+      "ci95": [
+        0.06956521739130435,
+        0.1565217391304348
+      ],
+      "latency_median_s": 53.54,
+      "missed_runs": 10,
+      "vs_other_band": {
+        "ref_band": [
+          1100,
+          1400
+        ],
+        "ref_recall": 0.1,
+        "gap": -0.01304347826086956,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.08571428571428572,
+        "ref_ci95": [
+          0.047619047619047616,
+          0.12380952380952381
+        ],
+        "gap": -0.02732919254658385,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "model0_previous_window",
+      "injector": "lambda-degradation",
+      "label": "LAMBDA_DEGRADATION",
+      "band": [
+        1100,
+        1400
+      ],
+      "role": "mild extrapolation",
+      "runs": 22,
+      "windows": 110,
+      "recall": 0.1,
+      "ci95": [
+        0.05454545454545454,
+        0.13659090909090887
+      ],
+      "latency_median_s": 52.369,
+      "missed_runs": 11,
+      "vs_other_band": {
+        "ref_band": [
+          500,
+          800
+        ],
+        "ref_recall": 0.11304347826086956,
+        "gap": 0.01304347826086956,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.08571428571428572,
+        "ref_ci95": [
+          0.047619047619047616,
+          0.12380952380952381
+        ],
+        "gap": -0.01428571428571429,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "model0_previous_window",
+      "injector": "payment-failure",
+      "label": "DEPENDENCY_FAILURE",
+      "band": [
+        1500,
+        2500
+      ],
+      "role": "interpolation",
+      "runs": 22,
+      "windows": 110,
+      "recall": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "latency_median_s": 65.4375,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          3500,
+          4500
+        ],
+        "ref_recall": 1.0,
+        "gap": 0.0,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 1.0,
+        "ref_ci95": [
+          1.0,
+          1.0
+        ],
+        "gap": 0.0,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "model0_previous_window",
+      "injector": "payment-failure",
+      "label": "DEPENDENCY_FAILURE",
+      "band": [
+        3500,
+        4500
+      ],
+      "role": "mild extrapolation",
+      "runs": 23,
+      "windows": 115,
+      "recall": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "latency_median_s": 62.213,
+      "missed_runs": 0,
+      "vs_other_band": {
+        "ref_band": [
+          1500,
+          2500
+        ],
+        "ref_recall": 1.0,
+        "gap": 0.0,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 1.0,
+        "ref_ci95": [
+          1.0,
+          1.0
+        ],
+        "gap": 0.0,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "model0_previous_window",
+      "injector": "traffic-spike",
+      "label": "TRAFFIC_SPIKE",
+      "band": [
+        4,
+        6
+      ],
+      "role": "interpolation",
+      "runs": 30,
+      "windows": 150,
+      "recall": 0.006666666666666667,
+      "ci95": [
+        0.0,
+        0.02
+      ],
+      "latency_median_s": 327.206,
+      "missed_runs": 29,
+      "vs_other_band": {
+        "ref_band": [
+          8,
+          10
+        ],
+        "ref_recall": 0.0,
+        "gap": -0.006666666666666667,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.05714285714285714,
+        "ref_ci95": [
+          0.02142857142857143,
+          0.1
+        ],
+        "gap": 0.05047619047619047,
+        "status": "ok"
+      }
+    },
+    {
+      "family": "detection",
+      "model": "model0_previous_window",
+      "injector": "traffic-spike",
+      "label": "TRAFFIC_SPIKE",
+      "band": [
+        8,
+        10
+      ],
+      "role": "mild extrapolation",
+      "runs": 30,
+      "windows": 150,
+      "recall": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ],
+      "latency_median_s": null,
+      "missed_runs": 30,
+      "vs_other_band": {
+        "ref_band": [
+          4,
+          6
+        ],
+        "ref_recall": 0.006666666666666667,
+        "gap": 0.006666666666666667,
+        "status": "ok"
+      },
+      "vs_validation": {
+        "ref_recall": 0.05714285714285714,
+        "ref_ci95": [
+          0.02142857142857143,
+          0.1
+        ],
+        "gap": 0.05714285714285714,
+        "status": "ok"
+      }
+    }
+  ],
+  "extreme_slice": {
+    "runs": 20,
+    "by_injector": {
+      "traffic-spike": {
+        "label": "TRAFFIC_SPIKE",
+        "runs": 5,
+        "detection:model0_previous_window": {
+          "runs": 5,
+          "windows": 25,
+          "recall": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "latency_median_s": null,
+          "missed_runs": 5
+        },
+        "detection:model0_earlier_mean_3": {
+          "runs": 5,
+          "windows": 25,
+          "recall": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "latency_median_s": null,
+          "missed_runs": 5
+        },
+        "detection:classifier_as_detector": {
+          "runs": 5,
+          "windows": 25,
+          "recall": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "latency_median_s": 58.686,
+          "missed_runs": 0
+        },
+        "classification:incident_type": {
+          "runs": 5,
+          "windows": 25,
+          "recall": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "top_errors": []
+        }
+      },
+      "lambda-degradation": {
+        "label": "LAMBDA_DEGRADATION",
+        "runs": 5,
+        "detection:model0_previous_window": {
+          "runs": 5,
+          "windows": 25,
+          "recall": 0.2,
+          "ci95": [
+            0.2,
+            0.2
+          ],
+          "latency_median_s": 59.307,
+          "missed_runs": 0
+        },
+        "detection:model0_earlier_mean_3": {
+          "runs": 5,
+          "windows": 25,
+          "recall": 0.4,
+          "ci95": [
+            0.4,
+            0.4
+          ],
+          "latency_median_s": 59.307,
+          "missed_runs": 0
+        },
+        "detection:classifier_as_detector": {
+          "runs": 5,
+          "windows": 25,
+          "recall": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "latency_median_s": 59.307,
+          "missed_runs": 0
+        },
+        "classification:incident_type": {
+          "runs": 5,
+          "windows": 25,
+          "recall": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "top_errors": []
+        }
+      },
+      "db-throttling": {
+        "label": "DATABASE_THROTTLING",
+        "runs": 5,
+        "detection:model0_previous_window": {
+          "runs": 5,
+          "windows": 20,
+          "recall": 0.5,
+          "ci95": [
+            0.3,
+            0.7
+          ],
+          "latency_median_s": 69.304,
+          "missed_runs": 0
+        },
+        "detection:model0_earlier_mean_3": {
+          "runs": 5,
+          "windows": 20,
+          "recall": 0.65,
+          "ci95": [
+            0.55,
+            0.75
+          ],
+          "latency_median_s": 69.304,
+          "missed_runs": 0
+        },
+        "detection:classifier_as_detector": {
+          "runs": 5,
+          "windows": 20,
+          "recall": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "latency_median_s": 69.304,
+          "missed_runs": 0
+        },
+        "classification:incident_type": {
+          "runs": 5,
+          "windows": 20,
+          "recall": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "top_errors": []
+        }
+      },
+      "payment-failure": {
+        "label": "DEPENDENCY_FAILURE",
+        "runs": 5,
+        "detection:model0_previous_window": {
+          "runs": 5,
+          "windows": 25,
+          "recall": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "latency_median_s": 56.348,
+          "missed_runs": 0
+        },
+        "detection:model0_earlier_mean_3": {
+          "runs": 5,
+          "windows": 25,
+          "recall": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "latency_median_s": 56.348,
+          "missed_runs": 0
+        },
+        "detection:classifier_as_detector": {
+          "runs": 5,
+          "windows": 25,
+          "recall": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "latency_median_s": 56.348,
+          "missed_runs": 0
+        },
+        "classification:incident_type": {
+          "runs": 5,
+          "windows": 25,
+          "recall": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "top_errors": []
+        }
+      }
+    }
+  },
+  "varied_duration": {
+    "120": {
+      "runs": 10,
+      "by_injector": {
+        "traffic-spike": {
+          "label": "TRAFFIC_SPIKE",
+          "runs": 3,
+          "detection:model0_previous_window": {
+            "runs": 3,
+            "windows": 6,
+            "recall": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "latency_median_s": null,
+            "missed_runs": 3
+          },
+          "detection:model0_earlier_mean_3": {
+            "runs": 3,
+            "windows": 6,
+            "recall": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "latency_median_s": null,
+            "missed_runs": 3
+          },
+          "detection:classifier_as_detector": {
+            "runs": 3,
+            "windows": 6,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "latency_median_s": 76.816,
+            "missed_runs": 0
+          },
+          "classification:incident_type": {
+            "runs": 3,
+            "windows": 6,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "top_errors": []
+          }
+        },
+        "lambda-degradation": {
+          "label": "LAMBDA_DEGRADATION",
+          "runs": 3,
+          "detection:model0_previous_window": {
+            "runs": 3,
+            "windows": 6,
+            "recall": 0.3333333333333333,
+            "ci95": [
+              0.0,
+              0.5
+            ],
+            "latency_median_s": 56.2435,
+            "missed_runs": 1
+          },
+          "detection:model0_earlier_mean_3": {
+            "runs": 3,
+            "windows": 6,
+            "recall": 0.8333333333333334,
+            "ci95": [
+              0.5,
+              1.0
+            ],
+            "latency_median_s": 61.962,
+            "missed_runs": 0
+          },
+          "detection:classifier_as_detector": {
+            "runs": 3,
+            "windows": 6,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "latency_median_s": 61.962,
+            "missed_runs": 0
+          },
+          "classification:incident_type": {
+            "runs": 3,
+            "windows": 6,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "top_errors": []
+          }
+        },
+        "db-throttling": {
+          "label": "DATABASE_THROTTLING",
+          "runs": 2,
+          "detection:model0_previous_window": {
+            "runs": 2,
+            "windows": 2,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "latency_median_s": 96.8615,
+            "missed_runs": 0
+          },
+          "detection:model0_earlier_mean_3": {
+            "runs": 2,
+            "windows": 2,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "latency_median_s": 96.8615,
+            "missed_runs": 0
+          },
+          "detection:classifier_as_detector": {
+            "runs": 2,
+            "windows": 2,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "latency_median_s": 96.8615,
+            "missed_runs": 0
+          },
+          "classification:incident_type": {
+            "runs": 2,
+            "windows": 2,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "top_errors": []
+          }
+        },
+        "payment-failure": {
+          "label": "DEPENDENCY_FAILURE",
+          "runs": 2,
+          "detection:model0_previous_window": {
+            "runs": 2,
+            "windows": 4,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "latency_median_s": 78.5025,
+            "missed_runs": 0
+          },
+          "detection:model0_earlier_mean_3": {
+            "runs": 2,
+            "windows": 4,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "latency_median_s": 78.5025,
+            "missed_runs": 0
+          },
+          "detection:classifier_as_detector": {
+            "runs": 2,
+            "windows": 4,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "latency_median_s": 78.5025,
+            "missed_runs": 0
+          },
+          "classification:incident_type": {
+            "runs": 2,
+            "windows": 4,
+            "recall": 0.75,
+            "ci95": [
+              0.5,
+              1.0
+            ],
+            "top_errors": [
+              [
+                "CASCADING_FAILURE",
+                1
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "720": {
+      "runs": 10,
+      "by_injector": {
+        "traffic-spike": {
+          "label": "TRAFFIC_SPIKE",
+          "runs": 2,
+          "detection:model0_previous_window": {
+            "runs": 2,
+            "windows": 24,
+            "recall": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "latency_median_s": null,
+            "missed_runs": 2
+          },
+          "detection:model0_earlier_mean_3": {
+            "runs": 2,
+            "windows": 24,
+            "recall": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "latency_median_s": null,
+            "missed_runs": 2
+          },
+          "detection:classifier_as_detector": {
+            "runs": 2,
+            "windows": 24,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "latency_median_s": 57.074,
+            "missed_runs": 0
+          },
+          "classification:incident_type": {
+            "runs": 2,
+            "windows": 24,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "top_errors": []
+          }
+        },
+        "lambda-degradation": {
+          "label": "LAMBDA_DEGRADATION",
+          "runs": 2,
+          "detection:model0_previous_window": {
+            "runs": 2,
+            "windows": 24,
+            "recall": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "latency_median_s": null,
+            "missed_runs": 2
+          },
+          "detection:model0_earlier_mean_3": {
+            "runs": 2,
+            "windows": 24,
+            "recall": 0.08333333333333333,
+            "ci95": [
+              0.08333333333333333,
+              0.08333333333333333
+            ],
+            "latency_median_s": 84.038,
+            "missed_runs": 0
+          },
+          "detection:classifier_as_detector": {
+            "runs": 2,
+            "windows": 24,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "latency_median_s": 84.038,
+            "missed_runs": 0
+          },
+          "classification:incident_type": {
+            "runs": 2,
+            "windows": 24,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "top_errors": []
+          }
+        },
+        "db-throttling": {
+          "label": "DATABASE_THROTTLING",
+          "runs": 3,
+          "detection:model0_previous_window": {
+            "runs": 3,
+            "windows": 33,
+            "recall": 0.09090909090909091,
+            "ci95": [
+              0.09090909090909091,
+              0.09090909090909091
+            ],
+            "latency_median_s": 88.392,
+            "missed_runs": 0
+          },
+          "detection:model0_earlier_mean_3": {
+            "runs": 3,
+            "windows": 33,
+            "recall": 0.18181818181818182,
+            "ci95": [
+              0.18181818181818182,
+              0.18181818181818182
+            ],
+            "latency_median_s": 88.392,
+            "missed_runs": 0
+          },
+          "detection:classifier_as_detector": {
+            "runs": 3,
+            "windows": 33,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "latency_median_s": 88.392,
+            "missed_runs": 0
+          },
+          "classification:incident_type": {
+            "runs": 3,
+            "windows": 33,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "top_errors": []
+          }
+        },
+        "payment-failure": {
+          "label": "DEPENDENCY_FAILURE",
+          "runs": 3,
+          "detection:model0_previous_window": {
+            "runs": 3,
+            "windows": 36,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "latency_median_s": 58.205,
+            "missed_runs": 0
+          },
+          "detection:model0_earlier_mean_3": {
+            "runs": 3,
+            "windows": 36,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "latency_median_s": 58.205,
+            "missed_runs": 0
+          },
+          "detection:classifier_as_detector": {
+            "runs": 3,
+            "windows": 36,
+            "recall": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "latency_median_s": 58.205,
+            "missed_runs": 0
+          },
+          "classification:incident_type": {
+            "runs": 3,
+            "windows": 36,
+            "recall": 0.3888888888888889,
+            "ci95": [
+              0.25,
+              0.5
+            ],
+            "top_errors": [
+              [
+                "CASCADING_FAILURE",
+                22
+              ]
+            ]
+          }
+        }
+      }
+    }
+  },
+  "classifier_name": "incident_type",
+  "m9_2_reference": {
+    "iforest": {
+      "metrics": {
+        "precision": 0.5960803059273423,
+        "recall": 1.0,
+        "f1": 0.7469302186283319,
+        "fpr": 1.0,
+        "fpr_healthy": 1.0,
+        "fault_start_flagged": 1.0,
+        "roc_auc": 0.9466981109692848,
+        "average_precision": 0.9420116936997524
+      },
+      "ci95": {
+        "precision": [
+          0.5547477211105012,
+          0.6343353015011939
+        ],
+        "recall": [
+          1.0,
+          1.0
+        ],
+        "f1": [
+          0.7136176671486079,
+          0.7762609058431826
+        ],
+        "fpr": [
+          1.0,
+          1.0
+        ]
+      },
+      "runs": 320
+    },
+    "binary": {
+      "metrics": {
+        "precision": 0.9666408068269977,
+        "recall": 0.9991980753809142,
+        "f1": 0.9826498422712935,
+        "fpr": 0.05088757396449704,
+        "fpr_healthy": 0.0,
+        "fault_start_flagged": 0.4095238095238095,
+        "roc_auc": 0.9995833788073625,
+        "average_precision": 0.999747654287066
+      },
+      "ci95": {
+        "precision": [
+          0.9572762443508313,
+          0.9755284420358722
+        ],
+        "recall": [
+          0.9975059742130484,
+          1.0
+        ],
+        "f1": [
+          0.9779143282788557,
+          0.9873531298858189
+        ],
+        "fpr": [
+          0.03590969215969216,
+          0.06821786220827782
+        ]
+      },
+      "runs": 320
+    },
+    "deployed": {
+      "metrics": {
+        "precision": 0.9555214723926381,
+        "recall": 0.9991980753809142,
+        "f1": 0.9768718149745198,
+        "fpr": 0.06863905325443787,
+        "fpr_healthy": 0.024324324324324326,
+        "fault_start_flagged": 0.38095238095238093,
+        "roc_auc": null,
+        "average_precision": null
+      },
+      "ci95": {
+        "precision": [
+          0.9447449284416691,
+          0.9660898940869825
+        ],
+        "recall": [
+          0.9974638592959204,
+          1.0
+        ],
+        "f1": [
+          0.9708659605816145,
+          0.9822372923777266
+        ],
+        "fpr": [
+          0.051310061489905856,
+          0.08783000852680757
+        ]
+      },
+      "runs": 320
+    }
+  }
+}
