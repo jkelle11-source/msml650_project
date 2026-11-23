@@ -107,6 +107,27 @@ not a controlled experiment) show that replacing only Order's median latency wit
 recall from 0.540 to 1.000, which points at the mix. The 20-run extreme slice uses the default mix but also more extreme
 faults, so it does not isolate either cause. Nothing here says why Model 0 moved less.
 
+## M9-2's other detectors beside Model 0
+
+Headline (320 runs). Model 0's rows are from this report's run; M9-2's three rows are copied from
+`ml/m9_2_results/metrics_m9_2.json` and were not rescored here.
+
+| Detector | Precision | Recall | F1 | False-positive rate |
+|---|---|---|---|---|
+| Model 0 (previous window) | 0.896 [0.868, 0.918] | 0.373 [0.320, 0.424] | 0.527 [0.468, 0.577] | 0.064 [0.047, 0.084] |
+| Model 0 (earlier mean, the stronger floor) | 0.916 [0.897, 0.935] | 0.472 [0.419, 0.521] | 0.623 [0.574, 0.665] | 0.064 [0.047, 0.082] |
+| Isolation Forest (M9-2) | 0.596 [0.555, 0.634] | 1.000 [1.000, 1.000] | 0.747 [0.714, 0.776] | 1.000 [1.000, 1.000] |
+| Binary detector (M9-2) | 0.967 [0.957, 0.976] | 0.999 [0.998, 1.000] | 0.983 [0.978, 0.987] | 0.051 [0.036, 0.068] |
+| Deployed rule: forest AND classifier (M9-2) | 0.956 [0.945, 0.966] | 0.999 [0.997, 1.000] | 0.977 [0.971, 0.982] | 0.069 [0.051, 0.088] |
+
+- **The Isolation Forest has no margin to report.** It flags every test window, so its recall of 1.000 and its
+  false-positive rate of 1.000 are what flagging everything produces (`M9-2_REPORT.md`). Its precision is below
+  Model 0's for the same reason.
+- **The binary detector and the deployed rule** have recall near 0.999 against Model 0's 0.472, with intervals far
+  apart, and false-positive rates that overlap Model 0's. These margins are read from two separate intervals, not
+  paired, because their packages were not scored again for this report, so only a difference between non-overlapping
+  intervals should be read as a difference.
+
 ## Slices reported apart
 
 - **Extreme slice (20 runs, 5 per fault).** The classifier scores 1.000 everywhere. Model 0 scores 0.000 on spikes,
