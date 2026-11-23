@@ -125,6 +125,9 @@ so its runs take 60–120 s (median 97.2 s for both).
 - Report `fpr` against the labels, with `fpr_healthy` and `fault_start_flagged` beside it.
 - Time detection from labeled incident windows only; db_throttling_onset minutes are never scored.
 - The forest's cut-off is this package's `threshold`, set on validation, never on the test set.
+- **M9-2's result:** that cut-off didn't survive the test set's shifted endpoint mix. The forest flagged all 2,280 test
+  windows, while the default-mix stress runs from the same day had 0 of 20 healthy windows flagged
+  ([`M9-2_REPORT.md`](M9-2_REPORT.md)).
 
 ## On the live path (M8-1)
 
