@@ -34,7 +34,7 @@ that tells you whether an engineer can trust the explanation, so it's the headli
   healthy runs are false alarms. 40 of the 296, those 8 included, were handed a type other than the run's
   label. Their evidence fidelity is 99.3%, because fidelity checks a claim against the input Bedrock got,
   whether or not the type in it was right; M9-2 scores the type.
-- **Runbooks were off** for all of them (`ANOMALYPULSE_RUNBOOKS=off`), as deployed.
+- **Runbooks were off** for all of them (`ANOMALYPULSE_RUNBOOKS=off`), as deployed at the time.
 - **One set of rules:** each diagnosis is checked again with today's self-check against its stored input,
   as the feed check does (`incidents/feed.py`).
 
@@ -177,9 +177,15 @@ a rater could recognize their style even with the lists unlabeled and shuffled.
   "no false fact about this stack" differently.
 - **Decision:** `ANOMALYPULSE_RUNBOOKS` goes **on** for the demo. Both raters' preference and the automatic
   stack-error count (15 → 2) point the same way. One caveat: one runbook-only fact reached a claim (1 of 211,
-  below). `infra/genai/template.yaml` sets the switch, and it takes effect when `anomalypulse-genai` is
-  deployed. The tables above still describe the runbooks-off system the test set ran on; the evidence for
-  runbooks on is this 30-incident sample.
+  below). `infra/genai/template.yaml` sets the switch. The tables above still describe the runbooks-off
+  system the test set ran on; the evidence for runbooks on is this 30-incident sample.
+- **Deployed and checked live, 2026-11-23.** `anomalypulse-genai` went out at 05:49 UTC with the switch on.
+  One traffic spike from the runner (`exp-20261123T055215Z-c61d`, 57,495 requests, none dropped) opened
+  `inc-20261123T055800Z`, and its record holds the `traffic_spike` runbook. The self-check flagged the first
+  answer (`metric`); the retry came back clean and was kept. That diagnosis has all 8 claims supported, all 8
+  moved metrics cited and no capacity or X-Ray slip. `live_check` and the feed check passed, with no Lambda
+  errors. The kept Bedrock call took 41 s, inside the 50 s limit per attempt. One run shows the switch works
+  end to end. It isn't a quality measurement.
 
 **Scored automatically, the same 30:**
 
