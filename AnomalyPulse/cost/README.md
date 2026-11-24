@@ -1,5 +1,11 @@
 # What the rest of the plan will cost (M9-4)
 
+> **Measured since (2026-11-23):** M9-4's results, from the test set's own batches, are in
+> [Docs/COST_AND_PERFORMANCE.md](../../Docs/COST_AND_PERFORMANCE.md) (`collect_m9.py`, `measured.py`, `inputs/m9/`,
+> `results/`). The test set cost $103.97 at list price ($0.28 a run). This estimate's expected case had $30.25 of
+> API Gateway for 390 runs (validation runs and reruns included); the 371 test-set runs measured $29.09. This page
+> is the estimate made before M9-1.
+
 An estimate of the AWS bill for the rest of the project plan, built from the account's own measured usage. Written
 2026-11-12, before M9-1. **Owner:** Jake. **Code:** `estimate.py` (the model), `collect.py` (its inputs), and
 `test_estimate.py`.
