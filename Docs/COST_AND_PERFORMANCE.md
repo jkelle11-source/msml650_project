@@ -9,7 +9,7 @@ live pipeline scoring every minute. **Owner:** Jake. **Code:** [`AnomalyPulse/co
 ```bash
 cd AnomalyPulse
 python3 -m cost.measured                   # prints everything below from cost/inputs/m9/, writes cost/results/
-python3 -m pytest cost -q                  # 55 tests (no AWS)
+python3 -m pytest cost -q                  # 68 tests (no AWS)
 python3 -m cost.collect_m9 --profile dev   # collect again (read-only, about $0.12)
 ```
 
@@ -17,7 +17,9 @@ python3 -m cost.collect_m9 --profile dev   # collect again (read-only, about $0.
 about 2026-11-28), so collecting again after that would read coarser data.
 
 All costs are at **list price** (us-east-2), with no free allowance unless a line says so. The always-free
-allowances belong to the account, not the architecture, and November's ran out during Nov 13–15 anyway.
+allowances belong to the account, not the architecture. Some of November's ran out during the batches: Lambda's and
+SQS's on Nov 14, the logs' on Nov 15. Others hadn't run out by Nov 22, so the bill shows those lines as $0:
+CloudWatch's million API requests, the 10 alarms, DynamoDB's 25 write units and the free storage.
 
 ---
 
@@ -29,8 +31,9 @@ One inference is the Diagnosis Lambda scoring one minute's window with the Isola
 costs **$5.6 × 10⁻⁷**, or **$0.56 a million**, measured from the billing lines (`REPORT`) of all 3,752 calls in the
 test set. The pipeline sends one window a minute, so that's **$0.02 a month**.
 
-- **What a call bills:** 26.7 ms on average at 1 GB. The handler runs 10.6 ms, and the models' own scoring takes
-  about 2 ms of that (the reply's `inference_ms`).
+- **What a call bills:** 26.7 ms on average at 1 GB. The handler runs 10.6 ms. The models' own scoring is likely
+  about 2 ms of that: the example reply in [`LIVE_DIAGNOSIS.md`](LIVE_DIAGNOSIS.md) gives an `inference_ms` of 1.9.
+  It wasn't collected for the test set's calls.
 - **Cold starts are most of the bill:** 33 of the 3,752 calls, about one every two hours. Each takes about 1.8 s to
   start (loading the libraries and the model from S3), and together they are **58% of the billed time**.
 - **A warm call** costs $3.5 × 10⁻⁷, and 57% of that is the request fee ($0.20 a million).
@@ -44,14 +47,17 @@ Lambda made **0 calls**: no `REPORT` lines at all. The incident store and Bedroc
 window builder announces no window for an idle minute. The inference path's only idle cost is storage: its container
 image in ECR.
 
-The whole system's idle cost, from the bill (mean of Nov 18, 20 and 21):
+The whole system's idle cost at list price, from the bill's quantities on Nov 18, 20 and 21 (mean):
 
-| Idle | A day | A month |
+| Idle, at list price | A day | A month |
 |---|---|---|
-| The store: the Products table's 200 provisioned read units (the DB-throttling experiment's capacity) | $0.624 | $18.98 |
-| AnomalyPulse: two once-a-minute Lambdas (the window builder, the metrics extractor), their S3 writes and reads, S3 storage, SQS polling, the ECR images | $0.174 | $5.30 |
+| The store: the Products table's provisioned capacity, 200 read and 5 write units (the DB-throttling experiment's), and the tables' storage | $0.705 | $21.44 |
+| AnomalyPulse: the metrics extractor's CloudWatch API requests ($0.389 a day), the two once-a-minute Lambdas' S3 writes and reads and their run time, the pipeline's alarms, S3 and log storage, SQS polling, the ECR images | $0.592 | $18.01 |
 | Tooling: the stopped runner's disk | $0.043 | $1.30 |
-| **Total** | **$0.841** | **$25.58** |
+| **Total** | **$1.340** | **$40.76** |
+
+The bill charged $0.841 a day ($25.58 a month). The always-free allowances covered the difference: the extractor's
+CloudWatch requests, the Products table's write units, the alarms and the storage.
 
 Only two functions run when idle, the window builder and the metrics extractor, 1,440 calls a day each. A real-time
 SageMaker endpoint for the same model would cost $40.88 to $59.57 a month idle (below).
@@ -59,7 +65,8 @@ SageMaker endpoint for the same model would cost $40.88 to $59.57 a month idle (
 ### Cost per experiment
 
 The test set cost **$103.97**, which is **$0.28 a run** (371 runs, 370 accepted). The four batches came to $0.287,
-$0.270, $0.294 and $0.260 a run.
+$0.270, $0.294 and $0.260 a run. This is what the batches added to the idle floor (above). The floor itself, about
+$3.51 over the test set's 3,777 minutes at list price, is left out here and in the bill check below.
 
 | | Total | Per run |
 |---|---|---|
@@ -67,13 +74,13 @@ $0.270, $0.294 and $0.260 a run.
 | AnomalyPulse: the pipeline, inference, Bedrock, telemetry logs, S3, SQS, EventBridge | $27.38 | $0.074 |
 | Tooling: the runner, the simulator's tables | $5.13 | $0.014 |
 
-By line: Lambda $41.98, API Gateway $29.09, Bedrock $18.44, the runner $5.09 (instance and IPv4 address), S3
-requests $3.37, logs $3.41, DynamoDB $1.34, SQS $0.65, EventBridge $0.43, CloudWatch API requests $0.15.
+By line: Lambda $41.98, API Gateway $29.09, Bedrock $18.44, the runner $5.09 (instance and IPv4 address), logs
+$3.41, S3 requests $3.37, DynamoDB $1.34, SQS $0.65, EventBridge $0.43, CloudWatch API requests $0.15.
 
 **Checked against the bill.** The bill for Nov 14–16, priced at list price, less three idle days, and scaled from the
-3,699 batch minutes inside those days to the test set's 3,777, gives **$104.48**. The model gives $103.97, which is
-0.995× the bill. The bill itself charged $3.86 less for those days, because the month's free allowances were used
-up partway through.
+3,699 batch minutes inside those days to the test set's 3,777, gives **$104.47**. The model gives $103.97, which is
+0.995× the bill. The bill itself charged $4.18 less for those days, because of the always-free allowances (some ran
+out during them).
 
 ### Cost per incident
 
@@ -84,19 +91,20 @@ Sonnet 4.6, at $3 and $15 a million. The explanation Lambda and the incident sto
 - **With runbooks on,** as they have been live since #113, a call costs **$0.038**: 3,537 input and 1,818 output
   tokens, from M9-5's 38 calls on Nov 19, which were billed $1.44. That's 1.11×, about $0.065 an incident.
 - **Why Bedrock was so much of the test set's cost (18%):** the test set opens an incident every 12 minutes. At
-  30 incidents a month it would be $1.76 ($1.94 with runbooks).
+  30 incidents a month it would be $1.76 ($1.96 with runbooks).
 
 ### Monthly cost by request rate
 
 The table below is a month (730 hours) at a steady rate, with traffic every minute and 30 incidents, at list price.
 The always-free allowances every account gets are one line of their own: 400,000 Lambda GB-s, 1 million Lambda
-requests, 5 GB of logs, 1 million SQS and 1 million CloudWatch requests, 25 read and 25 write units.
+requests, 5 GB of logs, 1 million SQS and 1 million CloudWatch requests, 25 read and 25 write units, 10 alarms and
+25 GB of DynamoDB storage.
 
 | Requests a second | Requests a month | The store | AnomalyPulse | AnomalyPulse's share | Total | After always-free |
 |---|---|---|---|---|---|---|
-| 1 | 2.6 M | $31.99 | $23.45 | 42% | $55.44 | $36.64 |
-| 20 (the test set's healthy rate) | 52.6 M | $234.12 | $73.87 | 24% | $307.98 | $284.80 |
-| 100 | 262.8 M | $1,085.18 | $286.15 | 21% | $1,371.32 | $1,348.15 |
+| 1 | 2.6 M | $32.08 | $24.33 | 43% | $56.41 | $36.77 |
+| 20 (the test set's healthy rate) | 52.6 M | $234.21 | $74.75 | 24% | $308.96 | $284.93 |
+| 100 | 262.8 M | $1,085.27 | $287.03 | 21% | $1,372.30 | $1,348.27 |
 
 The full grid (1, 2, 5, 10, 20, 50 and 100) is in `cost/results/projections.json`, for M9-6's cost curve. Every
 line is a straight line in the rate.
@@ -104,12 +112,12 @@ line is a straight line in the rate.
 - **The store** is mostly API Gateway's $3.50 a million requests: 85% of its cost at 100 rps ($919.80).
 - **AnomalyPulse's cost is moving telemetry, not ML.** At 100 rps:
   - S3: $111, nearly all requests, one object written per shipper and aggregator call
-  - the services' telemetry logs: $106
+  - the telemetry logs: $106 (the four services' $103, the shipper's and the pipeline's $4)
   - SQS and EventBridge: $34
   - its Lambdas that scale with traffic: $13
 
-  The ML is tiny next to that. The four once-a-minute Lambdas, which build, score and store every minute (with
-  the metrics extractor), cost $1.84 a month, and Bedrock at 30 incidents $1.75.
+  The ML is tiny next to that. The four once-a-minute Lambdas (the window builder, the metrics extractor, the
+  Diagnosis Lambda and the incident store) cost $1.89 a month with their logs, and Bedrock at 30 incidents $1.75.
   Batching the shipper's and the aggregator's writes is where its cost would come down.
 - **At 1 rps the fixed costs dominate:**
   - the Products table's provisioned capacity: $21.35
@@ -130,7 +138,7 @@ list prices (AWS Price List API, us-east-2, 2026-11-23).
 | Real-time endpoint, ml.c6g.large | $59.57 | $59.57 | $59.79 |
 
 - **Both serverless options cost nothing idle.** An endpoint that stays up costs $31 to $60 a month for a model
-  that needs $0.02 of compute at the pipeline's rate: 1,700 to 2,400 times as much.
+  that needs $0.02 of compute at the pipeline's rate: 1,300 to 2,400 times as much.
 - **Serverless Inference comes out a little cheaper per call:** $3.0 × 10⁻⁷, against the Lambda's $5.6 × 10⁻⁷
   measured at one call a minute and $3.5 × 10⁻⁷ for a warm call. Two things favour it:
   - it has no request fee;
@@ -145,7 +153,7 @@ list prices (AWS Price List API, us-east-2, 2026-11-23).
 
 This was measured from CloudWatch over the four batch windows while the pipeline was live. Percentiles are
 CloudWatch's over each whole window. On the stress batch they matched exact percentiles from the `REPORT` lines to
-1% at p50 and p95, and 3% at p99.
+about 1% at p50 and p95, and 3% at p99.
 
 - **Throughput:** 8.31 million requests in 3,777 minutes, **36.7 rps** on average. The busiest minute was
   **243 rps** (14,557 requests in one minute, during an injected surge). Healthy runs held 20.0 rps.
@@ -202,8 +210,11 @@ explanation Lambda, which waits for Bedrock. That step belongs to diagnosis late
 3. **Checked against the bill, day by day:**
    - API requests within 0.001%, Lambda requests exact, DynamoDB on-demand units within 0.03%;
    - log bytes are exactly 2³⁰ per billed GB;
-   - CloudWatch's GB-seconds are 0.56% under the bill, because each call is billed rounded up to the next
-     millisecond. They're scaled by the bill's own ratio (1.0056);
+   - CloudWatch's GB-seconds are 0.56% under the bill. Its `Duration` leaves out two things the bill counts, about
+     half each on the batch days: each call rounded up to the next millisecond, and each cold start's start-up
+     (init) time. For example, the metrics extractor on Nov 20 was billed 565,962 ms: 560,845 ms of run time,
+     4,400 ms of start-up in 12 cold starts, and 717 ms of rounding (`REPORT` lines, checked 2026-11-23). The
+     GB-seconds are scaled by the bill's own ratio (1.0056);
    - all 13 unit prices checked (API Gateway, Lambda, logs, DynamoDB, Bedrock, EventBridge, S3, SQS and the runner)
      equal the bill's on Nov 16.
 4. **The bill lines CloudWatch can't attribute** (S3, SQS, EventBridge and CloudWatch API requests) are the batch
@@ -220,19 +231,27 @@ explanation Lambda, which waits for Bedrock. That step belongs to diagnosis late
 
    The dashboard Lambda runs once per console viewer, so it's counted in the runs' cost but not projected.
 6. **The projections'** unit costs, each from where it was measured:
-   - **per request,** from the 60 healthy runs (the test mix at 20 rps);
+   - **per request:** the Lambdas and tables from the 60 healthy runs (the test mix at 20 rps), and the bill lines
+     in 4 from the batch days;
    - **per minute,** from the batches: the window builder, the metrics extractor, the Diagnosis Lambda, and the
      incident store's own work;
    - **per incident:** Bedrock, the explanation Lambda, and the incident store's wait for it. The store calls the
      explanation Lambda and waits, and both have 512 MB, so 6,592 of the store's 6,773 GB-s are waiting;
-   - **per month:** the idle days' fixed costs (S3 storage, ECR, the idle level of S3, SQS and CloudWatch
-     requests), and the Products table's 200 read and 5 write units at list price.
+   - **per month:** the idle days' fixed costs (S3, ECR, log and table storage, the pipeline's alarms, the idle level
+     of S3, SQS and CloudWatch requests), and the Products table's 200 read and 5 write units, all at list price.
 
 ## What it leaves out
 
-- **Straight-line scaling.** The per-request costs come from healthy runs at 20 rps. The window builder's run time
-  grows with traffic (a 4 s median at the test set's 36.7 rps). It costs $1.35 a month, so even tripling it stays
-  under $5.
+- **Straight-line scaling.** The Lambdas' and tables' per-request costs come from healthy runs at 20 rps. The window
+  builder's run time grows with traffic (a 4 s median at the test set's 36.7 rps). It costs $1.35 a month, so even
+  tripling it stays under $5.
+- **The request lines come from the batch days, faults included.** S3, SQS, EventBridge and CloudWatch API requests
+  per API request are the batch days' (step 4 above), not the healthy runs'. The faults change how many pipeline
+  calls a request makes. Per 1,000 requests, the shipper made 47.9 calls on the batch days and 35.0 in the healthy
+  runs; with the aggregator, the pipeline made 61.9 object writes and 55.5. On the healthy runs' basis, S3 PUTs
+  (nearly all those writes) would be 10% lower: $80 instead of $89 a month at 100 rps. The total would then be
+  $1,363 instead of $1,372 at 100 rps, and $307 instead of $309 at 20 rps (`request_basis` in `measured.json`).
+  SQS and EventBridge have no per-call measure like that, so they stay on the batch days' basis.
 - **The Products table's 200 read units** are the DB-throttling experiment's capacity, not a size chosen for
   100 rps. Nobody measured whether 40 GET /products a second would throttle it.
 - **S3 GET-class requests above idle** include the post-batch label and feature builds, which read the same bucket,

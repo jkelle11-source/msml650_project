@@ -160,13 +160,13 @@ batches (371 runs, 3,777 minutes, 317 incidents) with the live pipeline running,
 - **The data:** CloudWatch's 1-minute usage, the Diagnosis Lambda's `REPORT` lines, the Incidents table and the
   bill by day (`AnomalyPulse/cost/collect_m9.py`), turned into results without AWS by `measured.py`.
 - **Checked against the bill:** each day's usage matches the bill's quantities (API requests within 0.001%, log
-  bytes exact). Priced at list price, the test set comes to $103.97; the bill gives $104.48.
+  bytes exact). Priced at list price, the test set comes to $103.97; the bill gives $104.47.
 - **The costs:**
   - **per experiment $0.28:** the store $0.19, AnomalyPulse $0.07, tooling $0.01;
   - **per incident $0.059**, nearly all Bedrock ($0.034 a call, 1.71 calls an incident; $0.038 a call with
     runbooks on);
   - **per inference $5.6 × 10⁻⁷** ($0.56 a million, $0.02 a month at the pipeline's one a minute).
-- **A month:** $55, $308 and $1,371 at 1, 20 and 100 rps at list price, with AnomalyPulse's share falling from 42%
+- **A month:** $56, $309 and $1,372 at 1, 20 and 100 rps at list price, with AnomalyPulse's share falling from 43%
   to 21%. Most of AnomalyPulse's cost is moving telemetry (S3 objects, the telemetry logs), not ML.
 - **SageMaker on paper:** Serverless Inference is about as cheap as the Lambda and also $0 idle; a real-time
   endpoint is $41–$60 a month idle. `cost/results/projections.json` is M9-6's cost curve.
@@ -174,8 +174,10 @@ batches (371 runs, 3,777 minutes, 317 incidents) with the live pipeline running,
 **Definition of Done**
 - [x] Cost-per-inference is a real measured number (near-zero idle demonstrated). *$5.6 × 10⁻⁷ a call, from the
   `REPORT` lines of all 3,752 Diagnosis calls in the test set. On Nov 20–21 UTC, with no traffic, the Lambda made
-  0 calls, and so did the incident store and Bedrock. The whole system's idle bill is $0.84 a day: $0.62 of it the
-  store's provisioned Products table, $0.17 AnomalyPulse (two once-a-minute Lambdas, S3, the ECR images).*
+  0 calls, and so did the incident store and Bedrock. The whole system costs $1.34 a day idle at list price ($0.84
+  billed, after the always-free allowances). $0.70 of it is the store's provisioned Products table, $0.59
+  AnomalyPulse (most of it the metrics extractor's CloudWatch requests, then S3 and the two once-a-minute Lambdas),
+  and $0.04 the stopped runner's disk.*
 - [x] Monthly projections given for at least two request volumes. *Seven rates from 1 to 100 rps, each split into
   the store's cost and AnomalyPulse's, with the always-free allowances as one line
   (`cost/results/projections.json`).*

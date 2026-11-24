@@ -13,7 +13,7 @@ An estimate of the AWS bill for the rest of the project plan, built from the acc
 ```bash
 cd AnomalyPulse
 python3 -m cost.estimate              # the breakdown, from the committed inputs (no AWS)
-python3 -m pytest cost -q             # 23 tests
+python3 -m pytest cost -q             # 68 tests: the estimate's 23 and the measured results' 45
 python3 -m cost.collect --profile dev # refresh inputs/ (read-only; about 6 Cost Explorer calls at $0.01)
 ```
 
