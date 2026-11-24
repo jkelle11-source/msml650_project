@@ -1,0 +1,1635 @@
+{
+ "gbs_factor": 1.00559361482913,
+ "bill_check": {
+  "days": {
+   "2026-11-14": {
+    "api_requests": [
+     3065453,
+     3065461.0
+    ],
+    "lambda_gb_s": [
+     1194859.1,
+     1201189.5698837887
+    ],
+    "lambda_requests": [
+     3741313,
+     3741312.0
+    ],
+    "log_gib": [
+     2.5263892896473408,
+     2.5263892504
+    ],
+    "dynamodb_write_units": [
+     754564.0,
+     754757.0
+    ],
+    "dynamodb_read_units": [
+     274966.5,
+     275055.0
+    ]
+   },
+   "2026-11-15": {
+    "api_requests": [
+     2980713,
+     2980698.0
+    ],
+    "lambda_gb_s": [
+     1006838.31,
+     1012806.4398662116
+    ],
+    "lambda_requests": [
+     3627666,
+     3627667.0
+    ],
+    "log_gib": [
+     2.4529836121946573,
+     2.4529836101
+    ],
+    "dynamodb_write_units": [
+     740199.0,
+     740217.0
+    ],
+    "dynamodb_read_units": [
+     265006.0,
+     265016.0
+    ]
+   },
+   "2026-11-16": {
+    "api_requests": [
+     2123692,
+     2123692.0
+    ],
+    "lambda_gb_s": [
+     752049.26,
+     756272.7814248048
+    ],
+    "lambda_requests": [
+     2549582,
+     2549582.0
+    ],
+    "log_gib": [
+     1.7241918044164777,
+     1.7241918051
+    ],
+    "dynamodb_write_units": [
+     473346.0,
+     473374.0
+    ],
+    "dynamodb_read_units": [
+     186828.5,
+     186858.0
+    ]
+   },
+   "2026-11-18": {
+    "api_requests": [
+     0,
+     0
+    ],
+    "lambda_gb_s": [
+     1614.87,
+     1631.3100371093
+    ],
+    "lambda_requests": [
+     2880,
+     2880.0
+    ],
+    "log_gib": [
+     0.0009327558800578117,
+     0.0009327503
+    ],
+    "dynamodb_write_units": [
+     1440.0,
+     1440.0
+    ],
+    "dynamodb_read_units": [
+     0.0,
+     0
+    ]
+   },
+   "2026-11-20": {
+    "api_requests": [
+     0,
+     0
+    ],
+    "lambda_gb_s": [
+     1593.97,
+     1607.0683701
+    ],
+    "lambda_requests": [
+     2880,
+     2880.0
+    ],
+    "log_gib": [
+     0.0009346399456262589,
+     0.0009346104
+    ],
+    "dynamodb_write_units": [
+     1440.0,
+     1440.0
+    ],
+    "dynamodb_read_units": [
+     0.0,
+     0
+    ]
+   },
+   "2026-11-21": {
+    "api_requests": [
+     0,
+     0
+    ],
+    "lambda_gb_s": [
+     1592.57,
+     1605.1655390626
+    ],
+    "lambda_requests": [
+     2880,
+     2880.0
+    ],
+    "log_gib": [
+     0.0009328164160251617,
+     0.0009328005
+    ],
+    "dynamodb_write_units": [
+     1440.0,
+     1440.0
+    ],
+    "dynamodb_read_units": [
+     0.0,
+     0
+    ]
+   }
+  },
+  "prices": {
+   "API Gateway request": [
+    3.5e-06,
+    3.5e-06
+   ],
+   "Lambda GB-second": [
+    1.3333399998612282e-05,
+    1.33334e-05
+   ],
+   "Lambda request": [
+    2.0000000000000002e-07,
+    2e-07
+   ],
+   "log GB": [
+    0.49999999956501356,
+    0.5
+   ],
+   "DynamoDB write unit": [
+    6.25e-07,
+    6.25e-07
+   ],
+   "DynamoDB read unit": [
+    1.25e-07,
+    1.25e-07
+   ],
+   "Bedrock input token": [
+    3.0000000000000005e-06,
+    3e-06
+   ],
+   "Bedrock output token": [
+    1.5e-05,
+    1.5e-05
+   ],
+   "EventBridge 64 KB chunk": [
+    1e-06,
+    1e-06
+   ],
+   "S3 PUT-class request": [
+    5e-06,
+    5e-06
+   ],
+   "S3 GET-class request": [
+    4.0000000000000003e-07,
+    4e-07
+   ],
+   "SQS request": [
+    4.0000000000000003e-07,
+    4e-07
+   ],
+   "runner hour": [
+    0.07229999999999999,
+    0.0723
+   ]
+  },
+  "s3_puts_above_idle": 533718.0,
+  "pipeline_object_writes": 505779,
+  "s3_puts_explained": 0.947652130900588
+ },
+ "bedrock_per_call": {
+  "calls": 530,
+  "input_tokens": 2920.218867924528,
+  "output_tokens": 1684.3603773584905,
+  "cost": 0.03402606226415094
+ },
+ "bedrock_per_call_runbooks_on": {
+  "calls": 38,
+  "input_tokens": 3537.0526315789475,
+  "output_tokens": 1817.5526315789473,
+  "cost": 0.03787444736842105,
+  "billed": 1.439229,
+  "over_runbooks_off": 1.1131011009853078
+ },
+ "bill_cross_check": {
+  "batch_days_list": 106.01379268175015,
+  "batch_days_billed": 102.1536355639,
+  "free_allowances_used": 3.86015711785015,
+  "idle_day_list": 1.2304483610177406,
+  "batch_minutes_inside": 3699.0,
+  "batch_minutes": 3777,
+  "test_set_from_bill": 104.48009856184869,
+  "test_set_model": 103.96612391805829,
+  "model_over_bill": 0.9950806454926328
+ },
+ "experiments": {
+  "batches": {
+   "batch-20261113T224227Z-83c9": {
+    "attempts": 140,
+    "accepted": 140,
+    "minutes": 1423,
+    "app": 27.877080798129573,
+    "anomalypulse": 10.319381762961221,
+    "tooling": 1.9335667288464722,
+    "total": 40.13002928993727,
+    "per_attempt": 0.2866430663566948
+   },
+   "batch-20261114T231040Z-9394": {
+    "attempts": 140,
+    "accepted": 140,
+    "minutes": 1423,
+    "app": 25.477718117263393,
+    "anomalypulse": 10.3699201946583,
+    "tooling": 1.9329911663464723,
+    "total": 37.78062947826817,
+    "per_attempt": 0.2698616391304869
+   },
+   "batch-20261116T012700Z-da71": {
+    "attempts": 70,
+    "accepted": 70,
+    "minutes": 714,
+    "app": 14.427182652453528,
+    "anomalypulse": 5.202045558521584,
+    "tooling": 0.9705243184883211,
+    "total": 20.599752529463434,
+    "per_attempt": 0.2942821789923348
+   },
+   "batch-20261116T133158Z-7dc6": {
+    "attempts": 21,
+    "accepted": 20,
+    "minutes": 217,
+    "app": 3.672512617257139,
+    "anomalypulse": 1.4887137402828892,
+    "tooling": 0.2944862628493917,
+    "total": 5.45571262038942,
+    "per_attempt": 0.2597958390661629
+   }
+  },
+  "test_set": {
+   "app": 71.45449418510364,
+   "anomalypulse": 27.380061256423993,
+   "tooling": 5.131568476530656,
+   "total": 103.96612391805829,
+   "attempts": 371,
+   "accepted": 370,
+   "per_attempt": 0.28023213994085794,
+   "per_attempt_by_group": {
+    "app": 0.19259971478464594,
+    "anomalypulse": 0.07380070419521292,
+    "tooling": 0.013831720960999074
+   },
+   "by_line": {
+    "Lambda": 41.983102266664304,
+    "API Gateway requests": 29.086560999999996,
+    "Bedrock": 18.44212574716981,
+    "runner instance": 4.762894947443066,
+    "logs": 3.40887252939865,
+    "S3 PUT-class requests": 2.7145114506445527,
+    "DynamoDB": 1.3448799375000005,
+    "S3 GET-class requests": 0.6649652316277712,
+    "SQS requests": 0.6537580393057505,
+    "EventBridge events": 0.42632210046490404,
+    "runner public IPv4": 0.33032015408759124,
+    "CloudWatch API requests": 0.14781051375189144
+   }
+  }
+ },
+ "per_incident": {
+  "incidents": 317,
+  "bedrock_calls": 542,
+  "explain_invocations": 542,
+  "calls_per_incident": 1.7097791798107256,
+  "bedrock": 0.05817705283018868,
+  "explain_lambda": 0.00027958281612113504,
+  "store_waiting": 0.0002788352678349648,
+  "cost": 0.058735470914144786
+ },
+ "per_inference": {
+  "calls": 3752.0,
+  "cold_starts": 33.0,
+  "billed_ms_per_call": 26.678038379530918,
+  "handler_ms_per_call": 10.609554904051173,
+  "cold_start_share_of_billed": 0.5834537843670077,
+  "cost": 5.557089569296375e-07,
+  "warm_cost": 3.4816921987579956e-07,
+  "per_million": 0.5557089569296375,
+  "per_month_one_a_minute": 0.024340052313518122,
+  "scored_minute_path": 5.0104699131119025e-05,
+  "idle_calls": 0.0,
+  "idle_window": [
+   "2026-11-20T00:00:00+00:00",
+   "2026-11-22T00:00:00+00:00"
+  ]
+ },
+ "idle": {
+  "day": 0.8410583609,
+  "month": 25.582191810708334,
+  "by_group_day": {
+   "app": 0.624,
+   "anomalypulse": 0.17439169849999997,
+   "tooling": 0.0426666624
+  },
+  "by_line_day": {
+   "Amazon DynamoDB / USE2-ReadCapacityUnit-Hrs": 0.624,
+   "Amazon Simple Storage Service / USE2-Requests-Tier1": 0.10082,
+   "EC2 - Other / USE2-EBS:VolumeUsage.gp3": 0.04267,
+   "AWS Lambda / USE2-Lambda-GB-Second-ARM": 0.02153,
+   "Amazon Simple Storage Service / USE2-Requests-Tier2": 0.01771,
+   "Amazon Simple Storage Service / USE2-TimedStorage-ByteHrs": 0.01677,
+   "Amazon Simple Queue Service / USE2-Requests-Tier1": 0.00918,
+   "Amazon EC2 Container Registry (ECR) / USE2-TimedStorage-ByteHrs": 0.00643,
+   "Amazon DynamoDB / USE2-WriteRequestUnits": 0.0009,
+   "AWS Lambda / USE2-Request-ARM": 0.00058
+  },
+  "functions_running_per_day": {
+   "pipeline-window-builder": 1440.0,
+   "metrics-extractor": 1440.0
+  },
+  "diagnosis_calls": 0.0
+ },
+ "serverless_comparison": {
+  "per_call": {
+   "Lambda (measured)": 5.557089569296375e-07,
+   "SageMaker Serverless Inference, 1 GB": 2.965614727605889e-07,
+   "Serverless Inference + 1 provisioned concurrency": 1.374181491998213e-07,
+   "real-time endpoint, ml.t2.medium": 8.437037467956543e-08,
+   "real-time endpoint, ml.c6g.large": 8.437037467956543e-08
+  },
+  "fixed_month": {
+   "Lambda (measured)": 0.0,
+   "SageMaker Serverless Inference, 1 GB": 0.0,
+   "Serverless Inference + 1 provisioned concurrency": 30.7476,
+   "real-time endpoint, ml.t2.medium": 40.88,
+   "real-time endpoint, ml.c6g.large": 59.568000000000005
+  },
+  "month": {
+   "Lambda (measured)": {
+    "idle": 0.0,
+    "one a minute": 0.024340052313518122,
+    "one a second": 0.9149887098336013
+   },
+   "SageMaker Serverless Inference, 1 GB": {
+    "idle": 0.0,
+    "one a minute": 0.012989392506913793,
+    "one a second": 0.7793635504148276
+   },
+   "Serverless Inference + 1 provisioned concurrency": {
+    "idle": 30.7476,
+    "one a minute": 30.75361891493495,
+    "one a second": 31.10873489609713
+   },
+   "real-time endpoint, ml.t2.medium": {
+    "idle": 40.88,
+    "one a minute": 40.883695422410966,
+    "one a second": 41.1017253446579
+   },
+   "real-time endpoint, ml.c6g.large": {
+    "idle": 59.568000000000005,
+    "one a minute": 59.57169542241097,
+    "one a second": 59.7897253446579
+   }
+  },
+  "assumptions": {
+   "handler_ms": 10.609554904051173,
+   "input_bytes": 4662,
+   "output_bytes": 1000,
+   "lambda_warm_cost_per_call": 3.4816921987579956e-07
+  }
+ },
+ "operations": {
+  "throughput": {
+   "requests": 8310446,
+   "minutes": 3777,
+   "mean_rps": 36.671282322831175,
+   "busiest_minute_rps": 242.61666666666667,
+   "healthy_rps_median": 19.953703703703702
+  },
+  "api_latency_healthy_ms": {
+   "latency_p50": {
+    "median": 15.9665,
+    "max": 16.504
+   },
+   "latency_p95": {
+    "median": 30.741999999999997,
+    "max": 32.18
+   },
+   "latency_p99": {
+    "median": 36.782,
+    "max": 39.174
+   },
+   "latency_maximum": {
+    "median": 139.5,
+    "max": 397.0
+   }
+  },
+  "api_by_batch": {
+   "batch-20261113T224227Z-83c9": {
+    "latency_p50": 15.931,
+    "latency_p95": 1408.959,
+    "latency_p99": 3971.066,
+    "latency_maximum": 29001.0,
+    "requests_per_minute_mean": 2147.6,
+    "requests_per_minute_max": 14557.0,
+    "4xxerror": 150.0,
+    "5xxerror": 65260.0
+   },
+   "batch-20261114T231040Z-9394": {
+    "latency_p50": 15.546,
+    "latency_p95": 874.02,
+    "latency_p99": 3211.58,
+    "latency_maximum": 5788.0,
+    "requests_per_minute_mean": 2200.1,
+    "requests_per_minute_max": 13283.0,
+    "4xxerror": 158.0,
+    "5xxerror": 57129.0
+   },
+   "batch-20261116T012700Z-da71": {
+    "latency_p50": 15.83,
+    "latency_p95": 1366.809,
+    "latency_p99": 3662.726,
+    "latency_maximum": 5625.0,
+    "requests_per_minute_mean": 2197.6,
+    "requests_per_minute_max": 11986.0,
+    "4xxerror": 88.0,
+    "5xxerror": 34172.0
+   },
+   "batch-20261116T133158Z-7dc6": {
+    "latency_p50": 15.722,
+    "latency_p95": 38.262,
+    "latency_p99": 3103.556,
+    "latency_maximum": 6565.0,
+    "requests_per_minute_mean": 2555.9,
+    "requests_per_minute_max": 14114.0,
+    "4xxerror": 41.0,
+    "5xxerror": 2628.0
+   }
+  },
+  "functions": {
+   "cart": {
+    "group": "app",
+    "p50_median_of_batches": 5.954000000000001,
+    "p95_worst_batch": 11.659,
+    "p99_worst_batch": 1504.067,
+    "max": 1844.57,
+    "p95_healthy_median": 9.5,
+    "errors": 0,
+    "throttles": 0,
+    "concurrency_max": 59.0
+   },
+   "diagnosis": {
+    "group": "anomalypulse",
+    "p50_median_of_batches": 9.3605,
+    "p95_worst_batch": 19.145,
+    "p99_worst_batch": 27.889,
+    "max": 2603.31,
+    "p95_healthy_median": 17.9495,
+    "errors": 0,
+    "throttles": 0,
+    "concurrency_max": 1.0
+   },
+   "explain": {
+    "group": "anomalypulse",
+    "p50_median_of_batches": 25247.3635,
+    "p95_worst_batch": 45577.103,
+    "p99_worst_batch": 50598.855,
+    "max": 56237.79,
+    "p95_healthy_median": 16656.15,
+    "errors": 0,
+    "throttles": 0,
+    "concurrency_max": 1.0
+   },
+   "incidents": {
+    "group": "anomalypulse",
+    "p50_median_of_batches": 48.8755,
+    "p95_worst_batch": 29554.047,
+    "p99_worst_batch": 44878.786,
+    "max": 56618.83,
+    "p95_healthy_median": 61.0085,
+    "errors": 0,
+    "throttles": 0,
+    "concurrency_max": 1.0
+   },
+   "metrics-extractor": {
+    "group": "anomalypulse",
+    "p50_median_of_batches": 398.47450000000003,
+    "p95_worst_batch": 458.596,
+    "p99_worst_batch": 488.104,
+    "max": 1397.93,
+    "p95_healthy_median": 438.43449999999996,
+    "errors": 0,
+    "throttles": 0,
+    "concurrency_max": 1.0
+   },
+   "order": {
+    "group": "app",
+    "p50_median_of_batches": 15.877500000000001,
+    "p95_worst_batch": 3918.191,
+    "p99_worst_batch": 5188.628,
+    "max": 7513.59,
+    "p95_healthy_median": 24.0505,
+    "errors": 0,
+    "throttles": 0,
+    "concurrency_max": 332.0
+   },
+   "payment": {
+    "group": "app",
+    "p50_median_of_batches": 1.5135,
+    "p95_worst_batch": 4883.567,
+    "p99_worst_batch": 5354.493,
+    "max": 5390.8,
+    "p95_healthy_median": 5.604,
+    "errors": 0,
+    "throttles": 0,
+    "concurrency_max": 330.0
+   },
+   "pipeline-aggregator": {
+    "group": "anomalypulse",
+    "p50_median_of_batches": 38.5535,
+    "p95_worst_batch": 110.18,
+    "p99_worst_batch": 169.306,
+    "max": 689.98,
+    "p95_healthy_median": 75.588,
+    "errors": 0,
+    "throttles": 0,
+    "concurrency_max": 4.0
+   },
+   "pipeline-forwarder": {
+    "group": "anomalypulse",
+    "p50_median_of_batches": 14.703,
+    "p95_worst_batch": 45.03,
+    "p99_worst_batch": 108.211,
+    "max": 1605.4,
+    "p95_healthy_median": 31.734499999999997,
+    "errors": 0,
+    "throttles": 0,
+    "concurrency_max": 16.0
+   },
+   "pipeline-window-builder": {
+    "group": "anomalypulse",
+    "p50_median_of_batches": 4067.467,
+    "p95_worst_batch": 9889.407,
+    "p99_worst_batch": 11636.347,
+    "max": 14286.81,
+    "p95_healthy_median": 4176.166,
+    "errors": 0,
+    "throttles": 0,
+    "concurrency_max": 1.0
+   },
+   "product": {
+    "group": "app",
+    "p50_median_of_batches": 5.192,
+    "p95_worst_batch": 771.837,
+    "p99_worst_batch": 3100.631,
+    "max": 4831.88,
+    "p95_healthy_median": 7.352,
+    "errors": 0,
+    "throttles": 0,
+    "concurrency_max": 328.0
+   },
+   "telemetry-shipper": {
+    "group": "anomalypulse",
+    "p50_median_of_batches": 31.376,
+    "p95_worst_batch": 42.965,
+    "p99_worst_batch": 66.757,
+    "max": 3073.87,
+    "p95_healthy_median": 41.0955,
+    "errors": 0,
+    "throttles": 0,
+    "concurrency_max": 16.0
+   }
+  },
+  "queue": {
+   "messages_sent": 418309.0,
+   "messages_deleted": 418307.0,
+   "most_visible": 1.0,
+   "oldest_message_s_max": 20.0,
+   "oldest_message_s_minute_median": 5.0
+  },
+  "failure_queues_most_visible": {
+   "anomalypulse-telemetry-dlq": [
+    0.0,
+    null,
+    null,
+    null
+   ],
+   "anomalypulse-telemetry-undelivered": [
+    0.0,
+    null,
+    null,
+    null
+   ],
+   "anomalypulse-diagnosis-failed": [
+    0.0,
+    null,
+    null,
+    null
+   ],
+   "anomalypulse-incidents-failed": [
+    0.0,
+    null,
+    null,
+    null
+   ]
+  }
+ },
+ "unit_usage": [
+  {
+   "line": "API Gateway requests",
+   "group": "app",
+   "price": 3.5e-06,
+   "free": null,
+   "per": {
+    "request": 1.0
+   }
+  },
+  {
+   "line": "Lambda incidents GB-s, waiting on the explanation",
+   "group": "anomalypulse",
+   "price": 1.33334e-05,
+   "free": "lambda_gbs",
+   "per": {
+    "incident": 20.912540524919734
+   }
+  },
+  {
+   "line": "Lambda cart GB-s",
+   "group": "app",
+   "price": 1.33334e-05,
+   "free": "lambda_gbs",
+   "per": {
+    "request": 0.0016386586070189647
+   }
+  },
+  {
+   "line": "Lambda cart requests",
+   "group": "app",
+   "price": 2e-07,
+   "free": "lambda_req",
+   "per": {
+    "request": 0.1508993788129866
+   }
+  },
+  {
+   "line": "logs cart",
+   "group": "anomalypulse",
+   "price": 0.5,
+   "free": "logs_gib",
+   "per": {
+    "request": 1.061660645443507e-07
+   }
+  },
+  {
+   "line": "Lambda diagnosis GB-s",
+   "group": "anomalypulse",
+   "price": 1.33334e-05,
+   "free": "lambda_gbs",
+   "per": {
+    "minute": 0.02650145618215515
+   }
+  },
+  {
+   "line": "Lambda diagnosis requests",
+   "group": "anomalypulse",
+   "price": 2e-07,
+   "free": "lambda_req",
+   "per": {
+    "minute": 0.9933809902038655
+   }
+  },
+  {
+   "line": "logs diagnosis",
+   "group": "anomalypulse",
+   "price": 0.5,
+   "free": "logs_gib",
+   "per": {
+    "minute": 1.1578780718035316e-06
+   }
+  },
+  {
+   "line": "Lambda explain GB-s",
+   "group": "anomalypulse",
+   "price": 1.33334e-05,
+   "free": "lambda_gbs",
+   "per": {
+    "incident": 20.912540524919734
+   }
+  },
+  {
+   "line": "Lambda explain requests",
+   "group": "anomalypulse",
+   "price": 2e-07,
+   "free": "lambda_req",
+   "per": {
+    "incident": 1.7097791798107256
+   }
+  },
+  {
+   "line": "logs explain",
+   "group": "anomalypulse",
+   "price": 0.5,
+   "free": "logs_gib",
+   "per": {
+    "incident": 8.111849004161847e-07
+   }
+  },
+  {
+   "line": "Lambda incidents GB-s",
+   "group": "anomalypulse",
+   "price": 1.33334e-05,
+   "free": "lambda_gbs",
+   "per": {
+    "minute": 0.04797935539538217
+   }
+  },
+  {
+   "line": "Lambda incidents requests",
+   "group": "anomalypulse",
+   "price": 2e-07,
+   "free": "lambda_req",
+   "per": {
+    "minute": 0.9936457505957109
+   }
+  },
+  {
+   "line": "logs incidents",
+   "group": "anomalypulse",
+   "price": 0.5,
+   "free": "logs_gib",
+   "per": {
+    "minute": 5.465692270676359e-07
+   }
+  },
+  {
+   "line": "Lambda metrics-extractor GB-s",
+   "group": "anomalypulse",
+   "price": 1.33334e-05,
+   "free": "lambda_gbs",
+   "per": {
+    "minute": 0.6957738696069002
+   }
+  },
+  {
+   "line": "Lambda metrics-extractor requests",
+   "group": "anomalypulse",
+   "price": 2e-07,
+   "free": "lambda_req",
+   "per": {
+    "minute": 1.0
+   }
+  },
+  {
+   "line": "logs metrics-extractor",
+   "group": "anomalypulse",
+   "price": 0.5,
+   "free": "logs_gib",
+   "per": {
+    "minute": 3.2417570862910215e-07
+   }
+  },
+  {
+   "line": "Lambda order GB-s",
+   "group": "app",
+   "price": 1.33334e-05,
+   "free": "lambda_gbs",
+   "per": {
+    "request": 0.004332477253322219
+   }
+  },
+  {
+   "line": "Lambda order requests",
+   "group": "app",
+   "price": 2e-07,
+   "free": "lambda_req",
+   "per": {
+    "request": 0.19927821340072888
+   }
+  },
+  {
+   "line": "logs order",
+   "group": "anomalypulse",
+   "price": 0.5,
+   "free": "logs_gib",
+   "per": {
+    "request": 1.422184452325719e-07
+   }
+  },
+  {
+   "line": "Lambda payment GB-s",
+   "group": "app",
+   "price": 1.33334e-05,
+   "free": "lambda_gbs",
+   "per": {
+    "request": 0.00033580608667220366
+   }
+  },
+  {
+   "line": "Lambda payment requests",
+   "group": "app",
+   "price": 2e-07,
+   "free": "lambda_req",
+   "per": {
+    "request": 0.0994655261265765
+   }
+  },
+  {
+   "line": "logs payment",
+   "group": "anomalypulse",
+   "price": 0.5,
+   "free": "logs_gib",
+   "per": {
+    "request": 7.07287803176535e-08
+   }
+  },
+  {
+   "line": "Lambda pipeline-aggregator GB-s",
+   "group": "anomalypulse",
+   "price": 1.33334e-05,
+   "free": "lambda_gbs",
+   "per": {
+    "request": 0.00023192853964681886
+   }
+  },
+  {
+   "line": "Lambda pipeline-aggregator requests",
+   "group": "anomalypulse",
+   "price": 2e-07,
+   "free": "lambda_req",
+   "per": {
+    "request": 0.02047016419950811
+   }
+  },
+  {
+   "line": "logs pipeline-aggregator",
+   "group": "anomalypulse",
+   "price": 0.5,
+   "free": "logs_gib",
+   "per": {
+    "request": 6.51924221560101e-09
+   }
+  },
+  {
+   "line": "Lambda pipeline-forwarder GB-s",
+   "group": "anomalypulse",
+   "price": 1.33334e-05,
+   "free": "lambda_gbs",
+   "per": {
+    "request": 0.00016699537544947226
+   }
+  },
+  {
+   "line": "Lambda pipeline-forwarder requests",
+   "group": "anomalypulse",
+   "price": 2e-07,
+   "free": "lambda_req",
+   "per": {
+    "request": 0.035020073629022055
+   }
+  },
+  {
+   "line": "logs pipeline-forwarder",
+   "group": "anomalypulse",
+   "price": 0.5,
+   "free": "logs_gib",
+   "per": {
+    "request": 1.1164265898251605e-08
+   }
+  },
+  {
+   "line": "Lambda pipeline-window-builder GB-s",
+   "group": "anomalypulse",
+   "price": 1.33334e-05,
+   "free": "lambda_gbs",
+   "per": {
+    "minute": 2.3198727866890225
+   }
+  },
+  {
+   "line": "Lambda pipeline-window-builder requests",
+   "group": "anomalypulse",
+   "price": 2e-07,
+   "free": "lambda_req",
+   "per": {
+    "minute": 1.0
+   }
+  },
+  {
+   "line": "logs pipeline-window-builder",
+   "group": "anomalypulse",
+   "price": 0.5,
+   "free": "logs_gib",
+   "per": {
+    "minute": 3.252315527552614e-07
+   }
+  },
+  {
+   "line": "Lambda product GB-s",
+   "group": "app",
+   "price": 1.33334e-05,
+   "free": "lambda_gbs",
+   "per": {
+    "request": 0.006101700394802513
+   }
+  },
+  {
+   "line": "Lambda product requests",
+   "group": "app",
+   "price": 2e-07,
+   "free": "lambda_req",
+   "per": {
+    "request": 0.6497992637097795
+   }
+  },
+  {
+   "line": "logs product",
+   "group": "anomalypulse",
+   "price": 0.5,
+   "free": "logs_gib",
+   "per": {
+    "request": 4.620362690127469e-07
+   }
+  },
+  {
+   "line": "Lambda telemetry-shipper GB-s",
+   "group": "anomalypulse",
+   "price": 1.33334e-05,
+   "free": "lambda_gbs",
+   "per": {
+    "request": 0.002014727910200634
+   }
+  },
+  {
+   "line": "Lambda telemetry-shipper requests",
+   "group": "anomalypulse",
+   "price": 2e-07,
+   "free": "lambda_req",
+   "per": {
+    "request": 0.035020073629022055
+   }
+  },
+  {
+   "line": "logs telemetry-shipper",
+   "group": "anomalypulse",
+   "price": 0.5,
+   "free": "logs_gib",
+   "per": {
+    "request": 1.1210672954027605e-08
+   }
+  },
+  {
+   "line": "DynamoDB carts writes",
+   "group": "app",
+   "price": 6.25e-07,
+   "free": null,
+   "per": {
+    "request": 0.15089783587455294
+   }
+  },
+  {
+   "line": "DynamoDB carts reads",
+   "group": "app",
+   "price": 1.25e-07,
+   "free": null,
+   "per": {
+    "request": 0.0
+   }
+  },
+  {
+   "line": "DynamoDB orders writes",
+   "group": "app",
+   "price": 6.25e-07,
+   "free": null,
+   "per": {
+    "request": 0.09943621029633676
+   }
+  },
+  {
+   "line": "DynamoDB orders reads",
+   "group": "app",
+   "price": 1.25e-07,
+   "free": null,
+   "per": {
+    "request": 0.04989631453725733
+   }
+  },
+  {
+   "line": "DynamoDB incidents writes",
+   "group": "anomalypulse",
+   "price": 6.25e-07,
+   "free": null,
+   "per": {
+    "minute": 25.207042626423085
+   }
+  },
+  {
+   "line": "DynamoDB incidents reads",
+   "group": "anomalypulse",
+   "price": 1.25e-07,
+   "free": null,
+   "per": {
+    "minute": 6.5054275880328305
+   }
+  },
+  {
+   "line": "Bedrock input tokens",
+   "group": "anomalypulse",
+   "price": 3e-06,
+   "free": null,
+   "per": {
+    "incident": 4992.929420867805
+   }
+  },
+  {
+   "line": "Bedrock output tokens",
+   "group": "anomalypulse",
+   "price": 1.5e-05,
+   "free": null,
+   "per": {
+    "incident": 2879.884304505684
+   }
+  },
+  {
+   "line": "S3 PUT-class requests",
+   "group": "anomalypulse",
+   "price": 5e-06,
+   "free": null,
+   "per": {
+    "request": 0.06532769602605087,
+    "month": 613352.0833333334
+   }
+  },
+  {
+   "line": "S3 GET-class requests",
+   "group": "anomalypulse",
+   "price": 4e-07,
+   "free": null,
+   "per": {
+    "request": 0.20003897252559347,
+    "month": 1346738.4722222222
+   }
+  },
+  {
+   "line": "SQS requests",
+   "group": "anomalypulse",
+   "price": 4e-07,
+   "free": "sqs",
+   "per": {
+    "request": 0.19666755529900276,
+    "month": 698397.0833333334
+   }
+  },
+  {
+   "line": "EventBridge events",
+   "group": "anomalypulse",
+   "price": 1e-06,
+   "free": null,
+   "per": {
+    "request": 0.0512995452307739,
+    "month": 0.0
+   }
+  },
+  {
+   "line": "CloudWatch API requests",
+   "group": "anomalypulse",
+   "price": 1e-05,
+   "free": "cw_req",
+   "per": {
+    "request": 0.0017786110847948643,
+    "month": 1182600.0
+   }
+  },
+  {
+   "line": "DynamoDB products-v2 provisioned reads",
+   "group": "app",
+   "price": 0.00013,
+   "free": "rcu_h",
+   "per": {
+    "month": 146000
+   }
+  },
+  {
+   "line": "DynamoDB products-v2 provisioned writes",
+   "group": "app",
+   "price": 0.00065,
+   "free": "wcu_h",
+   "per": {
+    "month": 3650
+   }
+  },
+  {
+   "line": "S3 storage",
+   "group": "anomalypulse",
+   "price": 0.02299999998235064,
+   "free": null,
+   "per": {
+    "month": 22.17423421508333
+   }
+  },
+  {
+   "line": "ECR image storage",
+   "group": "anomalypulse",
+   "price": 0.09999999813512167,
+   "free": null,
+   "per": {
+    "month": 1.9572322364999997
+   }
+  }
+ ],
+ "projections": [
+  {
+   "rps": 1,
+   "requests": 2628000,
+   "incidents": 30,
+   "app": 31.990732527818057,
+   "anomalypulse": 23.44891402346983,
+   "total": 55.439646551287886,
+   "anomalypulse_share": 0.4229629061898321,
+   "always_free": -18.801708422195297,
+   "total_after_free": 36.63793812909259,
+   "lines": {
+    "DynamoDB products-v2 provisioned reads": 18.98,
+    "CloudWatch API requests": 11.8727,
+    "API Gateway requests": 9.198,
+    "S3 PUT-class requests": 3.9252,
+    "DynamoDB products-v2 provisioned writes": 2.3725,
+    "Lambda pipeline-window-builder GB-s": 1.3548,
+    "Bedrock output tokens": 1.2959,
+    "S3 GET-class requests": 0.749,
+    "DynamoDB incidents writes": 0.69,
+    "logs product": 0.6071,
+    "S3 storage": 0.51,
+    "SQS requests": 0.4861,
+    "Bedrock input tokens": 0.4494,
+    "Lambda metrics-extractor GB-s": 0.4063,
+    "Lambda product requests": 0.3415,
+    "DynamoDB carts writes": 0.2478,
+    "Lambda product GB-s": 0.2138,
+    "ECR image storage": 0.1957,
+    "logs order": 0.1869,
+    "DynamoDB orders writes": 0.1633,
+    "Lambda order GB-s": 0.1518,
+    "logs cart": 0.1395,
+    "EventBridge events": 0.1348,
+    "Lambda order requests": 0.1047,
+    "logs payment": 0.0929,
+    "Lambda cart requests": 0.0793,
+    "Lambda telemetry-shipper GB-s": 0.0706,
+    "Lambda cart GB-s": 0.0574,
+    "Lambda payment requests": 0.0523,
+    "DynamoDB incidents reads": 0.0356,
+    "Lambda incidents GB-s": 0.028,
+    "logs diagnosis": 0.0254,
+    "Lambda pipeline-forwarder requests": 0.0184,
+    "Lambda telemetry-shipper requests": 0.0184,
+    "DynamoDB orders reads": 0.0164,
+    "Lambda diagnosis GB-s": 0.0155,
+    "logs telemetry-shipper": 0.0147,
+    "logs pipeline-forwarder": 0.0147,
+    "logs incidents": 0.012,
+    "Lambda payment GB-s": 0.0118,
+    "Lambda pipeline-aggregator requests": 0.0108,
+    "Lambda metrics-extractor requests": 0.0088,
+    "Lambda pipeline-window-builder requests": 0.0088,
+    "Lambda incidents requests": 0.0087,
+    "Lambda diagnosis requests": 0.0087,
+    "logs pipeline-aggregator": 0.0086,
+    "Lambda incidents GB-s, waiting on the explanation": 0.0084,
+    "Lambda explain GB-s": 0.0084,
+    "Lambda pipeline-aggregator GB-s": 0.0081,
+    "logs pipeline-window-builder": 0.0071,
+    "logs metrics-extractor": 0.0071,
+    "Lambda pipeline-forwarder GB-s": 0.0059,
+    "logs explain": 0.0,
+    "Lambda explain requests": 0.0,
+    "DynamoDB carts reads": 0.0
+   }
+  },
+  {
+   "rps": 2,
+   "requests": 5256000,
+   "incidents": 30,
+   "app": 42.62896505563613,
+   "anomalypulse": 26.102439432598747,
+   "total": 68.73140448823487,
+   "anomalypulse_share": 0.3797745677824297,
+   "always_free": -20.385481681267084,
+   "total_after_free": 48.34592280696779,
+   "lines": {
+    "DynamoDB products-v2 provisioned reads": 18.98,
+    "API Gateway requests": 18.396,
+    "CloudWatch API requests": 11.9195,
+    "S3 PUT-class requests": 4.7836,
+    "DynamoDB products-v2 provisioned writes": 2.3725,
+    "Lambda pipeline-window-builder GB-s": 1.3548,
+    "Bedrock output tokens": 1.2959,
+    "logs product": 1.2142,
+    "S3 GET-class requests": 0.9593,
+    "SQS requests": 0.6928,
+    "DynamoDB incidents writes": 0.69,
+    "Lambda product requests": 0.6831,
+    "S3 storage": 0.51,
+    "DynamoDB carts writes": 0.4957,
+    "Bedrock input tokens": 0.4494,
+    "Lambda product GB-s": 0.4276,
+    "Lambda metrics-extractor GB-s": 0.4063,
+    "logs order": 0.3738,
+    "DynamoDB orders writes": 0.3266,
+    "Lambda order GB-s": 0.3036,
+    "logs cart": 0.279,
+    "EventBridge events": 0.2696,
+    "Lambda order requests": 0.2095,
+    "ECR image storage": 0.1957,
+    "logs payment": 0.1859,
+    "Lambda cart requests": 0.1586,
+    "Lambda telemetry-shipper GB-s": 0.1412,
+    "Lambda cart GB-s": 0.1148,
+    "Lambda payment requests": 0.1046,
+    "Lambda pipeline-forwarder requests": 0.0368,
+    "Lambda telemetry-shipper requests": 0.0368,
+    "DynamoDB incidents reads": 0.0356,
+    "DynamoDB orders reads": 0.0328,
+    "logs telemetry-shipper": 0.0295,
+    "logs pipeline-forwarder": 0.0293,
+    "Lambda incidents GB-s": 0.028,
+    "logs diagnosis": 0.0254,
+    "Lambda payment GB-s": 0.0235,
+    "Lambda pipeline-aggregator requests": 0.0215,
+    "logs pipeline-aggregator": 0.0171,
+    "Lambda pipeline-aggregator GB-s": 0.0163,
+    "Lambda diagnosis GB-s": 0.0155,
+    "logs incidents": 0.012,
+    "Lambda pipeline-forwarder GB-s": 0.0117,
+    "Lambda metrics-extractor requests": 0.0088,
+    "Lambda pipeline-window-builder requests": 0.0088,
+    "Lambda incidents requests": 0.0087,
+    "Lambda diagnosis requests": 0.0087,
+    "Lambda incidents GB-s, waiting on the explanation": 0.0084,
+    "Lambda explain GB-s": 0.0084,
+    "logs pipeline-window-builder": 0.0071,
+    "logs metrics-extractor": 0.0071,
+    "logs explain": 0.0,
+    "Lambda explain requests": 0.0,
+    "DynamoDB carts reads": 0.0
+   }
+  },
+  {
+   "rps": 5,
+   "requests": 13140000,
+   "incidents": 30,
+   "app": 74.54366263909031,
+   "anomalypulse": 34.063015659985496,
+   "total": 108.60667829907581,
+   "anomalypulse_share": 0.3136364742339731,
+   "always_free": -22.26325250288826,
+   "total_after_free": 86.34342579618755,
+   "lines": {
+    "API Gateway requests": 45.99,
+    "DynamoDB products-v2 provisioned reads": 18.98,
+    "CloudWatch API requests": 12.0597,
+    "S3 PUT-class requests": 7.3588,
+    "logs product": 3.0356,
+    "DynamoDB products-v2 provisioned writes": 2.3725,
+    "Lambda product requests": 1.7077,
+    "S3 GET-class requests": 1.5901,
+    "Lambda pipeline-window-builder GB-s": 1.3548,
+    "SQS requests": 1.313,
+    "Bedrock output tokens": 1.2959,
+    "DynamoDB carts writes": 1.2392,
+    "Lambda product GB-s": 1.069,
+    "logs order": 0.9344,
+    "DynamoDB orders writes": 0.8166,
+    "Lambda order GB-s": 0.7591,
+    "logs cart": 0.6975,
+    "DynamoDB incidents writes": 0.69,
+    "EventBridge events": 0.6741,
+    "Lambda order requests": 0.5237,
+    "S3 storage": 0.51,
+    "logs payment": 0.4647,
+    "Bedrock input tokens": 0.4494,
+    "Lambda metrics-extractor GB-s": 0.4063,
+    "Lambda cart requests": 0.3966,
+    "Lambda telemetry-shipper GB-s": 0.353,
+    "Lambda cart GB-s": 0.2871,
+    "Lambda payment requests": 0.2614,
+    "ECR image storage": 0.1957,
+    "Lambda pipeline-forwarder requests": 0.092,
+    "Lambda telemetry-shipper requests": 0.092,
+    "DynamoDB orders reads": 0.082,
+    "logs telemetry-shipper": 0.0737,
+    "logs pipeline-forwarder": 0.0733,
+    "Lambda payment GB-s": 0.0588,
+    "Lambda pipeline-aggregator requests": 0.0538,
+    "logs pipeline-aggregator": 0.0428,
+    "Lambda pipeline-aggregator GB-s": 0.0406,
+    "DynamoDB incidents reads": 0.0356,
+    "Lambda pipeline-forwarder GB-s": 0.0293,
+    "Lambda incidents GB-s": 0.028,
+    "logs diagnosis": 0.0254,
+    "Lambda diagnosis GB-s": 0.0155,
+    "logs incidents": 0.012,
+    "Lambda metrics-extractor requests": 0.0088,
+    "Lambda pipeline-window-builder requests": 0.0088,
+    "Lambda incidents requests": 0.0087,
+    "Lambda diagnosis requests": 0.0087,
+    "Lambda incidents GB-s, waiting on the explanation": 0.0084,
+    "Lambda explain GB-s": 0.0084,
+    "logs pipeline-window-builder": 0.0071,
+    "logs metrics-extractor": 0.0071,
+    "logs explain": 0.0,
+    "Lambda explain requests": 0.0,
+    "DynamoDB carts reads": 0.0
+   }
+  },
+  {
+   "rps": 10,
+   "requests": 26280000,
+   "incidents": 30,
+   "app": 127.73482527818061,
+   "anomalypulse": 47.330642705630076,
+   "total": 175.0654679838107,
+   "anomalypulse_share": 0.27035967315956916,
+   "always_free": -23.178359999999998,
+   "total_after_free": 151.8871079838107,
+   "lines": {
+    "API Gateway requests": 91.98,
+    "DynamoDB products-v2 provisioned reads": 18.98,
+    "CloudWatch API requests": 12.2934,
+    "S3 PUT-class requests": 11.6508,
+    "logs product": 6.0712,
+    "Lambda product requests": 3.4153,
+    "S3 GET-class requests": 2.6415,
+    "DynamoDB carts writes": 2.4785,
+    "DynamoDB products-v2 provisioned writes": 2.3725,
+    "SQS requests": 2.3467,
+    "Lambda product GB-s": 2.138,
+    "logs order": 1.8688,
+    "DynamoDB orders writes": 1.6332,
+    "Lambda order GB-s": 1.5181,
+    "logs cart": 1.395,
+    "Lambda pipeline-window-builder GB-s": 1.3548,
+    "EventBridge events": 1.3482,
+    "Bedrock output tokens": 1.2959,
+    "Lambda order requests": 1.0474,
+    "logs payment": 0.9294,
+    "Lambda cart requests": 0.7931,
+    "Lambda telemetry-shipper GB-s": 0.706,
+    "DynamoDB incidents writes": 0.69,
+    "Lambda cart GB-s": 0.5742,
+    "Lambda payment requests": 0.5228,
+    "S3 storage": 0.51,
+    "Bedrock input tokens": 0.4494,
+    "Lambda metrics-extractor GB-s": 0.4063,
+    "ECR image storage": 0.1957,
+    "Lambda pipeline-forwarder requests": 0.1841,
+    "Lambda telemetry-shipper requests": 0.1841,
+    "DynamoDB orders reads": 0.1639,
+    "logs telemetry-shipper": 0.1473,
+    "logs pipeline-forwarder": 0.1467,
+    "Lambda payment GB-s": 0.1177,
+    "Lambda pipeline-aggregator requests": 0.1076,
+    "logs pipeline-aggregator": 0.0857,
+    "Lambda pipeline-aggregator GB-s": 0.0813,
+    "Lambda pipeline-forwarder GB-s": 0.0585,
+    "DynamoDB incidents reads": 0.0356,
+    "Lambda incidents GB-s": 0.028,
+    "logs diagnosis": 0.0254,
+    "Lambda diagnosis GB-s": 0.0155,
+    "logs incidents": 0.012,
+    "Lambda metrics-extractor requests": 0.0088,
+    "Lambda pipeline-window-builder requests": 0.0088,
+    "Lambda incidents requests": 0.0087,
+    "Lambda diagnosis requests": 0.0087,
+    "Lambda incidents GB-s, waiting on the explanation": 0.0084,
+    "Lambda explain GB-s": 0.0084,
+    "logs pipeline-window-builder": 0.0071,
+    "logs metrics-extractor": 0.0071,
+    "logs explain": 0.0,
+    "Lambda explain requests": 0.0,
+    "DynamoDB carts reads": 0.0
+   }
+  },
+  {
+   "rps": 20,
+   "requests": 52560000,
+   "incidents": 30,
+   "app": 234.11715055636122,
+   "anomalypulse": 73.86589679691926,
+   "total": 307.9830473532805,
+   "anomalypulse_share": 0.23983754116241773,
+   "always_free": -23.178359999999998,
+   "total_after_free": 284.8046873532805,
+   "lines": {
+    "API Gateway requests": 183.96,
+    "S3 PUT-class requests": 20.2349,
+    "DynamoDB products-v2 provisioned reads": 18.98,
+    "CloudWatch API requests": 12.7608,
+    "logs product": 12.1423,
+    "Lambda product requests": 6.8307,
+    "DynamoDB carts writes": 4.957,
+    "S3 GET-class requests": 4.7443,
+    "SQS requests": 4.4141,
+    "Lambda product GB-s": 4.2761,
+    "logs order": 3.7375,
+    "DynamoDB orders writes": 3.2665,
+    "Lambda order GB-s": 3.0362,
+    "logs cart": 2.79,
+    "EventBridge events": 2.6963,
+    "DynamoDB products-v2 provisioned writes": 2.3725,
+    "Lambda order requests": 2.0948,
+    "logs payment": 1.8588,
+    "Lambda cart requests": 1.5863,
+    "Lambda telemetry-shipper GB-s": 1.4119,
+    "Lambda pipeline-window-builder GB-s": 1.3548,
+    "Bedrock output tokens": 1.2959,
+    "Lambda cart GB-s": 1.1484,
+    "Lambda payment requests": 1.0456,
+    "DynamoDB incidents writes": 0.69,
+    "S3 storage": 0.51,
+    "Bedrock input tokens": 0.4494,
+    "Lambda metrics-extractor GB-s": 0.4063,
+    "Lambda pipeline-forwarder requests": 0.3681,
+    "Lambda telemetry-shipper requests": 0.3681,
+    "DynamoDB orders reads": 0.3278,
+    "logs telemetry-shipper": 0.2946,
+    "logs pipeline-forwarder": 0.2934,
+    "Lambda payment GB-s": 0.2353,
+    "Lambda pipeline-aggregator requests": 0.2152,
+    "ECR image storage": 0.1957,
+    "logs pipeline-aggregator": 0.1713,
+    "Lambda pipeline-aggregator GB-s": 0.1625,
+    "Lambda pipeline-forwarder GB-s": 0.117,
+    "DynamoDB incidents reads": 0.0356,
+    "Lambda incidents GB-s": 0.028,
+    "logs diagnosis": 0.0254,
+    "Lambda diagnosis GB-s": 0.0155,
+    "logs incidents": 0.012,
+    "Lambda metrics-extractor requests": 0.0088,
+    "Lambda pipeline-window-builder requests": 0.0088,
+    "Lambda incidents requests": 0.0087,
+    "Lambda diagnosis requests": 0.0087,
+    "Lambda incidents GB-s, waiting on the explanation": 0.0084,
+    "Lambda explain GB-s": 0.0084,
+    "logs pipeline-window-builder": 0.0071,
+    "logs metrics-extractor": 0.0071,
+    "logs explain": 0.0,
+    "Lambda explain requests": 0.0,
+    "DynamoDB carts reads": 0.0
+   }
+  },
+  {
+   "rps": 50,
+   "requests": 131400000,
+   "incidents": 30,
+   "app": 553.264126390903,
+   "anomalypulse": 153.47165907078673,
+   "total": 706.7357854616897,
+   "anomalypulse_share": 0.21715563613427075,
+   "always_free": -23.178359999999998,
+   "total_after_free": 683.5574254616897,
+   "lines": {
+    "API Gateway requests": 459.9,
+    "S3 PUT-class requests": 45.9871,
+    "logs product": 30.3558,
+    "DynamoDB products-v2 provisioned reads": 18.98,
+    "Lambda product requests": 17.0767,
+    "CloudWatch API requests": 14.1631,
+    "DynamoDB carts writes": 12.3925,
+    "S3 GET-class requests": 11.0527,
+    "Lambda product GB-s": 10.6902,
+    "SQS requests": 10.6162,
+    "logs order": 9.3438,
+    "DynamoDB orders writes": 8.1662,
+    "Lambda order GB-s": 7.5905,
+    "logs cart": 6.9751,
+    "EventBridge events": 6.7408,
+    "Lambda order requests": 5.237,
+    "logs payment": 4.6469,
+    "Lambda cart requests": 3.9656,
+    "Lambda telemetry-shipper GB-s": 3.5298,
+    "Lambda cart GB-s": 2.8709,
+    "Lambda payment requests": 2.614,
+    "DynamoDB products-v2 provisioned writes": 2.3725,
+    "Lambda pipeline-window-builder GB-s": 1.3548,
+    "Bedrock output tokens": 1.2959,
+    "Lambda pipeline-forwarder requests": 0.9203,
+    "Lambda telemetry-shipper requests": 0.9203,
+    "DynamoDB orders reads": 0.8195,
+    "logs telemetry-shipper": 0.7365,
+    "logs pipeline-forwarder": 0.7335,
+    "DynamoDB incidents writes": 0.69,
+    "Lambda payment GB-s": 0.5883,
+    "Lambda pipeline-aggregator requests": 0.538,
+    "S3 storage": 0.51,
+    "Bedrock input tokens": 0.4494,
+    "logs pipeline-aggregator": 0.4283,
+    "Lambda pipeline-aggregator GB-s": 0.4063,
+    "Lambda metrics-extractor GB-s": 0.4063,
+    "Lambda pipeline-forwarder GB-s": 0.2926,
+    "ECR image storage": 0.1957,
+    "DynamoDB incidents reads": 0.0356,
+    "Lambda incidents GB-s": 0.028,
+    "logs diagnosis": 0.0254,
+    "Lambda diagnosis GB-s": 0.0155,
+    "logs incidents": 0.012,
+    "Lambda metrics-extractor requests": 0.0088,
+    "Lambda pipeline-window-builder requests": 0.0088,
+    "Lambda incidents requests": 0.0087,
+    "Lambda diagnosis requests": 0.0087,
+    "Lambda incidents GB-s, waiting on the explanation": 0.0084,
+    "Lambda explain GB-s": 0.0084,
+    "logs pipeline-window-builder": 0.0071,
+    "logs metrics-extractor": 0.0071,
+    "logs explain": 0.0,
+    "Lambda explain requests": 0.0,
+    "DynamoDB carts reads": 0.0
+   }
+  },
+  {
+   "rps": 100,
+   "requests": 262800000,
+   "incidents": 30,
+   "app": 1085.175752781806,
+   "anomalypulse": 286.1479295272327,
+   "total": 1371.3236823090388,
+   "anomalypulse_share": 0.20866549102792128,
+   "always_free": -23.178359999999998,
+   "total_after_free": 1348.1453223090389,
+   "lines": {
+    "API Gateway requests": 919.8,
+    "S3 PUT-class requests": 88.9074,
+    "logs product": 60.7116,
+    "Lambda product requests": 34.1534,
+    "DynamoDB carts writes": 24.785,
+    "S3 GET-class requests": 21.5668,
+    "Lambda product GB-s": 21.3805,
+    "SQS requests": 20.9531,
+    "DynamoDB products-v2 provisioned reads": 18.98,
+    "logs order": 18.6875,
+    "CloudWatch API requests": 16.5002,
+    "DynamoDB orders writes": 16.3324,
+    "Lambda order GB-s": 15.1811,
+    "logs cart": 13.9502,
+    "EventBridge events": 13.4815,
+    "Lambda order requests": 10.4741,
+    "logs payment": 9.2938,
+    "Lambda cart requests": 7.9313,
+    "Lambda telemetry-shipper GB-s": 7.0596,
+    "Lambda cart GB-s": 5.7419,
+    "Lambda payment requests": 5.2279,
+    "DynamoDB products-v2 provisioned writes": 2.3725,
+    "Lambda pipeline-forwarder requests": 1.8407,
+    "Lambda telemetry-shipper requests": 1.8407,
+    "DynamoDB orders reads": 1.6391,
+    "logs telemetry-shipper": 1.4731,
+    "logs pipeline-forwarder": 1.467,
+    "Lambda pipeline-window-builder GB-s": 1.3548,
+    "Bedrock output tokens": 1.2959,
+    "Lambda payment GB-s": 1.1767,
+    "Lambda pipeline-aggregator requests": 1.0759,
+    "logs pipeline-aggregator": 0.8566,
+    "Lambda pipeline-aggregator GB-s": 0.8127,
+    "DynamoDB incidents writes": 0.69,
+    "Lambda pipeline-forwarder GB-s": 0.5852,
+    "S3 storage": 0.51,
+    "Bedrock input tokens": 0.4494,
+    "Lambda metrics-extractor GB-s": 0.4063,
+    "ECR image storage": 0.1957,
+    "DynamoDB incidents reads": 0.0356,
+    "Lambda incidents GB-s": 0.028,
+    "logs diagnosis": 0.0254,
+    "Lambda diagnosis GB-s": 0.0155,
+    "logs incidents": 0.012,
+    "Lambda metrics-extractor requests": 0.0088,
+    "Lambda pipeline-window-builder requests": 0.0088,
+    "Lambda incidents requests": 0.0087,
+    "Lambda diagnosis requests": 0.0087,
+    "Lambda incidents GB-s, waiting on the explanation": 0.0084,
+    "Lambda explain GB-s": 0.0084,
+    "logs pipeline-window-builder": 0.0071,
+    "logs metrics-extractor": 0.0071,
+    "logs explain": 0.0,
+    "Lambda explain requests": 0.0,
+    "DynamoDB carts reads": 0.0
+   }
+  }
+ ]
+}
