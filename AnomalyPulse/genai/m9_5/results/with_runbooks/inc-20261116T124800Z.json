@@ -1,0 +1,114 @@
+{
+ "diagnosis": {
+  "severity": "MEDIUM",
+  "summary": "The product-service DynamoDB table is experiencing severe read throttling, with 533 read throttle events and 297 throttled requests per minute against a baseline of zero for both. Read capacity consumed has risen approximately 151x, from 449.3 to 67,974 RCU/min. No 5xx errors have appeared at either product-service or payment-service so far.",
+  "root_cause": "DynamoDB read throttling on the Products table is the most likely root cause.",
+  "evidence": [
+   "product-service read_throttle_events rose from 0 to 533/min and throttled_requests rose from 0 to 297/min, both from a baseline of zero.",
+   "product-service db_consumed_read_capacity surged from 449.3 to 67,974 RCU/min, a roughly 151x increase.",
+   "product-service p99_latency_ms rose from 9.587 ms to 41.864 ms (about 4.4x), while p95_latency_ms moved only from 6.56 ms to 6.81 ms, showing throttling pressure concentrated at the tail.",
+   "product-service write_throttle_events remain at 0; throttling is confined to reads only.",
+   "error_rate_5xx is 0 for both product-service and payment-service, indicating no requests have yet exhausted retries.",
+   "payment-service request_rate rose from 0.9433 to 2.0833 rps, approximately 2.2x its baseline."
+  ],
+  "recommended_actions": [
+   "Raise the Products table provisioned read capacity or switch it to on-demand mode to relieve the current throttling immediately.",
+   "Check db_consumed_read_capacity against the Products table provisioned read rate to quantify how far over capacity reads are running, and inspect whether GET /products calls are scanning the full table on every request.",
+   "Reduce per-call read cost on GET /products by adding pagination (a limit and next-page token) or caching the product list inside the Lambda function between invocations.",
+   "Keep the SDK retry configuration unchanged during the incident; reducing retry attempts would convert the current tail latency into 5xx errors.",
+   "After each change, recheck read_throttle_events and db_latency_ms_p95 to confirm throttling is subsiding."
+  ]
+ },
+ "evidence_metrics": [
+  [
+   "product-service.throttled_requests",
+   "product-service.read_throttle_events"
+  ],
+  [
+   "product-service.db_consumed_read_capacity"
+  ],
+  [
+   "product-service.p99_latency_ms",
+   "product-service.p95_latency_ms"
+  ],
+  [
+   "product-service.write_throttle_events",
+   "product-service.read_throttle_events"
+  ],
+  [
+   "product-service.error_rate_5xx",
+   "payment-service.error_rate_5xx"
+  ],
+  [
+   "payment-service.request_rate"
+  ]
+ ],
+ "self_check": {
+  "passed": true,
+  "findings": []
+ },
+ "runbook": "database_throttling",
+ "calls": [
+  {
+   "incident_id": "inc-20261116T124800Z",
+   "diagnosis": {
+    "severity": "MEDIUM",
+    "summary": "The product-service DynamoDB table is experiencing severe read throttling, with 533 read throttle events and 297 throttled requests per minute against a baseline of zero for both. Read capacity consumed has risen approximately 151x, from 449.3 to 67,974 RCU/min. No 5xx errors have appeared at either product-service or payment-service so far.",
+    "root_cause": "DynamoDB read throttling on the Products table is the most likely root cause.",
+    "evidence": [
+     "product-service read_throttle_events rose from 0 to 533/min and throttled_requests rose from 0 to 297/min, both from a baseline of zero.",
+     "product-service db_consumed_read_capacity surged from 449.3 to 67,974 RCU/min, a roughly 151x increase.",
+     "product-service p99_latency_ms rose from 9.587 ms to 41.864 ms (about 4.4x), while p95_latency_ms moved only from 6.56 ms to 6.81 ms, showing throttling pressure concentrated at the tail.",
+     "product-service write_throttle_events remain at 0; throttling is confined to reads only.",
+     "error_rate_5xx is 0 for both product-service and payment-service, indicating no requests have yet exhausted retries.",
+     "payment-service request_rate rose from 0.9433 to 2.0833 rps, approximately 2.2x its baseline."
+    ],
+    "recommended_actions": [
+     "Raise the Products table provisioned read capacity or switch it to on-demand mode to relieve the current throttling immediately.",
+     "Check db_consumed_read_capacity against the Products table provisioned read rate to quantify how far over capacity reads are running, and inspect whether GET /products calls are scanning the full table on every request.",
+     "Reduce per-call read cost on GET /products by adding pagination (a limit and next-page token) or caching the product list inside the Lambda function between invocations.",
+     "Keep the SDK retry configuration unchanged during the incident; reducing retry attempts would convert the current tail latency into 5xx errors.",
+     "After each change, recheck read_throttle_events and db_latency_ms_p95 to confirm throttling is subsiding."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "product-service.throttled_requests",
+     "product-service.read_throttle_events"
+    ],
+    [
+     "product-service.db_consumed_read_capacity"
+    ],
+    [
+     "product-service.p99_latency_ms",
+     "product-service.p95_latency_ms"
+    ],
+    [
+     "product-service.write_throttle_events",
+     "product-service.read_throttle_events"
+    ],
+    [
+     "product-service.error_rate_5xx",
+     "payment-service.error_rate_5xx"
+    ],
+    [
+     "payment-service.request_rate"
+    ]
+   ],
+   "runbook": "database_throttling",
+   "self_check": {
+    "passed": true,
+    "findings": []
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 3480,
+    "output_tokens": 2109
+   },
+   "latency_ms": 17314
+  }
+ ]
+}

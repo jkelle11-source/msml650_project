@@ -1,0 +1,102 @@
+{
+ "diagnosis": {
+  "severity": "HIGH",
+  "summary": "Payment-service is returning 5xx errors on 76.2% of requests with p95 latency at 3988.6 ms against a baseline of 4.5 ms. Order-service is also failing at 39.2% 5xx with p95 latency of 4456.5 ms, and recorded 473 dependency errors per minute to payment-service. All four services show request rates between 4x and 11x their baselines.",
+  "root_cause": "A traffic surge across all services and a failing payment-service, active at the same time, are the most likely root causes.",
+  "evidence": [
+   "Request rates rose sharply across all four services: product-service from 14.98 to 62.2 rps (4.2x), cart-service from 2.05 to 14.72 rps (7.2x), order-service from 2.97 to 20.12 rps (6.8x), and payment-service from 0.94 to 10.35 rps (11x), against their respective baselines.",
+   "Payment-service 5xx error rate is 76.2% against a baseline of 0, and p95 latency rose from 4.5 ms to 3988.6 ms, an increase of approximately 885x.",
+   "Order-service recorded 473 dependency errors per minute to payment-service, up from a baseline of 0, and p95 dependency latency rose from 22.1 ms to 4491.3 ms, an increase of approximately 203x.",
+   "Order-service 5xx error rate is 39.2% against a baseline of 0, and p95 latency rose from 25.1 ms to 4456.5 ms, an increase of approximately 178x."
+  ],
+  "recommended_actions": [
+   "Investigate payment-service Lambda logs and concurrency immediately, as it has the highest 5xx rate at 76.2% and the longest p95 latency at 3988.6 ms, and address that fault first to stop the largest share of user-visible errors.",
+   "Apply rate and burst limits on the API Gateway stage to cap incoming traffic while both faults are being worked, given all services are running at 4x to 11x their baseline request rates.",
+   "Check Lambda throttle counts on all four services, since the elevated request rates across all functions may be competing for the shared Lambda concurrency limit.",
+   "After stabilizing payment-service, recheck order-service error rate and dependency error count to confirm whether order-service errors clear or a separate fault remains.",
+   "Record the timestamp of each change so that the effect of each fix can be distinguished from the other concurrent fault."
+  ]
+ },
+ "evidence_metrics": [
+  [
+   "product-service.request_rate",
+   "cart-service.request_rate",
+   "order-service.request_rate",
+   "payment-service.request_rate"
+  ],
+  [
+   "payment-service.error_rate_5xx",
+   "payment-service.p95_latency_ms"
+  ],
+  [
+   "order-service.dependency_error_count",
+   "order-service.dependency_latency_ms_p95"
+  ],
+  [
+   "order-service.error_rate_5xx",
+   "order-service.p95_latency_ms"
+  ]
+ ],
+ "self_check": {
+  "passed": true,
+  "findings": []
+ },
+ "runbook": "cascading_failure",
+ "calls": [
+  {
+   "incident_id": "inc-20261116T122800Z",
+   "diagnosis": {
+    "severity": "HIGH",
+    "summary": "Payment-service is returning 5xx errors on 76.2% of requests with p95 latency at 3988.6 ms against a baseline of 4.5 ms. Order-service is also failing at 39.2% 5xx with p95 latency of 4456.5 ms, and recorded 473 dependency errors per minute to payment-service. All four services show request rates between 4x and 11x their baselines.",
+    "root_cause": "A traffic surge across all services and a failing payment-service, active at the same time, are the most likely root causes.",
+    "evidence": [
+     "Request rates rose sharply across all four services: product-service from 14.98 to 62.2 rps (4.2x), cart-service from 2.05 to 14.72 rps (7.2x), order-service from 2.97 to 20.12 rps (6.8x), and payment-service from 0.94 to 10.35 rps (11x), against their respective baselines.",
+     "Payment-service 5xx error rate is 76.2% against a baseline of 0, and p95 latency rose from 4.5 ms to 3988.6 ms, an increase of approximately 885x.",
+     "Order-service recorded 473 dependency errors per minute to payment-service, up from a baseline of 0, and p95 dependency latency rose from 22.1 ms to 4491.3 ms, an increase of approximately 203x.",
+     "Order-service 5xx error rate is 39.2% against a baseline of 0, and p95 latency rose from 25.1 ms to 4456.5 ms, an increase of approximately 178x."
+    ],
+    "recommended_actions": [
+     "Investigate payment-service Lambda logs and concurrency immediately, as it has the highest 5xx rate at 76.2% and the longest p95 latency at 3988.6 ms, and address that fault first to stop the largest share of user-visible errors.",
+     "Apply rate and burst limits on the API Gateway stage to cap incoming traffic while both faults are being worked, given all services are running at 4x to 11x their baseline request rates.",
+     "Check Lambda throttle counts on all four services, since the elevated request rates across all functions may be competing for the shared Lambda concurrency limit.",
+     "After stabilizing payment-service, recheck order-service error rate and dependency error count to confirm whether order-service errors clear or a separate fault remains.",
+     "Record the timestamp of each change so that the effect of each fix can be distinguished from the other concurrent fault."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "product-service.request_rate",
+     "cart-service.request_rate",
+     "order-service.request_rate",
+     "payment-service.request_rate"
+    ],
+    [
+     "payment-service.error_rate_5xx",
+     "payment-service.p95_latency_ms"
+    ],
+    [
+     "order-service.dependency_error_count",
+     "order-service.dependency_latency_ms_p95"
+    ],
+    [
+     "order-service.error_rate_5xx",
+     "order-service.p95_latency_ms"
+    ]
+   ],
+   "runbook": "cascading_failure",
+   "self_check": {
+    "passed": true,
+    "findings": []
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 3386,
+    "output_tokens": 1908
+   },
+   "latency_ms": 15199
+  }
+ ]
+}

@@ -1,0 +1,102 @@
+{
+ "diagnosis": {
+  "severity": "HIGH",
+  "summary": "All four services are under a sharp traffic surge, with request rates between 7.8x and 34x their baselines. Payment-service is returning 5xx errors on 100% of requests, and order-service is returning 5xx errors on 65% of requests. Both services also show p95 latency roughly 70 to 390 times their baselines.",
+  "root_cause": "A traffic surge across all services and a complete payment-service failure, active at the same time, are the most likely concurrent root causes.",
+  "evidence": [
+   "Request rates surged across every service: product-service rose from 14.98 to 117.18 rps (7.8x), cart-service from 2.05 to 25.95 rps (12.7x), order-service from 2.97 to 49.43 rps (16.6x), and payment-service from 0.94 to 32.13 rps (34x).",
+   "Payment-service 5xx error rate is now 100% against a baseline of 0, and its p95 latency rose from 4.5 ms to 1,756.3 ms, a 390x increase.",
+   "Order-service 5xx error rate is now 65% against a baseline of 0, and its p95 latency rose from 25.1 ms to 1,785.8 ms, a 71x increase.",
+   "Order-service dependency errors to payment-service reached 1,928 per minute from a baseline of 0, and the dependency p95 latency rose from 22.1 ms to 2,159.6 ms, a 98x increase."
+  ],
+  "recommended_actions": [
+   "Investigate payment-service Lambda logs and concurrency immediately, as it is returning 5xx errors on every request and is the most user-visible fault; reduce or restore its ability to handle the current 32.13 rps load.",
+   "Apply rate and burst limits on the API Gateway stage to cap incoming traffic toward the pre-surge baseline while the payment-service fault is being resolved.",
+   "Check Lambda throttle counts on all four services, since the account-wide Lambda concurrency pool is shared and the traffic surge across all services may be exhausting it.",
+   "After payment-service errors are resolved, recheck order-service 5xx rate and p95 latency to confirm recovery, then address any remaining order-service issues separately.",
+   "Record the timestamps at which each signal changes as fixes are applied, so the effect of each individual action can be distinguished."
+  ]
+ },
+ "evidence_metrics": [
+  [
+   "product-service.request_rate",
+   "cart-service.request_rate",
+   "order-service.request_rate",
+   "payment-service.request_rate"
+  ],
+  [
+   "payment-service.error_rate_5xx",
+   "payment-service.p95_latency_ms"
+  ],
+  [
+   "order-service.error_rate_5xx",
+   "order-service.p95_latency_ms"
+  ],
+  [
+   "order-service.dependency_error_count",
+   "order-service.dependency_latency_ms_p95"
+  ]
+ ],
+ "self_check": {
+  "passed": true,
+  "findings": []
+ },
+ "runbook": "cascading_failure",
+ "calls": [
+  {
+   "incident_id": "inc-20261115T094500Z",
+   "diagnosis": {
+    "severity": "HIGH",
+    "summary": "All four services are under a sharp traffic surge, with request rates between 7.8x and 34x their baselines. Payment-service is returning 5xx errors on 100% of requests, and order-service is returning 5xx errors on 65% of requests. Both services also show p95 latency roughly 70 to 390 times their baselines.",
+    "root_cause": "A traffic surge across all services and a complete payment-service failure, active at the same time, are the most likely concurrent root causes.",
+    "evidence": [
+     "Request rates surged across every service: product-service rose from 14.98 to 117.18 rps (7.8x), cart-service from 2.05 to 25.95 rps (12.7x), order-service from 2.97 to 49.43 rps (16.6x), and payment-service from 0.94 to 32.13 rps (34x).",
+     "Payment-service 5xx error rate is now 100% against a baseline of 0, and its p95 latency rose from 4.5 ms to 1,756.3 ms, a 390x increase.",
+     "Order-service 5xx error rate is now 65% against a baseline of 0, and its p95 latency rose from 25.1 ms to 1,785.8 ms, a 71x increase.",
+     "Order-service dependency errors to payment-service reached 1,928 per minute from a baseline of 0, and the dependency p95 latency rose from 22.1 ms to 2,159.6 ms, a 98x increase."
+    ],
+    "recommended_actions": [
+     "Investigate payment-service Lambda logs and concurrency immediately, as it is returning 5xx errors on every request and is the most user-visible fault; reduce or restore its ability to handle the current 32.13 rps load.",
+     "Apply rate and burst limits on the API Gateway stage to cap incoming traffic toward the pre-surge baseline while the payment-service fault is being resolved.",
+     "Check Lambda throttle counts on all four services, since the account-wide Lambda concurrency pool is shared and the traffic surge across all services may be exhausting it.",
+     "After payment-service errors are resolved, recheck order-service 5xx rate and p95 latency to confirm recovery, then address any remaining order-service issues separately.",
+     "Record the timestamps at which each signal changes as fixes are applied, so the effect of each individual action can be distinguished."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "product-service.request_rate",
+     "cart-service.request_rate",
+     "order-service.request_rate",
+     "payment-service.request_rate"
+    ],
+    [
+     "payment-service.error_rate_5xx",
+     "payment-service.p95_latency_ms"
+    ],
+    [
+     "order-service.error_rate_5xx",
+     "order-service.p95_latency_ms"
+    ],
+    [
+     "order-service.dependency_error_count",
+     "order-service.dependency_latency_ms_p95"
+    ]
+   ],
+   "runbook": "cascading_failure",
+   "self_check": {
+    "passed": true,
+    "findings": []
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 3380,
+    "output_tokens": 1584
+   },
+   "latency_ms": 12946
+  }
+ ]
+}

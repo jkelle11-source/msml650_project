@@ -37,7 +37,7 @@ MAX_TOKENS = 16000
 TIMEOUT_S = 50
 MAX_RETRIES = 1
 # M6-2: the runbook for the classified type goes into the user turn, for recommended_actions only.
-# Off by default; M9-5's blind comparison of actions decides whether it is turned on.
+# Off when unset. infra/genai/template.yaml turns it on, by M9-5's blind comparison of actions.
 RUNBOOKS = os.environ.get("ANOMALYPULSE_RUNBOOKS", "off") == "on"
 
 _client = None

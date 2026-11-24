@@ -36,7 +36,8 @@
 - Clean stack deploy + seed data; verified healthy baseline (§15 Part 1 numbers).
 - Cost guardrails (capacity caps, teardown, budget alarms) for live injection.
 - A step-by-step live-injection runbook + a rollback/reset path between takes.
-- All demo traffic sent from the runner host, never a presenter's laptop, with `infra/runner/drive.sh`: with laptop traffic the Isolation Forest flagged about half of the healthy minutes, with the runner's 2.3% ([`Docs/DETECTION.md`](../Docs/DETECTION.md), "Where live traffic comes from"). The runner stays until after M10 ([`Docs/DATASET.md`](../Docs/DATASET.md), "The runner host").
+- All demo traffic sent from the runner host, never a presenter's laptop, with `infra/runner/drive.sh`: with laptop traffic the Isolation Forest flagged about half of the healthy minutes, with the runner's 2.3% on 2026-11-07 ([`Docs/DETECTION.md`](../Docs/DETECTION.md), "Where live traffic comes from"). The runner stays until after M10 ([`Docs/DATASET.md`](../Docs/DATASET.md), "The runner host").
+- All demo traffic in the simulator's default endpoint mix: **never pass `--mix`**. In M9-2's shifted mix the Isolation Forest flagged every healthy window ([`Docs/M9-2_REPORT.md`](../Docs/M9-2_REPORT.md)). The default mix from the runner is the closest match to training, but it doesn't guarantee the forest behaves: two healthy checks on the same day (M10-6) had it flagging 10 of 16 healthy minutes, then 0 of 16. The model stays as M9 evaluated it.
 - Takes timed for the live path: start the traffic at least 6 minutes before the healthy segment, and allow about 6 minutes after an injected fault ends before calling the system healthy again. Until then the detector still flags minutes whose look-back holds the fault or the idle time before the traffic ([`Docs/PIPELINE.md`](../Docs/PIPELINE.md), "On the minutes only the live path scores").
 - After a fresh deploy of the pipeline stack, check that the window builder's runs start between about :20 and :50 of each minute, since a new schedule rule picks a new second. Later, the console shows `NO_DATA` for a moment every minute; earlier, its newest minute misses its last requests ([`Docs/PIPELINE.md`](../Docs/PIPELINE.md), "When a minute's window is ready", which has the check and the fix).
 
@@ -99,6 +100,7 @@
 - Live Bedrock diagnosis for the injected incident (summary, root cause, evidence, actions), rendered on the console.
 - Demo script/narrative tying the segments together.
 - Slide deck: concept, architecture, "SageMaker tells us what / Bedrock tells us why" (§20), key eval results from M9.
+- The deck states M9-2's limit plainly: detection depends on a known traffic baseline and must be recalibrated when normal traffic changes ([`Docs/M9-2_REPORT.md`](../Docs/M9-2_REPORT.md)).
 
 **Definition of Done**
 - [ ] Live diagnosis renders with evidence tracing to metrics and observed-sequence wording.
@@ -139,8 +141,13 @@
 - ≥2 full end-to-end dry runs on the demo environment.
 - Timing pass against the presentation slot; role/handoff assignments per segment.
 - Failure drill: switch to the recorded fallback cleanly.
+- Healthy check before each dry run and before the demo: after the 6-minute warm-up (M10-1), send at least 15 minutes of healthy default-mix traffic from the runner. It passes only if no incident opens. If it fails, stop and find out why before presenting, and don't change the forest's cut-off to get past it.
+- Each healthy check also records the forest's flagged share of the full minutes after the warm-up. In CloudWatch Logs Insights, on `/aws/lambda/anomalypulse-diagnosis` over the run's time range, run `fields window_start, anomalous, label, incident_type | filter event = "diagnosis" | sort window_start asc` (`anomalous` is 1 when flagged). A share above 10% doesn't fail the check, but it means the classifier is the only safeguard that day, so tell the team before presenting.
+
+**Healthy checks so far (2026-11-23):** both passed, with no incident and the classifier `NORMAL` on all 23 minutes. The forest flagged 10 of the 16 full minutes after the warm-up at 07:09 UTC (`exp-20261123T070939Z-ac0c`, 62.5%) and 0 of 16 at 21:10 UTC (`exp-20261123T211018Z-7dbe`), so one clean check doesn't predict the next.
 
 **Definition of Done**
 - [ ] Two clean full dry runs completed within the time slot.
 - [ ] Every presenter knows their segment and handoffs.
 - [ ] Fallback path rehearsed and works.
+- [ ] The healthy check passed before each dry run, with the forest's flagged share recorded.

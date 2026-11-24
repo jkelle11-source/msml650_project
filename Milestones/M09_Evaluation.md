@@ -92,10 +92,22 @@ feature error or a missing snapshot. Not inspected: only counts were read, no fe
 - **Extreme-extrapolation slice reported separately** from core metrics.
 - **Confounder accuracy:** how often co-occurring-but-not-cascading incidents are handled correctly. Over the confounder windows with both faults active, report three shares: predicted as either fault's type, as the labeled (first) type, and as `CASCADING_FAILURE`. Confounders are a test-only probe: the model never sees one in training, so a high `CASCADING_FAILURE` share is a finding to report, not a data error (`Docs/EVALUATION_INTEGRITY.md`, "Confounders").
 
+**Scored 2026-11-18, regenerated from a clean commit 2026-11-23 ([`Docs/M9-2_REPORT.md`](../Docs/M9-2_REPORT.md);
+results in `AnomalyPulse/ml/m9_2_results/`).** The deployed rule (the forest flags a window and the classifier names a
+fault), applied offline, has recall 0.999 and precision 0.956, with false alarms on 18 of 740 healthy windows. The
+classifier has accuracy 0.910 and macro-F1 0.869. **The Isolation Forest flags all 2,280 test windows,** because the
+test set's shifted endpoint mix moved the healthy baseline past its cut-off. **Dependency-failure recall is 0.54**
+(validation 0.99), in both bands, because the same shift changes Order's median latency. No model or cut-off was
+changed after scoring.
+
 **Definition of Done**
-- [ ] All metrics computed on test set (701–1050) only.
-- [ ] Per-band breakdown shows no sharp degradation on held-out bands (or the degradation is reported honestly).
-- [ ] Extreme slice is a separate line item, not folded into headline numbers.
+- [x] All metrics computed on test set (701–1050) only. *The headline is 320 runs without confounders, with all 350
+  beside it; the extreme slice and the validation reference are labeled apart.*
+- [x] Per-band breakdown shows no sharp degradation on held-out bands (or the degradation is reported honestly).
+  *Both dependency-failure bands are reported as degraded against validation, with the cause; the other three faults
+  hold.*
+- [x] Extreme slice is a separate line item, not folded into headline numbers. *Its own section (slots 1051–1070),
+  which also notes that it differs from the test set in traffic mix as well as severity.*
 
 ---
 
@@ -111,6 +123,10 @@ feature error or a missing snapshot. Not inspected: only counts were read, no fe
 - Threshold-baseline metrics reported **beside** every ML metric; margin called out, especially on cascades.
 - **Train/test gap** on held-out bands reported as the overfitting signal (distinct from baseline margin, per §8).
 - The Evaluation Integrity Statement (§6b) finalized, stating the claim boundary: generalization across held-out simulator regions, **not** to real-world incidents.
+
+**From `M9-2`** ([`Docs/M9-2_REPORT.md`](../Docs/M9-2_REPORT.md)): state the workload-shift weakness beside the band
+result. The classifier holds across held-out bands for three of the four fault types, but the shifted endpoint mix
+alone breaks the forest's cut-off and drops dependency-failure recall to 0.54.
 
 **Definition of Done**
 - [ ] Every ML result has its baseline shown next to it.
@@ -205,10 +221,31 @@ batches (371 runs, 3,777 minutes, 317 incidents) with the live pipeline running,
   shown. Score the stored diagnoses (`diagnosis`, `self_check`, `evidence_metrics`, `diagnosis_input` in the
   record), and the store's `incident_retry` log lines give how often a retry was kept and what it still found.
 
+**Scored 2026-11-19** ([`Docs/GENAI_EVALUATION.md`](../Docs/GENAI_EVALUATION.md); `AnomalyPulse/genai/m9_5/`), over
+the 296 stored test-set diagnoses (runbooks off, as deployed at the time): evidence fidelity 97.6% (50 of 2,095 claims
+unsupported), hallucination 0.46% of mentions, 94.5% of moved metrics cited. 47 of the 50 unsupported claims are
+`DATABASE_THROTTLING` diagnoses whose input held only payment-service, which the test mix makes look affected:
+Bedrock restated the type with no metric for it, and retries couldn't fix that. 128 of 296 diagnoses have an action
+that's wrong about this stack: the capacity slip in 82 (68 of 77 traffic spikes), and X-Ray, which the stack doesn't
+run, in 50 (43 of 60 Lambda degradations). The runbook comparison ran on 30 incidents (38 Bedrock calls): stack errors
+15 → 2, one runbook-only fact in 211 claims. **Rated blind 2026-11-22** by two raters: both preferred the runbook
+lists on 17 of 30 (one called 8 more a tie, the other picked runbooks), both preferred the lists without on 1.
+**`ANOMALYPULSE_RUNBOOKS` goes on for the demo.** The raters split on how many lists without runbooks were incorrect
+(5 vs 26): Jake also marked down X-Ray, which the sheet's stack facts don't rule out.
+
+**Deployed 2026-11-23** (05:49 UTC, runbooks on). One live traffic spike (`exp-20261123T055215Z-c61d`,
+`inc-20261123T055800Z`) stored the `traffic_spike` runbook and passed `live_check` and the feed check, with every
+claim supported and no capacity or X-Ray slip. The scores above still describe the runbooks-off test set.
+
 **Definition of Done**
-- [ ] Evidence fidelity and hallucination rate computed over test-set diagnoses.
-- [ ] Actionability scored against a written rubric by ≥1 human rater.
-- [ ] Root-cause correctness explicitly **not** used as the headline GenAI metric (documented why).
+- [x] Evidence fidelity and hallucination rate computed over test-set diagnoses. *296 diagnoses: 97.6% of claims
+  supported, 0.46% of mentions hallucinated; the stress slice's 20 on their own line.*
+- [x] Actionability scored against a written rubric by ≥1 human rater. *Two raters, blind, on 30 test incidents
+  with and without runbooks (`sheet.py`'s rubric: better list, Correct, Safe); `GENAI_EVALUATION.md`,
+  "With and without runbooks, blind".*
+- [x] Root-cause correctness explicitly **not** used as the headline GenAI metric (documented why). *Bedrock is
+  handed the type, so it restates the classifier; 26 of 29 throttling diagnoses with no database metric still
+  named throttling as the root cause (`GENAI_EVALUATION.md`, "Why root-cause correctness isn't the headline").*
 
 ---
 
@@ -224,6 +261,9 @@ batches (371 runs, 3,777 minutes, 317 incidents) with the live pipeline running,
 - Detection latency, diagnosis latency, end-to-end latency measured on the live path.
 - Detection latency reported as **window-dominated (~1 min)** by design (§16); if the 15-second-window stretch experiment ran, include the latency/stability tradeoff.
 - Report-ready visualizations: confusion matrix, per-band performance, baseline-vs-ML margins, cost curves, latency breakdown.
+
+**From `M9-2`:** build the figures from `AnomalyPulse/ml/m9_2_results/metrics_m9_2.json`. Don't plot the Isolation
+Forest's recall or latency as a success: it flags every test window ([`Docs/M9-2_REPORT.md`](../Docs/M9-2_REPORT.md)).
 
 **Definition of Done**
 - [ ] Full latency chain measured and attributed (how much is the aggregation window).

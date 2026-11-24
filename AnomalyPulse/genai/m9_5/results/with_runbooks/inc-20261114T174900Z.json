@@ -1,0 +1,84 @@
+{
+ "diagnosis": {
+  "severity": "LOW",
+  "summary": "payment-service is receiving a traffic spike, with its request rate rising from 0.94 rps to 1.78 rps, roughly an 89% increase. No errors or latency degradation have been observed alongside the higher volume. The service appears to be absorbing the extra load without measurable impact so far.",
+  "root_cause": "A request rate increase on payment-service, with no accompanying error or latency rise, is the most likely root cause of the TRAFFIC_SPIKE classification.",
+  "evidence": [
+   "payment-service request rate rose from 0.94 rps at baseline to 1.78 rps currently, an increase of approximately 89%.",
+   "payment-service error_rate_5xx remains at 0 both at baseline and currently, showing no error response increase alongside the higher request rate.",
+   "payment-service p95 latency is 4.38 ms currently versus a baseline of 4.51 ms, essentially flat with no degradation."
+  ],
+  "recommended_actions": [
+   "Monitor payment-service request_rate and p95_latency_ms closely over the next several minutes; if latency and errors remain near baseline, no immediate change is required.",
+   "Check lambda_throttle_count on payment-service and order-service to confirm the shared Lambda concurrency limit is not being approached.",
+   "Investigate whether the traffic increase is expected (such as a promotion or a client retrying) before taking any corrective action.",
+   "If the rate continues to climb and throttling appears, consider setting rate and burst limits on the API Gateway stage to protect the stack."
+  ]
+ },
+ "evidence_metrics": [
+  [
+   "payment-service.request_rate"
+  ],
+  [
+   "payment-service.error_rate_5xx"
+  ],
+  [
+   "payment-service.p95_latency_ms"
+  ]
+ ],
+ "self_check": {
+  "passed": false,
+  "findings": [
+   "severity: MEDIUM, but the rubric gives LOW"
+  ]
+ },
+ "runbook": "traffic_spike",
+ "calls": [
+  {
+   "incident_id": "inc-20261114T174900Z",
+   "diagnosis": {
+    "severity": "LOW",
+    "summary": "payment-service is receiving a traffic spike, with its request rate rising from 0.94 rps to 1.78 rps, roughly an 89% increase. No errors or latency degradation have been observed alongside the higher volume. The service appears to be absorbing the extra load without measurable impact so far.",
+    "root_cause": "A request rate increase on payment-service, with no accompanying error or latency rise, is the most likely root cause of the TRAFFIC_SPIKE classification.",
+    "evidence": [
+     "payment-service request rate rose from 0.94 rps at baseline to 1.78 rps currently, an increase of approximately 89%.",
+     "payment-service error_rate_5xx remains at 0 both at baseline and currently, showing no error response increase alongside the higher request rate.",
+     "payment-service p95 latency is 4.38 ms currently versus a baseline of 4.51 ms, essentially flat with no degradation."
+    ],
+    "recommended_actions": [
+     "Monitor payment-service request_rate and p95_latency_ms closely over the next several minutes; if latency and errors remain near baseline, no immediate change is required.",
+     "Check lambda_throttle_count on payment-service and order-service to confirm the shared Lambda concurrency limit is not being approached.",
+     "Investigate whether the traffic increase is expected (such as a promotion or a client retrying) before taking any corrective action.",
+     "If the rate continues to climb and throttling appears, consider setting rate and burst limits on the API Gateway stage to protect the stack."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "payment-service.request_rate"
+    ],
+    [
+     "payment-service.error_rate_5xx"
+    ],
+    [
+     "payment-service.p95_latency_ms"
+    ]
+   ],
+   "runbook": "traffic_spike",
+   "self_check": {
+    "passed": false,
+    "findings": [
+     "severity: MEDIUM, but the rubric gives LOW"
+    ]
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 2921,
+    "output_tokens": 405
+   },
+   "latency_ms": 9190
+  }
+ ]
+}

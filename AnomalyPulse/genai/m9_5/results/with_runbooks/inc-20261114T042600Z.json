@@ -1,0 +1,133 @@
+{
+ "diagnosis": {
+  "severity": "LOW",
+  "summary": "Payment-service request rate has risen to 2.0833 rps from a baseline of 0.9433 rps, roughly a 2.2x increase. Error rate remains at 0 and p95 latency at 4.26 ms is near its 4.51 ms baseline. The DATABASE_THROTTLING classifier fired against payment-service at 99.3% confidence within this one-minute window.",
+  "root_cause": "A rise in request volume to payment-service is the most likely root cause consistent with the DATABASE_THROTTLING classification; no latency elevation or errors are yet reflected in the available metrics for this service.",
+  "evidence": [
+   "Payment-service request_rate rose from 0.9433 rps to 2.0833 rps, a 2.2x increase over baseline.",
+   "Payment-service error_rate_5xx is 0, unchanged from its baseline of 0.",
+   "Payment-service p95_latency_ms is 4.26 ms against a baseline of 4.51 ms, showing no elevation."
+  ],
+  "recommended_actions": [
+   "Check throttle counts (throttled_requests, read_throttle_events, write_throttle_events) for any DynamoDB table accessed upstream in the call chain, as these metrics were not present in the current window but are the primary signal for DATABASE_THROTTLING.",
+   "Review payment-service Lambda logs and any downstream dependency calls for signs of SDK retry activity or elevated internal latency not captured in the p95 surface metric.",
+   "Monitor payment-service request_rate closely; if it continues to rise, review whether the upstream order-service call volume is increasing in step, since order-service calls payment-service on every POST /orders.",
+   "After any changes, recheck payment-service p95_latency_ms and error_rate_5xx to confirm no degradation is developing."
+  ]
+ },
+ "evidence_metrics": [
+  [
+   "payment-service.request_rate"
+  ],
+  [
+   "payment-service.error_rate_5xx"
+  ],
+  [
+   "payment-service.p95_latency_ms"
+  ]
+ ],
+ "self_check": {
+  "passed": false,
+  "findings": [
+   "summary: claims 'THROTTL', but the input has no metric for it",
+   "root_cause: claims 'THROTTL', but the input has no metric for it"
+  ]
+ },
+ "runbook": "database_throttling",
+ "calls": [
+  {
+   "incident_id": "inc-20261114T042600Z",
+   "diagnosis": {
+    "severity": "LOW",
+    "summary": "Payment-service request rate has risen to 2.0833 rps from a baseline of 0.9433 rps, roughly a 2.2x increase. Error rate remains at 0 and p95 latency at 4.26 ms is near its 4.51 ms baseline. The DATABASE_THROTTLING classifier fired against payment-service at 99.3% confidence within this one-minute window.",
+    "root_cause": "A rise in request volume to payment-service is the most likely root cause consistent with the DATABASE_THROTTLING classification; no latency elevation or errors are yet reflected in the available metrics for this service.",
+    "evidence": [
+     "Payment-service request_rate rose from 0.9433 rps to 2.0833 rps, a 2.2x increase over baseline.",
+     "Payment-service error_rate_5xx is 0, unchanged from its baseline of 0.",
+     "Payment-service p95_latency_ms is 4.26 ms against a baseline of 4.51 ms, showing no elevation."
+    ],
+    "recommended_actions": [
+     "Check throttle counts (throttled_requests, read_throttle_events, write_throttle_events) for any DynamoDB table accessed upstream in the call chain, as these metrics were not present in the current window but are the primary signal for DATABASE_THROTTLING.",
+     "Review payment-service Lambda logs and any downstream dependency calls for signs of SDK retry activity or elevated internal latency not captured in the p95 surface metric.",
+     "Monitor payment-service request_rate closely; if it continues to rise, review whether the upstream order-service call volume is increasing in step, since order-service calls payment-service on every POST /orders.",
+     "After any changes, recheck payment-service p95_latency_ms and error_rate_5xx to confirm no degradation is developing."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "payment-service.request_rate"
+    ],
+    [
+     "payment-service.error_rate_5xx"
+    ],
+    [
+     "payment-service.p95_latency_ms"
+    ]
+   ],
+   "runbook": "database_throttling",
+   "self_check": {
+    "passed": false,
+    "findings": [
+     "summary: claims 'THROTTL', but the input has no metric for it",
+     "root_cause: claims 'THROTTL', but the input has no metric for it"
+    ]
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 2975,
+    "output_tokens": 2325
+   },
+   "latency_ms": 24478
+  },
+  {
+   "incident_id": "inc-20261114T042600Z",
+   "diagnosis": {
+    "severity": "LOW",
+    "summary": "Payment-service request rate has risen to 2.0833 rps from a baseline of 0.9433 rps, roughly a 2.2x increase. Error rate remains at 0 and p95 latency at 4.26 ms is near its 4.51 ms baseline. The DATABASE_THROTTLING classifier fired against payment-service at 99.3% confidence within this one-minute window.",
+    "root_cause": "Elevated request volume to payment-service, with no corresponding latency rise or errors yet visible in the measured metrics, is the most likely root cause consistent with the DATABASE_THROTTLING classification.",
+    "evidence": [
+     "Payment-service request_rate rose from 0.9433 rps to 2.0833 rps, a 2.2x increase over baseline.",
+     "Payment-service error_rate_5xx is 0, unchanged from its baseline of 0.",
+     "Payment-service p95_latency_ms is 4.26 ms against a baseline of 4.51 ms, showing no elevation."
+    ],
+    "recommended_actions": [
+     "Check throttle counts (throttled_requests, read_throttle_events, write_throttle_events) for any DynamoDB table accessed upstream in the call chain, as these metrics were not present in the current window but are the primary signal for DATABASE_THROTTLING.",
+     "Review payment-service Lambda logs and any downstream dependency calls for signs of SDK retry activity or elevated internal latency not captured in the p95 surface metric.",
+     "Monitor payment-service request_rate closely; if it continues to rise, review whether the upstream order-service call volume is increasing in step, since order-service calls payment-service on every POST /orders.",
+     "After any changes, recheck payment-service p95_latency_ms and error_rate_5xx to confirm no degradation is developing."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "payment-service.request_rate"
+    ],
+    [
+     "payment-service.error_rate_5xx"
+    ],
+    [
+     "payment-service.p95_latency_ms"
+    ]
+   ],
+   "runbook": "database_throttling",
+   "self_check": {
+    "passed": false,
+    "findings": [
+     "summary: claims 'THROTTL', but the input has no metric for it",
+     "root_cause: claims 'THROTTL', but the input has no metric for it"
+    ]
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 3596,
+    "output_tokens": 573
+   },
+   "latency_ms": 6043
+  }
+ ]
+}

@@ -1,0 +1,108 @@
+{
+ "diagnosis": {
+  "severity": "HIGH",
+  "summary": "The product-service Lambda handler is running roughly 447 times slower than baseline, pushing all end-to-end latency percentiles above 1.4 seconds against a sub-10 ms normal. Payment-service shows no degradation. No 5xx errors are present on either service.",
+  "root_cause": "Severe slowdown of the product-service Lambda handler body is the most likely root cause, with handler CPU time rising from 2.5 ms to 1,110.6 ms mean and end-to-end latency tracking that increase almost exactly.",
+  "evidence": [
+   "product-service lambda_duration_ms_mean rose from 2.486 ms to 1,110.6 ms, a 447x increase, and lambda_duration_ms_p95 rose from 3.12 ms to 1,256.9 ms, a 403x increase.",
+   "product-service p50_latency_ms rose from 4.09 ms to 1,475.1 ms (361x), p95_latency_ms from 6.56 ms to 1,486.4 ms (227x), and p99_latency_ms from 9.59 ms to 1,521.9 ms (159x), tracking the handler duration increase closely across all percentiles.",
+   "payment-service lambda_duration_ms_mean is 0.3077 ms against a baseline of 0.5855 ms, and p95_latency_ms is 3.60 ms against a baseline of 4.51 ms, showing no degradation.",
+   "error_rate_5xx is 0 on both product-service and payment-service, unchanged from baseline.",
+   "payment-service request_rate is 2.0 rps against a baseline of 0.9433 rps; product-service latency metrics show the slowdown regardless of this difference in traffic level."
+  ],
+  "recommended_actions": [
+   "Inspect CloudWatch Logs for /aws/lambda/anomalypulse-product for slow code paths, errors, or unusual execution patterns in the current window starting 2026-11-15T13:59:00Z.",
+   "Check the CloudWatch Errors metric for anomalypulse-product to determine whether any invocations are hitting the 10-second timeout, since those would not appear in error_rate_5xx or the latency percentiles.",
+   "Review any recent changes to the anomalypulse-product function code, layers, or configuration that could account for a handler slowdown of this magnitude.",
+   "After identifying the slow code path in the logs, fix or roll back only if logs confirm the change touched that path, then recheck lambda_duration_ms_mean and p95_latency_ms to confirm recovery."
+  ]
+ },
+ "evidence_metrics": [
+  [
+   "product-service.lambda_duration_ms_mean",
+   "product-service.lambda_duration_ms_p95"
+  ],
+  [
+   "product-service.p50_latency_ms",
+   "product-service.p95_latency_ms",
+   "product-service.p99_latency_ms"
+  ],
+  [
+   "payment-service.lambda_duration_ms_mean",
+   "payment-service.p95_latency_ms"
+  ],
+  [
+   "product-service.error_rate_5xx",
+   "payment-service.error_rate_5xx"
+  ],
+  [
+   "payment-service.request_rate",
+   "product-service.p95_latency_ms"
+  ]
+ ],
+ "self_check": {
+  "passed": true,
+  "findings": []
+ },
+ "runbook": "lambda_degradation",
+ "calls": [
+  {
+   "incident_id": "inc-20261115T135900Z",
+   "diagnosis": {
+    "severity": "HIGH",
+    "summary": "The product-service Lambda handler is running roughly 447 times slower than baseline, pushing all end-to-end latency percentiles above 1.4 seconds against a sub-10 ms normal. Payment-service shows no degradation. No 5xx errors are present on either service.",
+    "root_cause": "Severe slowdown of the product-service Lambda handler body is the most likely root cause, with handler CPU time rising from 2.5 ms to 1,110.6 ms mean and end-to-end latency tracking that increase almost exactly.",
+    "evidence": [
+     "product-service lambda_duration_ms_mean rose from 2.486 ms to 1,110.6 ms, a 447x increase, and lambda_duration_ms_p95 rose from 3.12 ms to 1,256.9 ms, a 403x increase.",
+     "product-service p50_latency_ms rose from 4.09 ms to 1,475.1 ms (361x), p95_latency_ms from 6.56 ms to 1,486.4 ms (227x), and p99_latency_ms from 9.59 ms to 1,521.9 ms (159x), tracking the handler duration increase closely across all percentiles.",
+     "payment-service lambda_duration_ms_mean is 0.3077 ms against a baseline of 0.5855 ms, and p95_latency_ms is 3.60 ms against a baseline of 4.51 ms, showing no degradation.",
+     "error_rate_5xx is 0 on both product-service and payment-service, unchanged from baseline.",
+     "payment-service request_rate is 2.0 rps against a baseline of 0.9433 rps; product-service latency metrics show the slowdown regardless of this difference in traffic level."
+    ],
+    "recommended_actions": [
+     "Inspect CloudWatch Logs for /aws/lambda/anomalypulse-product for slow code paths, errors, or unusual execution patterns in the current window starting 2026-11-15T13:59:00Z.",
+     "Check the CloudWatch Errors metric for anomalypulse-product to determine whether any invocations are hitting the 10-second timeout, since those would not appear in error_rate_5xx or the latency percentiles.",
+     "Review any recent changes to the anomalypulse-product function code, layers, or configuration that could account for a handler slowdown of this magnitude.",
+     "After identifying the slow code path in the logs, fix or roll back only if logs confirm the change touched that path, then recheck lambda_duration_ms_mean and p95_latency_ms to confirm recovery."
+    ]
+   },
+   "evidence_metrics": [
+    [
+     "product-service.lambda_duration_ms_mean",
+     "product-service.lambda_duration_ms_p95"
+    ],
+    [
+     "product-service.p50_latency_ms",
+     "product-service.p95_latency_ms",
+     "product-service.p99_latency_ms"
+    ],
+    [
+     "payment-service.lambda_duration_ms_mean",
+     "payment-service.p95_latency_ms"
+    ],
+    [
+     "product-service.error_rate_5xx",
+     "payment-service.error_rate_5xx"
+    ],
+    [
+     "payment-service.request_rate",
+     "product-service.p95_latency_ms"
+    ]
+   ],
+   "runbook": "lambda_degradation",
+   "self_check": {
+    "passed": true,
+    "findings": []
+   },
+   "model": {
+    "id": "global.anthropic.claude-sonnet-4-6",
+    "effort": "medium"
+   },
+   "usage": {
+    "input_tokens": 3517,
+    "output_tokens": 1315
+   },
+   "latency_ms": 11286
+  }
+ ]
+}
