@@ -128,10 +128,31 @@ changed after scoring.
 result. The classifier holds across held-out bands for three of the four fault types, but the shifted endpoint mix
 alone breaks the forest's cut-off and drops dependency-failure recall to 0.54.
 
+**Reported 2026-11-24 ([`Docs/M9-3_REPORT.md`](../Docs/M9-3_REPORT.md); results in
+`AnomalyPulse/ml/m9_3_results/`).** Model 0, unchanged since M5-3, scored on M9-2's runs and windows beside every
+model, with paired margins:
+- **The margin:** the live classifier, read as a detector, has recall 0.999 against Model 0's 0.472, a margin of
+  +0.528 [0.479, 0.576]. On cascades the margin is small but real, +0.093 [0.035, 0.156]. The classifier recognizes all
+  30 cascades (median 58.5 s), which a rule cannot.
+- **False alarms:** the classifier raises more on healthy traffic than the rule: 18 of 740 healthy windows against 0,
+  +0.024 [0.014, 0.036].
+- **Every classifier:** M5-3's XGBoost (defaults and tuned) and Random Forest were scored too. They beat the rule by
+  the same recall margin, but their macro-F1 falls to 0.61-0.70 on test (live 0.869), and each calls every
+  dependency-failure window a cascade. The live choice is not revisited.
+- **M9-2's detectors:** scored again, they reproduce M9-2's published numbers exactly.
+- **The gap:** as a detector the classifier's false-alarm rate rises from 0.005 on validation to 0.069 on test, while
+  Model 0's barely moves; held-out bands and the shifted mix are confounded in every test run.
+- **The statement:** the Evaluation Integrity Statement is finalized with its workload limit, the forest's live checks
+  and the real-world disclaimer.
+
 **Definition of Done**
-- [ ] Every ML result has its baseline shown next to it.
-- [ ] Baseline-margin (multivariate learning) and train/test-gap (overfitting) are reported as two separate signals.
-- [ ] The report explicitly disclaims real-world generalization.
+- [x] Every ML result has its baseline shown next to it. *Model 0's two floors beside the live classifier, M5-3's other
+  three classifiers, the Isolation Forest, the binary detector and the deployed rule, with paired margins; where a rule
+  has no counterpart (class names, scores, time to recognize a cascade) the report says n/a and why.*
+- [x] Baseline-margin (multivariate learning) and train/test-gap (overfitting) are reported as two separate signals.
+  *"Signal 1" and "Signal 2" in the report; the gap's confound with the shifted mix is stated.*
+- [x] The report explicitly disclaims real-world generalization. *In the finalized Evaluation Integrity Statement and
+  "What this report does not show".*
 
 ---
 
@@ -266,6 +287,11 @@ claim supported and no capacity or X-Ray slip. The scores above still describe t
 
 **From `M9-2`:** build the figures from `AnomalyPulse/ml/m9_2_results/metrics_m9_2.json`. Don't plot the Isolation
 Forest's recall or latency as a success: it flags every test window ([`Docs/M9-2_REPORT.md`](../Docs/M9-2_REPORT.md)).
+
+**From `M9-3`:** the baseline-vs-ML margins are in `AnomalyPulse/ml/m9_3_results/baseline_m9_3.json` (`margins`,
+`share_margins`, and `other_models` for every other model), paired over runs, so plot each margin with its own
+interval rather than as the gap between two bars' intervals. Show healthy-window false alarms beside recall: the rule
+flags no healthy window and the live classifier 2.4% ([`Docs/M9-3_REPORT.md`](../Docs/M9-3_REPORT.md)).
 
 **Definition of Done**
 - [ ] Full latency chain measured and attributed (how much is the aggregation window).

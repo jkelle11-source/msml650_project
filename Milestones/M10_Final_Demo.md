@@ -101,6 +101,7 @@
 - Demo script/narrative tying the segments together.
 - Slide deck: concept, architecture, "SageMaker tells us what / Bedrock tells us why" (§20), key eval results from M9.
 - The deck states M9-2's limit plainly: detection depends on a known traffic baseline and must be recalibrated when normal traffic changes ([`Docs/M9-2_REPORT.md`](../Docs/M9-2_REPORT.md)).
+- The deck quotes the finalized Evaluation Integrity Statement, not M4-3's draft, and shows the classifier's margin over the threshold baseline with the false alarms beside it ([`Docs/M9-3_REPORT.md`](../Docs/M9-3_REPORT.md)).
 
 **Definition of Done**
 - [ ] Live diagnosis renders with evidence tracing to metrics and observed-sequence wording.
