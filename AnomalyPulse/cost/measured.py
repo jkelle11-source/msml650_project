@@ -13,9 +13,10 @@ The method (Docs/COST_AND_PERFORMANCE.md):
      are every account's, so the projections show them as one line of their own; the per-run costs don't take them.
   3. What CloudWatch doesn't attribute (S3, SQS and EventBridge requests, CloudWatch API use, the runner) comes from
      the bill: the batch days' quantities above the idle days', per API request (the runner per batch minute).
-  4. Projections: the store's own cost and AnomalyPulse's, each from its measured unit costs: per request (healthy
-     runs), per minute (the once-a-minute functions, from the batches), per incident (Bedrock and the explanation
-     Lambda) and per month (the idle days' fixed costs).
+  4. Projections: the store's own cost and AnomalyPulse's, each from its measured unit costs: per request (the
+     Lambdas and tables from the healthy runs, the bill lines in 3 from the batch days), per minute (the
+     once-a-minute functions, from the batches), per incident (Bedrock and the explanation Lambda) and per month
+     (the idle days' fixed costs). request_basis measures what the bill lines' batch-day basis does to S3 PUTs.
 """
 import argparse
 import json
@@ -32,6 +33,8 @@ P_RRU = 0.125e-6                              # DynamoDB on-demand read request 
 P_WCU_H = 0.00065                             # DynamoDB provisioned write capacity unit, per hour
 P_BEDROCK_IN, P_BEDROCK_OUT = 3e-6, 15e-6     # Claude Sonnet 4.6 on Bedrock, per input and output token
 P_CW_GMD = 1e-5                               # CloudWatch GetMetricData, per metric requested
+P_CW_ALARM = 0.10                             # CloudWatch alarm, standard resolution, per alarm-month
+P_LOG_STORE_GB, P_DDB_STORE_GB = 0.03, 0.25   # CloudWatch Logs and DynamoDB storage, per GB-month
 P_EC2_H, P_IPV4_H = 0.0723, 0.005             # the runner: c7g.large, and its public IPv4 address, per hour
 # SageMaker, from the AWS Price List API (2026-11-23): Serverless Inference at 1 GB, per second of inference; its
 # provisioned concurrency, per second provisioned and per second of inference on it; endpoint data, per GB in and
@@ -43,10 +46,12 @@ P_SM_HOST_H = {"ml.t2.medium": 0.056, "ml.c6g.large": 0.0816}
 GIB = 2 ** 30              # the bill's GB for logs (log bytes / billed GB is 2^30 exactly) and data
 HOURS_MONTH = 730          # AWS's month
 MONTH_S, MINUTES_MONTH = HOURS_MONTH * 3600, HOURS_MONTH * 60
+# Always free, every account, monthly. DynamoDB's capacity is 18,600 unit-hours a month (the price list's free tier,
+# 25 units for a 744-hour month). Logs' 5 GB is set against ingestion only, so logs storage gets none of it here.
 FREE_MONTH = {"lambda_gbs": 400_000, "lambda_req": 1_000_000, "logs_gib": 5, "sqs": 1_000_000, "cw_req": 1_000_000,
-              "rcu_h": 25 * HOURS_MONTH, "wcu_h": 25 * HOURS_MONTH}          # always free, every account, monthly
+              "rcu_h": 18_600, "wcu_h": 18_600, "cw_alarms": 10, "ddb_gb": 25}
 FREE_PRICE = {"lambda_gbs": P_GBS, "lambda_req": P_LREQ, "logs_gib": P_LOG_GB, "sqs": P_SQS, "cw_req": P_CWREQ,
-              "rcu_h": P_RCU_H, "wcu_h": P_WCU_H}
+              "rcu_h": P_RCU_H, "wcu_h": P_WCU_H, "cw_alarms": P_CW_ALARM, "ddb_gb": P_DDB_STORE_GB}
 
 # ---- the measurement ----
 BATCH_DAYS = ("2026-11-14", "2026-11-15", "2026-11-16")     # UTC days with batches running
@@ -63,7 +68,8 @@ PRODUCTS_RCU, PRODUCTS_WCU = 200, 5                         # anomalypulse-produ
 RUNBOOK_DAY, RUNBOOK_CALLS = "2026-11-19", 38
 
 S3, SQS = "Amazon Simple Storage Service", "Amazon Simple Queue Service"
-EVENTS, CLOUDWATCH = "CloudWatch Events", "AmazonCloudWatch"
+EVENTS, CLOUDWATCH, DYNAMODB = "CloudWatch Events", "AmazonCloudWatch", "Amazon DynamoDB"
+STORAGE = "USE2-TimedStorage-ByteHrs"                        # every service's storage usage type, in GB-months
 BEDROCK_IN = "USE2-MP:USE2_InputTokenCount_Global-Units"     # unit "1M tokens"
 BEDROCK_OUT = "USE2-MP:USE2_OutputTokenCount_Global-Units"
 # Bill lines CloudWatch doesn't attribute: (service, usage type, list price, group, free allowance).
@@ -78,12 +84,15 @@ BILL_LINES = {
 }
 RUNNER_LINES = {"runner instance": ("Amazon Elastic Compute Cloud - Compute", "USE2-BoxUsage:c7g.large", P_EC2_H),
                 "runner public IPv4": ("Amazon Virtual Private Cloud", "USE2-PublicIPv4:InUseAddress", P_IPV4_H)}
-# Every bill usage type with a list price here, to price the bill itself at list price (bill_cross_check). Other
-# rows (storage, data transfer) keep their billed cost.
+# Every bill usage type with a list price here, to price the bill itself at list price (bill_cross_check, idle).
+# Other rows keep their billed cost: S3 and ECR storage (billed at list, with no free allowance), and data transfer,
+# KMS and Glue requests (each under $0.001 a day).
 LIST_PRICES = {("USE2-ApiGatewayRequest", None): P_API, ("USE2-Lambda-GB-Second-ARM", None): P_GBS,
                ("USE2-Request-ARM", None): P_LREQ, ("USE2-VendedLog-Bytes", None): P_LOG_GB,
                ("USE2-WriteRequestUnits", None): P_WRU, ("USE2-ReadRequestUnits", None): P_RRU,
-               ("USE2-ReadCapacityUnit-Hrs", None): P_RCU_H, (BEDROCK_IN, None): P_BEDROCK_IN * 1e6,
+               ("USE2-ReadCapacityUnit-Hrs", None): P_RCU_H, ("USE2-WriteCapacityUnit-Hrs", None): P_WCU_H,
+               ("USE2-CW:AlarmMonitorUsage", None): P_CW_ALARM, (STORAGE, CLOUDWATCH): P_LOG_STORE_GB,
+               (STORAGE, DYNAMODB): P_DDB_STORE_GB, (BEDROCK_IN, None): P_BEDROCK_IN * 1e6,
                (BEDROCK_OUT, None): P_BEDROCK_OUT * 1e6, ("USE2-Event-64K-Chunks", None): P_EB,
                ("USE2-Requests-Tier1", S3): P_S3_T1, ("USE2-Requests-Tier2", S3): P_S3_T2,
                ("USE2-Requests-Tier1", SQS): P_SQS, ("USE2-CW:Requests", None): P_CWREQ,
@@ -146,8 +155,9 @@ def table_cost(t):
 
 
 def gbs_factor(inp):
-    """Billed GB-seconds per CloudWatch GB-second on the batch days. The bill rounds each call up to the next
-    millisecond and CloudWatch's Duration doesn't, so the bill is about 0.6% higher."""
+    """Billed GB-seconds per CloudWatch GB-second on the batch days, about 1.006. CloudWatch's Duration leaves out two
+    things the bill counts, about equally on the batch days: each call rounded up to the next millisecond, and each
+    cold start's start-up (init) time."""
     cw = sum(f["gb_s"] for d in BATCH_DAYS for f in inp.days[d]["functions"].values())
     return inp.ce_qty(BATCH_DAYS, "USE2-Lambda-GB-Second-ARM") / cw
 
@@ -299,6 +309,12 @@ def totals(lines):
     return out
 
 
+def line_kind(line):
+    """A cost line's kind for the by-line totals: every function's Lambda line is "Lambda", its logs "logs", every
+    table "DynamoDB"; the other lines are their own kind."""
+    return line.split(" ")[0] if line.startswith(("Lambda ", "logs ", "DynamoDB ")) else line
+
+
 def per_experiment(inp, factor, bedrock, rates, runner):
     batches, all_lines = {}, []
     for bid, b in inp.batches.items():
@@ -311,8 +327,7 @@ def per_experiment(inp, factor, bedrock, rates, runner):
     t = totals(all_lines)
     by_line = {}
     for x in all_lines:
-        key = x["line"].split(" ")[0] if x["line"].startswith(("Lambda ", "logs ", "DynamoDB ")) else x["line"]
-        by_line[key] = by_line.get(key, 0.0) + x["cost"]
+        by_line[line_kind(x["line"])] = by_line.get(line_kind(x["line"]), 0.0) + x["cost"]
     return {"batches": batches, "test_set": {**t, "attempts": attempts,
             "accepted": sum(b["accepted"] for b in inp.batches.values()),
             "per_attempt": t["total"] / attempts,
@@ -367,18 +382,28 @@ def per_inference(inp, factor):
             "idle_calls": inp.reports["idle"]["calls"], "idle_window": [inp.reports["idle"]["start"], inp.reports["idle"]["end"]]}
 
 
+def idle_group(service, usage_type):
+    """Whose an idle bill row is: the store's Products table's capacity and the tables' storage (the orders table
+    holds 99% of it), the stopped runner's disk, and AnomalyPulse's everything else."""
+    if usage_type in ("USE2-ReadCapacityUnit-Hrs", "USE2-WriteCapacityUnit-Hrs") or (service, usage_type) == (DYNAMODB, STORAGE):
+        return "app"
+    if service in ("EC2 - Other", "Amazon Elastic Compute Cloud - Compute", "Amazon Virtual Private Cloud",
+                   "Amazon Elastic Load Balancing"):
+        return "tooling"
+    return "anomalypulse"
+
+
 def idle(inp):
-    """What a day with no traffic costs, from the bill's three idle days (mean): billed, and by group."""
-    by = {}
+    """What a day with no traffic costs, from the bill's three idle days (mean): at list price like every other cost
+    here, by group and by line, and what the bill charged. The bill is lower because some always-free allowances
+    weren't used up: it shows the metrics extractor's CloudWatch requests and the Products table's write capacity
+    as $0."""
+    by, billed = {}, 0.0
     for r in inp.ce:
         if r["day"] in IDLE_DAYS and r["usage_type"] != "USE2-CW:GMD-Metrics":     # this analysis's own reads
-            svc = r["service"]
-            group = ("app" if r["usage_type"] == "USE2-ReadCapacityUnit-Hrs"        # the Products table's capacity
-                     else "tooling" if svc in ("EC2 - Other", "Amazon Elastic Compute Cloud - Compute",
-                                               "Amazon Virtual Private Cloud", "Amazon Elastic Load Balancing")
-                     else "anomalypulse")
-            key = (svc, r["usage_type"], group)
-            by[key] = by.get(key, 0.0) + r["cost"] / len(IDLE_DAYS)
+            key = (r["service"], r["usage_type"], idle_group(r["service"], r["usage_type"]))
+            by[key] = by.get(key, 0.0) + list_cost(r) / len(IDLE_DAYS)
+            billed += r["cost"] / len(IDLE_DAYS)
     groups = {"app": 0.0, "anomalypulse": 0.0, "tooling": 0.0}
     for (_, _, g), c in by.items():
         groups[g] += c
@@ -386,9 +411,34 @@ def idle(inp):
                for n in inp.memory if any(inp.days[d]["functions"][n]["invocations"] for d in IDLE_DAYS)}
     day = sum(groups.values())
     return {"day": day, "month": day * HOURS_MONTH / 24, "by_group_day": groups,
+            "billed_day": billed, "billed_month": billed * HOURS_MONTH / 24, "free_allowances_day": billed - day,
             "by_line_day": {f"{s} / {ut}": round(c, 5) for (s, ut, _), c in sorted(by.items(), key=lambda kv: -kv[1]) if c >= 0.0005},
             "functions_running_per_day": running,
             "diagnosis_calls": inp.reports["idle"]["calls"]}
+
+
+def request_basis(inp, rates):
+    """The bill lines' per-request rates come from the batch days, the Lambdas' from the healthy runs. The batches'
+    faults change how many pipeline calls a request makes, so S3 PUT-class requests, nearly all the pipeline's object
+    writes (one per shipper and aggregator call, bill_check), are also given on the healthy runs' basis: scaled by
+    the healthy runs' writes per request over the batch days'."""
+    def per_request(usages, names):
+        usages = list(usages)
+        return sum(u["functions"][FN + s]["invocations"] for u in usages for s in names) / sum(u["api"] for u in usages)
+    pipeline = ("telemetry-shipper", "pipeline-aggregator")
+    healthy = per_request((r["usage"] for r in inp.runs), pipeline)
+    batch = per_request((inp.days[d] for d in BATCH_DAYS), pipeline)
+    return {"pipeline_writes_per_request": {"healthy_runs": healthy, "batch_days": batch},
+            "shipper_calls_per_request": {"healthy_runs": per_request((r["usage"] for r in inp.runs), pipeline[:1]),
+                                          "batch_days": per_request((inp.days[d] for d in BATCH_DAYS), pipeline[:1])},
+            "healthy_over_batch": healthy / batch,
+            "s3_put_per_request_healthy": rates["S3 PUT-class requests"]["per_request"] * healthy / batch}
+
+
+def healthy_s3_lines(lines, basis):
+    """The projection lines with S3 PUT-class requests per request on the healthy runs' basis."""
+    return [dict(x, per={**x["per"], "request": basis["s3_put_per_request_healthy"]}) if x["line"] == "S3 PUT-class requests"
+            else x for x in lines]
 
 
 def unit_usage(inp, factor, bedrock, rates):
@@ -443,16 +493,23 @@ def unit_usage(inp, factor, bedrock, rates):
     for name, r in rates.items():
         lines.append({"line": name, "group": r["group"], "price": r["price"], "free": r["free"],
                       "per": {"request": r["per_request"], "month": r["per_month"]}})
-    # fixed: the Products table's provisioned capacity (as deployed), S3 storage and the explanation image in ECR
+    # fixed: the Products table's provisioned capacity (as deployed), and the idle days' storage and alarms: S3, the
+    # explanation image in ECR, the log groups, the tables (the orders table's, nearly all) and the pipeline's alarms
     lines += [{"line": "DynamoDB products-v2 provisioned reads", "group": "app", "price": P_RCU_H, "free": "rcu_h",
                "per": {"month": PRODUCTS_RCU * HOURS_MONTH}},
               {"line": "DynamoDB products-v2 provisioned writes", "group": "app", "price": P_WCU_H, "free": "wcu_h",
                "per": {"month": PRODUCTS_WCU * HOURS_MONTH}}]
-    for name, svc, ut in (("S3 storage", S3, "USE2-TimedStorage-ByteHrs"),
-                          ("ECR image storage", "Amazon EC2 Container Registry (ECR)", "USE2-TimedStorage-ByteHrs")):
+    for name, svc, ut, group, price, free in (
+            ("S3 storage", S3, STORAGE, "anomalypulse", None, None),
+            ("ECR image storage", "Amazon EC2 Container Registry (ECR)", STORAGE, "anomalypulse", None, None),
+            ("CloudWatch Logs storage", CLOUDWATCH, STORAGE, "anomalypulse", P_LOG_STORE_GB, None),
+            ("DynamoDB storage", DYNAMODB, STORAGE, "app", P_DDB_STORE_GB, "ddb_gb"),
+            ("CloudWatch alarms", CLOUDWATCH, "USE2-CW:AlarmMonitorUsage", "anomalypulse", P_CW_ALARM, "cw_alarms")):
         q = inp.ce_qty(IDLE_DAYS, ut, svc)
-        lines.append({"line": name, "group": "anomalypulse", "price": inp.ce_cost(IDLE_DAYS, ut, svc) / q if q else 0.0,
-                      "free": None, "per": {"month": q / len(IDLE_DAYS) * HOURS_MONTH / 24}})
+        if price is None:                               # billed at list: the bill's own unit price
+            price = inp.ce_cost(IDLE_DAYS, ut, svc) / q if q else 0.0
+        lines.append({"line": name, "group": group, "price": price, "free": free,
+                      "per": {"month": q / len(IDLE_DAYS) * HOURS_MONTH / 24}})
     return lines
 
 
@@ -546,17 +603,23 @@ def operations(inp):
 def report(inp):
     factor = gbs_factor(inp)
     bedrock = bedrock_per_call(inp)
+    runbooks = bedrock_runbooks_on(inp, bedrock)
     rates, runner = bill_rates(inp)
     inference = per_inference(inp, factor)
     lines = unit_usage(inp, factor, bedrock, rates)
     experiments = per_experiment(inp, factor, bedrock, rates, runner)
+    incident = per_incident(inp, factor, bedrock)
+    # the same incident with runbooks on: each Bedrock call at runbooks-on cost, the Lambdas' share unchanged
+    incident["cost_runbooks_on"] = incident["cost"] + incident["calls_per_incident"] * (runbooks["cost"] - bedrock["cost"])
+    basis = request_basis(inp, rates)
+    basis["total_healthy_s3"] = {r: project(healthy_s3_lines(lines, basis), r)["total"] for r in HEADLINE_RATES}
     return {"gbs_factor": factor, "bill_check": bill_check(inp), "bedrock_per_call": bedrock,
-            "bedrock_per_call_runbooks_on": bedrock_runbooks_on(inp, bedrock),
+            "bedrock_per_call_runbooks_on": runbooks,
             "bill_cross_check": bill_cross_check(inp, experiments["test_set"]["total"]),
             "experiments": experiments,
-            "per_incident": per_incident(inp, factor, bedrock), "per_inference": inference, "idle": idle(inp),
+            "per_incident": incident, "per_inference": inference, "idle": idle(inp),
             "serverless_comparison": serverless_comparison(inference), "operations": operations(inp),
-            "unit_usage": lines, "projections": [project(lines, r) for r in RATES]}
+            "unit_usage": lines, "projections": [project(lines, r) for r in RATES], "request_basis": basis}
 
 
 def show(res):
@@ -583,19 +646,26 @@ def show(res):
           f"{i['incidents']} incidents")
     rb = res["bedrock_per_call_runbooks_on"]
     print(f"  with runbooks on (Nov 19, {rb['calls']} calls, billed {money(rb['billed'])}): {money(rb['cost'])} a call, "
-          f"{rb['input_tokens']:,.0f} in, {rb['output_tokens']:,.0f} out, {rb['over_runbooks_off']:.2f}x")
+          f"{rb['input_tokens']:,.0f} in, {rb['output_tokens']:,.0f} out, {rb['over_runbooks_off']:.2f}x; "
+          f"{money(i['cost_runbooks_on'])} an incident; 30 incidents {money(30 * i['cost'])} ({money(30 * i['cost_runbooks_on'])} with runbooks)")
     n = res["per_inference"]
     print(f"per inference: {money(n['cost'])} ({money(n['per_million'])} a million; {money(n['per_month_one_a_minute'])} a month at one a "
           f"minute); {n['billed_ms_per_call']:.1f} ms billed a call, handler {n['handler_ms_per_call']:.1f} ms, cold starts "
           f"{n['cold_starts']:.0f} of {n['calls']:.0f} calls but {n['cold_start_share_of_billed']:.0%} of billed time; "
           f"the once-a-minute path {money(n['scored_minute_path'])} a minute; idle calls {n['idle_calls']:.0f}")
     d = res["idle"]
-    print(f"idle: {money(d['day'])} a day, {money(d['month'])} a month: " + ", ".join(f"{g} {money(v)}" for g, v in d["by_group_day"].items())
-          + f"; running: {d['functions_running_per_day']}")
+    print(f"idle, list price: {money(d['day'])} a day, {money(d['month'])} a month: " + ", ".join(f"{g} {money(v)}" for g, v in d["by_group_day"].items())
+          + f"; billed {money(d['billed_day'])} a day ({money(d['billed_month'])} a month); running: {d['functions_running_per_day']}")
+    print("  biggest idle lines a day: " + "; ".join(f"{k} {money(v)}" for k, v in list(d["by_line_day"].items())[:6]))
     print("\nmonthly, list price (always-free allowances shown apart):")
     for p in res["projections"]:
         print(f"  {p['rps']:>4} rps  app {money(p['app']):>10}  AnomalyPulse {money(p['anomalypulse']):>9} ({p['anomalypulse_share']:.0%})"
               f"  total {money(p['total']):>10}  after always-free {money(p['total_after_free']):>10}")
+    b = res["request_basis"]
+    print(f"  S3 PUTs on the healthy runs' basis: the pipeline's writes per 1,000 requests {1000 * b['pipeline_writes_per_request']['healthy_runs']:.1f} "
+          f"healthy vs {1000 * b['pipeline_writes_per_request']['batch_days']:.1f} on the batch days (shipper {1000 * b['shipper_calls_per_request']['healthy_runs']:.1f} "
+          f"vs {1000 * b['shipper_calls_per_request']['batch_days']:.1f}), {b['healthy_over_batch']:.3f}x; totals "
+          + ", ".join(f"{r} rps {money(t)}" for r, t in b["total_healthy_s3"].items()))
     print("\nthe Diagnosis model, a month:")
     for opt, m in res["serverless_comparison"]["month"].items():
         print(f"  {opt:52s} " + "  ".join(f"{k} {money(v)}" for k, v in m.items()))

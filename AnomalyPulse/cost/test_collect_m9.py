@@ -72,6 +72,87 @@ def test_batch_usage_sums_each_minute_and_turns_milliseconds_into_gb_seconds():
     assert all(q["MetricStat"]["Period"] == 60 for q in cw.calls[0]["MetricDataQueries"])
 
 
+def test_table_usage_sums_each_table_s_read_and_write_units():
+    cw = FakeCW({"r_0": [(t(2026, 11, 14, 1), 1.0), (t(2026, 11, 14, 1, 1), 2.5)], "w_0": [(t(2026, 11, 14, 1), 4.0)]})
+    # sorted: a is r_0/w_0; b has no points at all
+    assert c.table_usage(cw, ["anomalypulse-b", "anomalypulse-a"], t(2026, 11, 14, 1), t(2026, 11, 14, 2)) == {
+        "anomalypulse-a": {"read_units": 3.5, "write_units": 4.0},
+        "anomalypulse-b": {"read_units": 0.0, "write_units": 0.0}}
+
+
+class FakeOpsCW:
+    """get_metric_data answering by metric, statistic and period, like CloudWatch, not by query Id. A whole-window
+    query (its Period the window's length) gets one point; a 1-minute query gets the minutes given for it."""
+    def __init__(self, window_s, whole, minutes):
+        self.window_s, self.whole, self.minutes, self.calls = window_s, whole, minutes, []
+
+    def get_metric_data(self, **kw):
+        self.calls.append(kw)
+        res = []
+        for q in kw["MetricDataQueries"]:
+            s = q["MetricStat"]
+            dims = {d["Name"]: d["Value"] for d in s["Metric"]["Dimensions"]}
+            key = (s["Metric"]["MetricName"], s["Stat"], next(iter(dims.values())))
+            if s["Period"] == self.window_s:
+                v = self.whole.get(key)
+                pts = [] if v is None else [(kw["StartTime"], v)]
+            elif s["Period"] == 60:
+                pts = self.minutes.get(key, [])
+            else:
+                pts = [(kw["StartTime"], 1.0), (kw["StartTime"], 2.0)]
+            res.append({"Id": q["Id"], "Timestamps": [p[0] for p in pts], "Values": [p[1] for p in pts]})
+        return {"MetricDataResults": res}
+
+
+def ops_fake():
+    api, fn, queue = "anomalypulse-api", "anomalypulse-a", "anomalypulse-telemetry"
+    whole = {("Latency", "p50", api): 12.3456, ("Latency", "p95", api): 20.0, ("Latency", "p99", api): 30.0,
+             ("Latency", "Maximum", api): 40.0, ("Count", "Sum", api): 600.0, ("4XXError", "Sum", api): 1.0,
+             ("Duration", "p50", fn): 5.0, ("Duration", "p95", fn): 6.0, ("Duration", "p99", fn): 7.0,
+             ("Duration", "Maximum", fn): 8.0, ("Errors", "Sum", fn): 0.0, ("ConcurrentExecutions", "Maximum", fn): 2.0,
+             ("NumberOfMessagesSent", "Sum", queue): 10.0, ("NumberOfMessagesDeleted", "Sum", queue): 10.0,
+             ("ApproximateNumberOfMessagesVisible", "Maximum", queue): 1.0,
+             ("ApproximateAgeOfOldestMessage", "Maximum", queue): 15.0,
+             ("ApproximateNumberOfMessagesVisible", "Maximum", "anomalypulse-telemetry-dlq"): 3.0,
+             ("ApproximateNumberOfMessagesVisible", "Minimum", "anomalypulse-telemetry-dlq"): 0.0}
+    m0 = t(2026, 11, 14, 10)
+    minutes = {("Count", "Sum", api): [(m0, 100.0), (t(2026, 11, 14, 10, 1), 300.0), (t(2026, 11, 14, 10, 3), 200.0)],
+               ("ApproximateNumberOfMessagesVisible", "Maximum", queue): [(m0, 0.0), (t(2026, 11, 14, 10, 1), 1.0),
+                                                                          (t(2026, 11, 14, 10, 2), 0.0)]}
+    return FakeOpsCW(300, whole, minutes)
+
+
+def test_ops_stats_reads_each_statistic_over_the_whole_window_and_the_per_minute_peaks():
+    cw = ops_fake()
+    o = c.ops_stats(cw, {"anomalypulse-a": 512}, t(2026, 11, 14, 10), t(2026, 11, 14, 10, 5))
+    assert o["period_s"] == 300
+    # whole-window statistics, rounded to 3 places; a statistic with no data is None, not 0
+    assert o["api"]["latency_p50"] == 12.346 and o["api"]["count"] == 600 and o["api"]["5xxerror"] is None
+    assert o["functions"]["anomalypulse-a"] == {"duration_p50": 5.0, "duration_p95": 6.0, "duration_p99": 7.0,
+                                                "duration_maximum": 8.0, "errors": 0.0, "throttles": None,
+                                                "concurrency_max": 2.0}
+    assert o["queue"]["NumberOfMessagesSent"] == 10 and o["queue"]["ApproximateAgeOfOldestMessage"] == 15
+    # a failure queue's most messages visible: its Maximum, not another statistic
+    assert o["failure_queues"]["anomalypulse-telemetry-dlq"] == 3.0
+    assert o["failure_queues"]["anomalypulse-incidents-failed"] is None
+    # 600 requests over the window's 5 minutes, two of which had no point: 120 a minute, not 600 / 3
+    assert o["api"]["requests_per_minute_mean"] == 120.0 and o["api"]["requests_per_minute_max"] == 300
+    assert (o["queue"]["visible_minute_median"], o["queue"]["visible_minute_max"]) == (0.0, 1.0)
+    assert (o["queue"]["age_s_minute_median"], o["queue"]["age_s_minute_max"]) == (None, None)
+
+
+def test_ops_stats_refuses_a_whole_window_statistic_split_into_several_points():
+    class Split(FakeOpsCW):
+        def get_metric_data(self, **kw):
+            r = super().get_metric_data(**kw)
+            r["MetricDataResults"][0]["Values"] += [1.0]
+            r["MetricDataResults"][0]["Timestamps"] += [kw["StartTime"]]
+            return r
+    cw = ops_fake()
+    with pytest.raises(RuntimeError):
+        c.ops_stats(Split(cw.window_s, cw.whole, cw.minutes), {"anomalypulse-a": 512}, t(2026, 11, 14, 10), t(2026, 11, 14, 10, 5))
+
+
 class FakeCE:
     def __init__(self, pages):
         self.pages, self.calls = pages, []

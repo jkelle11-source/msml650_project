@@ -45,7 +45,7 @@ REPORT_QUERY = ('filter @type = "REPORT" | stats count(*) as calls, sum(ispresen
                 'sum(@billedDuration) as billed_ms, sum(@duration) as duration_ms, sum(@initDuration) as init_ms, '
                 'max(@maxMemoryUsed) / 1000000 as max_mb')
 REPORT_FIELDS = ("calls", "cold_starts", "billed_ms", "duration_ms", "init_ms", "max_mb")
-# Two UTC days with no traffic: the bill shows only the idle floor ($0.84 a day) and no API Gateway charges.
+# Two UTC days with no traffic: the bill shows only the idle floor and no API Gateway charges.
 IDLE = (datetime(2026, 11, 20, tzinfo = U), datetime(2026, 11, 22, tzinfo = U))
 # UTC days for the bill check: three with batches running, three idle (Nov 17 had check traffic, Nov 19 M9-5's
 # offline Bedrock calls).
@@ -258,7 +258,10 @@ def ops_stats(cw, memory, start, end):
     values = {}
     for i in range(0, len(whole), 500):         # GetMetricData takes at most 500 queries
         r = cw.get_metric_data(MetricDataQueries = whole[i:i + 500], StartTime = start, EndTime = end)
-        values.update({x["Id"]: (x["Values"][0] if x["Values"] else None) for x in r["MetricDataResults"]})
+        for x in r["MetricDataResults"]:
+            if len(x["Values"]) > 1:            # one period covers the window: more points would each be a part of it
+                raise RuntimeError(f"{ids[x['Id']]}: {len(x['Values'])} points for one whole-window period")
+            values[x["Id"]] = x["Values"][0] if x["Values"] else None
 
     out = {"period_s": period, "api": {}, "functions": {}, "queue": {}, "failure_queues": {}}
     for qid, key in ids.items():

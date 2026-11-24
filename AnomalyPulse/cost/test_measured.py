@@ -140,6 +140,134 @@ def test_projection_scales_each_line_by_its_basis_and_takes_the_free_allowance_o
     assert p["total_after_free"] == approx(5.256 + 6.0 + 38_000 * 1.33334e-5 + 1.5)
 
 
+def test_dynamodb_s_free_capacity_is_the_price_list_s_18_600_unit_hours():
+    lines = [{"line": "rcu", "group": "app", "price": 0.00013, "free": "rcu_h", "per": {"month": 200 * 730}},
+             {"line": "alarms", "group": "anomalypulse", "price": 0.10, "free": "cw_alarms", "per": {"month": 7.0}}]
+    p = m.project(lines, 1)
+    # 146,000 read unit-hours, 18,600 of them free at $0.00013; all 7 alarms inside the free 10 at $0.10
+    assert p["total"] == approx(146_000 * 0.00013 + 0.70)
+    assert p["always_free"] == approx(-(18_600 * 0.00013 + 0.70))
+
+
+def test_gbs_factor_is_the_batch_days_bill_over_cloudwatch():
+    days = {**{d: {"functions": fns(a=(1000, 0, 0))} for d in m.BATCH_DAYS},
+            **{d: {"functions": fns(a=(100, 0, 0))} for d in m.IDLE_DAYS}}
+    ce = ([ce_row(d, "USE2-Lambda-GB-Second-ARM", 1006) for d in m.BATCH_DAYS]
+          + [ce_row(d, "USE2-Lambda-GB-Second-ARM", 120) for d in m.IDLE_DAYS])
+    # 3,018 billed over 3,000 measured; the idle days' 1.2 is left out
+    assert m.gbs_factor(fake(days=days, ce=ce)) == approx(1.006)
+
+
+def test_an_incident_costs_its_bedrock_calls_the_explanation_lambda_and_the_store_s_wait():
+    memory = {FN + "incidents": 512, FN + "explain": 512}
+    batches = {"b": {"usage": {"functions": fns(explain=(100, 10, 2 ** 30))}}}
+    incidents = {"b": {"incidents": 5, "bedrock_calls": 10}}
+    i = m.per_incident(fake(memory=memory, batches=batches, incidents=incidents), 1.0, {"cost": 0.03})
+    # Bedrock: 10 calls at $0.03 = $0.30; the explanation Lambda: 100 GB-s, 10 requests and 1 GB of logs ($0.50);
+    # the store waits as long, at the same memory: another 100 GB-s. Over 5 incidents.
+    assert i["calls_per_incident"] == 2
+    assert i["bedrock"] == approx(0.06)
+    assert i["store_waiting"] == approx(100 * 1.33334e-5 / 5)
+    assert i["cost"] == approx((0.30 + 100 * 1.33334e-5 + 10 * 2e-7 + 0.50 + 100 * 1.33334e-5) / 5)
+
+
+def test_idle_prices_every_row_at_list_and_keeps_what_was_billed():
+    def day(d):
+        return [ce_row(d, "USE2-ReadCapacityUnit-Hrs", 4800, m.DYNAMODB, cost=0.624),
+                ce_row(d, "USE2-WriteCapacityUnit-Hrs", 120, m.DYNAMODB, cost=0.0),         # free on the bill
+                ce_row(d, "USE2-CW:Requests", 38_880, m.CLOUDWATCH, cost=0.0),               # free on the bill
+                ce_row(d, "USE2-Requests-Tier1", 20_000, m.S3, cost=0.10),
+                ce_row(d, "USE2-EBS:VolumeUsage.gp3", 0.5333, "EC2 - Other", cost=0.04267),  # no list price here
+                ce_row(d, "USE2-CW:GMD-Metrics", 177, m.CLOUDWATCH, cost=0.00177)]           # this analysis's own
+    memory = {FN + "metrics-extractor": 1769, FN + "diagnosis": 1024}
+    days = {d: {"functions": fns(**{"metrics-extractor": (0, 1440, 0), "diagnosis": (0, 0, 0)})} for d in m.IDLE_DAYS}
+    inp = fake(ce=[r for d in m.IDLE_DAYS for r in day(d)], memory=memory, days=days, reports={"idle": {"calls": 0}})
+    i = m.idle(inp)
+    # the store: 4,800 read and 120 write unit-hours at $0.00013 and $0.00065; AnomalyPulse: 38,880 CloudWatch
+    # requests at $0.01 a thousand and 20,000 S3 PUTs at $0.005 a thousand; the runner's disk as billed
+    assert i["by_group_day"] == {"app": approx(0.624 + 0.078), "anomalypulse": approx(0.3888 + 0.10),
+                                 "tooling": approx(0.04267)}
+    assert i["day"] == approx(0.702 + 0.4888 + 0.04267)
+    assert i["billed_day"] == approx(0.624 + 0.10 + 0.04267)
+    assert i["month"] == approx(i["day"] * 730 / 24)
+    assert i["functions_running_per_day"] == {"metrics-extractor": 1440}
+
+
+def test_the_bill_cross_check_takes_the_batch_days_above_idle_scaled_to_every_batch_minute():
+    ce = ([ce_row(d, "USE2-ApiGatewayRequest", 1_000_000, "Amazon API Gateway", cost=3.0) for d in m.BATCH_DAYS]
+          + [ce_row(d, "USE2-TimedStorage-ByteHrs", 1.0, m.S3, cost=0.1) for d in m.BATCH_DAYS + m.IDLE_DAYS])
+    batches = {"b": {"start": "2026-11-13T23:00:00+00:00", "end": "2026-11-14T01:00:00+00:00", "minutes": 120}}
+    c = m.bill_cross_check(fake(ce=ce, batches=batches), 21.0)
+    # list: 3 x $3.50 + 3 x $0.10 of storage, less 3 idle days' $0.10; 60 of the batch's 120 minutes are inside
+    assert c["batch_minutes_inside"] == 60
+    assert c["test_set_from_bill"] == approx(10.5 * 120 / 60)
+    assert c["model_over_bill"] == approx(1.0)
+    assert c["free_allowances_used"] == approx(10.8 - 9.3)           # the bill charged $3.00, not $3.50, a day
+
+
+def test_cost_lines_group_by_kind():
+    assert [m.line_kind(x) for x in ("Lambda product", "logs diagnosis", "DynamoDB carts", "S3 PUT-class requests",
+                                     "API Gateway requests")] == ["Lambda", "logs", "DynamoDB", "S3 PUT-class requests",
+                                                                  "API Gateway requests"]
+
+
+def test_s3_puts_on_the_healthy_basis_scale_by_the_pipeline_s_writes_per_request():
+    pipe = lambda ship, agg: fns(**{"telemetry-shipper": (0, ship, 0), "pipeline-aggregator": (0, agg, 0)})
+    runs = [{"usage": {"api": 1000, "functions": pipe(35, 20)}}]
+    days = {d: {"api": 1000, "functions": pipe(48, 14)} for d in m.BATCH_DAYS}
+    b = m.request_basis(fake(runs=runs, days=days), {"S3 PUT-class requests": {"per_request": 0.0682}})
+    # 55 writes per 1,000 requests healthy, 62 on the batch days: 0.0682 x 55 / 62
+    assert b["pipeline_writes_per_request"] == {"healthy_runs": approx(0.055), "batch_days": approx(0.062)}
+    assert b["shipper_calls_per_request"] == {"healthy_runs": approx(0.035), "batch_days": approx(0.048)}
+    assert b["healthy_over_batch"] == approx(55 / 62)
+    assert b["s3_put_per_request_healthy"] == approx(0.0682 * 55 / 62)
+    lines = [{"line": "S3 PUT-class requests", "per": {"request": 0.0682, "month": 5.0}}, {"line": "x", "per": {"request": 1.0}}]
+    alt = m.healthy_s3_lines(lines, b)
+    assert alt[0]["per"] == {"request": approx(0.0605), "month": 5.0} and alt[1] == lines[1]
+
+
+def ops_batch(p50, p95, p99, mx, errors, throttles, conc, rpm_max, sent, deleted, visible, age_max, age_median):
+    return {"api": {"latency_p50": 15.0, "latency_p95": 900.0, "latency_p99": 3000.0, "latency_maximum": 9000.0,
+                    "requests_per_minute_mean": 0, "requests_per_minute_max": rpm_max, "4xxerror": 1.0, "5xxerror": 2.0},
+            "functions": {FN + "product": {"duration_p50": p50, "duration_p95": p95, "duration_p99": p99,
+                                           "duration_maximum": mx, "errors": errors, "throttles": throttles,
+                                           "concurrency_max": conc},
+                          FN + "dashboard": dict.fromkeys(("duration_p50", "duration_p95", "duration_p99", "duration_maximum",
+                                                          "errors", "throttles", "concurrency_max"))},
+            "queue": {"NumberOfMessagesSent": sent, "NumberOfMessagesDeleted": deleted, "visible_minute_max": visible,
+                      "age_s_minute_max": age_max, "age_s_minute_median": age_median},
+            "failure_queues": {"dlq": 0.0}}
+
+
+def healthy_run(api, p50, p99, product_p95):
+    return {"minutes": 9, "usage": {"api": api},
+            "ops": {"api": {"latency_p50": p50, "latency_p95": 2 * p50, "latency_p99": p99, "latency_maximum": 3 * p99},
+                    "functions": {FN + "product": {"duration_p95": product_p95}, FN + "dashboard": {"duration_p95": None}}}}
+
+
+def test_operations_by_hand():
+    memory = {FN + "product": 1769, FN + "dashboard": 256}
+    ops = {"a": ops_batch(5, 50, 90, 100, None, 0, 3, 600, 10, 9, 1, 12, 4),
+           "b": ops_batch(7, 70, 80, 120, 2, None, 5, 1200, 5, 6, 0, 20, 6)}
+    batches = {"a": {"usage": {"api": 6000}, "minutes": 10}, "b": {"usage": {"api": 12000}, "minutes": 20}}
+    runs = [healthy_run(10_800, 15, 30, 7), healthy_run(9_720, 16, 40, 8), healthy_run(11_340, 18, 35, 9)]
+    o = m.operations(fake(memory=memory, ops=ops, batches=batches, runs=runs))
+    # 18,000 requests in 30 minutes = 10 a second; the busiest minute 1,200 = 20 a second; healthy runs at 20, 18
+    # and 21 a second
+    assert o["throughput"] == {"requests": 18000, "minutes": 30, "mean_rps": approx(10.0), "busiest_minute_rps": approx(20.0),
+                               "healthy_rps_median": approx(20.0)}
+    assert o["api_latency_healthy_ms"]["latency_p50"] == {"median": 16, "max": 18}
+    assert o["api_latency_healthy_ms"]["latency_p99"] == {"median": 35, "max": 40}
+    # the median batch p50, the worst batch p95 and p99, the highest maximum and concurrency; no data counts as 0
+    # errors; the dashboard, never called, is left out
+    assert o["functions"] == {"product": {"group": "app", "p50_median_of_batches": 6, "p95_worst_batch": 70,
+                                          "p99_worst_batch": 90, "max": 120, "p95_healthy_median": 8, "errors": 2,
+                                          "throttles": 0, "concurrency_max": 5}}
+    assert o["queue"] == {"messages_sent": 15, "messages_deleted": 15, "most_visible": 1, "oldest_message_s_max": 20,
+                          "oldest_message_s_minute_median": 5}
+    assert o["failure_queues_most_visible"] == {"dlq": [0.0, 0.0]}
+
+
 def test_sagemaker_options_by_hand():
     s = m.serverless_comparison({"handler_ms_per_call": 10.0, "cost": 1e-6, "warm_cost": 4e-7})
     data = (4662 + 1000) / 2 ** 30 * 0.016
@@ -162,7 +290,8 @@ def test_measured_usage_matches_the_bill_s_quantities_on_every_day():
         assert row["lambda_requests"][0] == pytest.approx(row["lambda_requests"][1], rel=1e-5), d
         assert row["log_gib"][0] == pytest.approx(row["log_gib"][1], rel=2e-3), d
         assert row["dynamodb_write_units"][0] == pytest.approx(row["dynamodb_write_units"][1], rel=1e-3), d
-        # the bill rounds each call up to the next millisecond: a little above CloudWatch, never below
+        # the bill rounds each call up to the next millisecond and bills cold starts' start-up time, which
+        # CloudWatch's Duration leaves out: a little above CloudWatch, never below
         cw, bill = row["lambda_gb_s"]
         assert 1.0 <= bill / cw < 1.012, d
     assert 1.0 < RES["gbs_factor"] < 1.01
@@ -199,7 +328,24 @@ def test_each_bedrock_call_is_one_explanation_call():
 def test_nothing_is_scored_when_idle():
     assert RES["per_inference"]["idle_calls"] == 0
     assert set(RES["idle"]["functions_running_per_day"]) == {"pipeline-window-builder", "metrics-extractor"}
-    assert RES["idle"]["day"] == pytest.approx(0.84, abs=0.01)       # the bill's idle floor
+    assert RES["idle"]["billed_day"] == pytest.approx(0.84, abs=0.01)       # the bill's idle floor
+    # at list price, what the bill left free: the metrics extractor's 38,880 CloudWatch requests a day ($0.01 a
+    # thousand), the Products table's 5 write units (120 unit-hours at $0.00065) and 7 alarms ($0.10 a month);
+    # storage adds under a cent
+    assert RES["idle"]["day"] - RES["idle"]["billed_day"] == pytest.approx(0.3888 + 0.078 + 0.7 / 30, abs=0.01)
+
+
+def test_the_products_table_s_fixed_capacity_is_priced_at_its_own_rates():
+    p = {r["rps"]: r for r in RES["projections"]}
+    # 200 read and 5 write units for 730 hours, at $0.00013 and $0.00065 a unit-hour, whatever the rate
+    for rps in (1, 100):
+        assert p[rps]["lines"]["DynamoDB products-v2 provisioned reads"] == pytest.approx(18.98, abs=1e-4)
+        assert p[rps]["lines"]["DynamoDB products-v2 provisioned writes"] == pytest.approx(2.3725, abs=1e-4)
+
+
+def test_an_incident_with_runbooks_scales_only_its_bedrock_share():
+    i, rb = RES["per_incident"], RES["bedrock_per_call_runbooks_on"]
+    assert i["cost_runbooks_on"] == approx(i["bedrock"] * rb["over_runbooks_off"] + i["explain_lambda"] + i["store_waiting"])
 
 
 def test_the_healthy_runs_are_the_60_normal_test_runs_at_20_rps():

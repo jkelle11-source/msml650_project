@@ -7,78 +7,78 @@
    "rps": 1,
    "requests": 2628000,
    "incidents": 30,
-   "app": 31.9907,
-   "anomalypulse": 23.4489,
-   "total": 55.4396,
-   "anomalypulse_share": 0.423,
-   "always_free": -18.8017,
-   "total_after_free": 36.6379
+   "app": 32.0812,
+   "anomalypulse": 24.3329,
+   "total": 56.4141,
+   "anomalypulse_share": 0.4313,
+   "always_free": -19.6474,
+   "total_after_free": 36.7667
   },
   {
    "rps": 2,
    "requests": 5256000,
    "incidents": 30,
-   "app": 42.629,
-   "anomalypulse": 26.1024,
-   "total": 68.7314,
-   "anomalypulse_share": 0.3798,
-   "always_free": -20.3855,
-   "total_after_free": 48.3459
+   "app": 42.7194,
+   "anomalypulse": 26.9865,
+   "total": 69.7059,
+   "anomalypulse_share": 0.3871,
+   "always_free": -21.2312,
+   "total_after_free": 48.4747
   },
   {
    "rps": 5,
    "requests": 13140000,
    "incidents": 30,
-   "app": 74.5437,
-   "anomalypulse": 34.063,
-   "total": 108.6067,
-   "anomalypulse_share": 0.3136,
-   "always_free": -22.2633,
-   "total_after_free": 86.3434
+   "app": 74.6341,
+   "anomalypulse": 34.947,
+   "total": 109.5812,
+   "anomalypulse_share": 0.3189,
+   "always_free": -23.109,
+   "total_after_free": 86.4722
   },
   {
    "rps": 10,
    "requests": 26280000,
    "incidents": 30,
-   "app": 127.7348,
-   "anomalypulse": 47.3306,
-   "total": 175.0655,
-   "anomalypulse_share": 0.2704,
-   "always_free": -23.1784,
-   "total_after_free": 151.8871
+   "app": 127.8253,
+   "anomalypulse": 48.2147,
+   "total": 176.04,
+   "anomalypulse_share": 0.2739,
+   "always_free": -24.0241,
+   "total_after_free": 152.0159
   },
   {
    "rps": 20,
    "requests": 52560000,
    "incidents": 30,
-   "app": 234.1172,
-   "anomalypulse": 73.8659,
-   "total": 307.983,
-   "anomalypulse_share": 0.2398,
-   "always_free": -23.1784,
-   "total_after_free": 284.8047
+   "app": 234.2076,
+   "anomalypulse": 74.7499,
+   "total": 308.9575,
+   "anomalypulse_share": 0.2419,
+   "always_free": -24.0241,
+   "total_after_free": 284.9335
   },
   {
    "rps": 50,
    "requests": 131400000,
    "incidents": 30,
-   "app": 553.2641,
-   "anomalypulse": 153.4717,
-   "total": 706.7358,
-   "anomalypulse_share": 0.2172,
-   "always_free": -23.1784,
-   "total_after_free": 683.5574
+   "app": 553.3546,
+   "anomalypulse": 154.3557,
+   "total": 707.7103,
+   "anomalypulse_share": 0.2181,
+   "always_free": -24.0241,
+   "total_after_free": 683.6862
   },
   {
    "rps": 100,
    "requests": 262800000,
    "incidents": 30,
-   "app": 1085.1758,
-   "anomalypulse": 286.1479,
-   "total": 1371.3237,
-   "anomalypulse_share": 0.2087,
-   "always_free": -23.1784,
-   "total_after_free": 1348.1453
+   "app": 1085.2662,
+   "anomalypulse": 287.0319,
+   "total": 1372.2982,
+   "anomalypulse_share": 0.2092,
+   "always_free": -24.0241,
+   "total_after_free": 1348.2741
   }
  ]
 }
