@@ -1,0 +1,460 @@
+{
+ "memory_mb": {
+  "anomalypulse-dashboard": 256,
+  "anomalypulse-order": 1769,
+  "anomalypulse-stub-501": 1769,
+  "anomalypulse-pipeline-window-builder": 512,
+  "anomalypulse-pipeline-forwarder": 256,
+  "anomalypulse-explain": 512,
+  "anomalypulse-payment": 1769,
+  "anomalypulse-pipeline-aggregator": 256,
+  "anomalypulse-cart": 1769,
+  "anomalypulse-metrics-extractor": 1769,
+  "anomalypulse-diagnosis": 1024,
+  "anomalypulse-telemetry-shipper": 1769,
+  "anomalypulse-incidents": 512,
+  "anomalypulse-product": 1769
+ },
+ "tables": [
+  "anomalypulse-carts",
+  "anomalypulse-experiments",
+  "anomalypulse-fault-config",
+  "anomalypulse-incidents",
+  "anomalypulse-orders",
+  "anomalypulse-products-v2"
+ ],
+ "batches": {
+  "batch-20261113T224227Z-83c9": {
+   "start": "2026-11-13T22:42:00+00:00",
+   "end": "2026-11-14T22:25:00+00:00",
+   "minutes": 1423,
+   "attempts": 140,
+   "accepted": 140,
+   "usage": {
+    "api": 3055977,
+    "functions": {
+     "anomalypulse-cart": {
+      "invocations": 455735,
+      "gb_s": 48066.52,
+      "log_bytes": 344600571
+     },
+     "anomalypulse-dashboard": {
+      "invocations": 0,
+      "gb_s": 0.0,
+      "log_bytes": 0
+     },
+     "anomalypulse-diagnosis": {
+      "invocations": 1417,
+      "gb_s": 38.48,
+      "log_bytes": 1773221
+     },
+     "anomalypulse-explain": {
+      "invocations": 206,
+      "gb_s": 2597.11,
+      "log_bytes": 102895
+     },
+     "anomalypulse-incidents": {
+      "invocations": 1418,
+      "gb_s": 2664.11,
+      "log_bytes": 835563
+     },
+     "anomalypulse-metrics-extractor": {
+      "invocations": 1423,
+      "gb_s": 995.23,
+      "log_bytes": 495626
+     },
+     "anomalypulse-order": {
+      "invocations": 629215,
+      "gb_s": 452108.81,
+      "log_bytes": 483666311
+     },
+     "anomalypulse-payment": {
+      "invocations": 324620,
+      "gb_s": 371671.91,
+      "log_bytes": 248431305
+     },
+     "anomalypulse-pipeline-aggregator": {
+      "invocations": 44043,
+      "gb_s": 534.61,
+      "log_bytes": 15076989
+     },
+     "anomalypulse-pipeline-forwarder": {
+      "invocations": 153357,
+      "gb_s": 686.5,
+      "log_bytes": 52492885
+     },
+     "anomalypulse-pipeline-window-builder": {
+      "invocations": 1423,
+      "gb_s": 3240.52,
+      "log_bytes": 496512
+     },
+     "anomalypulse-product": {
+      "invocations": 1971025,
+      "gb_s": 324313.56,
+      "log_bytes": 1506415174
+     },
+     "anomalypulse-stub-501": {
+      "invocations": 0,
+      "gb_s": 0.0,
+      "log_bytes": 0
+     },
+     "anomalypulse-telemetry-shipper": {
+      "invocations": 153357,
+      "gb_s": 8657.94,
+      "log_bytes": 52686471
+     }
+    },
+    "tables": {
+     "anomalypulse-carts": {
+      "read_units": 0.0,
+      "write_units": 455735.0
+     },
+     "anomalypulse-experiments": {
+      "read_units": 120.0,
+      "write_units": 280.0
+     },
+     "anomalypulse-fault-config": {
+      "read_units": 115169.0,
+      "write_units": 146.0
+     },
+     "anomalypulse-incidents": {
+      "read_units": 9232.0,
+      "write_units": 35809.0
+     },
+     "anomalypulse-orders": {
+      "read_units": 152209.5,
+      "write_units": 260927.0
+     },
+     "anomalypulse-products-v2": {
+      "read_units": 5164605.5,
+      "write_units": 0.0
+     }
+    }
+   }
+  },
+  "batch-20261114T231040Z-9394": {
+   "start": "2026-11-14T23:10:00+00:00",
+   "end": "2026-11-15T22:53:00+00:00",
+   "minutes": 1423,
+   "attempts": 140,
+   "accepted": 140,
+   "usage": {
+    "api": 3130777,
+    "functions": {
+     "anomalypulse-cart": {
+      "invocations": 467179,
+      "gb_s": 33221.21,
+      "log_bytes": 353216160
+     },
+     "anomalypulse-dashboard": {
+      "invocations": 0,
+      "gb_s": 0.0,
+      "log_bytes": 0
+     },
+     "anomalypulse-diagnosis": {
+      "invocations": 1417,
+      "gb_s": 34.82,
+      "log_bytes": 1772445
+     },
+     "anomalypulse-explain": {
+      "invocations": 206,
+      "gb_s": 2420.95,
+      "log_bytes": 105584
+     },
+     "anomalypulse-incidents": {
+      "invocations": 1417,
+      "gb_s": 2489.69,
+      "log_bytes": 837386
+     },
+     "anomalypulse-metrics-extractor": {
+      "invocations": 1423,
+      "gb_s": 975.29,
+      "log_bytes": 494701
+     },
+     "anomalypulse-order": {
+      "invocations": 641282,
+      "gb_s": 336741.79,
+      "log_bytes": 492755574
+     },
+     "anomalypulse-payment": {
+      "invocations": 330461,
+      "gb_s": 280090.11,
+      "log_bytes": 252830399
+     },
+     "anomalypulse-pipeline-aggregator": {
+      "invocations": 44256,
+      "gb_s": 565.07,
+      "log_bytes": 15154295
+     },
+     "anomalypulse-pipeline-forwarder": {
+      "invocations": 144521,
+      "gb_s": 656.79,
+      "log_bytes": 49475417
+     },
+     "anomalypulse-pipeline-window-builder": {
+      "invocations": 1423,
+      "gb_s": 3293.82,
+      "log_bytes": 497152
+     },
+     "anomalypulse-product": {
+      "invocations": 2022317,
+      "gb_s": 345213.22,
+      "log_bytes": 1545649647
+     },
+     "anomalypulse-stub-501": {
+      "invocations": 0,
+      "gb_s": 0.0,
+      "log_bytes": 0
+     },
+     "anomalypulse-telemetry-shipper": {
+      "invocations": 144521,
+      "gb_s": 7993.64,
+      "log_bytes": 49652336
+     }
+    },
+    "tables": {
+     "anomalypulse-carts": {
+      "read_units": 0.0,
+      "write_units": 467179.0
+     },
+     "anomalypulse-experiments": {
+      "read_units": 119.0,
+      "write_units": 280.0
+     },
+     "anomalypulse-fault-config": {
+      "read_units": 110565.5,
+      "write_units": 146.0
+     },
+     "anomalypulse-incidents": {
+      "read_units": 9204.0,
+      "write_units": 35778.0
+     },
+     "anomalypulse-orders": {
+      "read_units": 155403.0,
+      "write_units": 274921.0
+     },
+     "anomalypulse-products-v2": {
+      "read_units": 5184869.0,
+      "write_units": 0.0
+     }
+    }
+   }
+  },
+  "batch-20261116T012700Z-da71": {
+   "start": "2026-11-16T01:27:00+00:00",
+   "end": "2026-11-16T13:21:00+00:00",
+   "minutes": 714,
+   "attempts": 70,
+   "accepted": 70,
+   "usage": {
+    "api": 1569072,
+    "functions": {
+     "anomalypulse-cart": {
+      "invocations": 234200,
+      "gb_s": 21214.02,
+      "log_bytes": 177079661
+     },
+     "anomalypulse-dashboard": {
+      "invocations": 0,
+      "gb_s": 0.0,
+      "log_bytes": 0
+     },
+     "anomalypulse-diagnosis": {
+      "invocations": 708,
+      "gb_s": 19.6,
+      "log_bytes": 886632
+     },
+     "anomalypulse-explain": {
+      "invocations": 103,
+      "gb_s": 1228.89,
+      "log_bytes": 52131
+     },
+     "anomalypulse-incidents": {
+      "invocations": 708,
+      "gb_s": 1262.13,
+      "log_bytes": 420523
+     },
+     "anomalypulse-metrics-extractor": {
+      "invocations": 714,
+      "gb_s": 489.34,
+      "log_bytes": 248643
+     },
+     "anomalypulse-order": {
+      "invocations": 322383,
+      "gb_s": 212803.19,
+      "log_bytes": 247797407
+     },
+     "anomalypulse-payment": {
+      "invocations": 166813,
+      "gb_s": 177079.48,
+      "log_bytes": 127653141
+     },
+     "anomalypulse-pipeline-aggregator": {
+      "invocations": 22171,
+      "gb_s": 268.81,
+      "log_bytes": 7590252
+     },
+     "anomalypulse-pipeline-forwarder": {
+      "invocations": 79826,
+      "gb_s": 370.53,
+      "log_bytes": 27326829
+     },
+     "anomalypulse-pipeline-window-builder": {
+      "invocations": 714,
+      "gb_s": 1667.19,
+      "log_bytes": 249771
+     },
+     "anomalypulse-product": {
+      "invocations": 1012489,
+      "gb_s": 211581.43,
+      "log_bytes": 774142796
+     },
+     "anomalypulse-stub-501": {
+      "invocations": 0,
+      "gb_s": 0.0,
+      "log_bytes": 0
+     },
+     "anomalypulse-telemetry-shipper": {
+      "invocations": 79826,
+      "gb_s": 4457.8,
+      "log_bytes": 27419032
+     }
+    },
+    "tables": {
+     "anomalypulse-carts": {
+      "read_units": 0.0,
+      "write_units": 234200.0
+     },
+     "anomalypulse-experiments": {
+      "read_units": 60.0,
+      "write_units": 140.0
+     },
+     "anomalypulse-fault-config": {
+      "read_units": 60557.5,
+      "write_units": 70.0
+     },
+     "anomalypulse-incidents": {
+      "read_units": 4715.0,
+      "write_units": 18109.0
+     },
+     "anomalypulse-orders": {
+      "read_units": 77778.5,
+      "write_units": 133279.0
+     },
+     "anomalypulse-products-v2": {
+      "read_units": 2594618.0,
+      "write_units": 0.0
+     }
+    }
+   }
+  },
+  "batch-20261116T133158Z-7dc6": {
+   "start": "2026-11-16T13:31:00+00:00",
+   "end": "2026-11-16T17:08:00+00:00",
+   "minutes": 217,
+   "attempts": 21,
+   "accepted": 20,
+   "usage": {
+    "api": 554620,
+    "functions": {
+     "anomalypulse-cart": {
+      "invocations": 55241,
+      "gb_s": 2307.89,
+      "log_bytes": 41750713
+     },
+     "anomalypulse-dashboard": {
+      "invocations": 0,
+      "gb_s": 0.0,
+      "log_bytes": 0
+     },
+     "anomalypulse-diagnosis": {
+      "invocations": 210,
+      "gb_s": 5.31,
+      "log_bytes": 263503
+     },
+     "anomalypulse-explain": {
+      "invocations": 27,
+      "gb_s": 345.45,
+      "log_bytes": 15498
+     },
+     "anomalypulse-incidents": {
+      "invocations": 210,
+      "gb_s": 356.68,
+      "log_bytes": 123152
+     },
+     "anomalypulse-metrics-extractor": {
+      "invocations": 217,
+      "gb_s": 153.46,
+      "log_bytes": 75732
+     },
+     "anomalypulse-order": {
+      "invocations": 83075,
+      "gb_s": 19442.42,
+      "log_bytes": 63542554
+     },
+     "anomalypulse-payment": {
+      "invocations": 27714,
+      "gb_s": 14541.88,
+      "log_bytes": 21162427
+     },
+     "anomalypulse-pipeline-aggregator": {
+      "invocations": 6650,
+      "gb_s": 82.13,
+      "log_bytes": 2277600
+     },
+     "anomalypulse-pipeline-forwarder": {
+      "invocations": 19022,
+      "gb_s": 97.01,
+      "log_bytes": 6515220
+     },
+     "anomalypulse-pipeline-window-builder": {
+      "invocations": 217,
+      "gb_s": 511.89,
+      "log_bytes": 75549
+     },
+     "anomalypulse-product": {
+      "invocations": 416304,
+      "gb_s": 80093.67,
+      "log_bytes": 317777227
+     },
+     "anomalypulse-stub-501": {
+      "invocations": 0,
+      "gb_s": 0.0,
+      "log_bytes": 0
+     },
+     "anomalypulse-telemetry-shipper": {
+      "invocations": 19022,
+      "gb_s": 1097.89,
+      "log_bytes": 6537403
+     }
+    },
+    "tables": {
+     "anomalypulse-carts": {
+      "read_units": 0.0,
+      "write_units": 55241.0
+     },
+     "anomalypulse-experiments": {
+      "read_units": 22.0,
+      "write_units": 42.0
+     },
+     "anomalypulse-fault-config": {
+      "read_units": 14594.0,
+      "write_units": 20.0
+     },
+     "anomalypulse-incidents": {
+      "read_units": 1420.0,
+      "write_units": 5511.0
+     },
+     "anomalypulse-orders": {
+      "read_units": 27680.5,
+      "write_units": 26225.0
+     },
+     "anomalypulse-products-v2": {
+      "read_units": 978805.0,
+      "write_units": 0.0
+     }
+    }
+   }
+  }
+ }
+}

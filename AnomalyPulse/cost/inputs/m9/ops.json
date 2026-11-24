@@ -1,0 +1,634 @@
+{
+ "batch-20261113T224227Z-83c9": {
+  "period_s": 85380,
+  "api": {
+   "latency_p50": 15.931,
+   "latency_p95": 1408.959,
+   "latency_p99": 3971.066,
+   "latency_maximum": 29001.0,
+   "count": 3055977.0,
+   "4xxerror": 150.0,
+   "5xxerror": 65260.0,
+   "requests_per_minute_mean": 2147.6,
+   "requests_per_minute_max": 14557.0
+  },
+  "functions": {
+   "anomalypulse-cart": {
+    "duration_p50": 5.932,
+    "duration_p95": 11.659,
+    "duration_p99": 1493.091,
+    "duration_maximum": 1666.91,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 59.0
+   },
+   "anomalypulse-dashboard": {
+    "duration_p50": null,
+    "duration_p95": null,
+    "duration_p99": null,
+    "duration_maximum": null,
+    "errors": null,
+    "throttles": null,
+    "concurrency_max": null
+   },
+   "anomalypulse-diagnosis": {
+    "duration_p50": 9.794,
+    "duration_p95": 19.145,
+    "duration_p99": 22.549,
+    "duration_maximum": 2562.83,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-explain": {
+    "duration_p50": 26222.201,
+    "duration_p95": 45577.103,
+    "duration_p99": 50598.855,
+    "duration_maximum": 56237.79,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-incidents": {
+    "duration_p50": 48.851,
+    "duration_p95": 29554.047,
+    "duration_p99": 44878.786,
+    "duration_maximum": 56618.83,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-metrics-extractor": {
+    "duration_p50": 402.601,
+    "duration_p95": 458.596,
+    "duration_p99": 488.104,
+    "duration_maximum": 648.29,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-order": {
+    "duration_p50": 16.244,
+    "duration_p95": 3918.191,
+    "duration_p99": 4389.334,
+    "duration_maximum": 7513.59,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 332.0
+   },
+   "anomalypulse-payment": {
+    "duration_p50": 1.522,
+    "duration_p95": 4176.1,
+    "duration_p99": 4400.965,
+    "duration_maximum": 4473.6,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 330.0
+   },
+   "anomalypulse-pipeline-aggregator": {
+    "duration_p50": 38.672,
+    "duration_p95": 97.96,
+    "duration_p99": 154.556,
+    "duration_maximum": 360.07,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 4.0
+   },
+   "anomalypulse-pipeline-forwarder": {
+    "duration_p50": 14.303,
+    "duration_p95": 34.001,
+    "duration_p99": 96.736,
+    "duration_maximum": 901.1,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 16.0
+   },
+   "anomalypulse-pipeline-window-builder": {
+    "duration_p50": 4036.253,
+    "duration_p95": 8186.057,
+    "duration_p99": 10343.267,
+    "duration_maximum": 14286.81,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-product": {
+    "duration_p50": 5.203,
+    "duration_p95": 171.693,
+    "duration_p99": 3089.746,
+    "duration_maximum": 4831.88,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 328.0
+   },
+   "anomalypulse-stub-501": {
+    "duration_p50": null,
+    "duration_p95": null,
+    "duration_p99": null,
+    "duration_maximum": null,
+    "errors": null,
+    "throttles": null,
+    "concurrency_max": null
+   },
+   "anomalypulse-telemetry-shipper": {
+    "duration_p50": 31.518,
+    "duration_p95": 40.968,
+    "duration_p99": 65.896,
+    "duration_maximum": 3073.87,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 16.0
+   }
+  },
+  "queue": {
+   "NumberOfMessagesSent": 160803.0,
+   "NumberOfMessagesDeleted": 160805.0,
+   "ApproximateNumberOfMessagesVisible": 1.0,
+   "ApproximateAgeOfOldestMessage": 19.0,
+   "visible_minute_median": 0.0,
+   "visible_minute_max": 1.0,
+   "age_s_minute_median": 5.0,
+   "age_s_minute_max": 19.0
+  },
+  "failure_queues": {
+   "anomalypulse-telemetry-dlq": 0.0,
+   "anomalypulse-telemetry-undelivered": 0.0,
+   "anomalypulse-diagnosis-failed": 0.0,
+   "anomalypulse-incidents-failed": 0.0
+  }
+ },
+ "batch-20261114T231040Z-9394": {
+  "period_s": 85380,
+  "api": {
+   "latency_p50": 15.546,
+   "latency_p95": 874.02,
+   "latency_p99": 3211.58,
+   "latency_maximum": 5788.0,
+   "count": 3130777.0,
+   "4xxerror": 158.0,
+   "5xxerror": 57129.0,
+   "requests_per_minute_mean": 2200.1,
+   "requests_per_minute_max": 13283.0
+  },
+  "functions": {
+   "anomalypulse-cart": {
+    "duration_p50": 5.976,
+    "duration_p95": 11.232,
+    "duration_p99": 857.267,
+    "duration_maximum": 1542.84,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 36.0
+   },
+   "anomalypulse-dashboard": {
+    "duration_p50": null,
+    "duration_p95": null,
+    "duration_p99": null,
+    "duration_maximum": null,
+    "errors": null,
+    "throttles": null,
+    "concurrency_max": null
+   },
+   "anomalypulse-diagnosis": {
+    "duration_p50": 9.241,
+    "duration_p95": 19.137,
+    "duration_p99": 24.845,
+    "duration_maximum": 2302.09,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-explain": {
+    "duration_p50": 25121.319,
+    "duration_p95": 39093.494,
+    "duration_p99": 44601.61,
+    "duration_maximum": 46083.7,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-incidents": {
+    "duration_p50": 48.509,
+    "duration_p95": 28098.222,
+    "duration_p99": 36797.654,
+    "duration_maximum": 46475.02,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-metrics-extractor": {
+    "duration_p50": 393.851,
+    "duration_p95": 443.359,
+    "duration_p99": 479.118,
+    "duration_maximum": 1397.93,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-order": {
+    "duration_p50": 15.749,
+    "duration_p95": 2007.565,
+    "duration_p99": 4171.091,
+    "duration_maximum": 5367.19,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 131.0
+   },
+   "anomalypulse-payment": {
+    "duration_p50": 1.514,
+    "duration_p95": 3717.649,
+    "duration_p99": 4259.226,
+    "duration_maximum": 4573.06,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 127.0
+   },
+   "anomalypulse-pipeline-aggregator": {
+    "duration_p50": 39.671,
+    "duration_p95": 110.18,
+    "duration_p99": 169.306,
+    "duration_maximum": 453.0,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 4.0
+   },
+   "anomalypulse-pipeline-forwarder": {
+    "duration_p50": 14.438,
+    "duration_p95": 35.0,
+    "duration_p99": 99.329,
+    "duration_maximum": 1052.31,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 14.0
+   },
+   "anomalypulse-pipeline-window-builder": {
+    "duration_p50": 4090.525,
+    "duration_p95": 8643.195,
+    "duration_p99": 10550.676,
+    "duration_maximum": 12603.5,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-product": {
+    "duration_p50": 5.154,
+    "duration_p95": 384.549,
+    "duration_p99": 3100.631,
+    "duration_maximum": 4802.37,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 256.0
+   },
+   "anomalypulse-stub-501": {
+    "duration_p50": null,
+    "duration_p95": null,
+    "duration_p99": null,
+    "duration_maximum": null,
+    "errors": null,
+    "throttles": null,
+    "concurrency_max": null
+   },
+   "anomalypulse-telemetry-shipper": {
+    "duration_p50": 30.838,
+    "duration_p95": 40.321,
+    "duration_p99": 64.911,
+    "duration_maximum": 1408.82,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 13.0
+   }
+  },
+  "queue": {
+   "NumberOfMessagesSent": 152807.0,
+   "NumberOfMessagesDeleted": 152807.0,
+   "ApproximateNumberOfMessagesVisible": 1.0,
+   "ApproximateAgeOfOldestMessage": 20.0,
+   "visible_minute_median": 0.0,
+   "visible_minute_max": 1.0,
+   "age_s_minute_median": 4.0,
+   "age_s_minute_max": 20.0
+  },
+  "failure_queues": {
+   "anomalypulse-telemetry-dlq": null,
+   "anomalypulse-telemetry-undelivered": null,
+   "anomalypulse-diagnosis-failed": null,
+   "anomalypulse-incidents-failed": null
+  }
+ },
+ "batch-20261116T012700Z-da71": {
+  "period_s": 42840,
+  "api": {
+   "latency_p50": 15.83,
+   "latency_p95": 1366.809,
+   "latency_p99": 3662.726,
+   "latency_maximum": 5625.0,
+   "count": 1569072.0,
+   "4xxerror": 88.0,
+   "5xxerror": 34172.0,
+   "requests_per_minute_mean": 2197.6,
+   "requests_per_minute_max": 11986.0
+  },
+  "functions": {
+   "anomalypulse-cart": {
+    "duration_p50": 5.915,
+    "duration_p95": 10.633,
+    "duration_p99": 1504.067,
+    "duration_maximum": 1604.8,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 46.0
+   },
+   "anomalypulse-dashboard": {
+    "duration_p50": null,
+    "duration_p95": null,
+    "duration_p99": null,
+    "duration_maximum": null,
+    "errors": null,
+    "throttles": null,
+    "concurrency_max": null
+   },
+   "anomalypulse-diagnosis": {
+    "duration_p50": 9.48,
+    "duration_p95": 18.878,
+    "duration_p99": 27.889,
+    "duration_maximum": 2603.31,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-explain": {
+    "duration_p50": 25373.408,
+    "duration_p95": 42080.447,
+    "duration_p99": 45201.46,
+    "duration_maximum": 45898.79,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-incidents": {
+    "duration_p50": 48.9,
+    "duration_p95": 27421.063,
+    "duration_p99": 40483.85,
+    "duration_maximum": 45976.89,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-metrics-extractor": {
+    "duration_p50": 394.348,
+    "duration_p95": 442.274,
+    "duration_p99": 473.508,
+    "duration_maximum": 636.15,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-order": {
+    "duration_p50": 16.006,
+    "duration_p95": 3629.831,
+    "duration_p99": 4099.521,
+    "duration_maximum": 5582.51,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 152.0
+   },
+   "anomalypulse-payment": {
+    "duration_p50": 1.513,
+    "duration_p95": 3841.685,
+    "duration_p99": 4219.621,
+    "duration_maximum": 4389.75,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 150.0
+   },
+   "anomalypulse-pipeline-aggregator": {
+    "duration_p50": 38.435,
+    "duration_p95": 97.917,
+    "duration_p99": 154.869,
+    "duration_maximum": 689.98,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 3.0
+   },
+   "anomalypulse-pipeline-forwarder": {
+    "duration_p50": 14.968,
+    "duration_p95": 34.36,
+    "duration_p99": 101.917,
+    "duration_maximum": 1054.54,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 11.0
+   },
+   "anomalypulse-pipeline-window-builder": {
+    "duration_p50": 4102.841,
+    "duration_p95": 8751.086,
+    "duration_p99": 10495.99,
+    "duration_maximum": 12023.08,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-product": {
+    "duration_p50": 5.181,
+    "duration_p95": 771.837,
+    "duration_p99": 3087.414,
+    "duration_maximum": 4119.13,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 229.0
+   },
+   "anomalypulse-stub-501": {
+    "duration_p50": null,
+    "duration_p95": null,
+    "duration_p99": null,
+    "duration_maximum": null,
+    "errors": null,
+    "throttles": null,
+    "concurrency_max": null
+   },
+   "anomalypulse-telemetry-shipper": {
+    "duration_p50": 31.234,
+    "duration_p95": 40.433,
+    "duration_p99": 65.0,
+    "duration_maximum": 275.34,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 12.0
+   }
+  },
+  "queue": {
+   "NumberOfMessagesSent": 83576.0,
+   "NumberOfMessagesDeleted": 83572.0,
+   "ApproximateNumberOfMessagesVisible": 0.0,
+   "ApproximateAgeOfOldestMessage": 17.0,
+   "visible_minute_median": 0.0,
+   "visible_minute_max": 0.0,
+   "age_s_minute_median": 5.0,
+   "age_s_minute_max": 17.0
+  },
+  "failure_queues": {
+   "anomalypulse-telemetry-dlq": null,
+   "anomalypulse-telemetry-undelivered": null,
+   "anomalypulse-diagnosis-failed": null,
+   "anomalypulse-incidents-failed": null
+  }
+ },
+ "batch-20261116T133158Z-7dc6": {
+  "period_s": 13020,
+  "api": {
+   "latency_p50": 15.722,
+   "latency_p95": 38.262,
+   "latency_p99": 3103.556,
+   "latency_maximum": 6565.0,
+   "count": 554620.0,
+   "4xxerror": 41.0,
+   "5xxerror": 2628.0,
+   "requests_per_minute_mean": 2555.9,
+   "requests_per_minute_max": 14114.0
+  },
+  "functions": {
+   "anomalypulse-cart": {
+    "duration_p50": 6.088,
+    "duration_p95": 9.516,
+    "duration_p99": 57.931,
+    "duration_maximum": 1844.57,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 11.0
+   },
+   "anomalypulse-dashboard": {
+    "duration_p50": null,
+    "duration_p95": null,
+    "duration_p99": null,
+    "duration_maximum": null,
+    "errors": null,
+    "throttles": null,
+    "concurrency_max": null
+   },
+   "anomalypulse-diagnosis": {
+    "duration_p50": 9.062,
+    "duration_p95": 18.854,
+    "duration_p99": 21.085,
+    "duration_maximum": 1776.65,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-explain": {
+    "duration_p50": 24220.061,
+    "duration_p95": 40660.737,
+    "duration_p99": 41221.161,
+    "duration_maximum": 41362.47,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-incidents": {
+    "duration_p50": 52.429,
+    "duration_p95": 25402.214,
+    "duration_p99": 40448.015,
+    "duration_maximum": 41735.16,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-metrics-extractor": {
+    "duration_p50": 410.646,
+    "duration_p95": 449.336,
+    "duration_p99": 477.017,
+    "duration_maximum": 484.2,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-order": {
+    "duration_p50": 5.044,
+    "duration_p95": 25.848,
+    "duration_p99": 5188.628,
+    "duration_maximum": 6045.29,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 16.0
+   },
+   "anomalypulse-payment": {
+    "duration_p50": 1.512,
+    "duration_p95": 4883.567,
+    "duration_p99": 5354.493,
+    "duration_maximum": 5390.8,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 14.0
+   },
+   "anomalypulse-pipeline-aggregator": {
+    "duration_p50": 37.611,
+    "duration_p95": 109.323,
+    "duration_p99": 157.583,
+    "duration_maximum": 402.29,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 4.0
+   },
+   "anomalypulse-pipeline-forwarder": {
+    "duration_p50": 15.741,
+    "duration_p95": 45.03,
+    "duration_p99": 108.211,
+    "duration_maximum": 1605.4,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 6.0
+   },
+   "anomalypulse-pipeline-window-builder": {
+    "duration_p50": 4044.409,
+    "duration_p95": 9889.407,
+    "duration_p99": 11636.347,
+    "duration_maximum": 11936.7,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 1.0
+   },
+   "anomalypulse-product": {
+    "duration_p50": 5.393,
+    "duration_p95": 18.422,
+    "duration_p99": 3084.162,
+    "duration_maximum": 3254.97,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 51.0
+   },
+   "anomalypulse-stub-501": {
+    "duration_p50": null,
+    "duration_p95": null,
+    "duration_p99": null,
+    "duration_maximum": null,
+    "errors": null,
+    "throttles": null,
+    "concurrency_max": null
+   },
+   "anomalypulse-telemetry-shipper": {
+    "duration_p50": 32.067,
+    "duration_p95": 42.965,
+    "duration_p99": 66.757,
+    "duration_maximum": 531.3,
+    "errors": 0.0,
+    "throttles": 0.0,
+    "concurrency_max": 6.0
+   }
+  },
+  "queue": {
+   "NumberOfMessagesSent": 21123.0,
+   "NumberOfMessagesDeleted": 21123.0,
+   "ApproximateNumberOfMessagesVisible": 1.0,
+   "ApproximateAgeOfOldestMessage": 20.0,
+   "visible_minute_median": 0.0,
+   "visible_minute_max": 1.0,
+   "age_s_minute_median": 5.0,
+   "age_s_minute_max": 20.0
+  },
+  "failure_queues": {
+   "anomalypulse-telemetry-dlq": null,
+   "anomalypulse-telemetry-undelivered": null,
+   "anomalypulse-diagnosis-failed": null,
+   "anomalypulse-incidents-failed": null
+  }
+ }
+}

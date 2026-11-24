@@ -1,0 +1,45 @@
+{
+ "batch-20261113T224227Z-83c9": {
+  "incidents": 119,
+  "bedrock_calls": 206,
+  "types": {
+   "CASCADING_FAILURE": 20,
+   "DATABASE_THROTTLING": 27,
+   "DEPENDENCY_FAILURE": 16,
+   "LAMBDA_DEGRADATION": 24,
+   "TRAFFIC_SPIKE": 32
+  }
+ },
+ "batch-20261114T231040Z-9394": {
+  "incidents": 118,
+  "bedrock_calls": 206,
+  "types": {
+   "CASCADING_FAILURE": 20,
+   "DATABASE_THROTTLING": 28,
+   "DEPENDENCY_FAILURE": 17,
+   "LAMBDA_DEGRADATION": 23,
+   "TRAFFIC_SPIKE": 30
+  }
+ },
+ "batch-20261116T012700Z-da71": {
+  "incidents": 59,
+  "bedrock_calls": 103,
+  "types": {
+   "CASCADING_FAILURE": 11,
+   "DATABASE_THROTTLING": 13,
+   "DEPENDENCY_FAILURE": 8,
+   "LAMBDA_DEGRADATION": 12,
+   "TRAFFIC_SPIKE": 15
+  }
+ },
+ "batch-20261116T133158Z-7dc6": {
+  "incidents": 21,
+  "bedrock_calls": 27,
+  "types": {
+   "DATABASE_THROTTLING": 6,
+   "DEPENDENCY_FAILURE": 5,
+   "LAMBDA_DEGRADATION": 5,
+   "TRAFFIC_SPIKE": 5
+  }
+ }
+}
