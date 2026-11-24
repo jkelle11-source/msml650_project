@@ -93,6 +93,9 @@ cascade and the wrong windows are in [`Docs/M5-3_REPORT.md`](../Docs/M5-3_REPORT
 the tuned logistic regression, not XGBoost** (decided 2026-10-31). It scored the higher validation
 macro-F1 (0.9923 against the tuned XGBoost's 0.9871), and every difference between them is in a fault's
 first minute. M9 reports every classifier on the test set, and the choice is not revisited on test numbers.
+*M9-3 did ([`Docs/M9-3_REPORT.md`](../Docs/M9-3_REPORT.md), "Every classifier, six classes"): on the test set the
+tree models fall further than logistic regression (macro-F1 0.61–0.70 against 0.869), each calling every
+dependency-failure window a cascade.*
 
 **Definition of Done**
 - [x] Threshold baseline implemented and its metrics recorded as the floor.
