@@ -1,0 +1,84 @@
+{
+ "note": "Monthly AWS cost at list price by request rate, from M9-1's measured unit costs (cost/measured.py, Docs/COST_AND_PERFORMANCE.md). 'app' is the monitored store, 'anomalypulse' what monitoring it adds; always_free is every account's always-free allowance, one line.",
+ "incidents_per_month": 30,
+ "hours_per_month": 730,
+ "rows": [
+  {
+   "rps": 1,
+   "requests": 2628000,
+   "incidents": 30,
+   "app": 32.0812,
+   "anomalypulse": 24.3329,
+   "total": 56.4141,
+   "anomalypulse_share": 0.4313,
+   "always_free": -19.6474,
+   "total_after_free": 36.7667
+  },
+  {
+   "rps": 2,
+   "requests": 5256000,
+   "incidents": 30,
+   "app": 42.7194,
+   "anomalypulse": 26.9865,
+   "total": 69.7059,
+   "anomalypulse_share": 0.3871,
+   "always_free": -21.2312,
+   "total_after_free": 48.4747
+  },
+  {
+   "rps": 5,
+   "requests": 13140000,
+   "incidents": 30,
+   "app": 74.6341,
+   "anomalypulse": 34.947,
+   "total": 109.5812,
+   "anomalypulse_share": 0.3189,
+   "always_free": -23.109,
+   "total_after_free": 86.4722
+  },
+  {
+   "rps": 10,
+   "requests": 26280000,
+   "incidents": 30,
+   "app": 127.8253,
+   "anomalypulse": 48.2147,
+   "total": 176.04,
+   "anomalypulse_share": 0.2739,
+   "always_free": -24.0241,
+   "total_after_free": 152.0159
+  },
+  {
+   "rps": 20,
+   "requests": 52560000,
+   "incidents": 30,
+   "app": 234.2076,
+   "anomalypulse": 74.7499,
+   "total": 308.9575,
+   "anomalypulse_share": 0.2419,
+   "always_free": -24.0241,
+   "total_after_free": 284.9335
+  },
+  {
+   "rps": 50,
+   "requests": 131400000,
+   "incidents": 30,
+   "app": 553.3546,
+   "anomalypulse": 154.3557,
+   "total": 707.7103,
+   "anomalypulse_share": 0.2181,
+   "always_free": -24.0241,
+   "total_after_free": 683.6862
+  },
+  {
+   "rps": 100,
+   "requests": 262800000,
+   "incidents": 30,
+   "app": 1085.2662,
+   "anomalypulse": 287.0319,
+   "total": 1372.2982,
+   "anomalypulse_share": 0.2092,
+   "always_free": -24.0241,
+   "total_after_free": 1348.2741
+  }
+ ]
+}
