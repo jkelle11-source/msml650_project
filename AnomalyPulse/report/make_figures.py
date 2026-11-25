@@ -4,16 +4,19 @@
 
 Reads (never writes) the M9-2 / M9-3 / M9-1 / M9-6 result files, and writes each figure as PNG and SVG to
 Docs/images/m9-6/. Nothing is typed in by hand: every number on a figure comes from a result file, so a rerun
-after a new evaluation redraws the whole set.
+after a new evaluation redraws the whole set. Drawn with matplotlib 3.11.2 (report/requirements.txt); another
+version can move a label by a pixel.
 
 Style: plain report style (white, large type, high contrast) so the figures read on a slide projector and in the
-written report. Colours are the validated blue / orange / aqua from the dataviz palette; every bar carries its
-value as a label, so no meaning rests on colour alone.
+written report. Colours are the validated categorical slots from the dataviz palette, and keep one meaning across
+the set: blue is AnomalyPulse, red a problem (false alarms, the degraded class, its largest confusion), and orange
+only CloudWatch's settle in figure 6. Every mark carries its value as a label, so no meaning rests on colour alone.
 """
 
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import matplotlib
@@ -42,7 +45,7 @@ FIGURES = (
     "fig6_latency_breakdown",
 )
 
-BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
+BLUE, ORANGE, AQUA, VIOLET, GOLD, RED = "#2a78d6", "#eb6834", "#1baf7a", "#6250d6", "#c98500", "#d03b3b"
 INK, SECOND, GRID, MUTED = "#0b0b0b", "#52514e", "#dcdbd7", "#8a8985"
 
 PRETTY = {
@@ -57,6 +60,7 @@ PRETTY = {
     "payment-failure": "Dependency failure\n(payment failure)",
     "traffic-spike": "Traffic spike",
 }
+WORDS = {1: "One", 2: "Two", 3: "Three", 4: "All four"}
 
 
 def load() -> dict:
@@ -85,6 +89,7 @@ def style() -> None:
             "axes.grid": False,
             "legend.frameon": False,
             "svg.fonttype": "none",
+            "svg.hashsalt": "m9-6",     # fixed element ids, so a rerun writes the same SVG
         }
     )
 
@@ -94,7 +99,8 @@ def save(fig, name: str, out_dir: Path) -> list[Path]:
     paths = []
     for ext in ("png", "svg"):
         path = out_dir / f"{name}.{ext}"
-        fig.savefig(path, dpi=200, bbox_inches="tight")
+        # No timestamp in the SVG, so a rerun on the same inputs writes the same bytes.
+        fig.savefig(path, dpi=200, bbox_inches="tight", metadata={"Date": None} if ext == "svg" else None)
         paths.append(path)
     plt.close(fig)
     return paths
@@ -102,7 +108,7 @@ def save(fig, name: str, out_dir: Path) -> list[Path]:
 
 def rnd(x: float) -> int:
     """Round half up (Python rounds 74.5 to 74)."""
-    return int(x + 0.5)
+    return int(math.floor(x + 0.5))
 
 
 def pct(x: float, digits: int = 0) -> str:
@@ -120,6 +126,13 @@ def header(fig, title: str) -> None:
     fig.text(0.01, 1.0, title, fontsize=17, fontweight="bold", ha="left", va="bottom")
 
 
+def cell_text(v: float) -> str:
+    """A cell's label: blank for none, "<1%" for a few windows, else the rounded share."""
+    if v == 0:
+        return ""
+    return "<1%" if v < 0.005 else pct(v)
+
+
 def confusion_matrix(data: dict, out_dir: Path) -> list[Path]:
     cls = data["m9_2"]["classification"]["incident_type"]["headline"]
     classes, matrix = cls["classes"], cls["confusion"]
@@ -133,11 +146,10 @@ def confusion_matrix(data: dict, out_dir: Path) -> list[Path]:
     for a_ in range(n):
         for b_ in range(n):
             v = share[a_][b_]
-            if v < 0.01:
-                continue
-            ax.text(b_, a_, pct(v), ha="center", va="center", fontsize=14,
-                    color="white" if v > 0.4 else INK, fontweight="bold" if a_ == b_ else "normal")
-    ax.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False, edgecolor=ORANGE, lw=4))
+            ax.text(b_, a_, cell_text(v), ha="center", va="center", fontsize=14 if v >= 0.005 else 11.5,
+                    color="white" if v > 0.6 else (INK if v >= 0.005 else SECOND),
+                    fontweight="bold" if a_ == b_ or (a_, b_) == (i, j) else "normal")
+    ax.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False, edgecolor=RED, lw=4))
     ax.set_xticks(range(n), [PRETTY[c].replace(" ", "\n", 1) if " " in PRETTY[c] else PRETTY[c] for c in classes], fontsize=10.5, va="top")
     ax.set_yticks(range(n), [PRETTY[c] for c in classes], fontsize=12)
     ax.set_xlabel("What the classifier said", labelpad=10)
@@ -149,14 +161,14 @@ def confusion_matrix(data: dict, out_dir: Path) -> list[Path]:
         fig,
         f"{PRETTY[classes[i]]} is mistaken for {PRETTY[classes[j]].lower()} {pct(s)} of the time",
     )
-    footnote(fig, f"Test set: {cls['windows']:,} windows. Overall accuracy {pct(cls['accuracy'])}.", y=-0.06)
+    few = sorted({matrix[a_][b_] for a_ in range(n) for b_ in range(n) if 0 < share[a_][b_] < 0.005})
+    few_text = (f" <1%: {few[0]} to {few[-1]} windows." if len(few) > 1 else f" <1%: {few[0]} window{'s' * (few[0] > 1)}.") if few else ""
+    footnote(fig, f"Share of each row's windows. Test set: {cls['windows']:,} windows. Overall accuracy {pct(cls['accuracy'])}.{few_text}",
+             y=-0.06)
     return save(fig, FIGURES[0], out_dir)
 
 
 # --------------------------------------------------------------------------------------------------------- 2
-
-GOLD, RED = "#c98500", "#d03b3b"
-
 
 def shell(ax, x0: float, y0: float, w: float, h: float, tag: str, glyph: str, color: str, shade: str = "white") -> None:
     """The rounded white card with a soft shadow and a small tag (coloured icon + grey label) at its top."""
@@ -205,137 +217,263 @@ def detection(data: dict, out_dir: Path) -> list[Path]:
     ax.set_xlim(0, 13), ax.set_ylim(0, 7.3), ax.axis("off")
     card(ax, 0.3, "FAULTS CAUGHT", "\u2713", BLUE, "Real faults:", "Caught by the\nlive detector", caught, f"{pct(caught, 1)} caught")
     card(ax, 4.55, "FOREST ALONE", "!", GOLD, "Healthy windows:", "Flagged by\nIsolation Forest alone", wrong["iforest"], f"{pct(wrong['iforest'])} flagged as faults", shade="#f4f3f0")
-    card(ax, 8.8, "FALSE ALARMS", "\u00d7", RED, "Healthy windows:", "Wrongly flagged by the\nlive detector", wrong["deployed"], f"Only {pct(wrong['deployed'], 1)} wrongly flagged")
-    ax.text(0.3, 7.0, f"The live detector catches {pct(caught, 1)} of faults and wrongly flags only {pct(wrong['deployed'], 1)} of healthy windows",
+    card(ax, 8.8, "FALSE ALARMS", "\u00d7", RED, "Healthy windows:", "Wrongly flagged by the\nlive detector", wrong["deployed"], f"{pct(wrong['deployed'], 1)} wrongly flagged")
+    ax.text(0.3, 7.0, f"The live detector catches {pct(caught, 1)} of faults and wrongly flags {pct(wrong['deployed'], 1)} of healthy windows",
             fontsize=16, fontweight="bold", va="center")
     h = det["deployed"]["headline"]
     ax.text(0.3, 0.1, f"One dot = one window out of 100. Filled = flagged as a fault. Test set: {h['windows']:,} windows ({h['normal_windows']['healthy']} healthy).",
             fontsize=11.5, color=SECOND, va="center")
+    if wrong["iforest"] >= 0.999:
+        ax.text(0.3, -0.22, "The live detector flags a window when the forest does and the classifier names a fault. The forest flags every "
+                "test window, so here its verdict is the classifier's:\nthe same numbers as the AnomalyPulse classifier in figure 4.",
+                fontsize=11.5, color=SECOND, va="top", linespacing=1.3)
     return save(fig, FIGURES[1], out_dir)
 
 
 # --------------------------------------------------------------------------------------------------------- 3
 
+BAND_UNITS = {
+    "db-throttling": "{}\u2013{}\u00d7 offered load",
+    "lambda-degradation": "+{}\u2013{} ms latency",
+    "traffic-spike": "{}\u2013{}\u00d7 traffic",
+    "payment-failure": "{}\u2013{} ms timeout",
+}
+ROLES = (("interpolation", "Between the training bands"), ("mild extrapolation", "Just above the training range"))
+
+
+def band_text(injector: str, band: list) -> str:
+    return BAND_UNITS[injector].format(*(f"{x:,g}" for x in band))
+
+
 def per_band(data: dict, out_dir: Path) -> list[Path]:
     rows = [r for r in data["m9_2"]["per_band"]["rows"] if r["family"] == "classification" and r["model"] == "incident_type"]
     order = ["db-throttling", "lambda-degradation", "traffic-spike", "payment-failure"]
     names = {"db-throttling": "Database\nthrottling", "lambda-degradation": "Lambda\ndegradation", "traffic-spike": "Traffic\nspike", "payment-failure": "Dependency\nfailure"}
-    roles = [("interpolation", "Same strength as in training"), ("mild extrapolation", "Slightly stronger than in training")]
 
-    fig = plt.figure(figsize=(13, 5.9))
+    fig = plt.figure(figsize=(13, 6.6))
     ax = fig.add_axes([0, 0, 1, 1])
-    ax.set_xlim(0, 13), ax.set_ylim(0, 5.9), ax.axis("off")
-    w, gap, y0, h = 2.9, 0.28, 0.95, 4.4
+    ax.set_xlim(0, 13), ax.set_ylim(0, 6.6), ax.axis("off")
+    w, gap, y0, h = 2.9, 0.28, 1.05, 4.95
     yt = y0 + h
+    bad_names, bad_recalls = [], []
     for k, inj in enumerate(order):
         x0 = 0.3 + k * (w + gap)
-        mine = {role: next(r for r in rows if r["injector"] == inj and r["role"] == role) for role, _ in roles}
+        mine = {role: next(r for r in rows if r["injector"] == inj and r["role"] == role) for role, _ in ROLES}
         bad = any(r["vs_validation"]["status"] == "degraded" for r in mine.values())
         color = RED if bad else BLUE
-        shell(ax, x0, y0, w, h, "FLAGGED" if bad else "STEADY", "\u00d7" if bad else "\u2713", color)
+        shell(ax, x0, y0, w, h, "DEGRADED" if bad else "HOLDS", "\u00d7" if bad else "\u2713", color)
         for line_no, line in enumerate(names[inj].split("\n")):
             ax.text(x0 + 0.4, yt - 0.95 - 0.29 * line_no, line, fontsize=13.5, fontweight="bold", va="center", zorder=3)
-        for j, (role, label) in enumerate(roles):
+        for j, (role, label) in enumerate(ROLES):
             r = mine[role]
-            top = yt - 1.9 - j * 1.05
+            top = yt - 1.85 - j * 1.3
             ax.text(x0 + 0.4, top, label, fontsize=10, color=SECOND, va="center", zorder=3)
-            ax.text(x0 + 0.4, top - 0.4, pct(r["recall"]), fontsize=20, fontweight="bold", color=color, va="center", zorder=3)
+            ax.text(x0 + 0.4, top - 0.28, band_text(inj, r["band"]), fontsize=10, color=SECOND, va="center", zorder=3)
+            ax.text(x0 + 0.4, top - 0.72, pct(r["recall"]), fontsize=20, fontweight="bold", color=color, va="center", zorder=3)
+        ref = mine["interpolation"]["vs_validation"]["ref_recall"]
         if bad:
             gaps = [100 * r["vs_validation"]["gap"] for r in mine.values()]
-            ax.text(x0 + 0.4, y0 + 0.5, f"{min(gaps):.0f}\u2013{max(gaps):.0f} points below\nvalidation recall", fontsize=10.5, fontweight="bold", color=RED, va="center", zorder=3)
-    ax.text(0.3, 5.6, "Fault intensity barely changes accuracy, except for dependency failures", fontsize=14.5, fontweight="bold", va="center")
-    ax.text(0.3, 0.5, "Percentages: the share of each fault's windows the classifier names correctly.", fontsize=10, color=SECOND, va="center")
-    ax.text(0.3, 0.22, "The second row tests whether the model generalizes: slightly stronger faults than the model was trained on.", fontsize=10, color=SECOND, va="center")
+            bad_names.append(PRETTY[mine["interpolation"]["label"]].lower())
+            bad_recalls += [r["recall"] for r in mine.values()]
+            ax.text(x0 + 0.4, y0 + 0.5, f"{min(gaps):.0f}\u2013{max(gaps):.0f} points below\nvalidation ({pct(ref)})", fontsize=10.5, fontweight="bold", color=RED, va="center", zorder=3)
+        else:
+            ax.text(x0 + 0.4, y0 + 0.5, f"Validation: {pct(ref)}", fontsize=10.5, color=SECOND, va="center", zorder=3)
+    good = len(order) - len(bad_names)
+    if bad_names:
+        lo, hi = pct(min(bad_recalls)), pct(max(bad_recalls))
+        title = f"{WORDS[good]} fault types hold up in both held-out bands; {' and '.join(bad_names)} drops to {lo[:-1]}\u2013{hi} in both"
+    else:
+        title = "All four fault types hold up in both held-out bands"
+    ax.text(0.3, 6.3, title, fontsize=14.5, fontweight="bold", va="center")
+    ax.text(0.3, 0.62, "Percentages: the share of each fault's test windows the classifier names correctly. Both bands are held out of training: one lies between "
+            "the two training bands,", fontsize=10, color=SECOND, va="center")
+    ax.text(0.3, 0.36, "the other just above the stronger one. Validation: the same classifier on the validation runs (experiments 561\u2013700), at the "
+            "training bands' strengths.", fontsize=10, color=SECOND, va="center")
+    ax.text(0.3, 0.1, "DEGRADED: more than 10 points below validation, with the band's 95% interval wholly below validation's.",
+            fontsize=10, color=SECOND, va="center")
     return save(fig, FIGURES[2], out_dir)
 
 
 # --------------------------------------------------------------------------------------------------------- 4
 
-def bar_row(ax, bx: float, bw: float, top: float, label: str, value: float, color: str, text: str) -> None:
-    from matplotlib.patches import Rectangle
+def points(diff: float) -> str:
+    """A margin in percentage points: '+53', '+9.3', '0'. One decimal below 10 points, where a point is a large share."""
+    v = 100 * diff
+    if round(v, 1) == 0:
+        return "0"
+    text = f"{v:.1f}" if abs(v) < 10 else f"{rnd(v)}"
+    return f"+{text}" if v > 0 else text
 
-    ax.text(bx, top, label, fontsize=10, color=SECOND, va="center", zorder=3)
-    ax.text(bx, top - 0.36, text, fontsize=18, fontweight="bold", color=color, va="center", zorder=3)
-    ax.add_patch(Rectangle((bx, top - 0.78), bw, 0.12, fc=GRID, ec="none", zorder=2))
-    ax.add_patch(Rectangle((bx, top - 0.78), bw * value, 0.12, fc=color, ec="none", zorder=3))
+
+def margin_text(diff: float, ci: list) -> str:
+    """'+53 [48, 58]': the margin and its 95% interval, the bounds as precise as the margin."""
+    digits = 1 if 0 < abs(round(100 * diff, 1)) < 10 else 0
+
+    def bound(x: float) -> str:
+        return f"{100 * x:.1f}" if digits else f"{rnd(100 * x)}"
+    return f"{points(diff)} [{bound(ci[0])}, {bound(ci[1])}]"
+
+
+def share_text(x: float) -> str:
+    """A share flagged: one decimal under 10% and between 99% and 100%, so 1.5% and 99.9% don't read as 2% and 100%."""
+    return pct(x, 1 if x < 0.1 or 0.99 < x < 1 else 0)
+
+
+def margin_rows(data: dict) -> list[dict]:
+    """Figure 4's rows, top to bottom: all faults, each fault type from the largest margin, then the healthy
+    windows' false alarms. Margins are the classifier minus Model 0 (the 3-window rule), paired by run."""
+    b = data["m9_3"]
+    rule = "model0_earlier_mean_3"
+    det = b["detection"]["headline"]
+    overall = b["margins"]["headline"][rule]
+    rows = [{"label": "All faults", "diff": overall["difference"]["recall"], "ci": overall["ci95"]["recall"],
+             "model0": det[rule]["metrics"]["recall"], "ml": det["classifier_as_detector"]["metrics"]["recall"], "kind": "gain"}]
+    shares = b["share_margins"]["headline"][rule]
+    types = sorted((t for t in shares if t not in ("NORMAL", "healthy")), key=lambda t: -shares[t]["difference"])
+    rows += [{"label": PRETTY[t], "diff": shares[t]["difference"], "ci": shares[t]["ci95"], "model0": shares[t]["baseline"],
+              "ml": shares[t]["ml"], "kind": "gain"} for t in types]
+    h = shares["healthy"]
+    rows.append({"label": "False alarms on\nhealthy windows", "diff": h["difference"], "ci": h["ci95"], "model0": h["baseline"],
+                 "ml": h["ml"], "kind": "price"})
+    return rows
 
 
 def baseline_margins(data: dict, out_dir: Path) -> list[Path]:
     b = data["m9_3"]
-    det = b["detection"]["headline"]
-    rule, ml = det["model0_earlier_mean_3"]["metrics"], det["classifier_as_detector"]["metrics"]
-    gain = b["margins"]["headline"]["model0_earlier_mean_3"]["difference"]["recall"]
-    gain_prev = b["margins"]["headline"]["model0_previous_window"]["difference"]["recall"]
-    cost = b["share_margins"]["headline"]["model0_earlier_mean_3"]["healthy"]["difference"]
+    rows = margin_rows(data)
+    weaker = b["margins"]["headline"]["model0_previous_window"]
+    n = len(rows)
+    ys = [n - k + (0.0 if k < n - 1 else -0.5) for k in range(n)]   # a half-row gap before the false alarms
 
-    fig = plt.figure(figsize=(13, 6.4))
-    ax = fig.add_axes([0, 0, 1, 1])
-    ax.set_xlim(0, 13), ax.set_ylim(0, 6.4), ax.axis("off")
-    w, y0, h = 3.9, 1.15, 4.6
-    yt = y0 + h
-    for x0, tag, glyph, color, heading, key, digits in (
-        (0.3, "FAULTS CAUGHT", "\u2713", BLUE, "Real faults flagged", "recall", 1),
-        (4.55, "FALSE ALARMS", "\u00d7", RED, "Healthy windows\nwrongly flagged", "fpr_healthy", 1),
-    ):
-        shell(ax, x0, y0, w, h, tag, glyph, color)
-        for i, line in enumerate(heading.split("\n")):
-            ax.text(x0 + 0.4, yt - 1.05 - 0.3 * i, line, fontsize=13.5, fontweight="bold", va="center", zorder=3)
-        for j, (label, m, c) in enumerate((("Model 0 (simple threshold rule)", rule, ORANGE), ("AnomalyPulse classifier", ml, BLUE))):
-            bar_row(ax, x0 + 0.4, w - 0.8, yt - 2.0 - j * 1.25, label, m[key], c, pct(m[key], digits))
-    # The gain, in one number.
-    x0 = 8.8
-    shell(ax, x0, y0, w, h, "THE GAIN", "\u2713", BLUE, shade="#f4f3f0")
-    ax.text(x0 + 0.4, yt - 1.05, "More faults caught", fontsize=13.5, fontweight="bold", va="center", zorder=3)
-    ax.text(x0 + 0.4, yt - 1.95, f"+{100 * gain:.0f} points", fontsize=30, fontweight="bold", color=BLUE, va="center", zorder=3)
-    ax.text(x0 + 0.4, yt - 2.6, "than Model 0", fontsize=11, color=SECOND, va="center", zorder=3)
-    ax.text(x0 + 0.4, yt - 3.25, f"+{100 * gain_prev:.0f} points against the\nweaker version of Model 0", fontsize=10.5, color=SECOND, va="center", zorder=3)
-    ax.text(x0 + 0.4, y0 + 0.55, f"The price: {100 * cost:.1f} points more\nfalse alarms on healthy traffic", fontsize=10.5, fontweight="bold", color=RED, va="center", zorder=3)
-    ax.text(0.3, 6.05, f"The AnomalyPulse classifier catches {pct(ml['recall'], 1)} of faults, Model 0 only {pct(rule['recall'])}", fontsize=14.5, fontweight="bold", va="center")
-    ax.text(0.3, 0.8, "Model 0, the simple threshold rule, flags a window when any service's p95 latency is above 2x normal or its 5xx share is above 5%, compared with the mean of the 3 earlier windows.", fontsize=10, color=SECOND, va="center")
-    ax.text(0.3, 0.52, "The weaker version of Model 0 compares with the previous window only. Differences are paired by run.", fontsize=10, color=SECOND, va="center")
+    fig, ax = plt.subplots(figsize=(13, 6.9))
+    fig.subplots_adjust(left=0.19, right=0.64, top=0.8, bottom=0.2)
+    ax.axvline(0, color=SECOND, lw=1.2, zorder=1)
+    for x in (25, 50, 75, 100):
+        ax.axvline(x, color=GRID, lw=0.9, zorder=0)
+    for y, r in zip(ys, rows):
+        color = RED if r["kind"] == "price" else BLUE
+        lo, hi = 100 * r["ci"][0], 100 * r["ci"][1]
+        ax.plot([lo, hi], [y, y], color=color, lw=2.4, solid_capstyle="butt", zorder=2)
+        if hi - lo > 3:     # caps only where the interval is wider than the dot
+            for x in (lo, hi):
+                ax.plot([x, x], [y - 0.13, y + 0.13], color=color, lw=2.0, zorder=2)
+        ax.plot(100 * r["diff"], y, "o", ms=10, color=color, mec="white", mew=2, zorder=3)
+        weight = "bold" if r["label"] == "All faults" else "normal"
+        ax.text(1.03, y, margin_text(r["diff"], r["ci"]), transform=ax.get_yaxis_transform(), fontsize=13, fontweight="bold",
+                color=INK, va="center")
+        ax.text(1.36, y, f"{share_text(r['model0'])} \u2192 {share_text(r['ml'])}", transform=ax.get_yaxis_transform(),
+                fontsize=12, color=SECOND, va="center")
+        ax.text(-0.02, y, r["label"], transform=ax.get_yaxis_transform(), fontsize=12.5, fontweight=weight, ha="right", va="center",
+                linespacing=1.15)
+    top = max(ys) + 0.75
+    ax.text(1.03, top, "Margin [95% interval]", transform=ax.get_yaxis_transform(), fontsize=11, color=SECOND, va="center")
+    ax.text(1.36, top, "Model 0 \u2192 classifier", transform=ax.get_yaxis_transform(), fontsize=11, color=SECOND, va="center")
+    ax.set_ylim(min(ys) - 0.6, top + 0.35)
+    ax.set_xlim(-5, 105)
+    ax.set_xticks([0, 25, 50, 75, 100], ["0", "+25", "+50", "+75", "+100"])
+    ax.set_yticks([])
+    ax.spines["left"].set_visible(False)
+    ax.set_xlabel("Classifier minus Model 0, percentage points of windows flagged")
+    gains = rows[1:-1]
+    best, worst = gains[0], gains[-1]
+    fig.text(0.01, 0.95, f"The classifier's margin over Model 0 runs from {points(best['diff'])} points on "
+             f"{best['label'].lower()}s to {points(worst['diff'])} on {worst['label'].lower()}",
+             fontsize=15, fontweight="bold", ha="left")
+    fig.text(0.01, 0.895, "Blue: faults caught (higher is better). Red: false alarms on healthy windows, the price of the gain (higher is worse).",
+             fontsize=11.5, color=SECOND, ha="left")
     p = b["provenance"]["counts"]
-    ax.text(0.3, 0.2, f"Test set, headline runs ({p['headline_runs']} runs, {p['headline_windows']:,} windows).", fontsize=10, color=SECOND, va="center")
+    fig.text(0.01, 0.075, "Model 0, the simple threshold rule, flags a window when any service's p95 latency is above 2x normal or its 5xx share is "
+             "above 5%, against the mean of the 3 earlier windows.", fontsize=10, color=SECOND, ha="left")
+    fig.text(0.01, 0.04, f"Against the weaker version (the previous window only), the margin on all faults is "
+             f"{margin_text(weaker['difference']['recall'], weaker['ci95']['recall'])} points. Intervals: 1,000 bootstrap resamples of whole runs.",
+             fontsize=10, color=SECOND, ha="left")
+    fig.text(0.01, 0.005, f"Test set, headline runs ({p['headline_runs']} runs, {p['headline_windows']:,} windows). Source: M9-3.",
+             fontsize=10, color=SECOND, ha="left")
     return save(fig, FIGURES[3], out_dir)
 
 
 # --------------------------------------------------------------------------------------------------------- 5
 
+def log_ticks(lo: float, hi: float) -> list[float]:
+    """The 1-2-5 ticks inside [lo, hi]."""
+    out = []
+    for e in range(math.floor(math.log10(lo)), math.ceil(math.log10(hi)) + 1):
+        out += [m * 10 ** e for m in (1, 2, 5) if lo <= m * 10 ** e <= hi]
+    return out
+
+
+def spread(values: dict, ratio: float = 1.3) -> dict:
+    """Label heights on a log axis, moved apart from the top down until neighbours are at least `ratio` apart."""
+    out, above = {}, None
+    for key, v in sorted(values.items(), key=lambda kv: -kv[1]):
+        out[key] = v if above is None else min(v, above / ratio)
+        above = out[key]
+    return out
+
+
 def cost_curve(data: dict, out_dir: Path) -> list[Path]:
     rows = data["cost"]["rows"]
     rps = [r["rps"] for r in rows]
     first, last = rows[0], rows[-1]
-    fig, ax = plt.subplots(figsize=(11, 6.2))
-    fig.subplots_adjust(top=0.8, bottom=0.2, left=0.09, right=0.93)
-    for key, color, label in (("app", ORANGE, "E-commerce app"), ("anomalypulse", BLUE, "AnomalyPulse\n(added cost)")):
-        ax.plot(rps, [r[key] for r in rows], "-o", color=color, lw=3.2, markersize=8, zorder=3)
-        ax.text(rps[-1] * 1.12, last[key], f"{label}\n${last[key]:,.0f}", color=color, fontsize=13, fontweight="bold", va="center")
-    # Label the first point of each line too, so the low end reads without a table.
-    ax.text(rps[0], first["app"] + 45, f"${first['app']:,.0f}", color=ORANGE, fontsize=12, fontweight="bold", ha="center")
-    ax.text(rps[0], first["anomalypulse"] - 75, f"${first['anomalypulse']:,.0f}", color=BLUE, fontsize=12, fontweight="bold", ha="center")
+    fig, ax = plt.subplots(figsize=(11, 6.8))
+    fig.subplots_adjust(top=0.8, bottom=0.17, left=0.13, right=0.74)
+    lines = (("total", INK, "Total bill", 2.4), ("app", MUTED, "E-commerce app", 2.4), ("anomalypulse", BLUE, "AnomalyPulse", 3.2))
+    ends = spread({key: last[key] for key, *_ in lines})
+    starts = spread({key: first[key] for key, *_ in lines})
+    for key, color, label, lw in lines:
+        ax.plot(rps, [r[key] for r in rows], "-o", color=color, lw=lw, markersize=7, zorder=3, mec="white", mew=1.5)
+        bold = "bold" if key == "anomalypulse" else "normal"
+        share = f" ({pct(last['anomalypulse_share'])})" if key == "anomalypulse" else ""
+        ax.text(rps[-1] * 1.18, ends[key], f"{label}  ${last[key]:,.0f}{share}", color=INK, fontsize=12, fontweight=bold, va="center")
+        share = f" ({pct(first['anomalypulse_share'])})" if key == "anomalypulse" else ""
+        ax.text(rps[0] / 1.15, starts[key], f"${first[key]:,.0f}{share}", color=INK, fontsize=11.5, ha="right", va="center", fontweight=bold)
     ax.set_xscale("log")
+    ax.set_yscale("log")
     ax.set_xticks(rps, [str(r) for r in rps])
+    lo = min(r["anomalypulse"] for r in rows) / 1.6
+    hi = max(r["total"] for r in rows) * 1.6
+    ax.set_ylim(lo, hi)
+    ax.set_yticks(log_ticks(lo, hi), [f"${t:,.0f}" for t in log_ticks(lo, hi)])
     ax.minorticks_off()
-    ax.set_xlim(rps[0] * 0.8, rps[-1] * 3.4)
-    ax.set_ylim(-110, 1200)
-    ax.set_yticks([0, 400, 800, 1200], ["$0", "$400", "$800", "$1,200"])
+    ax.set_xlim(rps[0] / 2.6, rps[-1] * 1.12)
     ax.set_xlabel("Requests per second to the e-commerce app")
     ax.set_ylabel("Monthly AWS cost")
     ax.grid(axis="y", color=GRID, lw=0.9)
     ax.set_axisbelow(True)
-    fig.text(0.09, 0.93, f"Monitoring is {pct(first['anomalypulse_share'])} of the bill at {first['rps']} request/s and {pct(last['anomalypulse_share'])} at {last['rps']} requests/s", fontsize=15, fontweight="bold", ha="left")
-    fig.text(0.09, 0.875, f"Orange: running the e-commerce app. Blue: the extra cost of adding AnomalyPulse. Total bill = orange + blue (${last['total']:,.0f} at {last['rps']} requests/s).", fontsize=11.5, color=SECOND, ha="left")
-    fig.text(0.09, 0.03, f"Projected monthly cost at list price, {data['cost']['incidents_per_month']} incidents a month. Horizontal axis is logarithmic.", fontsize=10, color=SECOND, ha="left")
+    fig.text(0.01, 0.93, f"Monitoring's share of the bill falls from {pct(first['anomalypulse_share'])} at {first['rps']} request/s to "
+             f"{pct(last['anomalypulse_share'])} at {last['rps']} requests/s", fontsize=15, fontweight="bold", ha="left")
+    fig.text(0.01, 0.875, "Total bill = the e-commerce app + what adding AnomalyPulse costs. Percentages: AnomalyPulse's share of the total.",
+             fontsize=11.5, color=SECOND, ha="left")
+    fig.text(0.01, 0.025, f"Projected monthly cost at list price, {data['cost']['incidents_per_month']} incidents a month. Both axes are logarithmic.",
+             fontsize=10, color=SECOND, ha="left")
     return save(fig, FIGURES[4], out_dir)
 
 
 # --------------------------------------------------------------------------------------------------------- 6
 
 def detection_latency(data: dict) -> dict:
-    """Detection latency per timed test run: the window plus the CloudWatch wait (before diagnosis starts)."""
+    """Detection latency per timed test run: the window plus the pipeline's wait (before diagnosis starts)."""
     from report.latency import stats
 
     runs = [r for r in data["latency"]["runs"] if r["phase"] == "test" and r["outcome"] == "detected"]
     return stats([r["steps"]["window"] + r["steps"]["pipeline_wait"] for r in runs])
+
+
+LATENCY_PARTS = (
+    ("window", "1-minute\nwindow", BLUE, "white"),
+    ("cloudwatch_settle", "CloudWatch settles the minute\n(fixed 2-minute lag)", ORANGE, "white"),
+    ("build_and_classify", "Next window-builder run,\nbuild and classify", VIOLET, "white"),
+    ("diagnosis", "Diagnosis\n(Bedrock)", AQUA, INK),
+)
+
+
+def latency_segments(steps: dict) -> list[tuple[str, float, float]]:
+    """Figure 6's bar: (step, start, width) for each step, its median, laid end to end from 0."""
+    out, x = [], 0.0
+    for key, *_ in LATENCY_PARTS:
+        out.append((key, x, steps[key]["median"]))
+        x += steps[key]["median"]
+    return out
 
 
 def latency_breakdown(data: dict, out_dir: Path) -> list[Path]:
@@ -344,33 +482,33 @@ def latency_breakdown(data: dict, out_dir: Path) -> list[Path]:
     t = data["latency"]["summary"]["test"]
     steps = t["steps_s"]
     det = detection_latency(data)
-    parts = [("window", "1-minute window", BLUE, "white"), ("pipeline_wait", "Waiting for CloudWatch to\npublish the minute's numbers", ORANGE, "white"), ("diagnosis", "Diagnosis\n(Bedrock)", AQUA, INK)]
-    total = sum(steps[k]["median"] for k, *_ in parts)
-    wait_share = steps["pipeline_wait"]["median"] / total
+    segments = latency_segments(steps)
+    total = segments[-1][1] + segments[-1][2]
+    settle_share = t["share_of_mean"]["cloudwatch_settle"]
 
-    fig = plt.figure(figsize=(12, 5.4))
+    fig = plt.figure(figsize=(12, 5.6))
     ax = fig.add_axes([0.03, 0.02, 0.94, 0.96])
-    ax.set_xlim(-8, total + 12), ax.set_ylim(-3.1, 2.3), ax.axis("off")
-    scale = 1.0
-    x = 0.0
-    for key, label, color, ink in parts:
-        w = steps[key]["median"] * scale
+    ax.set_xlim(-8, total + 12), ax.set_ylim(-3.3, 2.4), ax.axis("off")
+    for (key, label, color, ink), (_, x, w) in zip(LATENCY_PARTS, segments):
         ax.add_patch(Rectangle((x, 0), w, 0.9, fc=color, ec="white", lw=3, zorder=2))
-        ax.text(x + w / 2, 0.45, f"{rnd(steps[key]['median'])} s", color=ink, fontsize=17, fontweight="bold", ha="center", va="center", zorder=3)
+        ax.text(x + w / 2, 0.45, f"{rnd(w)} s", color=ink, fontsize=17, fontweight="bold", ha="center", va="center", zorder=3)
         ax.text(x + w / 2, 1.1, label, fontsize=11.5, ha="center", va="bottom", linespacing=1.2)
-        x += w
 
     def bracket(x1: float, x2: float, y: float, head: str, sub: str) -> None:
         ax.plot([x1, x1, x2, x2], [y + 0.14, y, y, y + 0.14], color=SECOND, lw=1.6, zorder=1)
         ax.text((x1 + x2) / 2, y - 0.14, head, fontsize=14, fontweight="bold", ha="center", va="top")
         ax.text((x1 + x2) / 2, y - 0.52, sub, fontsize=10.5, color=SECOND, ha="center", va="top")
 
-    d = steps["window"]["median"] + steps["pipeline_wait"]["median"]
+    d = segments[-1][1]     # where diagnosis starts: the end of the build-and-classify step
     bracket(0, d, -0.35, f"Detection: {rnd(det['median'])} s", "From the start of the fault to detecting it and naming its type.")
     bracket(0, total, -1.65, f"End to end: {rnd(steps['end_to_end']['median'])} s", f"From the start of the fault to detecting it, diagnosing it and storing the diagnosis.\n9 in 10 runs finish within {rnd(steps['end_to_end']['p90'])} s.")
-    share_text = "about two-thirds" if 0.62 <= wait_share <= 0.72 else pct(wait_share)
-    ax.text(-6, 2.15, f"Fault to stored diagnosis takes about 4 minutes, and {share_text} of it is waiting for CloudWatch", fontsize=15, fontweight="bold", va="center")
-    ax.text(-6, -3.0, f"Typical run (median of each step), {steps['end_to_end']['n']} timed detections on the test set. Runbooks off.", fontsize=10, color=SECOND, va="center")
+    minutes = rnd(steps["end_to_end"]["median"] / 60)
+    ax.text(-6, 2.25, f"Fault to stored diagnosis takes about {minutes} minutes, and {pct(settle_share)} of it is CloudWatch's 2-minute settle",
+            fontsize=15, fontweight="bold", va="center")
+    ax.text(-6, -3.0, f"Typical run (median of each step), {steps['end_to_end']['n']} timed detections on the test set. Runbooks off. "
+            f"The share is of the mean end-to-end time ({rnd(steps['end_to_end']['mean'])} s).", fontsize=10, color=SECOND, va="center")
+    ax.text(-6, -3.25, "The 2-minute lag is set by configuration (METRICS_LAG_MINUTES), so its bar is exactly 120 s; the others are measured.",
+            fontsize=10, color=SECOND, va="center")
     return save(fig, FIGURES[5], out_dir)
 
 
