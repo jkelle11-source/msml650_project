@@ -72,7 +72,7 @@ def test_baseline_margins_come_from_the_paired_results(out):
     det = b["detection"]["headline"]
     text = svg_text(out, "fig4_baseline_margins")
     gain = b["margins"]["headline"]["model0_earlier_mean_3"]["difference"]["recall"]
-    assert f"+{100 * gain:.0f} points more faults caught" in text
+    assert f"+{100 * gain:.0f} points" in text
     assert mf.pct(det["model0_earlier_mean_3"]["metrics"]["recall"], 1) in text
     assert mf.pct(det["classifier_as_detector"]["metrics"]["fpr_healthy"], 1) in text
 
