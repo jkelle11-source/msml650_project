@@ -251,13 +251,22 @@ def per_band(data: dict, out_dir: Path) -> list[Path]:
 
 # --------------------------------------------------------------------------------------------------------- 4
 
-def bar_row(ax, bx: float, bw: float, top: float, label: str, value: float, color: str, text: str) -> None:
-    from matplotlib.patches import Rectangle
-
-    ax.text(bx, top, label, fontsize=10, color=SECOND, va="center", zorder=3)
-    ax.text(bx, top - 0.36, text, fontsize=18, fontweight="bold", color=color, va="center", zorder=3)
-    ax.add_patch(Rectangle((bx, top - 0.78), bw, 0.12, fc=GRID, ec="none", zorder=2))
-    ax.add_patch(Rectangle((bx, top - 0.78), bw * value, 0.12, fc=color, ec="none", zorder=3))
+def gap_row(ax, rule: float, ml: float, delta_text: str, upper: float, ticks: list[float], title: str) -> None:
+    """A dumbbell: the simple rule's dot, the classifier's dot, and the gap between them."""
+    ax.plot([rule, ml], [0, 0], color="#cfcec9", lw=7, solid_capstyle="round", zorder=1)
+    ax.scatter([rule], [0], s=520, color=ORANGE, zorder=3)
+    ax.scatter([ml], [0], s=520, color=BLUE, zorder=3)
+    ax.text(rule, 0.34, pct(rule, 1), color=ORANGE, fontsize=17, fontweight="bold", ha="center", va="bottom")
+    ax.text(ml, 0.34, pct(ml, 1), color=BLUE, fontsize=17, fontweight="bold", ha="center", va="bottom")
+    ax.text((rule + ml) / 2, -0.34, delta_text, fontsize=13, fontweight="bold", ha="center", va="top", color=INK)
+    ax.set_xlim(-0.05 * upper, upper * 1.06)
+    ax.set_ylim(-1.0, 1.0)
+    ax.set_yticks([])
+    ax.set_xticks(ticks, [f"{100 * t:g}%" for t in ticks])
+    for side in ("left", "top", "right"):
+        ax.spines[side].set_visible(False)
+    ax.spines["bottom"].set_color(GRID)
+    ax.set_title(title, loc="left", fontsize=13.5, fontweight="bold", pad=14, x=-0.0)
 
 
 def baseline_margins(data: dict, out_dir: Path) -> list[Path]:
@@ -265,36 +274,18 @@ def baseline_margins(data: dict, out_dir: Path) -> list[Path]:
     det = b["detection"]["headline"]
     rule, ml = det["model0_earlier_mean_3"]["metrics"], det["classifier_as_detector"]["metrics"]
     gain = b["margins"]["headline"]["model0_earlier_mean_3"]["difference"]["recall"]
-    gain_prev = b["margins"]["headline"]["model0_previous_window"]["difference"]["recall"]
     cost = b["share_margins"]["headline"]["model0_earlier_mean_3"]["healthy"]["difference"]
 
-    fig = plt.figure(figsize=(13, 6.4))
-    ax = fig.add_axes([0, 0, 1, 1])
-    ax.set_xlim(0, 13), ax.set_ylim(0, 6.4), ax.axis("off")
-    w, y0, h = 3.9, 1.15, 4.6
-    yt = y0 + h
-    for x0, tag, glyph, color, heading, key, digits in (
-        (0.3, "FAULTS CAUGHT", "\u2713", BLUE, "Real faults flagged", "recall", 1),
-        (4.55, "FALSE ALARMS", "\u00d7", RED, "Healthy windows\nwrongly flagged", "fpr_healthy", 1),
-    ):
-        shell(ax, x0, y0, w, h, tag, glyph, color)
-        for i, line in enumerate(heading.split("\n")):
-            ax.text(x0 + 0.4, yt - 1.05 - 0.3 * i, line, fontsize=13.5, fontweight="bold", va="center", zorder=3)
-        for j, (label, m, c) in enumerate((("Simple rule", rule, ORANGE), ("Classifier", ml, BLUE))):
-            bar_row(ax, x0 + 0.4, w - 0.8, yt - 2.0 - j * 1.25, label, m[key], c, pct(m[key], digits))
-    # The gain, in one number.
-    x0 = 8.8
-    shell(ax, x0, y0, w, h, "THE GAIN", "\u2713", BLUE, shade="#f4f3f0")
-    ax.text(x0 + 0.4, yt - 1.05, "More faults caught", fontsize=13.5, fontweight="bold", va="center", zorder=3)
-    ax.text(x0 + 0.4, yt - 1.95, f"+{100 * gain:.0f} points", fontsize=30, fontweight="bold", color=BLUE, va="center", zorder=3)
-    ax.text(x0 + 0.4, yt - 2.6, "than the simple rule", fontsize=11, color=SECOND, va="center", zorder=3)
-    ax.text(x0 + 0.4, yt - 3.25, f"+{100 * gain_prev:.0f} points against the\nweaker version of the rule", fontsize=10.5, color=SECOND, va="center", zorder=3)
-    ax.text(x0 + 0.4, y0 + 0.55, f"The price: {100 * cost:.1f} points more\nfalse alarms on healthy traffic", fontsize=10.5, fontweight="bold", color=RED, va="center", zorder=3)
-    ax.text(0.3, 6.05, f"The classifier catches {pct(ml['recall'], 1)} of faults, the simple rule only {pct(rule['recall'])}", fontsize=14.5, fontweight="bold", va="center")
-    ax.text(0.3, 0.8, "Simple rule: flags a window when any service's p95 latency is above 2x its normal level or its 5xx share is above 5%, compared with the mean of the 3 earlier windows.", fontsize=10, color=SECOND, va="center")
-    ax.text(0.3, 0.52, "The weaker version of the rule compares with the previous window only. Differences are paired by run.", fontsize=10, color=SECOND, va="center")
+    fig, (top, bottom) = plt.subplots(2, 1, figsize=(11, 6.2), gridspec_kw={"hspace": 0.9})
+    fig.subplots_adjust(top=0.76, bottom=0.17, left=0.04, right=0.97)
+    gap_row(top, rule["recall"], ml["recall"], f"+{100 * gain:.0f} points more faults caught", 1.0, [0, 0.25, 0.5, 0.75, 1.0], "Real faults caught")
+    gap_row(bottom, rule["fpr_healthy"], ml["fpr_healthy"], f"+{100 * cost:.1f} points more false alarms", 0.05, [0, 0.01, 0.02, 0.03, 0.04, 0.05], "Healthy windows wrongly flagged")
+    # Direct labels: which dot is which.
+    fig.text(0.04, 0.95, f"The classifier catches {pct(ml['recall'], 1)} of faults, the simple rule only {pct(rule['recall'])}", fontsize=15, fontweight="bold", ha="left")
+    fig.text(0.04, 0.885, "Orange dot: simple rule.   Blue dot: classifier.", fontsize=11.5, color=SECOND, ha="left")
     p = b["provenance"]["counts"]
-    ax.text(0.3, 0.2, f"Test set, headline runs ({p['headline_runs']} runs, {p['headline_windows']:,} windows).", fontsize=10, color=SECOND, va="center")
+    fig.text(0.04, 0.06, "Simple rule: flags a window when any service's p95 latency is above 2x its normal level or its 5xx share is above 5%.", fontsize=10, color=SECOND, ha="left")
+    fig.text(0.04, 0.02, f"Test set, headline runs ({p['headline_runs']} runs, {p['headline_windows']:,} windows).", fontsize=10, color=SECOND, ha="left")
     return save(fig, FIGURES[3], out_dir)
 
 
