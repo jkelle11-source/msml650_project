@@ -241,18 +241,11 @@ def per_band(data: dict, out_dir: Path) -> list[Path]:
         for j, (role, label) in enumerate(roles):
             r = mine[role]
             top = yt - 1.8 - j * 1.2
-            lo, hi = r["ci95"]
             ax.text(bx, top, label, fontsize=10, color=SECOND, va="center", zorder=3)
             ax.text(bx, top - 0.36, pct(r["recall"]), fontsize=18, fontweight="bold", color=color, va="center", zorder=3)
-            if hi - lo > 1e-9:
-                ax.text(bx + bw, top - 0.36, f"{100 * lo:.0f}\u2013{100 * hi:.0f}%", fontsize=10, color=SECOND, va="center", ha="right", zorder=3)
             yb = top - 0.72
             ax.add_patch(Rectangle((bx, yb - 0.06), bw, 0.12, fc=GRID, ec="none", zorder=2))
             ax.add_patch(Rectangle((bx, yb - 0.06), bw * r["recall"], 0.12, fc=color, ec="none", zorder=3))
-            # The 95% confidence range: a thin dark whisker over the bar, with a cap at each end.
-            ax.plot([bx + bw * lo, bx + bw * hi], [yb, yb], color=INK, lw=1.4, zorder=4, solid_capstyle="butt")
-            for e in (lo, hi):
-                ax.plot([bx + bw * e] * 2, [yb - 0.1, yb + 0.1], color=INK, lw=1.4, zorder=4)
         if bad:
             gaps = [100 * r["vs_validation"]["gap"] for r in mine.values()]
             ax.text(bx, y0 + 0.42, f"{min(gaps):.0f}\u2013{max(gaps):.0f} points below\nvalidation recall", fontsize=10.5, fontweight="bold", color=RED, va="center", zorder=3)
@@ -260,7 +253,7 @@ def per_band(data: dict, out_dir: Path) -> list[Path]:
     notes = [
         ("Inside the trained range:", " fault intensities the model saw during training."),
         ("Just beyond it:", " slightly stronger faults than it trained on, which tests whether it generalizes."),
-        ("Black line:", " 95% confidence range (resampled by run). Bars show the share of each fault's windows the classifier names correctly."),
+        ("Bars:", " the share of each fault's windows the classifier names correctly."),
     ]
     for i, (lead, rest) in enumerate(notes):
         y = 0.9 - 0.26 * i
@@ -272,48 +265,50 @@ def per_band(data: dict, out_dir: Path) -> list[Path]:
 
 # --------------------------------------------------------------------------------------------------------- 4
 
+def bar_row(ax, bx: float, bw: float, top: float, label: str, value: float, color: str, text: str) -> None:
+    from matplotlib.patches import Rectangle
+
+    ax.text(bx, top, label, fontsize=10, color=SECOND, va="center", zorder=3)
+    ax.text(bx, top - 0.36, text, fontsize=18, fontweight="bold", color=color, va="center", zorder=3)
+    ax.add_patch(Rectangle((bx, top - 0.78), bw, 0.12, fc=GRID, ec="none", zorder=2))
+    ax.add_patch(Rectangle((bx, top - 0.78), bw * value, 0.12, fc=color, ec="none", zorder=3))
+
+
 def baseline_margins(data: dict, out_dir: Path) -> list[Path]:
     b = data["m9_3"]
-    base = [("model0_previous_window", "Rule vs previous window", ORANGE), ("model0_earlier_mean_3", "Rule vs mean of 3 earlier windows\n(the stronger rule)", MUTED)]
-    metrics = [("recall", "Recall"), ("precision", "Precision"), ("f1", "F1")]
-    fig, (a, c) = plt.subplots(1, 2, figsize=(13.5, 5.6), gridspec_kw={"width_ratios": [1.6, 1]})
-
-    for k, (key, label, color) in enumerate(base):
-        ys = [i + (0.17 if k == 0 else -0.17) for i in range(3)][::-1]
-        for y, (m, _) in zip(ys, metrics):
-            d, ci = b["margins"]["headline"][key]["difference"][m], b["margins"]["headline"][key]["ci95"][m]
-            a.errorbar(100 * d, y, xerr=[[100 * (d - ci[0])], [100 * (ci[1] - d)]], fmt="o", color=color, ecolor=color, elinewidth=2.4, capsize=5, markersize=9,
-                       label=label if m == "recall" else None)
-            a.text(100 * ci[1] + 1.5, y, f"+{100 * d:.0f} pts", va="center", fontsize=12, fontweight="bold")
-    a.axvline(0, color=INK, lw=1.4)
-    a.set_yticks(range(3), [m[1] for m in metrics][::-1])
-    a.set_xlim(-5, 85)
-    a.set_xlabel("Classifier minus rule, percentage points (paired by run, 95% CI)")
-    a.set_title("The classifier catches far more faults than the rule")
-    a.legend(loc="center right", fontsize=11.5)
-
     det = b["detection"]["headline"]
-    share = b["share_margins"]["headline"]["model0_previous_window"]["healthy"]
-    bars = [
-        ("Rule:\nprevious\nwindow", det["model0_previous_window"]["metrics"]["fpr_healthy"], None, ORANGE),
-        ("Rule:\nearlier\nmean", det["model0_earlier_mean_3"]["metrics"]["fpr_healthy"], None, MUTED),
-        ("Live\nclassifier", det["classifier_as_detector"]["metrics"]["fpr_healthy"], share["ci95"], BLUE),
-    ]
-    for x, (label, v, ci, color) in enumerate(bars):
-        c.bar(x, v, 0.6, color=color, yerr=None if ci is None else [[v - ci[0]], [ci[1] - v]], error_kw={"ecolor": INK, "capsize": 4, "lw": 1.4})
-        c.text(x, (ci[1] if ci else v) + 0.004, pct(v, 1), ha="center", fontsize=12.5, fontweight="bold")
-    c.set_xticks(range(3), [x[0] for x in bars])
-    c.set_ylim(0, 0.06)
-    c.set_yticks([0, 0.02, 0.04, 0.06], ["0%", "2%", "4%", "6%"])
-    c.set_ylabel("Healthy windows flagged")
-    c.set_title("The price: a few false alarms")
+    rule, ml = det["model0_earlier_mean_3"]["metrics"], det["classifier_as_detector"]["metrics"]
+    gain = b["margins"]["headline"]["model0_earlier_mean_3"]["difference"]["recall"]
+    gain_prev = b["margins"]["headline"]["model0_previous_window"]["difference"]["recall"]
+    cost = b["share_margins"]["headline"]["model0_earlier_mean_3"]["healthy"]["difference"]
+
+    fig = plt.figure(figsize=(13, 6.4))
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_xlim(0, 13), ax.set_ylim(0, 6.4), ax.axis("off")
+    w, y0, h = 3.9, 1.15, 4.6
+    yt = y0 + h
+    for x0, tag, glyph, color, heading, key, digits in (
+        (0.3, "FAULTS CAUGHT", "\u2713", BLUE, "Real faults flagged", "recall", 1),
+        (4.55, "FALSE ALARMS", "\u00d7", RED, "Healthy windows\nwrongly flagged", "fpr_healthy", 1),
+    ):
+        shell(ax, x0, y0, w, h, tag, glyph, color)
+        for i, line in enumerate(heading.split("\n")):
+            ax.text(x0 + 0.4, yt - 1.05 - 0.3 * i, line, fontsize=13.5, fontweight="bold", va="center", zorder=3)
+        for j, (label, m, c) in enumerate((("Simple rule", rule, ORANGE), ("Classifier", ml, BLUE))):
+            bar_row(ax, x0 + 0.4, w - 0.8, yt - 2.0 - j * 1.25, label, m[key], c, pct(m[key], digits))
+    # The gain, in one number.
+    x0 = 8.8
+    shell(ax, x0, y0, w, h, "THE GAIN", "\u2713", BLUE, shade="#f4f3f0")
+    ax.text(x0 + 0.4, yt - 1.05, "More faults caught", fontsize=13.5, fontweight="bold", va="center", zorder=3)
+    ax.text(x0 + 0.4, yt - 1.95, f"+{100 * gain:.0f} points", fontsize=30, fontweight="bold", color=BLUE, va="center", zorder=3)
+    ax.text(x0 + 0.4, yt - 2.6, "than the simple rule", fontsize=11, color=SECOND, va="center", zorder=3)
+    ax.text(x0 + 0.4, yt - 3.25, f"+{100 * gain_prev:.0f} points against the\nweaker version of the rule", fontsize=10.5, color=SECOND, va="center", zorder=3)
+    ax.text(x0 + 0.4, y0 + 0.55, f"The price: {100 * cost:.1f} points more\nfalse alarms on healthy traffic", fontsize=10.5, fontweight="bold", color=RED, va="center", zorder=3)
+    ax.text(0.3, 6.05, f"The classifier catches {pct(ml['recall'], 1)} of faults, the simple rule only {pct(rule['recall'])}", fontsize=14.5, fontweight="bold", va="center")
+    ax.text(0.3, 0.8, "Simple rule: flags a window when any service's p95 latency is above 2x its normal level or its 5xx share is above 5%, compared with the mean of the 3 earlier windows.", fontsize=10, color=SECOND, va="center")
+    ax.text(0.3, 0.52, "The weaker version of the rule compares with the previous window only. Differences are paired by run.", fontsize=10, color=SECOND, va="center")
     p = b["provenance"]["counts"]
-    footnote(
-        fig,
-        f"Test set, headline runs ({p['headline_runs']} runs, {p['headline_windows']} windows). The rule (Model 0) flags a window when any service's p95 is above 2x its baseline or its 5xx share above 5%.\n"
-        "Margins are paired: both detectors are scored on the same resampled runs. Healthy windows = windows with no fault active.",
-        y=-0.1,
-    )
+    ax.text(0.3, 0.2, f"Test set, headline runs ({p['headline_runs']} runs, {p['headline_windows']:,} windows).", fontsize=10, color=SECOND, va="center")
     return save(fig, FIGURES[3], out_dir)
 
 

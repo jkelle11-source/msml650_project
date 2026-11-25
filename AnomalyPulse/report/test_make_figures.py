@@ -59,8 +59,13 @@ def test_confusion_title_names_the_largest_real_confusion(out):
 
 
 def test_baseline_margins_come_from_the_paired_results(out):
-    m = json.loads(mf.INPUTS["m9_3"].read_text())["margins"]["headline"]["model0_previous_window"]["difference"]
-    assert f"+{100 * m['recall']:.0f} pts" in svg_text(out, "fig4_baseline_margins")
+    b = json.loads(mf.INPUTS["m9_3"].read_text())
+    det = b["detection"]["headline"]
+    text = svg_text(out, "fig4_baseline_margins")
+    gain = b["margins"]["headline"]["model0_earlier_mean_3"]["difference"]["recall"]
+    assert f"+{100 * gain:.0f} points" in text
+    assert mf.pct(det["model0_earlier_mean_3"]["metrics"]["recall"], 1) in text
+    assert mf.pct(det["classifier_as_detector"]["metrics"]["fpr_healthy"], 1) in text
 
 
 def test_cost_figure_ends_on_the_last_projection_row(out):
@@ -77,13 +82,3 @@ def test_per_band_figure_shows_every_recall_and_the_dependency_gap(out):
         assert mf.pct(r["recall"]) in text
     gaps = [100 * r["vs_validation"]["gap"] for r in rows if r["vs_validation"]["status"] == "degraded"]
     assert f"{min(gaps):.0f}\u2013{max(gaps):.0f} points below" in text
-
-
-def test_per_band_figure_prints_the_confidence_range_where_it_has_width(out):
-    m = json.loads(mf.INPUTS["m9_2"].read_text())
-    rows = [r for r in m["per_band"]["rows"] if r["family"] == "classification" and r["model"] == "incident_type"]
-    text = svg_text(out, "fig3_per_band")
-    wide = [r for r in rows if r["ci95"][1] - r["ci95"][0] > 1e-9]
-    assert wide
-    for r in wide:
-        assert f"{100 * r['ci95'][0]:.0f}\u2013{100 * r['ci95'][1]:.0f}%" in text
