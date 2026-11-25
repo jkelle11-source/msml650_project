@@ -252,7 +252,7 @@ def per_band(data: dict, out_dir: Path) -> list[Path]:
     ax.text(0.3, 6.05, "Fault intensity barely changes accuracy, except for dependency failures", fontsize=14.5, fontweight="bold", va="center")
     notes = [
         ("Inside the trained range:", " fault intensities the model saw during training."),
-        ("Just beyond it:", " slightly stronger faults than it trained on, which tests whether it generalizes."),
+        ("Just beyond it:", " slightly stronger faults than the model was trained on. This tests whether the model generalizes."),
         ("Bars:", " the share of each fault's windows the classifier names correctly."),
     ]
     for i, (lead, rest) in enumerate(notes):
