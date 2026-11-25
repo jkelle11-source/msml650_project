@@ -46,7 +46,7 @@ def test_latency_headline_is_the_largest_share(out):
 def test_isolation_forest_is_never_drawn_as_a_success(out):
     text = svg_text(out, "fig2_detection")
     # Only in the false-alarm panel, labelled as detecting nothing; its recall and F1 are never drawn.
-    assert "Flags everything, so it detects nothing" in text
+    assert "Flags everything, so it" in text and "detects nothing" in text
     assert "1.000" not in text and "100%" in text
     assert text.count("Isolation") == 1  # one bar, in the false-alarm panel; none in "Faults caught"
 
