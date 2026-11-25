@@ -155,33 +155,31 @@ def confusion_matrix(data: dict, out_dir: Path) -> list[Path]:
 
 # --------------------------------------------------------------------------------------------------------- 2
 
+def dots(ax, flagged: float, color: str, title: str, caption: str, hatch: bool = False) -> None:
+    """A 10 x 10 grid: each dot stands for one window out of 100; filled dots were flagged."""
+    n_filled = round(flagged * 100)
+    for k in range(100):
+        r, c = divmod(k, 10)
+        on = k < n_filled
+        ax.scatter(c, -r, s=300, color=color if on else "white", edgecolor=color if on else GRID, linewidth=1.6, zorder=2)
+    ax.set_xlim(-0.8, 9.8), ax.set_ylim(-10.2, 0.8)
+    ax.axis("off")
+    ax.text(-0.8, 1.2, title, fontsize=13.5, fontweight="bold", ha="left", va="bottom")
+    ax.text(-0.8, -10.8, caption, fontsize=15, fontweight="bold", ha="left", va="top")
+
+
 def detection(data: dict, out_dir: Path) -> list[Path]:
     det = data["m9_2"]["detection"]
     caught = det["deployed"]["headline"]["metrics"]["recall"]
     wrong = {k: det[k]["headline"]["metrics"]["fpr_healthy"] for k in ("iforest", "deployed")}
-    fig, (a, b) = plt.subplots(1, 2, figsize=(10, 5.2), gridspec_kw={"width_ratios": [0.6, 1], "wspace": 0.4})
-
-    a.bar(0, caught, 0.55, color=BLUE)
-    a.text(0, caught + 0.03, pct(caught, 1), ha="center", fontsize=14, fontweight="bold")
-    a.set_xticks([0], ["Live\ndetector"])
-    a.set_xlim(-0.6, 0.6)
-    a.set_title("Faults caught", loc="left", fontsize=14)
-
-    for x, (key, color, label) in enumerate([("iforest", MUTED, "Isolation Forest\nalone"), ("deployed", BLUE, "Live\ndetector")]):
-        v = wrong[key]
-        b.bar(x, v, 0.55, color=color, hatch="//" if key == "iforest" else None, edgecolor="white" if key == "iforest" else color)
-        b.text(x, v + 0.03, pct(v, 1), ha="center", fontsize=14, fontweight="bold")
-    b.set_xticks([0, 1], ["Isolation Forest\nalone", "Live\ndetector"])
-    b.set_xlim(-0.6, 1.6)
-    b.set_title("Healthy windows wrongly flagged", loc="left", fontsize=14)
-    b.text(0.4, 0.55, "Flags everything, so it\ndetects nothing", ha="left", fontsize=12, color=SECOND)
-    for ax in (a, b):
-        ax.set_ylim(0, 1.15)
-        ax.set_yticks([0, 0.5, 1.0], ["0%", "50%", "100%"])
-
+    fig, axes = plt.subplots(1, 3, figsize=(13, 6.8))
+    fig.subplots_adjust(top=0.78, wspace=0.12)
+    dots(axes[0], caught, BLUE, "Real faults:\ncaught by the\nlive detector", f"{caught * 100:.1f} of 100 caught")
+    dots(axes[1], wrong["iforest"], MUTED, "Healthy windows:\nflagged by\nIsolation Forest alone", f"{wrong['iforest'] * 100:.0f} of 100 flagged")
+    dots(axes[2], wrong["deployed"], BLUE, "Healthy windows:\nflagged by the\nlive detector", f"{wrong['deployed'] * 100:.1f} of 100 flagged")
     header(fig, f"The live detector catches {pct(caught, 1)} of faults and wrongly flags {pct(wrong['deployed'], 1)} of healthy windows")
     h = det["deployed"]["headline"]
-    footnote(fig, f"Test set: {h['windows']:,} windows ({h['normal_windows']['healthy']} healthy).", y=-0.02)
+    footnote(fig, f"One dot = one window out of 100 (rounded to whole dots). Filled = flagged. Test set: {h['windows']:,} windows ({h['normal_windows']['healthy']} healthy).", y=-0.03)
     return save(fig, FIGURES[1], out_dir)
 
 
