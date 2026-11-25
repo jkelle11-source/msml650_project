@@ -224,12 +224,11 @@ def per_band(data: dict, out_dir: Path) -> list[Path]:
     names = {"db-throttling": "Database\nthrottling", "lambda-degradation": "Lambda\ndegradation", "traffic-spike": "Traffic\nspike", "payment-failure": "Dependency\nfailure"}
     roles = [("interpolation", "Inside the trained range"), ("mild extrapolation", "Just beyond it")]
 
-    fig = plt.figure(figsize=(13, 6.0))
+    fig = plt.figure(figsize=(13, 6.4))
     ax = fig.add_axes([0, 0, 1, 1])
-    ax.set_xlim(0, 13), ax.set_ylim(0, 6.0), ax.axis("off")
-    w, gap, y0, h = 2.9, 0.28, 0.45, 5.0
+    ax.set_xlim(0, 13), ax.set_ylim(0, 6.4), ax.axis("off")
+    w, gap, y0, h = 2.9, 0.28, 1.15, 4.6
     yt = y0 + h
-    worst = None
     for k, inj in enumerate(order):
         x0 = 0.3 + k * (w + gap)
         mine = {role: next(r for r in rows if r["injector"] == inj and r["role"] == role) for role, _ in roles}
@@ -237,20 +236,37 @@ def per_band(data: dict, out_dir: Path) -> list[Path]:
         color = RED if bad else BLUE
         shell(ax, x0, y0, w, h, "FLAGGED" if bad else "STEADY", "\u00d7" if bad else "\u2713", color)
         for line_no, line in enumerate(names[inj].split("\n")):
-            ax.text(x0 + 0.4, yt - 1.0 - 0.32 * line_no, line, fontsize=16, fontweight="bold", va="center", zorder=3)
+            ax.text(x0 + 0.4, yt - 0.95 - 0.29 * line_no, line, fontsize=13.5, fontweight="bold", va="center", zorder=3)
+        bx, bw = x0 + 0.4, w - 0.8
         for j, (role, label) in enumerate(roles):
             r = mine[role]
-            top = yt - 1.95 - j * 1.3
-            ax.text(x0 + 0.4, top, label, fontsize=11.5, color=SECOND, va="center", zorder=3)
-            ax.text(x0 + 0.4, top - 0.42, pct(r["recall"]), fontsize=22, fontweight="bold", color=color, va="center", zorder=3)
-            ax.add_patch(Rectangle((x0 + 0.4, top - 0.88), w - 0.8, 0.13, fc=GRID, ec="none", zorder=2))
-            ax.add_patch(Rectangle((x0 + 0.4, top - 0.88), (w - 0.8) * r["recall"], 0.13, fc=color, ec="none", zorder=3))
+            top = yt - 1.8 - j * 1.2
+            lo, hi = r["ci95"]
+            ax.text(bx, top, label, fontsize=10, color=SECOND, va="center", zorder=3)
+            ax.text(bx, top - 0.36, pct(r["recall"]), fontsize=18, fontweight="bold", color=color, va="center", zorder=3)
+            if hi - lo > 1e-9:
+                ax.text(bx + bw, top - 0.36, f"{100 * lo:.0f}\u2013{100 * hi:.0f}%", fontsize=10, color=SECOND, va="center", ha="right", zorder=3)
+            yb = top - 0.72
+            ax.add_patch(Rectangle((bx, yb - 0.06), bw, 0.12, fc=GRID, ec="none", zorder=2))
+            ax.add_patch(Rectangle((bx, yb - 0.06), bw * r["recall"], 0.12, fc=color, ec="none", zorder=3))
+            # The 95% confidence range: a thin dark whisker over the bar, with a cap at each end.
+            ax.plot([bx + bw * lo, bx + bw * hi], [yb, yb], color=INK, lw=1.4, zorder=4, solid_capstyle="butt")
+            for e in (lo, hi):
+                ax.plot([bx + bw * e] * 2, [yb - 0.1, yb + 0.1], color=INK, lw=1.4, zorder=4)
         if bad:
             gaps = [100 * r["vs_validation"]["gap"] for r in mine.values()]
-            worst = (min(gaps), max(gaps))
-            ax.text(x0 + 0.4, y0 + 0.5, f"{worst[0]:.0f}\u2013{worst[1]:.0f} points below\nvalidation recall", fontsize=12, fontweight="bold", color=RED, va="center", zorder=3)
-    ax.text(0.3, 5.7, "Fault intensity barely changes accuracy, except for dependency failures", fontsize=16, fontweight="bold", va="center")
-    ax.text(0.3, 0.15, "Share of each fault's windows the classifier names correctly. Test set, standard-length single-fault runs.", fontsize=11.5, color=SECOND, va="center")
+            ax.text(bx, y0 + 0.42, f"{min(gaps):.0f}\u2013{max(gaps):.0f} points below\nvalidation recall", fontsize=10.5, fontweight="bold", color=RED, va="center", zorder=3)
+    ax.text(0.3, 6.05, "Fault intensity barely changes accuracy, except for dependency failures", fontsize=14.5, fontweight="bold", va="center")
+    notes = [
+        ("Inside the trained range:", " fault intensities the model saw during training."),
+        ("Just beyond it:", " slightly stronger faults than it trained on, which tests whether it generalizes."),
+        ("Black line:", " 95% confidence range (resampled by run). Bars show the share of each fault's windows the classifier names correctly."),
+    ]
+    for i, (lead, rest) in enumerate(notes):
+        y = 0.9 - 0.26 * i
+        t = ax.text(0.3, y, lead, fontsize=10, fontweight="bold", color=SECOND, va="center")
+        ax.annotate(rest, xycoords=t, xy=(1, 0.5), xytext=(0, 0), textcoords="offset points", fontsize=10, color=SECOND, va="center")
+    ax.text(0.3, 0.08, "Test set, standard-length single-fault runs.", fontsize=10, color=SECOND, va="center")
     return save(fig, FIGURES[2], out_dir)
 
 
