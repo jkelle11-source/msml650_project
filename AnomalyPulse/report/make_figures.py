@@ -294,29 +294,28 @@ def baseline_margins(data: dict, out_dir: Path) -> list[Path]:
 def cost_curve(data: dict, out_dir: Path) -> list[Path]:
     rows = data["cost"]["rows"]
     rps = [r["rps"] for r in rows]
+    first, last = rows[0], rows[-1]
     fig, ax = plt.subplots(figsize=(11, 6.2))
-    ax.plot(rps, [r["app"] for r in rows], "-o", color=ORANGE, lw=3, markersize=8)
-    ax.plot(rps, [r["anomalypulse"] for r in rows], "-o", color=BLUE, lw=3, markersize=8)
-    ax.set_xscale("log"), ax.set_yscale("log")
+    fig.subplots_adjust(top=0.8, bottom=0.2, left=0.09, right=0.93)
+    for key, color, label in (("app", ORANGE, "The store"), ("anomalypulse", BLUE, "AnomalyPulse")):
+        ax.plot(rps, [r[key] for r in rows], "-o", color=color, lw=3.2, markersize=8, zorder=3)
+        ax.text(rps[-1] * 1.12, last[key], f"{label}\n${last[key]:,.0f}", color=color, fontsize=13, fontweight="bold", va="center")
+    # Label the first point of each line too, so the low end reads without a table.
+    ax.text(rps[0], first["app"] + 45, f"${first['app']:,.0f}", color=ORANGE, fontsize=12, fontweight="bold", ha="center")
+    ax.text(rps[0], first["anomalypulse"] - 75, f"${first['anomalypulse']:,.0f}", color=BLUE, fontsize=12, fontweight="bold", ha="center")
+    ax.set_xscale("log")
     ax.set_xticks(rps, [str(r) for r in rps])
     ax.minorticks_off()
-    ax.set_yticks([10, 30, 100, 300, 1000], ["$10", "$30", "$100", "$300", "$1,000"])
-    ax.set_xlabel("Request rate of the monitored store (requests per second)")
-    ax.set_ylabel("Monthly AWS cost, list price")
+    ax.set_xlim(rps[0] * 0.8, rps[-1] * 3.4)
+    ax.set_ylim(-110, 1200)
+    ax.set_yticks([0, 400, 800, 1200], ["$0", "$400", "$800", "$1,200"])
+    ax.set_xlabel("Requests per second to the monitored store")
+    ax.set_ylabel("Monthly AWS cost")
     ax.grid(axis="y", color=GRID, lw=0.9)
     ax.set_axisbelow(True)
-    last = rows[-1]
-    ax.text(rps[-1] * 1.12, last["app"], f"The store\n${last['app']:,.0f}", color=ORANGE, va="center", fontsize=12.5, fontweight="bold")
-    ax.text(rps[-1] * 1.12, last["anomalypulse"], f"AnomalyPulse\n${last['anomalypulse']:,.0f}", color=BLUE, va="center", fontsize=12.5, fontweight="bold")
-    ax.set_xlim(rps[0] * 0.8, rps[-1] * 3.2)
-    first = rows[0]
-    ax.set_title(f"Monitoring is {pct(first['anomalypulse_share'])} of the bill at 1 request/s and {pct(last['anomalypulse_share'])} at {last['rps']} requests/s")
-    footnote(
-        fig,
-        f"Projection from M9-1's measured unit costs, {data['cost']['incidents_per_month']} incidents a month, {data['cost']['hours_per_month']} hours a month. "
-        "Both axes logarithmic. List price: the always-free allowance is not subtracted.\nOrange: the monitored store alone. Blue: what AnomalyPulse adds. The cost has a fixed part, "
-        "so it grows more slowly than traffic.",
-    )
+    fig.text(0.09, 0.93, f"Monitoring is {pct(first['anomalypulse_share'])} of the bill at {first['rps']} request/s and {pct(last['anomalypulse_share'])} at {last['rps']} requests/s", fontsize=15, fontweight="bold", ha="left")
+    fig.text(0.09, 0.875, "Orange: the store alone. Blue: what AnomalyPulse adds on top.", fontsize=11.5, color=SECOND, ha="left")
+    fig.text(0.09, 0.03, f"Projected monthly cost at list price, {data['cost']['incidents_per_month']} incidents a month. Horizontal axis is logarithmic.", fontsize=10, color=SECOND, ha="left")
     return save(fig, FIGURES[4], out_dir)
 
 
