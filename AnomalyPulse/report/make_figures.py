@@ -157,30 +157,29 @@ def confusion_matrix(data: dict, out_dir: Path) -> list[Path]:
 
 def detection(data: dict, out_dir: Path) -> list[Path]:
     det = data["m9_2"]["detection"]
-    ci_deployed = data["m9_3"]["share_margins"]["headline"]["model0_previous_window"]["healthy"]["ci95"]
-    caught = {k: det[k]["headline"]["metrics"]["recall"] for k in ("deployed", "binary")}
-    wrong = {k: det[k]["headline"]["metrics"]["fpr_healthy"] for k in ("iforest", "binary", "deployed")}
-    fig, (a, b) = plt.subplots(1, 2, figsize=(11, 5.2), gridspec_kw={"width_ratios": [1, 1.25], "wspace": 0.35})
+    caught = det["deployed"]["headline"]["metrics"]["recall"]
+    wrong = {k: det[k]["headline"]["metrics"]["fpr_healthy"] for k in ("iforest", "deployed")}
+    fig, (a, b) = plt.subplots(1, 2, figsize=(10, 5.2), gridspec_kw={"width_ratios": [0.6, 1], "wspace": 0.4})
 
-    for x, (key, label, color) in enumerate([("deployed", "Live detector\n(forest + classifier)", BLUE), ("binary", "Binary classifier\n(alternative)", ORANGE)]):
-        a.bar(x, caught[key], 0.6, color=color)
-        a.text(x, caught[key] + 0.03, pct(caught[key], 1), ha="center", fontsize=14, fontweight="bold")
-    a.set_xticks([0, 1], ["Live detector\n(forest + classifier)", "Binary classifier\n(alternative)"])
-    a.set_ylim(0, 1.15)
-    a.set_yticks([0, 0.5, 1.0], ["0%", "50%", "100%"])
+    a.bar(0, caught, 0.55, color=BLUE)
+    a.text(0, caught + 0.03, pct(caught, 1), ha="center", fontsize=14, fontweight="bold")
+    a.set_xticks([0], ["Live\ndetector"])
+    a.set_xlim(-0.6, 0.6)
     a.set_title("Faults caught", loc="left", fontsize=14)
 
-    for x, (key, color) in enumerate([("iforest", MUTED), ("binary", ORANGE), ("deployed", BLUE)]):
+    for x, (key, color, label) in enumerate([("iforest", MUTED, "Isolation Forest\nalone"), ("deployed", BLUE, "Live\ndetector")]):
         v = wrong[key]
-        b.bar(x, v, 0.6, color=color, hatch="//" if key == "iforest" else None, edgecolor="white" if key == "iforest" else color)
+        b.bar(x, v, 0.55, color=color, hatch="//" if key == "iforest" else None, edgecolor="white" if key == "iforest" else color)
         b.text(x, v + 0.03, pct(v, 1), ha="center", fontsize=14, fontweight="bold")
-    b.set_xticks(range(3), ["Isolation\nForest\n(alone)", "Binary\nclassifier", "Live\ndetector"])
-    b.set_ylim(0, 1.15)
-    b.set_yticks([0, 0.5, 1.0], ["0%", "50%", "100%"])
+    b.set_xticks([0, 1], ["Isolation Forest\nalone", "Live\ndetector"])
+    b.set_xlim(-0.6, 1.6)
     b.set_title("Healthy windows wrongly flagged", loc="left", fontsize=14)
-    b.text(0.5, 0.55, "Flags everything, so it\ndetects nothing", ha="left", fontsize=12, color=SECOND)
+    b.text(0.4, 0.55, "Flags everything, so it\ndetects nothing", ha="left", fontsize=12, color=SECOND)
+    for ax in (a, b):
+        ax.set_ylim(0, 1.15)
+        ax.set_yticks([0, 0.5, 1.0], ["0%", "50%", "100%"])
 
-    header(fig, f"The live detector catches {pct(caught['deployed'], 1)} of faults and wrongly flags {pct(wrong['deployed'], 1)} of healthy windows")
+    header(fig, f"The live detector catches {pct(caught, 1)} of faults and wrongly flags {pct(wrong['deployed'], 1)} of healthy windows")
     h = det["deployed"]["headline"]
     footnote(fig, f"Test set: {h['windows']:,} windows ({h['normal_windows']['healthy']} healthy).", y=-0.02)
     return save(fig, FIGURES[1], out_dir)
