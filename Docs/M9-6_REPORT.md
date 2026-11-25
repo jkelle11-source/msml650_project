@@ -16,7 +16,8 @@ script and can be regenerated (see "How to reproduce"). **Owner:** Linu · **Cod
   "window-dominated (~1 min)". The one-minute window accounts for about 19% of the mean end-to-end time (median 52 s). The wait for
   CloudWatch to publish and settle the minute's numbers accounts for about 69% (median 169 s). Diagnosis is about 12%.
   The reason is in "Why the wait is so long" below.
-- **The 15-second-window stretch experiment did not run**, so there is no latency/stability trade-off to report for
+- **The 15-second-window stretch experiment did not run.** It was an optional stretch goal and needs a 15-second
+  window builder, retrained models and new live runs. So there is no latency/stability trade-off to report for
   shorter windows. Shortening the window would shave seconds off the 52 s step and leave the 169 s wait untouched.
 - **The detector catches almost every fault and the classifier struggles with one fault type.** The live detector
   flags 99.9% of fault windows and wrongly flags 2.4% of healthy ones. The classifier names Database throttling,
@@ -183,7 +184,8 @@ Cut so each figure says one thing; all of it is in the result files.
 - Every test run uses a shifted traffic mix, so the weak Dependency failure result mixes the held-out bands with
   that shift ([`M9-2_REPORT.md`](M9-2_REPORT.md) points at the mix).
 - Latency was measured with runbooks off. Re-measure the diagnosis step before quoting it for the current system.
-- The 15-second-window experiment did not run.
+- The 15-second-window experiment was not run: it was an optional stretch goal and needs a 15-second window builder,
+  retrained models and new live runs.
 
 ## How to reproduce
 
