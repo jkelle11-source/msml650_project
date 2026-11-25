@@ -162,10 +162,10 @@ def detection(data: dict, out_dir: Path) -> list[Path]:
     wrong = {k: det[k]["headline"]["metrics"]["fpr_healthy"] for k in ("iforest", "binary", "deployed")}
     fig, (a, b) = plt.subplots(1, 2, figsize=(11, 5.2), gridspec_kw={"width_ratios": [1, 1.25], "wspace": 0.35})
 
-    for x, (key, label, color) in enumerate([("deployed", "Deployed\ndetector", BLUE), ("binary", "Binary\ndetector", ORANGE)]):
+    for x, (key, label, color) in enumerate([("deployed", "Live detector\n(forest + classifier)", BLUE), ("binary", "Binary classifier\n(alternative)", ORANGE)]):
         a.bar(x, caught[key], 0.6, color=color)
         a.text(x, caught[key] + 0.03, pct(caught[key], 1), ha="center", fontsize=14, fontweight="bold")
-    a.set_xticks([0, 1], ["Deployed\ndetector", "Binary\ndetector"])
+    a.set_xticks([0, 1], ["Live detector\n(forest + classifier)", "Binary classifier\n(alternative)"])
     a.set_ylim(0, 1.15)
     a.set_yticks([0, 0.5, 1.0], ["0%", "50%", "100%"])
     a.set_title("Faults caught", loc="left", fontsize=14)
@@ -174,13 +174,13 @@ def detection(data: dict, out_dir: Path) -> list[Path]:
         v = wrong[key]
         b.bar(x, v, 0.6, color=color, hatch="//" if key == "iforest" else None, edgecolor="white" if key == "iforest" else color)
         b.text(x, v + 0.03, pct(v, 1), ha="center", fontsize=14, fontweight="bold")
-    b.set_xticks(range(3), ["Isolation\nForest", "Binary\ndetector", "Deployed\ndetector"])
+    b.set_xticks(range(3), ["Isolation\nForest\n(alone)", "Binary\nclassifier", "Live\ndetector"])
     b.set_ylim(0, 1.15)
     b.set_yticks([0, 0.5, 1.0], ["0%", "50%", "100%"])
     b.set_title("Healthy windows wrongly flagged", loc="left", fontsize=14)
     b.text(0.5, 0.55, "Flags everything, so it\ndetects nothing", ha="left", fontsize=12, color=SECOND)
 
-    header(fig, f"The deployed detector catches {pct(caught['deployed'], 1)} of faults and wrongly flags {pct(wrong['deployed'], 1)} of healthy windows")
+    header(fig, f"The live detector catches {pct(caught['deployed'], 1)} of faults and wrongly flags {pct(wrong['deployed'], 1)} of healthy windows")
     h = det["deployed"]["headline"]
     footnote(fig, f"Test set: {h['windows']:,} windows ({h['normal_windows']['healthy']} healthy).", y=-0.02)
     return save(fig, FIGURES[1], out_dir)
