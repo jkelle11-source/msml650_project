@@ -55,8 +55,8 @@ def test_isolation_forest_is_never_drawn_as_a_success(out):
 def test_confusion_title_names_the_largest_real_confusion(out):
     c = json.loads(mf.INPUTS["m9_2"].read_text())["classification"]["incident_type"]["headline"]
     text = svg_text(out, "fig1_confusion_matrix")
-    assert "Dependency failure windows are called cascading failure 46% of the time" in text
-    assert str(c["confusion"][2][0]) in text
+    row = c["confusion"][2]
+    assert f"Dependency failure is mistaken for cascading failure {mf.pct(row[0] / sum(row))} of the time" in text
 
 
 def test_baseline_margins_come_from_the_paired_results(out):

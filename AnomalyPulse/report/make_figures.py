@@ -115,51 +115,43 @@ def footnote(fig, text: str, y: float = -0.02) -> None:
 
 # --------------------------------------------------------------------------------------------------------- 1
 
+def header(fig, title: str, how_to_read: str) -> None:
+    """A title that states the finding, and one plain line on how to read the figure."""
+    fig.text(0.01, 1.02, title, fontsize=17, fontweight="bold", ha="left", va="bottom")
+    fig.text(0.01, 0.985, how_to_read, fontsize=12.5, color=SECOND, ha="left", va="top")
+
+
 def confusion_matrix(data: dict, out_dir: Path) -> list[Path]:
     cls = data["m9_2"]["classification"]["incident_type"]["headline"]
     classes, matrix = cls["classes"], cls["confusion"]
     n = len(classes)
-    rows = [sum(r) for r in matrix]
-    share = [[matrix[i][j] / rows[i] for j in range(n)] for i in range(n)]
-
-    # The title names the largest confusion between two different classes, found in the data.
-    off = max(((share[i][j], i, j) for i in range(n) for j in range(n) if i != j))
-    s, i, j = off
+    share = [[matrix[i][j] / sum(matrix[i]) for j in range(n)] for i in range(n)]
+    s, i, j = max((share[i][j], i, j) for i in range(n) for j in range(n) if i != j)
 
     cmap = LinearSegmentedColormap.from_list("blue", ["#ffffff", "#9ec5f4", "#256abf", "#0d366b"])
-    fig, ax = plt.subplots(figsize=(9.2, 7.2))
+    fig, ax = plt.subplots(figsize=(11, 6.6))
     ax.imshow(share, cmap=cmap, vmin=0, vmax=1)
-    for a in range(n):
-        for b in range(n):
-            v = share[a][b]
-            if matrix[a][b] == 0:
+    for a_ in range(n):
+        for b_ in range(n):
+            v = share[a_][b_]
+            if v < 0.01:
                 continue
-            ax.text(
-                b, a, f"{matrix[a][b]}\n{pct(v)}",
-                ha="center", va="center", fontsize=12,
-                color="white" if v > 0.45 else INK, fontweight="bold" if a == b else "normal",
-            )
-    labels = [PRETTY[c].replace(" ", "\n", 1) if " " in PRETTY[c] else PRETTY[c] + "\n" for c in classes]
-    ax.set_xticks(range(n), labels, fontsize=11)
-    ax.set_yticks(range(n), [PRETTY[c] for c in classes], fontsize=11.5)
-    ax.xaxis.tick_top()
-    ax.xaxis.set_label_position("top")
-    ax.set_xlabel("Predicted by the classifier", labelpad=10)
-    ax.set_ylabel("True label")
+            ax.text(b_, a_, pct(v), ha="center", va="center", fontsize=14,
+                    color="white" if v > 0.4 else INK, fontweight="bold" if a_ == b_ else "normal")
+    ax.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False, edgecolor=ORANGE, lw=4))
+    ax.set_xticks(range(n), [PRETTY[c].replace(" ", "\n", 1) if " " in PRETTY[c] else PRETTY[c] for c in classes], fontsize=10.5, va="top")
+    ax.set_yticks(range(n), [PRETTY[c] for c in classes], fontsize=12)
+    ax.set_xlabel("What the classifier said", labelpad=10)
+    ax.set_ylabel("What really happened")
     for sp in ax.spines.values():
         sp.set_visible(False)
     ax.tick_params(length=0)
-    fig.suptitle(
-        f"{PRETTY[classes[i]]} windows are called {PRETTY[classes[j]].lower()} {pct(s)} of the time",
-        x=0.02, ha="left", fontsize=15, fontweight="bold", y=1.02,
-    )
-    acc = cls["accuracy"]
-    lo, hi = cls["ci95"]["accuracy"]
-    footnote(
+    header(
         fig,
-        f"Test set, headline runs ({cls['runs']} runs, {cls['windows']} windows). Cell = windows, then share of the "
-        f"true class's windows.\nAccuracy {pct(acc, 1)} (95% CI {pct(lo, 1)} to {pct(hi, 1)}); macro F1 {cls['macro_f1']:.3f}.",
+        f"{PRETTY[classes[i]]} is mistaken for {PRETTY[classes[j]].lower()} {pct(s)} of the time",
+        "Read each row: the true fault, and how often the classifier gave each answer. Darker = more.",
     )
+    footnote(fig, f"Test set: {cls['windows']:,} windows. Overall accuracy {pct(cls['accuracy'])}.", y=-0.06)
     return save(fig, FIGURES[0], out_dir)
 
 
