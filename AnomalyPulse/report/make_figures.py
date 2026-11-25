@@ -155,31 +155,55 @@ def confusion_matrix(data: dict, out_dir: Path) -> list[Path]:
 
 # --------------------------------------------------------------------------------------------------------- 2
 
-def dots(ax, flagged: float, color: str, title: str, caption: str, hatch: bool = False) -> None:
-    """A 10 x 10 grid: each dot stands for one window out of 100; filled dots were flagged."""
-    n_filled = round(flagged * 100)
+GOLD, RED = "#c98500", "#d03b3b"
+
+
+def card(ax, x0: float, tag: str, glyph: str, color: str, lead: str, bold: str, share: float, verdict: str, shade: str = "white") -> None:
+    """One card: a tag, a two-line question, a 10 x 10 grid (one dot per window out of 100), and the verdict.
+
+    The dot at the end of the filled run is filled in proportion, so 99.9 of 100 and 2.4 of 100 are drawn exactly."""
+    from matplotlib.patches import Circle, FancyBboxPatch, Rectangle
+
+    w, y0, h = 3.9, 0.45, 6.1
+    for dx, dy, col in ((0.05, -0.07, "#00000012"), (0.03, -0.04, "#00000012")):
+        ax.add_patch(FancyBboxPatch((x0 + dx, y0 + dy), w, h, boxstyle="round,pad=0,rounding_size=0.22", fc=col, ec="none", zorder=0))
+    ax.add_patch(FancyBboxPatch((x0, y0), w, h, boxstyle="round,pad=0,rounding_size=0.22", fc=shade, ec="#e4e3df", lw=1, zorder=1))
+    ax.add_patch(Circle((x0 + 0.5, y0 + h - 0.5), 0.17, fc=color, ec="none", zorder=2))
+    ax.text(x0 + 0.5, y0 + h - 0.51, glyph, color="white", fontsize=11, fontweight="bold", ha="center", va="center", zorder=3)
+    ax.text(x0 + 0.8, y0 + h - 0.5, tag, fontsize=12.5, color=SECOND, va="center", zorder=3)
+    ax.text(x0 + 0.4, y0 + h - 1.0, lead, fontsize=15, va="top", zorder=3)
+    ax.text(x0 + 0.4, y0 + h - 1.38, bold, fontsize=15, fontweight="bold", va="top", linespacing=1.15, zorder=3)
+
+    filled = share * 100
     for k in range(100):
         r, c = divmod(k, 10)
-        on = k < n_filled
-        ax.scatter(c, -r, s=300, color=color if on else "white", edgecolor=color if on else GRID, linewidth=1.6, zorder=2)
-    ax.set_xlim(-0.8, 9.8), ax.set_ylim(-10.2, 0.8)
-    ax.axis("off")
-    ax.text(-0.8, 1.2, title, fontsize=13.5, fontweight="bold", ha="left", va="bottom")
-    ax.text(-0.8, -10.8, caption, fontsize=15, fontweight="bold", ha="left", va="top")
+        cx, cy, rad = x0 + 0.52 + c * 0.32, y0 + h - 2.45 - r * 0.285, 0.115
+        ax.add_patch(Circle((cx, cy), rad, fc="white", ec=GRID, lw=1.6, zorder=2))
+        frac = min(1.0, max(0.0, filled - k))
+        if frac > 0:
+            dot = Circle((cx, cy), rad, fc=color, ec=color, lw=1.6, zorder=3)
+            ax.add_patch(dot)
+            if frac < 1:
+                clip = Rectangle((cx - rad - 0.02, cy - rad - 0.02), 2 * rad * frac + 0.02, 2 * rad + 0.04, transform=ax.transData)
+                dot.set_clip_path(clip)
+    ax.text(x0 + 0.4, y0 + 0.45, verdict, fontsize=14.5, fontweight="bold", color=color, va="center", zorder=3)
 
 
 def detection(data: dict, out_dir: Path) -> list[Path]:
     det = data["m9_2"]["detection"]
     caught = det["deployed"]["headline"]["metrics"]["recall"]
     wrong = {k: det[k]["headline"]["metrics"]["fpr_healthy"] for k in ("iforest", "deployed")}
-    fig, axes = plt.subplots(1, 3, figsize=(13, 6.8))
-    fig.subplots_adjust(top=0.78, wspace=0.12)
-    dots(axes[0], caught, BLUE, "Real faults:\ncaught by the\nlive detector", f"{caught * 100:.1f} of 100 caught")
-    dots(axes[1], wrong["iforest"], MUTED, "Healthy windows:\nflagged by\nIsolation Forest alone", f"{wrong['iforest'] * 100:.0f} of 100 flagged")
-    dots(axes[2], wrong["deployed"], BLUE, "Healthy windows:\nflagged by the\nlive detector", f"{wrong['deployed'] * 100:.1f} of 100 flagged")
-    header(fig, f"The live detector catches {pct(caught, 1)} of faults and wrongly flags {pct(wrong['deployed'], 1)} of healthy windows")
+    fig = plt.figure(figsize=(13, 7.3))
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_xlim(0, 13), ax.set_ylim(0, 7.3), ax.axis("off")
+    card(ax, 0.3, "FAULTS CAUGHT", "\u2713", BLUE, "Real faults:", "Caught by the\nlive detector", caught, f"{pct(caught, 1)} caught")
+    card(ax, 4.55, "FOREST ALONE", "!", GOLD, "Healthy windows:", "Flagged by\nIsolation Forest alone", wrong["iforest"], f"{pct(wrong['iforest'])} flagged as faults", shade="#f4f3f0")
+    card(ax, 8.8, "FALSE ALARMS", "\u00d7", RED, "Healthy windows:", "Wrongly flagged by the\nlive detector", wrong["deployed"], f"Only {pct(wrong['deployed'], 1)} wrongly flagged")
+    ax.text(0.3, 7.0, f"The live detector catches {pct(caught, 1)} of faults and wrongly flags only {pct(wrong['deployed'], 1)} of healthy windows",
+            fontsize=16, fontweight="bold", va="center")
     h = det["deployed"]["headline"]
-    footnote(fig, f"One dot = one window out of 100 (rounded to whole dots). Filled = flagged. Test set: {h['windows']:,} windows ({h['normal_windows']['healthy']} healthy).", y=-0.03)
+    ax.text(0.3, 0.1, f"One dot = one window out of 100. Filled = flagged as a fault. Test set: {h['windows']:,} windows ({h['normal_windows']['healthy']} healthy).",
+            fontsize=11.5, color=SECOND, va="center")
     return save(fig, FIGURES[1], out_dir)
 
 
