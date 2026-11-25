@@ -281,8 +281,8 @@ def baseline_margins(data: dict, out_dir: Path) -> list[Path]:
     gap_row(top, rule["recall"], ml["recall"], f"+{100 * gain:.0f} points more faults caught", 1.0, [0, 0.25, 0.5, 0.75, 1.0], "Real faults caught")
     gap_row(bottom, rule["fpr_healthy"], ml["fpr_healthy"], f"+{100 * cost:.1f} points more false alarms", 0.05, [0, 0.01, 0.02, 0.03, 0.04, 0.05], "Healthy windows wrongly flagged")
     # Direct labels: which dot is which.
-    fig.text(0.04, 0.95, f"The classifier catches {pct(ml['recall'], 1)} of faults, the simple rule only {pct(rule['recall'])}", fontsize=15, fontweight="bold", ha="left")
-    fig.text(0.04, 0.885, "Orange dot: simple rule.   Blue dot: classifier.", fontsize=11.5, color=SECOND, ha="left")
+    fig.text(0.04, 0.95, f"The AnomalyPulse classifier catches {pct(ml['recall'], 1)} of faults, the simple rule only {pct(rule['recall'])}", fontsize=15, fontweight="bold", ha="left")
+    fig.text(0.04, 0.885, "Orange dot: simple rule.   Blue dot: AnomalyPulse classifier.", fontsize=11.5, color=SECOND, ha="left")
     p = b["provenance"]["counts"]
     fig.text(0.04, 0.06, "Simple rule: flags a window when any service's p95 latency is above 2x its normal level or its 5xx share is above 5%.", fontsize=10, color=SECOND, ha="left")
     fig.text(0.04, 0.02, f"Test set, headline runs ({p['headline_runs']} runs, {p['headline_windows']:,} windows).", fontsize=10, color=SECOND, ha="left")
