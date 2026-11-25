@@ -297,7 +297,7 @@ def cost_curve(data: dict, out_dir: Path) -> list[Path]:
     first, last = rows[0], rows[-1]
     fig, ax = plt.subplots(figsize=(11, 6.2))
     fig.subplots_adjust(top=0.8, bottom=0.2, left=0.09, right=0.93)
-    for key, color, label in (("app", ORANGE, "The store"), ("anomalypulse", BLUE, "AnomalyPulse")):
+    for key, color, label in (("app", ORANGE, "E-commerce app"), ("anomalypulse", BLUE, "AnomalyPulse\n(added cost)")):
         ax.plot(rps, [r[key] for r in rows], "-o", color=color, lw=3.2, markersize=8, zorder=3)
         ax.text(rps[-1] * 1.12, last[key], f"{label}\n${last[key]:,.0f}", color=color, fontsize=13, fontweight="bold", va="center")
     # Label the first point of each line too, so the low end reads without a table.
@@ -309,12 +309,12 @@ def cost_curve(data: dict, out_dir: Path) -> list[Path]:
     ax.set_xlim(rps[0] * 0.8, rps[-1] * 3.4)
     ax.set_ylim(-110, 1200)
     ax.set_yticks([0, 400, 800, 1200], ["$0", "$400", "$800", "$1,200"])
-    ax.set_xlabel("Requests per second to the monitored store")
+    ax.set_xlabel("Requests per second to the e-commerce app")
     ax.set_ylabel("Monthly AWS cost")
     ax.grid(axis="y", color=GRID, lw=0.9)
     ax.set_axisbelow(True)
     fig.text(0.09, 0.93, f"Monitoring is {pct(first['anomalypulse_share'])} of the bill at {first['rps']} request/s and {pct(last['anomalypulse_share'])} at {last['rps']} requests/s", fontsize=15, fontweight="bold", ha="left")
-    fig.text(0.09, 0.875, "Orange: the store alone. Blue: what AnomalyPulse adds on top.", fontsize=11.5, color=SECOND, ha="left")
+    fig.text(0.09, 0.875, f"Orange: running the e-commerce app. Blue: the extra cost of adding AnomalyPulse. Total bill = orange + blue (${last['total']:,.0f} at {last['rps']} requests/s).", fontsize=11.5, color=SECOND, ha="left")
     fig.text(0.09, 0.03, f"Projected monthly cost at list price, {data['cost']['incidents_per_month']} incidents a month. Horizontal axis is logarithmic.", fontsize=10, color=SECOND, ha="left")
     return save(fig, FIGURES[4], out_dir)
 
