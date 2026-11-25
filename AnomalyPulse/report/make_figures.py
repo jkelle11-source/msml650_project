@@ -280,19 +280,19 @@ def baseline_margins(data: dict, out_dir: Path) -> list[Path]:
         shell(ax, x0, y0, w, h, tag, glyph, color)
         for i, line in enumerate(heading.split("\n")):
             ax.text(x0 + 0.4, yt - 1.05 - 0.3 * i, line, fontsize=13.5, fontweight="bold", va="center", zorder=3)
-        for j, (label, m, c) in enumerate((("Simple rule", rule, ORANGE), ("AnomalyPulse classifier", ml, BLUE))):
+        for j, (label, m, c) in enumerate((("Model 0 (simple threshold rule)", rule, ORANGE), ("AnomalyPulse classifier", ml, BLUE))):
             bar_row(ax, x0 + 0.4, w - 0.8, yt - 2.0 - j * 1.25, label, m[key], c, pct(m[key], digits))
     # The gain, in one number.
     x0 = 8.8
     shell(ax, x0, y0, w, h, "THE GAIN", "\u2713", BLUE, shade="#f4f3f0")
     ax.text(x0 + 0.4, yt - 1.05, "More faults caught", fontsize=13.5, fontweight="bold", va="center", zorder=3)
     ax.text(x0 + 0.4, yt - 1.95, f"+{100 * gain:.0f} points", fontsize=30, fontweight="bold", color=BLUE, va="center", zorder=3)
-    ax.text(x0 + 0.4, yt - 2.6, "than the simple rule", fontsize=11, color=SECOND, va="center", zorder=3)
-    ax.text(x0 + 0.4, yt - 3.25, f"+{100 * gain_prev:.0f} points against the\nweaker version of the rule", fontsize=10.5, color=SECOND, va="center", zorder=3)
+    ax.text(x0 + 0.4, yt - 2.6, "than Model 0", fontsize=11, color=SECOND, va="center", zorder=3)
+    ax.text(x0 + 0.4, yt - 3.25, f"+{100 * gain_prev:.0f} points against the\nweaker version of Model 0", fontsize=10.5, color=SECOND, va="center", zorder=3)
     ax.text(x0 + 0.4, y0 + 0.55, f"The price: {100 * cost:.1f} points more\nfalse alarms on healthy traffic", fontsize=10.5, fontweight="bold", color=RED, va="center", zorder=3)
-    ax.text(0.3, 6.05, f"The AnomalyPulse classifier catches {pct(ml['recall'], 1)} of faults, the simple rule only {pct(rule['recall'])}", fontsize=14.5, fontweight="bold", va="center")
-    ax.text(0.3, 0.8, "Simple rule: flags a window when any service's p95 latency is above 2x its normal level or its 5xx share is above 5%, compared with the mean of the 3 earlier windows.", fontsize=10, color=SECOND, va="center")
-    ax.text(0.3, 0.52, "The weaker version of the rule compares with the previous window only. Differences are paired by run.", fontsize=10, color=SECOND, va="center")
+    ax.text(0.3, 6.05, f"The AnomalyPulse classifier catches {pct(ml['recall'], 1)} of faults, Model 0 only {pct(rule['recall'])}", fontsize=14.5, fontweight="bold", va="center")
+    ax.text(0.3, 0.8, "Model 0, the simple threshold rule, flags a window when any service's p95 latency is above 2x normal or its 5xx share is above 5%, compared with the mean of the 3 earlier windows.", fontsize=10, color=SECOND, va="center")
+    ax.text(0.3, 0.52, "The weaker version of Model 0 compares with the previous window only. Differences are paired by run.", fontsize=10, color=SECOND, va="center")
     p = b["provenance"]["counts"]
     ax.text(0.3, 0.2, f"Test set, headline runs ({p['headline_runs']} runs, {p['headline_windows']:,} windows).", fontsize=10, color=SECOND, va="center")
     return save(fig, FIGURES[3], out_dir)

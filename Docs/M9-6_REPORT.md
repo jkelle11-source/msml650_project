@@ -139,8 +139,8 @@ to 44 points below its validation recall. Source: `metrics_m9_2.json`.
 
 ![Baseline margins](images/m9-6/fig4_baseline_margins.png)
 
-The simple rule (Model 0: flag a minute when p95 latency is more than twice baseline, or the 5xx share is above
-5%) catches 47.2% of faulty windows; the AnomalyPulse classifier catches 99.9%, a gain of 53 points. The rule
+Model 0, the simple threshold rule (flag a minute when p95 latency is more than twice baseline, or the 5xx share is above
+5%), catches 47.2% of faulty windows; the AnomalyPulse classifier catches 99.9%, a gain of 53 points. The rule
 never raises a false alarm on healthy windows (0.0%); the classifier raises 2.4%, the price of the gain. Against
 the weaker form of the rule (compares to the previous window, not the mean of the three before it) the gain is
 63 points. Test set, headline runs (320 runs, 2,092 windows). Source: `baseline_m9_3.json`
