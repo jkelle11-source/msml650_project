@@ -155,7 +155,7 @@ Projected monthly cost at list price with 30 incidents a month. The orange line 
 blue line is what AnomalyPulse adds on top, so the total is the sum of the two, not the app's cost reduced to the
 blue line. At 1 request/s: $32 for the app and $24 for AnomalyPulse (monitoring is 43% of the bill, $56
 in total). At 100 requests/s: $1,085 and $287 ($1,372 in total, monitoring 21%). Source: `projections.json`
-([`COST_AND_PERFORMANCE.md`](COST_AND_PERFORMANCE.md)).
+(built from `cost/results/measured.json`; see [`COST_AND_PERFORMANCE.md`](COST_AND_PERFORMANCE.md)).
 
 ### Figure 6: latency breakdown
 
