@@ -115,10 +115,9 @@ def footnote(fig, text: str, y: float = -0.02) -> None:
 
 # --------------------------------------------------------------------------------------------------------- 1
 
-def header(fig, title: str, how_to_read: str) -> None:
-    """A title that states the finding, and one plain line on how to read the figure."""
-    fig.text(0.01, 1.02, title, fontsize=17, fontweight="bold", ha="left", va="bottom")
-    fig.text(0.01, 0.985, how_to_read, fontsize=12.5, color=SECOND, ha="left", va="top")
+def header(fig, title: str) -> None:
+    """A title that states the finding. Nothing else: each figure has to explain itself by its labels."""
+    fig.text(0.01, 1.0, title, fontsize=17, fontweight="bold", ha="left", va="bottom")
 
 
 def confusion_matrix(data: dict, out_dir: Path) -> list[Path]:
@@ -149,7 +148,6 @@ def confusion_matrix(data: dict, out_dir: Path) -> list[Path]:
     header(
         fig,
         f"{PRETTY[classes[i]]} is mistaken for {PRETTY[classes[j]].lower()} {pct(s)} of the time",
-        "Read each row: the true fault, and how often the classifier gave each answer. Darker = more.",
     )
     footnote(fig, f"Test set: {cls['windows']:,} windows. Overall accuracy {pct(cls['accuracy'])}.", y=-0.06)
     return save(fig, FIGURES[0], out_dir)
@@ -159,50 +157,32 @@ def confusion_matrix(data: dict, out_dir: Path) -> list[Path]:
 
 def detection(data: dict, out_dir: Path) -> list[Path]:
     det = data["m9_2"]["detection"]
-    names = [("deployed", "Deployed detector\n(live classifier)", BLUE), ("binary", "Binary detector", ORANGE)]
-    metrics = ["precision", "recall", "f1"]
-    fig, (a, b) = plt.subplots(1, 2, figsize=(13.5, 5.6), gridspec_kw={"width_ratios": [1.5, 1]})
+    ci_deployed = data["m9_3"]["share_margins"]["headline"]["model0_previous_window"]["healthy"]["ci95"]
+    caught = {k: det[k]["headline"]["metrics"]["recall"] for k in ("deployed", "binary")}
+    wrong = {k: det[k]["headline"]["metrics"]["fpr_healthy"] for k in ("iforest", "binary", "deployed")}
+    fig, (a, b) = plt.subplots(1, 2, figsize=(11, 5.2), gridspec_kw={"width_ratios": [1, 1.25], "wspace": 0.35})
 
-    width = 0.36
-    for k, (key, label, color) in enumerate(names):
-        h = det[key]["headline"]
-        xs = [m + (k - 0.5) * width for m in range(3)]
-        vals = [h["metrics"][m] for m in metrics]
-        err = [[v - h["ci95"][m][0] for v, m in zip(vals, metrics)], [h["ci95"][m][1] - v for v, m in zip(vals, metrics)]]
-        a.bar(xs, vals, width * 0.92, color=color, label=label, yerr=err, error_kw={"ecolor": INK, "capsize": 4, "lw": 1.4})
-        for x, v in zip(xs, vals):
-            a.text(x, 0.5, f"{v:.3f}", ha="center", va="center", color="white", fontsize=12, fontweight="bold")
-    a.set_xticks(range(3), ["Precision", "Recall", "F1"])
-    a.set_ylim(0, 1.08)
-    a.set_ylabel("Score on the test windows")
-    a.set_title("Both detectors find the faults and rarely cry wolf")
-    a.legend(loc="lower left", bbox_to_anchor=(0.0, -0.32), ncol=2)
+    for x, (key, label, color) in enumerate([("deployed", "Deployed\ndetector", BLUE), ("binary", "Binary\ndetector", ORANGE)]):
+        a.bar(x, caught[key], 0.6, color=color)
+        a.text(x, caught[key] + 0.03, pct(caught[key], 1), ha="center", fontsize=14, fontweight="bold")
+    a.set_xticks([0, 1], ["Deployed\ndetector", "Binary\ndetector"])
+    a.set_ylim(0, 1.15)
+    a.set_yticks([0, 0.5, 1.0], ["0%", "50%", "100%"])
+    a.set_title("Faults caught", loc="left", fontsize=14)
 
-    order = [("iforest", "Isolation Forest", MUTED), ("binary", "Binary detector", ORANGE), ("deployed", "Deployed detector", BLUE)]
-    deployed_ci = data["m9_3"]["share_margins"]["headline"]["model0_previous_window"]["healthy"]["ci95"]
-    for x, (key, label, color) in enumerate(order):
-        m = det[key]["headline"]["metrics"]["fpr_healthy"]
-        ci = deployed_ci if key == "deployed" else None
-        hatch = "//" if key == "iforest" else None
-        b.bar(x, m, 0.62, color=color, hatch=hatch, edgecolor="white" if hatch else color,
-              yerr=None if ci is None else [[m - ci[0]], [ci[1] - m]], error_kw={"ecolor": INK, "capsize": 4, "lw": 1.4})
-        b.text(x, (ci[1] if ci else m) + 0.04, pct(m, 1), ha="center", fontsize=12.5, fontweight="bold")
-    b.set_xticks(range(3), [o[1].replace(" ", "\n", 1) for o in order])
-    b.set_ylim(0, 1.18)
-    b.set_ylabel("Healthy windows flagged")
-    b.set_title("Isolation Forest flags everything")
-    b.annotate(
-        "Flags every window, healthy or not.\nIts recall of 100% is not detection.",
-        xy=(0, 0.5), xytext=(0.5, 0.58), ha="left", fontsize=11.5, color=INK,
-    )
+    for x, (key, color) in enumerate([("iforest", MUTED), ("binary", ORANGE), ("deployed", BLUE)]):
+        v = wrong[key]
+        b.bar(x, v, 0.6, color=color, hatch="//" if key == "iforest" else None, edgecolor="white" if key == "iforest" else color)
+        b.text(x, v + 0.03, pct(v, 1), ha="center", fontsize=14, fontweight="bold")
+    b.set_xticks(range(3), ["Isolation\nForest", "Binary\ndetector", "Deployed\ndetector"])
+    b.set_ylim(0, 1.15)
+    b.set_yticks([0, 0.5, 1.0], ["0%", "50%", "100%"])
+    b.set_title("Healthy windows wrongly flagged", loc="left", fontsize=14)
+    b.text(0.5, 0.55, "Flags everything, so it\ndetects nothing", ha="left", fontsize=12, color=SECOND)
+
+    header(fig, f"The deployed detector catches {pct(caught['deployed'], 1)} of faults and wrongly flags {pct(wrong['deployed'], 1)} of healthy windows")
     h = det["deployed"]["headline"]
-    footnote(
-        fig,
-        f"Test set, headline runs ({h['runs']} runs, {h['windows']} windows). Error bars: 95% CI, resampled by run. Right panel: the "
-        f"{h['normal_windows']['healthy']} windows with no fault active (CI shown for the deployed detector only).\nIsolation Forest is shown as a warning, not a result: "
-        "it was kept out of the live path because it cannot tell healthy windows from faulty ones.",
-        y=-0.14,
-    )
+    footnote(fig, f"Test set: {h['windows']:,} windows ({h['normal_windows']['healthy']} healthy).", y=-0.02)
     return save(fig, FIGURES[1], out_dir)
 
 
