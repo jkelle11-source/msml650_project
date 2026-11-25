@@ -158,19 +158,26 @@ def confusion_matrix(data: dict, out_dir: Path) -> list[Path]:
 GOLD, RED = "#c98500", "#d03b3b"
 
 
-def card(ax, x0: float, tag: str, glyph: str, color: str, lead: str, bold: str, share: float, verdict: str, shade: str = "white") -> None:
-    """One card: a tag, a two-line question, a 10 x 10 grid (one dot per window out of 100), and the verdict.
+def shell(ax, x0: float, y0: float, w: float, h: float, tag: str, glyph: str, color: str, shade: str = "white") -> None:
+    """The rounded white card with a soft shadow and a small tag (coloured icon + grey label) at its top."""
+    from matplotlib.patches import Circle, FancyBboxPatch
 
-    The dot at the end of the filled run is filled in proportion, so 99.9 of 100 and 2.4 of 100 are drawn exactly."""
-    from matplotlib.patches import Circle, FancyBboxPatch, Rectangle
-
-    w, y0, h = 3.9, 0.45, 6.1
-    for dx, dy, col in ((0.05, -0.07, "#00000012"), (0.03, -0.04, "#00000012")):
-        ax.add_patch(FancyBboxPatch((x0 + dx, y0 + dy), w, h, boxstyle="round,pad=0,rounding_size=0.22", fc=col, ec="none", zorder=0))
+    for dx, dy in ((0.05, -0.07), (0.03, -0.04)):
+        ax.add_patch(FancyBboxPatch((x0 + dx, y0 + dy), w, h, boxstyle="round,pad=0,rounding_size=0.22", fc="#00000012", ec="none", zorder=0))
     ax.add_patch(FancyBboxPatch((x0, y0), w, h, boxstyle="round,pad=0,rounding_size=0.22", fc=shade, ec="#e4e3df", lw=1, zorder=1))
     ax.add_patch(Circle((x0 + 0.5, y0 + h - 0.5), 0.17, fc=color, ec="none", zorder=2))
     ax.text(x0 + 0.5, y0 + h - 0.51, glyph, color="white", fontsize=11, fontweight="bold", ha="center", va="center", zorder=3)
     ax.text(x0 + 0.8, y0 + h - 0.5, tag, fontsize=12.5, color=SECOND, va="center", zorder=3)
+
+
+def card(ax, x0: float, tag: str, glyph: str, color: str, lead: str, bold: str, share: float, verdict: str, shade: str = "white") -> None:
+    """One card: a tag, a two-line question, a 10 x 10 grid (one dot per window out of 100), and the verdict.
+
+    The dot at the end of the filled run is filled in proportion, so 99.9 of 100 and 2.4 of 100 are drawn exactly."""
+    from matplotlib.patches import Circle, Rectangle
+
+    w, y0, h = 3.9, 0.45, 6.1
+    shell(ax, x0, y0, w, h, tag, glyph, color, shade)
     ax.text(x0 + 0.4, y0 + h - 1.0, lead, fontsize=15, va="top", zorder=3)
     ax.text(x0 + 0.4, y0 + h - 1.38, bold, fontsize=15, fontweight="bold", va="top", linespacing=1.15, zorder=3)
 
@@ -210,53 +217,40 @@ def detection(data: dict, out_dir: Path) -> list[Path]:
 # --------------------------------------------------------------------------------------------------------- 3
 
 def per_band(data: dict, out_dir: Path) -> list[Path]:
+    from matplotlib.patches import Rectangle
+
     rows = [r for r in data["m9_2"]["per_band"]["rows"] if r["family"] == "classification" and r["model"] == "incident_type"]
-    injectors = []
-    for r in rows:
-        if r["injector"] not in injectors:
-            injectors.append(r["injector"])
-    roles = [("interpolation", BLUE, "Inside the trained range (interpolation)"), ("mild extrapolation", ORANGE, "Just beyond it (mild extrapolation)")]
+    order = ["db-throttling", "lambda-degradation", "traffic-spike", "payment-failure"]
+    names = {"db-throttling": "Database\nthrottling", "lambda-degradation": "Lambda\ndegradation", "traffic-spike": "Traffic\nspike", "payment-failure": "Dependency\nfailure"}
+    roles = [("interpolation", "Inside the trained range"), ("mild extrapolation", "Just beyond it")]
 
-    def fmt(x: float) -> str:
-        return f"{x:,.4g}" if x < 100 else f"{x:,.0f}"
-
-    fig, ax = plt.subplots(figsize=(13, 6.2))
-    width = 0.36
-    gaps: dict[str, list[float]] = {}
-    for k, (role, color, label) in enumerate(roles):
-        xs, vals, errs, refs, ticks = [], [], [[], []], [], {}
-        for g, inj in enumerate(injectors):
-            r = next(x for x in rows if x["injector"] == inj and x["role"] == role)
-            x = g + (k - 0.5) * width
-            xs.append(x), vals.append(r["recall"])
-            errs[0].append(r["recall"] - r["ci95"][0]), errs[1].append(r["ci95"][1] - r["recall"])
-            refs.append(r["vs_validation"]["ref_recall"])
-            ticks[x] = f"{fmt(r['band'][0])}–{fmt(r['band'][1])}"
-            ax.text(x, r["recall"] + 0.03 if r["recall"] > 0.9 else r["ci95"][1] + 0.03, pct(r["recall"], 1), ha="center", fontsize=12, fontweight="bold")
-            lo_hi = ticks[x].split("–")
-            ax.text(x, 0.02, ticks[x] if len(ticks[x]) <= 9 else f"{lo_hi[0]}–\n{lo_hi[1]}", ha="center", va="bottom", fontsize=10, color="white" if r["recall"] > 0.12 else INK)
-            if r["vs_validation"]["status"] == "degraded":
-                gaps.setdefault(inj, []).append(100 * r["vs_validation"]["gap"])
-        ax.bar(xs, vals, width * 0.92, color=color, label=label, yerr=errs, error_kw={"ecolor": INK, "capsize": 4, "lw": 1.4})
-        ax.plot(xs, refs, linestyle="none", marker="_", markersize=30, markeredgewidth=2.6, color=INK, label="Recall on the validation set" if k == 0 else None)
-    for g, inj in enumerate(injectors):
-        if inj in gaps:
-            lo, hi = min(gaps[inj]), max(gaps[inj])
-            span = f"{lo:.0f}" if round(lo) == round(hi) else f"{lo:.0f}–{hi:.0f}"
-            ax.text(g, 0.83, f"{span} points below\nvalidation recall", ha="center", fontsize=11.5, fontweight="bold")
-    ax.set_xticks(range(len(injectors)), [PRETTY[i] for i in injectors])
-    ax.set_ylim(0, 1.3)
-    ax.set_yticks([0, 0.25, 0.5, 0.75, 1.0], ["0%", "25%", "50%", "75%", "100%"])
-    ax.set_ylabel("Recall of the incident-type classifier")
-    ax.set_title("Fault intensity barely matters, except for dependency failures")
-    ax.legend(loc="upper left", bbox_to_anchor=(0.0, -0.12), ncol=3, fontsize=11)
-    footnote(
-        fig,
-        "Test set, standard-length (300 s) single-fault runs; recall on the fault's windows. Numbers inside bars are the injected intensity band "
-        "for that fault.\nError bars: 95% CI, resampled by run. A band is flagged when recall is more than "
-        "10 points below validation.",
-        y=-0.13,
-    )
+    fig = plt.figure(figsize=(13, 6.0))
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_xlim(0, 13), ax.set_ylim(0, 6.0), ax.axis("off")
+    w, gap, y0, h = 2.9, 0.28, 0.45, 5.0
+    yt = y0 + h
+    worst = None
+    for k, inj in enumerate(order):
+        x0 = 0.3 + k * (w + gap)
+        mine = {role: next(r for r in rows if r["injector"] == inj and r["role"] == role) for role, _ in roles}
+        bad = any(r["vs_validation"]["status"] == "degraded" for r in mine.values())
+        color = RED if bad else BLUE
+        shell(ax, x0, y0, w, h, "FLAGGED" if bad else "STEADY", "\u00d7" if bad else "\u2713", color)
+        for line_no, line in enumerate(names[inj].split("\n")):
+            ax.text(x0 + 0.4, yt - 1.0 - 0.32 * line_no, line, fontsize=16, fontweight="bold", va="center", zorder=3)
+        for j, (role, label) in enumerate(roles):
+            r = mine[role]
+            top = yt - 1.95 - j * 1.3
+            ax.text(x0 + 0.4, top, label, fontsize=11.5, color=SECOND, va="center", zorder=3)
+            ax.text(x0 + 0.4, top - 0.42, pct(r["recall"]), fontsize=22, fontweight="bold", color=color, va="center", zorder=3)
+            ax.add_patch(Rectangle((x0 + 0.4, top - 0.88), w - 0.8, 0.13, fc=GRID, ec="none", zorder=2))
+            ax.add_patch(Rectangle((x0 + 0.4, top - 0.88), (w - 0.8) * r["recall"], 0.13, fc=color, ec="none", zorder=3))
+        if bad:
+            gaps = [100 * r["vs_validation"]["gap"] for r in mine.values()]
+            worst = (min(gaps), max(gaps))
+            ax.text(x0 + 0.4, y0 + 0.5, f"{worst[0]:.0f}\u2013{worst[1]:.0f} points below\nvalidation recall", fontsize=12, fontweight="bold", color=RED, va="center", zorder=3)
+    ax.text(0.3, 5.7, "Fault intensity barely changes accuracy, except for dependency failures", fontsize=16, fontweight="bold", va="center")
+    ax.text(0.3, 0.15, "Share of each fault's windows the classifier names correctly. Test set, standard-length single-fault runs.", fontsize=11.5, color=SECOND, va="center")
     return save(fig, FIGURES[2], out_dir)
 
 

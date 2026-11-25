@@ -67,3 +67,13 @@ def test_cost_figure_ends_on_the_last_projection_row(out):
     last = json.loads(mf.INPUTS["cost"].read_text())["rows"][-1]
     text = svg_text(out, "fig5_cost_curve")
     assert f"${last['app']:,.0f}" in text and f"${last['anomalypulse']:,.0f}" in text
+
+
+def test_per_band_figure_shows_every_recall_and_the_dependency_gap(out):
+    m = json.loads(mf.INPUTS["m9_2"].read_text())
+    rows = [r for r in m["per_band"]["rows"] if r["family"] == "classification" and r["model"] == "incident_type"]
+    text = svg_text(out, "fig3_per_band")
+    for r in rows:
+        assert mf.pct(r["recall"]) in text
+    gaps = [100 * r["vs_validation"]["gap"] for r in rows if r["vs_validation"]["status"] == "degraded"]
+    assert f"{min(gaps):.0f}\u2013{max(gaps):.0f} points below" in text
