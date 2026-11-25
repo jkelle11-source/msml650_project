@@ -335,7 +335,7 @@ def latency_breakdown(data: dict, out_dir: Path) -> list[Path]:
     t = data["latency"]["summary"]["test"]
     steps = t["steps_s"]
     det = detection_latency(data)
-    parts = [("window", "1-minute window", BLUE, "white"), ("pipeline_wait", "Waiting for CloudWatch\nto settle", ORANGE, "white"), ("diagnosis", "Diagnosis\n(Bedrock)", AQUA, INK)]
+    parts = [("window", "1-minute window", BLUE, "white"), ("pipeline_wait", "Waiting for CloudWatch to\npublish the minute's numbers", ORANGE, "white"), ("diagnosis", "Diagnosis\n(Bedrock)", AQUA, INK)]
     total = sum(steps[k]["median"] for k, *_ in parts)
     wait_share = steps["pipeline_wait"]["median"] / total
 
@@ -357,8 +357,8 @@ def latency_breakdown(data: dict, out_dir: Path) -> list[Path]:
         ax.text((x1 + x2) / 2, y - 0.52, sub, fontsize=10.5, color=SECOND, ha="center", va="top")
 
     d = steps["window"]["median"] + steps["pipeline_wait"]["median"]
-    bracket(0, d, -0.35, f"Detection: {rnd(det['median'])} s", "fault starts to incident opened and typed")
-    bracket(0, total, -1.65, f"End to end: {rnd(steps['end_to_end']['median'])} s", f"fault starts to diagnosis stored. 9 in 10 runs finish within {rnd(steps['end_to_end']['p90'])} s")
+    bracket(0, d, -0.35, f"Detection: {rnd(det['median'])} s", "From the start of the fault to detecting it and naming its type.")
+    bracket(0, total, -1.65, f"End to end: {rnd(steps['end_to_end']['median'])} s", f"From the start of the fault to detecting it, diagnosing it and storing the diagnosis.\n9 in 10 runs finish within {rnd(steps['end_to_end']['p90'])} s.")
     share_text = "about two-thirds" if 0.62 <= wait_share <= 0.72 else pct(wait_share)
     ax.text(-6, 2.15, f"Fault to stored diagnosis takes about 4 minutes, and {share_text} of it is waiting for CloudWatch", fontsize=15, fontweight="bold", va="center")
     ax.text(-6, -3.0, f"Typical run (median of each step), {steps['end_to_end']['n']} timed detections on the test set. Runbooks off.", fontsize=10, color=SECOND, va="center")
