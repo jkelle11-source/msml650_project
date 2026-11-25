@@ -217,17 +217,15 @@ def detection(data: dict, out_dir: Path) -> list[Path]:
 # --------------------------------------------------------------------------------------------------------- 3
 
 def per_band(data: dict, out_dir: Path) -> list[Path]:
-    from matplotlib.patches import Rectangle
-
     rows = [r for r in data["m9_2"]["per_band"]["rows"] if r["family"] == "classification" and r["model"] == "incident_type"]
     order = ["db-throttling", "lambda-degradation", "traffic-spike", "payment-failure"]
     names = {"db-throttling": "Database\nthrottling", "lambda-degradation": "Lambda\ndegradation", "traffic-spike": "Traffic\nspike", "payment-failure": "Dependency\nfailure"}
-    roles = [("interpolation", "Inside the trained range"), ("mild extrapolation", "Just beyond it")]
+    roles = [("interpolation", "Same strength as in training"), ("mild extrapolation", "Slightly stronger than in training")]
 
-    fig = plt.figure(figsize=(13, 6.4))
+    fig = plt.figure(figsize=(13, 5.9))
     ax = fig.add_axes([0, 0, 1, 1])
-    ax.set_xlim(0, 13), ax.set_ylim(0, 6.4), ax.axis("off")
-    w, gap, y0, h = 2.9, 0.28, 1.15, 4.6
+    ax.set_xlim(0, 13), ax.set_ylim(0, 5.9), ax.axis("off")
+    w, gap, y0, h = 2.9, 0.28, 0.95, 4.4
     yt = y0 + h
     for k, inj in enumerate(order):
         x0 = 0.3 + k * (w + gap)
@@ -237,29 +235,17 @@ def per_band(data: dict, out_dir: Path) -> list[Path]:
         shell(ax, x0, y0, w, h, "FLAGGED" if bad else "STEADY", "\u00d7" if bad else "\u2713", color)
         for line_no, line in enumerate(names[inj].split("\n")):
             ax.text(x0 + 0.4, yt - 0.95 - 0.29 * line_no, line, fontsize=13.5, fontweight="bold", va="center", zorder=3)
-        bx, bw = x0 + 0.4, w - 0.8
         for j, (role, label) in enumerate(roles):
             r = mine[role]
-            top = yt - 1.8 - j * 1.2
-            ax.text(bx, top, label, fontsize=10, color=SECOND, va="center", zorder=3)
-            ax.text(bx, top - 0.36, pct(r["recall"]), fontsize=18, fontweight="bold", color=color, va="center", zorder=3)
-            yb = top - 0.72
-            ax.add_patch(Rectangle((bx, yb - 0.06), bw, 0.12, fc=GRID, ec="none", zorder=2))
-            ax.add_patch(Rectangle((bx, yb - 0.06), bw * r["recall"], 0.12, fc=color, ec="none", zorder=3))
+            top = yt - 1.9 - j * 1.05
+            ax.text(x0 + 0.4, top, label, fontsize=10, color=SECOND, va="center", zorder=3)
+            ax.text(x0 + 0.4, top - 0.4, pct(r["recall"]), fontsize=20, fontweight="bold", color=color, va="center", zorder=3)
         if bad:
             gaps = [100 * r["vs_validation"]["gap"] for r in mine.values()]
-            ax.text(bx, y0 + 0.42, f"{min(gaps):.0f}\u2013{max(gaps):.0f} points below\nvalidation recall", fontsize=10.5, fontweight="bold", color=RED, va="center", zorder=3)
-    ax.text(0.3, 6.05, "Fault intensity barely changes accuracy, except for dependency failures", fontsize=14.5, fontweight="bold", va="center")
-    notes = [
-        ("Inside the trained range:", " fault intensities the model saw during training."),
-        ("Just beyond it:", " slightly stronger faults than the model was trained on. This tests whether the model generalizes."),
-        ("Bars:", " the share of each fault's windows the classifier names correctly."),
-    ]
-    for i, (lead, rest) in enumerate(notes):
-        y = 0.9 - 0.26 * i
-        t = ax.text(0.3, y, lead, fontsize=10, fontweight="bold", color=SECOND, va="center")
-        ax.annotate(rest, xycoords=t, xy=(1, 0.5), xytext=(0, 0), textcoords="offset points", fontsize=10, color=SECOND, va="center")
-    ax.text(0.3, 0.08, "Test set, standard-length single-fault runs.", fontsize=10, color=SECOND, va="center")
+            ax.text(x0 + 0.4, y0 + 0.5, f"{min(gaps):.0f}\u2013{max(gaps):.0f} points below\nvalidation recall", fontsize=10.5, fontweight="bold", color=RED, va="center", zorder=3)
+    ax.text(0.3, 5.6, "Fault intensity barely changes accuracy, except for dependency failures", fontsize=14.5, fontweight="bold", va="center")
+    ax.text(0.3, 0.5, "Percentages: the share of each fault's windows the classifier names correctly.", fontsize=10, color=SECOND, va="center")
+    ax.text(0.3, 0.22, "The second row tests whether the model generalizes: slightly stronger faults than the model was trained on.", fontsize=10, color=SECOND, va="center")
     return save(fig, FIGURES[2], out_dir)
 
 
