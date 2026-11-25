@@ -102,6 +102,7 @@
 - Slide deck: concept, architecture, "SageMaker tells us what / Bedrock tells us why" (§20), key eval results from M9.
 - The deck states M9-2's limit plainly: detection depends on a known traffic baseline and must be recalibrated when normal traffic changes ([`Docs/M9-2_REPORT.md`](../Docs/M9-2_REPORT.md)).
 - The deck quotes the finalized Evaluation Integrity Statement, not M4-3's draft, and shows the classifier's margin over the threshold baseline with the false alarms beside it ([`Docs/M9-3_REPORT.md`](../Docs/M9-3_REPORT.md)).
+- The deck's evaluation figures are M9-6's, in `Docs/images/m9-6/` (PNG and SVG, redrawn by `AnomalyPulse/report/make_figures.py`). Figure 4 is the margin over the baseline with its false alarms, and figure 6 the latency headline: about four minutes from fault to stored diagnosis, half of it CloudWatch's 2-minute settle ([`Docs/M9-6_REPORT.md`](../Docs/M9-6_REPORT.md)).
 
 **Definition of Done**
 - [ ] Live diagnosis renders with evidence tracing to metrics and observed-sequence wording.

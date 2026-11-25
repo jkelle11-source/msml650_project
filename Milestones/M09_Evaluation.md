@@ -293,7 +293,22 @@ Forest's recall or latency as a success: it flags every test window ([`Docs/M9-2
 interval rather than as the gap between two bars' intervals. Show healthy-window false alarms beside recall: the rule
 flags no healthy window and the live classifier 2.4% ([`Docs/M9-3_REPORT.md`](../Docs/M9-3_REPORT.md)).
 
+**Measured 2026-11-24, reviewed 2026-11-25** ([`Docs/M9-6_REPORT.md`](../Docs/M9-6_REPORT.md); `AnomalyPulse/report/`),
+on M9-1's 290 test fault runs, runbooks off. From fault to stored diagnosis takes a median of 249.5 s (9 in 10 within
+276 s), and detection 222 s. The window is not the dominant step: it is 19% of the mean end-to-end time (median
+52 s). CloudWatch's fixed 2-minute settle is 49%, the window builder's next run plus building and classifying 20%,
+and diagnosis 12%. 284 runs were timed. 6 were covered by an incident already open: 4 by a false alarm the minute
+before, 2 by the previous run's incident. None was missed. Incidents are matched to runs by time, because the store
+reads `experiment_id` from the lock about 4 minutes after an incident's first minute, and 4 of M9-1's incidents carry
+the next run's id. The 15-second-window experiment did not run. The six figures are in `Docs/images/m9-6/`, drawn
+from the result files by `report/make_figures.py`.
+
 **Definition of Done**
-- [ ] Full latency chain measured and attributed (how much is the aggregation window).
-- [ ] A clean figure set covers detection, classification, cost, and latency.
-- [ ] Figures are reproducible from the test-set results, not hand-drawn.
+- [x] Full latency chain measured and attributed (how much is the aggregation window). *284 timed test detections:
+  window 52.4 s median (19% of the mean), CloudWatch's settle 120 s (49%), the next window-builder run with building
+  and classifying 49.4 s (20%), diagnosis 28.3 s (12%); end to end 249.5 s (`report/results/latency_m9_6.json`).*
+- [x] A clean figure set covers detection, classification, cost, and latency. *Six figures: confusion matrix,
+  detection, per-band recall, margins over Model 0 with paired intervals, cost curve, latency breakdown.*
+- [x] Figures are reproducible from the test-set results, not hand-drawn. *`python3 -m report.make_figures` takes
+  every number from the result files (matplotlib 3.11.2 pinned); a rerun writes the same bytes, and 53 tests check
+  the figures against the data.*

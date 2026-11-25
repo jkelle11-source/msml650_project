@@ -264,7 +264,11 @@ incidents/replay/download.sh <dir>                       # read-only, about 940 
   agreed by Jake (M6-1's proposals) on 2026-11-08. `affected_services` only grows while an incident is open.
 - **The ground-truth reference** comes from the experiment lock, read when the incident opens. A lock whose
   `expires_at` has passed (a crashed run) is ignored. No lock means a real incident. A failed read fails the event
-  and lands in the queue, instead of storing a wrong reference.
+  and lands in the queue, instead of storing a wrong reference. An incident opens when its first minute is
+  classified, about 4 minutes after that minute starts, so one from a run that ended sooner carries the next run's
+  id: 4 of M9-1's incidents, three from 2-minute faults and one false alarm (M9-6, 2026-11-25). Evaluations match
+  incidents to runs by their first minute (`report/latency.py`, [`M9-6_REPORT.md`](M9-6_REPORT.md)). A run with the
+  default 300 s recovery still holds the lock when its incident opens.
 - **Order after a backlog:** `step`'s skipping is accepted. A counting window delivered after a newer one is dropped.
 - **The stack** is its own, not `anomalypulse-genai`.
 
