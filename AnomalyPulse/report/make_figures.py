@@ -321,48 +321,47 @@ def cost_curve(data: dict, out_dir: Path) -> list[Path]:
 
 # --------------------------------------------------------------------------------------------------------- 6
 
+def detection_latency(data: dict) -> dict:
+    """Detection latency per timed test run: the window plus the CloudWatch wait (before diagnosis starts)."""
+    from report.latency import stats
+
+    runs = [r for r in data["latency"]["runs"] if r["phase"] == "test" and r["outcome"] == "detected"]
+    return stats([r["steps"]["window"] + r["steps"]["pipeline_wait"] for r in runs])
+
+
 def latency_breakdown(data: dict, out_dir: Path) -> list[Path]:
+    from matplotlib.patches import Rectangle
+
     t = data["latency"]["summary"]["test"]
     steps = t["steps_s"]
-    parts = [("window", "Window\n(1-minute bucket)", BLUE), ("pipeline_wait", "CloudWatch settle wait", ORANGE), ("diagnosis", "Diagnosis\n(Bedrock + store)", AQUA)]
-    share = t["share_of_mean"]
-    fig, (a, c) = plt.subplots(2, 1, figsize=(12.5, 7.8), gridspec_kw={"height_ratios": [1, 1.5], "hspace": 0.55})
+    det = detection_latency(data)
+    parts = [("window", "1-minute window", BLUE, "white"), ("pipeline_wait", "Waiting for CloudWatch\nto settle", ORANGE, "white"), ("diagnosis", "Diagnosis\n(Bedrock)", AQUA, INK)]
+    total = sum(steps[k]["median"] for k, *_ in parts)
+    wait_share = steps["pipeline_wait"]["median"] / total
 
-    left = 0
-    for key, label, color in parts:
-        w = steps[key]["mean"]
-        a.barh(0, w, left=left, color=color, edgecolor="white", linewidth=2.5, height=0.7)
-        a.text(left + w / 2, 0, f"{pct(share[key])}\n{w:.0f} s", ha="center", va="center", color="white" if key != "diagnosis" else INK, fontsize=13, fontweight="bold")
-        a.text(left + w / 2, 0.55, label, ha="center", va="bottom", fontsize=11.5)
-        left += w
-    a.set_xlim(0, left * 1.01)
-    a.set_ylim(-0.5, 1.2)
-    a.set_yticks([])
-    a.spines["left"].set_visible(False)
-    a.set_xlabel("Seconds from fault start to diagnosis stored (mean of the timed runs)")
-    big = max(parts, key=lambda p: share[p[0]])
-    a.set_title(f"The CloudWatch settle wait is {pct(share[big[0]])} of the time from fault to diagnosis")
+    fig = plt.figure(figsize=(12, 5.4))
+    ax = fig.add_axes([0.03, 0.02, 0.94, 0.96])
+    ax.set_xlim(-8, total + 12), ax.set_ylim(-3.1, 2.3), ax.axis("off")
+    scale = 1.0
+    x = 0.0
+    for key, label, color, ink in parts:
+        w = steps[key]["median"] * scale
+        ax.add_patch(Rectangle((x, 0), w, 0.9, fc=color, ec="white", lw=3, zorder=2))
+        ax.text(x + w / 2, 0.45, f"{rnd(steps[key]['median'])} s", color=ink, fontsize=17, fontweight="bold", ha="center", va="center", zorder=3)
+        ax.text(x + w / 2, 1.1, label, fontsize=11.5, ha="center", va="bottom", linespacing=1.2)
+        x += w
 
-    rows = [(k, lbl.replace("\n", " "), col) for k, lbl, col in parts] + [("end_to_end", "End to end", INK)]
-    for y, (key, label, color) in enumerate(rows[::-1]):
-        s = steps[key]
-        c.plot([s["min"], s["max"]], [y, y], color=GRID, lw=6, solid_capstyle="round", zorder=1)
-        c.plot([s["median"], s["p90"]], [y, y], color=color, lw=2.5, zorder=2)
-        c.plot(s["median"], y, "o", color=color, markersize=13, zorder=3)
-        c.plot(s["p90"], y, "D", color=color, markersize=10, zorder=3)
-        c.text(s["max"] + 6, y, f"median {rnd(s['median'])} s    90th percentile {rnd(s['p90'])} s", va="center", fontsize=11.5)
-    c.set_yticks(range(len(rows)), [r[1] for r in rows][::-1])
-    c.set_xlim(0, 480)
-    c.set_xlabel("Seconds (grey bar: fastest to slowest run;  circle: median;  diamond: 90th percentile)")
-    c.set_title("Each step's spread")
-    n = steps["end_to_end"]["n"]
-    st = data["latency"]["summary"]["stress"]["steps_s"]["end_to_end"]
-    footnote(
-        fig,
-        f"Test set: {n} timed detections of {t['fault_runs']} fault runs ({len(t['early'])} opened before the fault's recorded start and are not timed; {len(t['missed'])} were missed). "
-        f"Runbooks off.\nClock starts at the fault's real start from the experiment manifest. Stress slice (n={st['n']}): median end to end {st['median']:.0f} s. "
-        "The 15-second-window experiment was not run.",
-    )
+    def bracket(x1: float, x2: float, y: float, head: str, sub: str) -> None:
+        ax.plot([x1, x1, x2, x2], [y + 0.14, y, y, y + 0.14], color=SECOND, lw=1.6, zorder=1)
+        ax.text((x1 + x2) / 2, y - 0.14, head, fontsize=14, fontweight="bold", ha="center", va="top")
+        ax.text((x1 + x2) / 2, y - 0.52, sub, fontsize=10.5, color=SECOND, ha="center", va="top")
+
+    d = steps["window"]["median"] + steps["pipeline_wait"]["median"]
+    bracket(0, d, -0.35, f"Detection: {rnd(det['median'])} s", "fault starts to incident opened and typed")
+    bracket(0, total, -1.65, f"End to end: {rnd(steps['end_to_end']['median'])} s", f"fault starts to diagnosis stored. 9 in 10 runs finish within {rnd(steps['end_to_end']['p90'])} s")
+    share_text = "about two-thirds" if 0.62 <= wait_share <= 0.72 else pct(wait_share)
+    ax.text(-6, 2.15, f"Fault to stored diagnosis takes about 4 minutes, and {share_text} of it is waiting for CloudWatch", fontsize=15, fontweight="bold", va="center")
+    ax.text(-6, -3.0, f"Typical run (median of each step), {steps['end_to_end']['n']} timed detections on the test set. Runbooks off.", fontsize=10, color=SECOND, va="center")
     return save(fig, FIGURES[5], out_dir)
 
 

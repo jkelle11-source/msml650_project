@@ -29,18 +29,27 @@ def test_rounding_is_half_up():
     assert mf.rnd(74.5) == 75 and mf.rnd(52.2) == 52 and mf.rnd(169.4) == 169
 
 
-def test_latency_figure_shows_each_steps_median_and_p90_from_the_results(out):
+def test_latency_figure_shows_each_steps_median_and_the_chain_totals(out):
     steps = json.loads(mf.INPUTS["latency"].read_text())["summary"]["test"]["steps_s"]
     text = svg_text(out, "fig6_latency_breakdown")
-    for key in ("window", "pipeline_wait", "diagnosis", "end_to_end"):
-        assert f"median {mf.rnd(steps[key]['median'])} s" in text, key
-        assert f"90th percentile {mf.rnd(steps[key]['p90'])} s" in text, key
+    for key in ("window", "pipeline_wait", "diagnosis"):
+        assert f"{mf.rnd(steps[key]['median'])} s" in text, key
+    assert f"End to end: {mf.rnd(steps['end_to_end']['median'])} s" in text
+    assert f"within {mf.rnd(steps['end_to_end']['p90'])} s" in text
 
 
-def test_latency_headline_is_the_largest_share(out):
-    share = json.loads(mf.INPUTS["latency"].read_text())["summary"]["test"]["share_of_mean"]
-    assert f"settle wait is {mf.pct(share['pipeline_wait'])}" in svg_text(out, "fig6_latency_breakdown")
-    assert max(share, key=share.get) == "pipeline_wait"
+def test_detection_latency_is_the_window_plus_the_wait_per_run(out):
+    det = mf.detection_latency(mf.load())
+    steps = json.loads(mf.INPUTS["latency"].read_text())["summary"]["test"]["steps_s"]
+    assert det["n"] == steps["end_to_end"]["n"] == 281
+    assert f"Detection: {mf.rnd(det['median'])} s" in svg_text(out, "fig6_latency_breakdown")
+    assert steps["window"]["median"] + steps["pipeline_wait"]["median"] - 2 < det["median"] < steps["end_to_end"]["median"]
+
+
+def test_latency_headline_calls_the_wait_the_main_delay(out):
+    steps = json.loads(mf.INPUTS["latency"].read_text())["summary"]["test"]["steps_s"]
+    assert max(("window", "pipeline_wait", "diagnosis"), key=lambda k: steps[k]["median"]) == "pipeline_wait"
+    assert "waiting for CloudWatch" in svg_text(out, "fig6_latency_breakdown")
 
 
 def test_isolation_forest_is_never_drawn_as_a_success(out):
