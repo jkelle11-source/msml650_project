@@ -1,0 +1,4 @@
+# M9-6's report scripts and tests (report/). Pinned: another matplotlib can move a label by a pixel, and
+# test_make_figures checks that a rerun writes the same bytes. fetch.py also needs boto3 and AWS credentials.
+matplotlib==3.11.2
+pytest

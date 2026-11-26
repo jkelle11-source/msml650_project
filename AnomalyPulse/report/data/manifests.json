@@ -1,0 +1,6121 @@
+[
+ {
+  "experiment_id": "exp-20261113T224228Z-a5a1",
+  "slot": 701,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-13T22:42:28.559Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261113T224228Z-a5a1#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-13T22:45:28.559Z",
+    "active_until": "2026-11-13T22:50:28.559Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261113T225228Z-a361",
+  "slot": 702,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-13T22:52:28.796Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261113T225228Z-a361#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-13T22:55:28.796Z",
+    "active_until": "2026-11-13T23:00:28.796Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261113T230229Z-1f83",
+  "slot": 703,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-13T23:02:29.074Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261113T230229Z-1f83#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-13T23:05:29.074Z",
+    "active_until": "2026-11-13T23:10:29.074Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261113T231229Z-03fc",
+  "slot": 704,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-13T23:12:29.414Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261113T231229Z-03fc#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-13T23:15:29.414Z",
+    "active_until": "2026-11-13T23:20:29.414Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261113T232229Z-9b47",
+  "slot": 705,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-13T23:22:29.698Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261113T232229Z-9b47#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-13T23:25:29.698Z",
+    "active_until": "2026-11-13T23:30:29.698Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261113T233230Z-eb31",
+  "slot": 706,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-13T23:32:30.073Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261113T234230Z-8a56",
+  "slot": 707,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-13T23:42:30.397Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261113T234230Z-8a56#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-13T23:45:30.397Z",
+    "active_until": "2026-11-13T23:50:30.397Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261113T235230Z-1238",
+  "slot": 708,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-13T23:52:30.676Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T000230Z-3fbb",
+  "slot": 709,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T00:02:30.985Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T000230Z-3fbb#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T00:05:30.985Z",
+    "active_until": "2026-11-14T00:10:30.985Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T001231Z-08f0",
+  "slot": 710,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T00:12:31.300Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T001231Z-08f0#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T00:15:31.300Z",
+    "active_until": "2026-11-14T00:17:31.300Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T001931Z-3cb3",
+  "slot": 711,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T00:19:31.589Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T001931Z-3cb3#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T00:22:31.589Z",
+    "active_until": "2026-11-14T00:34:31.589Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T003631Z-7581",
+  "slot": 712,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T00:36:31.973Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T003631Z-7581#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T00:39:31.973Z",
+    "active_until": "2026-11-14T00:44:31.973Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T004632Z-f586",
+  "slot": 713,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T00:46:32.247Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T004632Z-f586#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T00:49:32.247Z",
+    "active_until": "2026-11-14T00:54:32.247Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T005632Z-6e72",
+  "slot": 714,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T00:56:32.519Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T005632Z-6e72#0",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-14T00:59:32.519Z",
+    "active_until": "2026-11-14T01:04:32.519Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T010632Z-03da",
+  "slot": 715,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T01:06:32.794Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T010632Z-03da#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T01:09:32.794Z",
+    "active_until": "2026-11-14T01:14:32.794Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T011633Z-e9fd",
+  "slot": 716,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T01:16:33.120Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T011633Z-e9fd#0",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-14T01:19:33.120Z",
+    "active_until": "2026-11-14T01:24:33.120Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T012633Z-b46f",
+  "slot": 717,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T01:26:33.407Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T012633Z-b46f#0",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-14T01:29:33.407Z",
+    "active_until": "2026-11-14T01:34:33.407Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T013633Z-1ad8",
+  "slot": 718,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-14T01:36:33.675Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T013633Z-1ad8#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T01:39:33.675Z",
+    "active_until": "2026-11-14T01:44:33.675Z"
+   },
+   {
+    "fault_id": "exp-20261114T013633Z-1ad8#1",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T01:40:38.889Z",
+    "active_until": "2026-11-14T01:44:33.675Z"
+   },
+   {
+    "fault_id": "exp-20261114T013633Z-1ad8#2",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-14T01:41:34.610Z",
+    "active_until": "2026-11-14T01:44:33.675Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T014634Z-e24e",
+  "slot": 719,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T01:46:34.108Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T014634Z-e24e#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T01:49:34.108Z",
+    "active_until": "2026-11-14T01:54:34.108Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T015634Z-86c9",
+  "slot": 720,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T01:56:34.471Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T015634Z-86c9#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T01:59:34.471Z",
+    "active_until": "2026-11-14T02:04:34.471Z"
+   },
+   {
+    "fault_id": "exp-20261114T015634Z-86c9#1",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-14T01:59:34.471Z",
+    "active_until": "2026-11-14T02:04:34.471Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T020634Z-bb5e",
+  "slot": 721,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T02:06:34.770Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T020634Z-bb5e#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T02:09:34.770Z",
+    "active_until": "2026-11-14T02:14:34.770Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T021635Z-b5c9",
+  "slot": 722,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T02:16:35.064Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T021635Z-b5c9#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T02:19:35.064Z",
+    "active_until": "2026-11-14T02:24:35.064Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T022635Z-afbf",
+  "slot": 723,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T02:26:35.371Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T022635Z-afbf#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T02:29:35.371Z",
+    "active_until": "2026-11-14T02:34:35.371Z"
+   },
+   {
+    "fault_id": "exp-20261114T022635Z-afbf#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T02:29:35.371Z",
+    "active_until": "2026-11-14T02:34:35.371Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T023635Z-485f",
+  "slot": 724,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T02:36:35.709Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T024635Z-bcc1",
+  "slot": 725,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T02:46:35.988Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T024635Z-bcc1#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T02:49:35.988Z",
+    "active_until": "2026-11-14T02:54:35.988Z"
+   },
+   {
+    "fault_id": "exp-20261114T024635Z-bcc1#1",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-14T02:49:35.988Z",
+    "active_until": "2026-11-14T02:54:35.988Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T025636Z-0548",
+  "slot": 726,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-14T02:56:36.361Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T025636Z-0548#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T02:59:36.361Z",
+    "active_until": "2026-11-14T03:04:36.361Z"
+   },
+   {
+    "fault_id": "exp-20261114T025636Z-0548#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T03:00:30.336Z",
+    "active_until": "2026-11-14T03:04:36.361Z"
+   },
+   {
+    "fault_id": "exp-20261114T025636Z-0548#2",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-14T03:00:52.720Z",
+    "active_until": "2026-11-14T03:04:36.361Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T030636Z-3ecc",
+  "slot": 727,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T03:06:36.901Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T030636Z-3ecc#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T03:09:36.901Z",
+    "active_until": "2026-11-14T03:14:36.901Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T031637Z-81ef",
+  "slot": 728,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T03:16:37.219Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T031637Z-81ef#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T03:19:37.219Z",
+    "active_until": "2026-11-14T03:24:37.219Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T032637Z-3b68",
+  "slot": 729,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T03:26:37.504Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T032637Z-3b68#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T03:29:37.504Z",
+    "active_until": "2026-11-14T03:34:37.504Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T033637Z-e3b0",
+  "slot": 730,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-14T03:36:37.887Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T033637Z-e3b0#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T03:39:37.887Z",
+    "active_until": "2026-11-14T03:44:37.887Z"
+   },
+   {
+    "fault_id": "exp-20261114T033637Z-e3b0#1",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-14T03:40:36.644Z",
+    "active_until": "2026-11-14T03:44:37.887Z"
+   },
+   {
+    "fault_id": "exp-20261114T033637Z-e3b0#2",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T03:41:18.126Z",
+    "active_until": "2026-11-14T03:44:37.887Z"
+   },
+   {
+    "fault_id": "exp-20261114T033637Z-e3b0#3",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-14T03:41:42.041Z",
+    "active_until": "2026-11-14T03:44:37.887Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T034638Z-d61b",
+  "slot": 731,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T03:46:38.230Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T034638Z-d61b#0",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-14T03:49:38.230Z",
+    "active_until": "2026-11-14T03:54:38.230Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T035638Z-dfa4",
+  "slot": 732,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T03:56:38.514Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T035638Z-dfa4#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T03:59:38.514Z",
+    "active_until": "2026-11-14T04:04:38.514Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T040638Z-48e9",
+  "slot": 733,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T04:06:38.849Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T040638Z-48e9#0",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-14T04:09:38.849Z",
+    "active_until": "2026-11-14T04:11:38.849Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T041339Z-5ec2",
+  "slot": 734,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-14T04:13:39.122Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T041339Z-5ec2#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-14T04:16:39.122Z",
+    "active_until": "2026-11-14T04:21:39.122Z"
+   },
+   {
+    "fault_id": "exp-20261114T041339Z-5ec2#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T04:17:35.109Z",
+    "active_until": "2026-11-14T04:21:39.122Z"
+   },
+   {
+    "fault_id": "exp-20261114T041339Z-5ec2#2",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-14T04:18:13.637Z",
+    "active_until": "2026-11-14T04:21:39.122Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T042339Z-88c6",
+  "slot": 735,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T04:23:39.436Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T042339Z-88c6#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T04:26:39.436Z",
+    "active_until": "2026-11-14T04:31:39.436Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T043339Z-628c",
+  "slot": 736,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T04:33:39.815Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T043339Z-628c#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T04:36:39.815Z",
+    "active_until": "2026-11-14T04:41:39.815Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T044340Z-53e0",
+  "slot": 737,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T04:43:40.188Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T045340Z-c488",
+  "slot": 738,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T04:53:40.478Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T045340Z-c488#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T04:56:40.478Z",
+    "active_until": "2026-11-14T05:01:40.478Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T050340Z-1be8",
+  "slot": 739,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T05:03:40.782Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T050340Z-1be8#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T05:06:40.782Z",
+    "active_until": "2026-11-14T05:11:40.782Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T051341Z-acca",
+  "slot": 740,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T05:13:41.050Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T052341Z-06a6",
+  "slot": 741,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T05:23:41.340Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T053341Z-0fe1",
+  "slot": 742,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T05:33:41.649Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T053341Z-0fe1#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-14T05:36:41.649Z",
+    "active_until": "2026-11-14T05:41:41.649Z"
+   },
+   {
+    "fault_id": "exp-20261114T053341Z-0fe1#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T05:36:41.649Z",
+    "active_until": "2026-11-14T05:41:41.649Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T054341Z-f4cb",
+  "slot": 743,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T05:43:41.925Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T054341Z-f4cb#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T05:46:41.925Z",
+    "active_until": "2026-11-14T05:51:41.925Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T055342Z-9283",
+  "slot": 744,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T05:53:42.201Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T055342Z-9283#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T05:56:42.201Z",
+    "active_until": "2026-11-14T06:01:42.201Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T060342Z-6b26",
+  "slot": 745,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T06:03:42.578Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T060342Z-6b26#0",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-14T06:06:42.578Z",
+    "active_until": "2026-11-14T06:11:42.578Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T061342Z-b261",
+  "slot": 746,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T06:13:42.846Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T062343Z-bc3b",
+  "slot": 747,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T06:23:43.116Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T062343Z-bc3b#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T06:26:43.116Z",
+    "active_until": "2026-11-14T06:38:43.116Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T064043Z-354c",
+  "slot": 748,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T06:40:43.390Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T064043Z-354c#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T06:43:43.390Z",
+    "active_until": "2026-11-14T06:48:43.390Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T065043Z-3e11",
+  "slot": 749,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T06:50:43.708Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T065043Z-3e11#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-14T06:53:43.708Z",
+    "active_until": "2026-11-14T06:58:43.708Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T070043Z-330b",
+  "slot": 750,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T07:00:43.979Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T070043Z-330b#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T07:03:43.979Z",
+    "active_until": "2026-11-14T07:08:43.979Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T071044Z-e23e",
+  "slot": 751,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T07:10:44.258Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T072044Z-7f96",
+  "slot": 752,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T07:20:44.518Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T072044Z-7f96#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T07:23:44.518Z",
+    "active_until": "2026-11-14T07:28:44.518Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T073044Z-9e5e",
+  "slot": 753,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T07:30:44.859Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T074045Z-f7c3",
+  "slot": 754,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T07:40:45.144Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T074045Z-f7c3#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T07:43:45.144Z",
+    "active_until": "2026-11-14T07:48:45.144Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T075045Z-3522",
+  "slot": 755,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T07:50:45.472Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T075045Z-3522#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T07:53:45.472Z",
+    "active_until": "2026-11-14T07:58:45.472Z"
+   },
+   {
+    "fault_id": "exp-20261114T075045Z-3522#1",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-14T07:53:45.472Z",
+    "active_until": "2026-11-14T07:58:45.472Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T080045Z-ac3b",
+  "slot": 756,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T08:00:45.798Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T080045Z-ac3b#0",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-14T08:03:45.798Z",
+    "active_until": "2026-11-14T08:08:45.798Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T081046Z-3b42",
+  "slot": 757,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T08:10:46.064Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T081046Z-3b42#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T08:13:46.064Z",
+    "active_until": "2026-11-14T08:18:46.064Z"
+   },
+   {
+    "fault_id": "exp-20261114T081046Z-3b42#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T08:13:46.064Z",
+    "active_until": "2026-11-14T08:18:46.064Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T082046Z-ab4f",
+  "slot": 758,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-14T08:20:46.348Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T082046Z-ab4f#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T08:23:46.348Z",
+    "active_until": "2026-11-14T08:28:46.348Z"
+   },
+   {
+    "fault_id": "exp-20261114T082046Z-ab4f#1",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T08:24:56.999Z",
+    "active_until": "2026-11-14T08:28:46.348Z"
+   },
+   {
+    "fault_id": "exp-20261114T082046Z-ab4f#2",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-14T08:25:50.887Z",
+    "active_until": "2026-11-14T08:28:46.348Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T083046Z-572e",
+  "slot": 759,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T08:30:46.926Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T083046Z-572e#0",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-14T08:33:46.926Z",
+    "active_until": "2026-11-14T08:38:46.926Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T084047Z-a392",
+  "slot": 760,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T08:40:47.224Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T085047Z-ef90",
+  "slot": 761,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T08:50:47.484Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T090047Z-e13f",
+  "slot": 762,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T09:00:47.776Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T090047Z-e13f#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T09:03:47.776Z",
+    "active_until": "2026-11-14T09:08:47.776Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T091048Z-823a",
+  "slot": 763,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T09:10:48.106Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T091048Z-823a#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T09:13:48.106Z",
+    "active_until": "2026-11-14T09:18:48.106Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T092048Z-30c2",
+  "slot": 764,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T09:20:48.377Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T092048Z-30c2#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T09:23:48.377Z",
+    "active_until": "2026-11-14T09:28:48.377Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T093048Z-d866",
+  "slot": 765,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T09:30:48.665Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T094048Z-af00",
+  "slot": 766,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-14T09:40:48.943Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T094048Z-af00#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T09:43:48.943Z",
+    "active_until": "2026-11-14T09:48:48.943Z"
+   },
+   {
+    "fault_id": "exp-20261114T094048Z-af00#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T09:44:42.323Z",
+    "active_until": "2026-11-14T09:48:48.943Z"
+   },
+   {
+    "fault_id": "exp-20261114T094048Z-af00#2",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-14T09:45:17.688Z",
+    "active_until": "2026-11-14T09:48:48.943Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T095049Z-3599",
+  "slot": 767,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T09:50:49.243Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T095049Z-3599#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T09:53:49.243Z",
+    "active_until": "2026-11-14T09:58:49.243Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T100049Z-8024",
+  "slot": 768,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T10:00:49.588Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T100049Z-8024#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T10:03:49.588Z",
+    "active_until": "2026-11-14T10:08:49.588Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T101049Z-9ef2",
+  "slot": 769,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T10:10:49.947Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T101049Z-9ef2#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T10:13:49.947Z",
+    "active_until": "2026-11-14T10:18:49.947Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T102050Z-c2e1",
+  "slot": 770,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T10:20:50.240Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T102050Z-c2e1#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T10:23:50.240Z",
+    "active_until": "2026-11-14T10:28:50.240Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T103050Z-84e7",
+  "slot": 771,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T10:30:50.500Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T103050Z-84e7#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T10:33:50.500Z",
+    "active_until": "2026-11-14T10:38:50.500Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T104050Z-6cb4",
+  "slot": 772,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T10:40:50.771Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T105051Z-9b8b",
+  "slot": 773,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T10:50:51.063Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T105051Z-9b8b#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T10:53:51.063Z",
+    "active_until": "2026-11-14T10:58:51.063Z"
+   },
+   {
+    "fault_id": "exp-20261114T105051Z-9b8b#1",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-14T10:53:51.063Z",
+    "active_until": "2026-11-14T10:58:51.063Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T110051Z-6ee9",
+  "slot": 774,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T11:00:51.463Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T110051Z-6ee9#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-14T11:03:51.463Z",
+    "active_until": "2026-11-14T11:08:51.463Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T111051Z-25db",
+  "slot": 775,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T11:10:51.749Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T111051Z-25db#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T11:13:51.749Z",
+    "active_until": "2026-11-14T11:18:51.749Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T112052Z-0015",
+  "slot": 776,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-14T11:20:52.046Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T112052Z-0015#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T11:23:52.046Z",
+    "active_until": "2026-11-14T11:28:52.046Z"
+   },
+   {
+    "fault_id": "exp-20261114T112052Z-0015#1",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-14T11:24:58.758Z",
+    "active_until": "2026-11-14T11:28:52.046Z"
+   },
+   {
+    "fault_id": "exp-20261114T112052Z-0015#2",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T11:25:38.703Z",
+    "active_until": "2026-11-14T11:28:52.046Z"
+   },
+   {
+    "fault_id": "exp-20261114T112052Z-0015#3",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-14T11:26:06.428Z",
+    "active_until": "2026-11-14T11:28:52.046Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T113052Z-cc1a",
+  "slot": 777,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T11:30:52.447Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T113052Z-cc1a#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T11:33:52.447Z",
+    "active_until": "2026-11-14T11:38:52.447Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T114052Z-4c89",
+  "slot": 778,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T11:40:52.726Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T114052Z-4c89#0",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-14T11:43:52.726Z",
+    "active_until": "2026-11-14T11:48:52.726Z"
+   },
+   {
+    "fault_id": "exp-20261114T114052Z-4c89#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T11:43:52.726Z",
+    "active_until": "2026-11-14T11:48:52.726Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T115053Z-3e03",
+  "slot": 779,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T11:50:53.021Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T115053Z-3e03#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T11:53:53.021Z",
+    "active_until": "2026-11-14T11:58:53.021Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T120053Z-f3bb",
+  "slot": 780,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T12:00:53.292Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T120053Z-f3bb#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T12:03:53.292Z",
+    "active_until": "2026-11-14T12:08:53.292Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T121053Z-16c2",
+  "slot": 781,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T12:10:53.608Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T121053Z-16c2#0",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-14T12:13:53.608Z",
+    "active_until": "2026-11-14T12:18:53.608Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T122053Z-9a8b",
+  "slot": 782,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T12:20:53.884Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T122053Z-9a8b#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T12:23:53.884Z",
+    "active_until": "2026-11-14T12:28:53.884Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T123054Z-7222",
+  "slot": 783,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-14T12:30:54.144Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T123054Z-7222#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-14T12:33:54.144Z",
+    "active_until": "2026-11-14T12:38:54.144Z"
+   },
+   {
+    "fault_id": "exp-20261114T123054Z-7222#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T12:35:00.217Z",
+    "active_until": "2026-11-14T12:38:54.144Z"
+   },
+   {
+    "fault_id": "exp-20261114T123054Z-7222#2",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-14T12:35:29.095Z",
+    "active_until": "2026-11-14T12:38:54.144Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T124054Z-3710",
+  "slot": 784,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T12:40:54.430Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T124054Z-3710#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T12:43:54.430Z",
+    "active_until": "2026-11-14T12:48:54.430Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T125054Z-5107",
+  "slot": 785,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T12:50:54.712Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T125054Z-5107#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T12:53:54.712Z",
+    "active_until": "2026-11-14T12:58:54.712Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T130054Z-413a",
+  "slot": 786,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T13:00:54.981Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T131055Z-e484",
+  "slot": 787,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T13:10:55.241Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T131055Z-e484#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T13:13:55.241Z",
+    "active_until": "2026-11-14T13:18:55.241Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T132055Z-57f0",
+  "slot": 788,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T13:20:55.502Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T132055Z-57f0#0",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-14T13:23:55.502Z",
+    "active_until": "2026-11-14T13:28:55.502Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T133055Z-b88d",
+  "slot": 789,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T13:30:55.788Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T133055Z-b88d#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T13:33:55.788Z",
+    "active_until": "2026-11-14T13:38:55.788Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T134056Z-724e",
+  "slot": 790,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T13:40:56.046Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T134056Z-724e#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T13:43:56.046Z",
+    "active_until": "2026-11-14T13:48:56.046Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T135056Z-ca02",
+  "slot": 791,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T13:50:56.334Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T135056Z-ca02#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T13:53:56.334Z",
+    "active_until": "2026-11-14T13:58:56.334Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T140056Z-907c",
+  "slot": 792,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T14:00:56.686Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T140056Z-907c#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T14:03:56.686Z",
+    "active_until": "2026-11-14T14:08:56.686Z"
+   },
+   {
+    "fault_id": "exp-20261114T140056Z-907c#1",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-14T14:03:56.686Z",
+    "active_until": "2026-11-14T14:08:56.686Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T141056Z-c832",
+  "slot": 793,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-14T14:10:56.970Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T141056Z-c832#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T14:13:56.970Z",
+    "active_until": "2026-11-14T14:18:56.970Z"
+   },
+   {
+    "fault_id": "exp-20261114T141056Z-c832#1",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T14:15:09.473Z",
+    "active_until": "2026-11-14T14:18:56.970Z"
+   },
+   {
+    "fault_id": "exp-20261114T141056Z-c832#2",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-14T14:16:06.650Z",
+    "active_until": "2026-11-14T14:18:56.970Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T142057Z-f012",
+  "slot": 794,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T14:20:57.410Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T142057Z-f012#0",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-14T14:23:57.410Z",
+    "active_until": "2026-11-14T14:28:57.410Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T143057Z-ae9b",
+  "slot": 795,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T14:30:57.672Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T143057Z-ae9b#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T14:33:57.672Z",
+    "active_until": "2026-11-14T14:38:57.672Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T144057Z-d940",
+  "slot": 796,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T14:40:57.995Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T145058Z-7e27",
+  "slot": 797,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T14:50:58.250Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T150058Z-cd37",
+  "slot": 798,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T15:00:58.525Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T150058Z-cd37#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T15:03:58.525Z",
+    "active_until": "2026-11-14T15:08:58.525Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T151058Z-bfa2",
+  "slot": 799,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T15:10:58.925Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T151058Z-bfa2#0",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-14T15:13:58.925Z",
+    "active_until": "2026-11-14T15:18:58.925Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T152059Z-a6ef",
+  "slot": 800,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T15:20:59.207Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T152059Z-a6ef#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T15:23:59.207Z",
+    "active_until": "2026-11-14T15:28:59.207Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T153059Z-7f69",
+  "slot": 801,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T15:30:59.517Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T154059Z-699f",
+  "slot": 802,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T15:40:59.784Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T154059Z-699f#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T15:43:59.784Z",
+    "active_until": "2026-11-14T15:48:59.784Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T155100Z-297d",
+  "slot": 803,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-14T15:51:00.080Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T155100Z-297d#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T15:54:00.080Z",
+    "active_until": "2026-11-14T15:59:00.080Z"
+   },
+   {
+    "fault_id": "exp-20261114T155100Z-297d#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T15:55:05.918Z",
+    "active_until": "2026-11-14T15:59:00.080Z"
+   },
+   {
+    "fault_id": "exp-20261114T155100Z-297d#2",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-14T15:55:35.280Z",
+    "active_until": "2026-11-14T15:59:00.080Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T160100Z-f640",
+  "slot": 804,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T16:01:00.513Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T160100Z-f640#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-14T16:04:00.513Z",
+    "active_until": "2026-11-14T16:09:00.513Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T161100Z-539f",
+  "slot": 805,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T16:11:00.782Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T161100Z-539f#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T16:14:00.782Z",
+    "active_until": "2026-11-14T16:19:00.782Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T162101Z-3a05",
+  "slot": 806,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T16:21:01.096Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T163101Z-e80b",
+  "slot": 807,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T16:31:01.358Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T163101Z-e80b#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T16:34:01.358Z",
+    "active_until": "2026-11-14T16:39:01.358Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T164101Z-477b",
+  "slot": 808,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T16:41:01.738Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T164101Z-477b#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T16:44:01.738Z",
+    "active_until": "2026-11-14T16:49:01.738Z"
+   },
+   {
+    "fault_id": "exp-20261114T164101Z-477b#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T16:44:01.738Z",
+    "active_until": "2026-11-14T16:49:01.738Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T165102Z-d8ae",
+  "slot": 809,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-14T16:51:02.078Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T165102Z-d8ae#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T16:54:02.078Z",
+    "active_until": "2026-11-14T16:59:02.078Z"
+   },
+   {
+    "fault_id": "exp-20261114T165102Z-d8ae#1",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-14T16:55:01.491Z",
+    "active_until": "2026-11-14T16:59:02.078Z"
+   },
+   {
+    "fault_id": "exp-20261114T165102Z-d8ae#2",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T16:55:44.124Z",
+    "active_until": "2026-11-14T16:59:02.078Z"
+   },
+   {
+    "fault_id": "exp-20261114T165102Z-d8ae#3",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-14T16:56:17.779Z",
+    "active_until": "2026-11-14T16:59:02.078Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T170102Z-78eb",
+  "slot": 810,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T17:01:02.442Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T170102Z-78eb#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T17:04:02.442Z",
+    "active_until": "2026-11-14T17:09:02.442Z"
+   },
+   {
+    "fault_id": "exp-20261114T170102Z-78eb#1",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-14T17:04:02.442Z",
+    "active_until": "2026-11-14T17:09:02.442Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T171102Z-631c",
+  "slot": 811,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T17:11:02.771Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T171102Z-631c#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T17:14:02.771Z",
+    "active_until": "2026-11-14T17:26:02.771Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T172803Z-5f50",
+  "slot": 812,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T17:28:03.017Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T173803Z-19ed",
+  "slot": 813,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T17:38:03.288Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T173803Z-19ed#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T17:41:03.288Z",
+    "active_until": "2026-11-14T17:46:03.288Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T174803Z-6eba",
+  "slot": 814,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T17:48:03.569Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T175803Z-74c3",
+  "slot": 815,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T17:58:03.856Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T175803Z-74c3#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T18:01:03.856Z",
+    "active_until": "2026-11-14T18:06:03.856Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T180804Z-3b95",
+  "slot": 816,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T18:08:04.213Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T181804Z-a0aa",
+  "slot": 817,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T18:18:04.475Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T181804Z-a0aa#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-14T18:21:04.475Z",
+    "active_until": "2026-11-14T18:26:04.475Z"
+   },
+   {
+    "fault_id": "exp-20261114T181804Z-a0aa#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T18:21:04.475Z",
+    "active_until": "2026-11-14T18:26:04.475Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T182804Z-98ba",
+  "slot": 818,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-14T18:28:04.758Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T182804Z-98ba#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-14T18:31:04.758Z",
+    "active_until": "2026-11-14T18:36:04.758Z"
+   },
+   {
+    "fault_id": "exp-20261114T182804Z-98ba#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T18:32:02.430Z",
+    "active_until": "2026-11-14T18:36:04.758Z"
+   },
+   {
+    "fault_id": "exp-20261114T182804Z-98ba#2",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-14T18:32:27.188Z",
+    "active_until": "2026-11-14T18:36:04.758Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T183805Z-6a04",
+  "slot": 819,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T18:38:05.055Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T184805Z-3ffa",
+  "slot": 820,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T18:48:05.350Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T184805Z-3ffa#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T18:51:05.350Z",
+    "active_until": "2026-11-14T18:56:05.350Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T185805Z-1426",
+  "slot": 821,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T18:58:05.718Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T185805Z-1426#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T19:01:05.718Z",
+    "active_until": "2026-11-14T19:06:05.718Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T190806Z-fef0",
+  "slot": 822,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T19:08:06.081Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T190806Z-fef0#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T19:11:06.081Z",
+    "active_until": "2026-11-14T19:16:06.081Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T191806Z-8cb1",
+  "slot": 823,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T19:18:06.400Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T191806Z-8cb1#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T19:21:06.400Z",
+    "active_until": "2026-11-14T19:26:06.400Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T192806Z-87a2",
+  "slot": 824,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T19:28:06.683Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T192806Z-87a2#0",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-14T19:31:06.683Z",
+    "active_until": "2026-11-14T19:36:06.683Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T193806Z-d239",
+  "slot": 825,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T19:38:06.959Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T193806Z-d239#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-14T19:41:06.959Z",
+    "active_until": "2026-11-14T19:46:06.959Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T194807Z-7299",
+  "slot": 826,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T19:48:07.221Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T194807Z-7299#0",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-14T19:51:07.221Z",
+    "active_until": "2026-11-14T19:56:07.221Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T195807Z-f935",
+  "slot": 827,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T19:58:07.512Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T195807Z-f935#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T20:01:07.512Z",
+    "active_until": "2026-11-14T20:06:07.512Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T200807Z-1a0b",
+  "slot": 828,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T20:08:07.782Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T200807Z-1a0b#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T20:11:07.782Z",
+    "active_until": "2026-11-14T20:16:07.782Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T201835Z-1282",
+  "slot": 829,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T20:18:35.001Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T201835Z-1282#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T20:21:35.001Z",
+    "active_until": "2026-11-14T20:23:35.001Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T202535Z-6a4d",
+  "slot": 830,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T20:25:35.343Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T202535Z-6a4d#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T20:28:35.343Z",
+    "active_until": "2026-11-14T20:33:35.343Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T203535Z-5362",
+  "slot": 831,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-14T20:35:35.691Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T203535Z-5362#0",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-14T20:38:35.691Z",
+    "active_until": "2026-11-14T20:50:35.691Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T205235Z-3ac2",
+  "slot": 832,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T20:52:35.944Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T205235Z-3ac2#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T20:55:35.944Z",
+    "active_until": "2026-11-14T21:00:35.944Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T210236Z-d2a0",
+  "slot": 833,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T21:02:36.315Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T210236Z-d2a0#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T21:05:36.315Z",
+    "active_until": "2026-11-14T21:10:36.315Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T211236Z-aa78",
+  "slot": 834,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T21:12:36.663Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T212236Z-cec2",
+  "slot": 835,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T21:22:36.948Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T212236Z-cec2#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T21:25:36.948Z",
+    "active_until": "2026-11-14T21:30:36.948Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T213237Z-5eae",
+  "slot": 836,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T21:32:37.329Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T213237Z-5eae#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T21:35:37.329Z",
+    "active_until": "2026-11-14T21:40:37.329Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T214237Z-8ee6",
+  "slot": 837,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T21:42:37.619Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T214237Z-8ee6#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T21:45:37.619Z",
+    "active_until": "2026-11-14T21:50:37.619Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T215238Z-5c70",
+  "slot": 838,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-14T21:52:38.014Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T215238Z-5c70#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-14T21:55:38.014Z",
+    "active_until": "2026-11-14T22:00:38.014Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T220238Z-f9df",
+  "slot": 839,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T22:02:38.387Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T220238Z-f9df#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T22:05:38.387Z",
+    "active_until": "2026-11-14T22:07:38.387Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T220938Z-d065",
+  "slot": 840,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T22:09:38.660Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T231041Z-6163",
+  "slot": 841,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T23:10:41.058Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T231041Z-6163#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T23:13:41.058Z",
+    "active_until": "2026-11-14T23:18:41.058Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T232041Z-93d2",
+  "slot": 842,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T23:20:41.221Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T232041Z-93d2#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T23:23:41.221Z",
+    "active_until": "2026-11-14T23:28:41.221Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T233041Z-7850",
+  "slot": 843,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-14T23:30:41.501Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T233041Z-7850#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-14T23:33:41.501Z",
+    "active_until": "2026-11-14T23:38:41.501Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261114T234041Z-f32e",
+  "slot": 844,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-14T23:40:41.790Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261114T235042Z-311a",
+  "slot": 845,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-14T23:50:42.059Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261114T235042Z-311a#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-14T23:53:42.059Z",
+    "active_until": "2026-11-14T23:58:42.059Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T000042Z-b707",
+  "slot": 846,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T00:00:42.506Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T000042Z-b707#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T00:03:42.506Z",
+    "active_until": "2026-11-15T00:08:42.506Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T001042Z-c620",
+  "slot": 847,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T00:10:42.840Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T001042Z-c620#0",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-15T00:13:42.840Z",
+    "active_until": "2026-11-15T00:18:42.840Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T002043Z-e6f2",
+  "slot": 848,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T00:20:43.184Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T002043Z-e6f2#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T00:23:43.184Z",
+    "active_until": "2026-11-15T00:25:43.184Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T002743Z-9207",
+  "slot": 849,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T00:27:43.490Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T002743Z-9207#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T00:30:43.490Z",
+    "active_until": "2026-11-15T00:42:43.490Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T004443Z-b0eb",
+  "slot": 850,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-15T00:44:43.832Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T004443Z-b0eb#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T00:47:43.832Z",
+    "active_until": "2026-11-15T00:52:43.832Z"
+   },
+   {
+    "fault_id": "exp-20261115T004443Z-b0eb#1",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T00:48:50.866Z",
+    "active_until": "2026-11-15T00:52:43.832Z"
+   },
+   {
+    "fault_id": "exp-20261115T004443Z-b0eb#2",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-15T00:49:53.684Z",
+    "active_until": "2026-11-15T00:52:43.832Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T005444Z-1cc5",
+  "slot": 851,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T00:54:44.403Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T005444Z-1cc5#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T00:57:44.403Z",
+    "active_until": "2026-11-15T01:02:44.403Z"
+   },
+   {
+    "fault_id": "exp-20261115T005444Z-1cc5#1",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-15T00:57:44.403Z",
+    "active_until": "2026-11-15T01:02:44.403Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T010444Z-b63d",
+  "slot": 852,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T01:04:44.695Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T010444Z-b63d#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T01:07:44.695Z",
+    "active_until": "2026-11-15T01:12:44.695Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T011445Z-79d3",
+  "slot": 853,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T01:14:45.048Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T011445Z-79d3#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T01:17:45.048Z",
+    "active_until": "2026-11-15T01:22:45.048Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T012445Z-9f06",
+  "slot": 854,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T01:24:45.406Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T012445Z-9f06#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T01:27:45.406Z",
+    "active_until": "2026-11-15T01:32:45.406Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T013445Z-3eaf",
+  "slot": 855,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T01:34:45.758Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T013445Z-3eaf#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T01:37:45.758Z",
+    "active_until": "2026-11-15T01:42:45.758Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T014446Z-8b17",
+  "slot": 856,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T01:44:46.039Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T015446Z-c9e1",
+  "slot": 857,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T01:54:46.296Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T015446Z-c9e1#0",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-15T01:57:46.296Z",
+    "active_until": "2026-11-15T02:02:46.296Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T020446Z-714d",
+  "slot": 858,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T02:04:46.566Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T020446Z-714d#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-15T02:07:46.566Z",
+    "active_until": "2026-11-15T02:12:46.566Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T021446Z-fcc1",
+  "slot": 859,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T02:14:46.829Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T022447Z-72d3",
+  "slot": 860,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-15T02:24:47.119Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T022447Z-72d3#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T02:27:47.119Z",
+    "active_until": "2026-11-15T02:32:47.119Z"
+   },
+   {
+    "fault_id": "exp-20261115T022447Z-72d3#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T02:28:45.063Z",
+    "active_until": "2026-11-15T02:32:47.119Z"
+   },
+   {
+    "fault_id": "exp-20261115T022447Z-72d3#2",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-15T02:29:22.031Z",
+    "active_until": "2026-11-15T02:32:47.119Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T023447Z-e660",
+  "slot": 861,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T02:34:47.437Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T024447Z-25c3",
+  "slot": 862,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T02:44:47.714Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T024447Z-25c3#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T02:47:47.714Z",
+    "active_until": "2026-11-15T02:52:47.714Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T025447Z-96b5",
+  "slot": 863,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T02:54:47.998Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T025447Z-96b5#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T02:57:47.998Z",
+    "active_until": "2026-11-15T03:02:47.998Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T030448Z-5ddd",
+  "slot": 864,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T03:04:48.299Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T030448Z-5ddd#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T03:07:48.299Z",
+    "active_until": "2026-11-15T03:12:48.299Z"
+   },
+   {
+    "fault_id": "exp-20261115T030448Z-5ddd#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T03:07:48.299Z",
+    "active_until": "2026-11-15T03:12:48.299Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T031448Z-69a7",
+  "slot": 865,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T03:14:48.588Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T031448Z-69a7#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T03:17:48.588Z",
+    "active_until": "2026-11-15T03:22:48.588Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T032448Z-ae32",
+  "slot": 866,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T03:24:48.884Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T033449Z-5161",
+  "slot": 867,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T03:34:49.164Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T033449Z-5161#0",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-15T03:37:49.164Z",
+    "active_until": "2026-11-15T03:42:49.164Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T034449Z-6b38",
+  "slot": 868,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T03:44:49.448Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T034449Z-6b38#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T03:47:49.448Z",
+    "active_until": "2026-11-15T03:52:49.448Z"
+   },
+   {
+    "fault_id": "exp-20261115T034449Z-6b38#1",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-15T03:47:49.448Z",
+    "active_until": "2026-11-15T03:52:49.448Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T035449Z-2f43",
+  "slot": 869,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T03:54:49.760Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T035449Z-2f43#0",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-15T03:57:49.760Z",
+    "active_until": "2026-11-15T04:02:49.760Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T040450Z-3d9b",
+  "slot": 870,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T04:04:50.016Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T040450Z-3d9b#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T04:07:50.016Z",
+    "active_until": "2026-11-15T04:12:50.016Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T041450Z-167b",
+  "slot": 871,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T04:14:50.291Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T042450Z-0d76",
+  "slot": 872,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-15T04:24:50.551Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T042450Z-0d76#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T04:27:50.551Z",
+    "active_until": "2026-11-15T04:32:50.551Z"
+   },
+   {
+    "fault_id": "exp-20261115T042450Z-0d76#1",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-15T04:28:49.140Z",
+    "active_until": "2026-11-15T04:32:50.551Z"
+   },
+   {
+    "fault_id": "exp-20261115T042450Z-0d76#2",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T04:29:24.392Z",
+    "active_until": "2026-11-15T04:32:50.551Z"
+   },
+   {
+    "fault_id": "exp-20261115T042450Z-0d76#3",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-15T04:29:50.473Z",
+    "active_until": "2026-11-15T04:32:50.551Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T043450Z-805f",
+  "slot": 873,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-15T04:34:50.953Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T043450Z-805f#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-15T04:37:50.953Z",
+    "active_until": "2026-11-15T04:42:50.953Z"
+   },
+   {
+    "fault_id": "exp-20261115T043450Z-805f#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T04:38:58.795Z",
+    "active_until": "2026-11-15T04:42:50.953Z"
+   },
+   {
+    "fault_id": "exp-20261115T043450Z-805f#2",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-15T04:39:27.447Z",
+    "active_until": "2026-11-15T04:42:50.953Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T044451Z-d97b",
+  "slot": 874,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T04:44:51.241Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T044451Z-d97b#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T04:47:51.241Z",
+    "active_until": "2026-11-15T04:52:51.241Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T045451Z-23eb",
+  "slot": 875,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T04:54:51.633Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T045451Z-23eb#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T04:57:51.633Z",
+    "active_until": "2026-11-15T05:02:51.633Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T050451Z-5258",
+  "slot": 876,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T05:04:51.905Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T051452Z-154e",
+  "slot": 877,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T05:14:52.180Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T051452Z-154e#0",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-15T05:17:52.180Z",
+    "active_until": "2026-11-15T05:22:52.180Z"
+   },
+   {
+    "fault_id": "exp-20261115T051452Z-154e#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T05:17:52.180Z",
+    "active_until": "2026-11-15T05:22:52.180Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T052452Z-5b83",
+  "slot": 878,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T05:24:52.465Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T052452Z-5b83#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T05:27:52.465Z",
+    "active_until": "2026-11-15T05:32:52.465Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T053452Z-0b36",
+  "slot": 879,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T05:34:52.767Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T053452Z-0b36#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T05:37:52.767Z",
+    "active_until": "2026-11-15T05:42:52.767Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T054453Z-3889",
+  "slot": 880,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-15T05:44:53.106Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T054453Z-3889#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T05:47:53.106Z",
+    "active_until": "2026-11-15T05:52:53.106Z"
+   },
+   {
+    "fault_id": "exp-20261115T054453Z-3889#1",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T05:49:05.069Z",
+    "active_until": "2026-11-15T05:52:53.106Z"
+   },
+   {
+    "fault_id": "exp-20261115T054453Z-3889#2",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-15T05:50:10.959Z",
+    "active_until": "2026-11-15T05:52:53.106Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T055453Z-27d2",
+  "slot": 881,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T05:54:53.632Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T055453Z-27d2#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T05:57:53.632Z",
+    "active_until": "2026-11-15T06:02:53.632Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T060453Z-ef97",
+  "slot": 882,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T06:04:53.960Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T060453Z-ef97#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T06:07:53.960Z",
+    "active_until": "2026-11-15T06:12:53.960Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T061454Z-efae",
+  "slot": 883,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T06:14:54.320Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T061454Z-efae#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T06:17:54.320Z",
+    "active_until": "2026-11-15T06:22:54.320Z"
+   },
+   {
+    "fault_id": "exp-20261115T061454Z-efae#1",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-15T06:17:54.320Z",
+    "active_until": "2026-11-15T06:22:54.320Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T062454Z-3f5d",
+  "slot": 884,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T06:24:54.612Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T063454Z-50b6",
+  "slot": 885,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T06:34:54.873Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T063454Z-50b6#0",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-15T06:37:54.873Z",
+    "active_until": "2026-11-15T06:42:54.873Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T064455Z-6577",
+  "slot": 886,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T06:44:55.156Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T064455Z-6577#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T06:47:55.156Z",
+    "active_until": "2026-11-15T06:52:55.156Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T065455Z-75b7",
+  "slot": 887,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T06:54:55.408Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T065455Z-75b7#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T06:57:55.408Z",
+    "active_until": "2026-11-15T07:02:55.408Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T070455Z-1f3b",
+  "slot": 888,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T07:04:55.653Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T070455Z-1f3b#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T07:07:55.653Z",
+    "active_until": "2026-11-15T07:12:55.653Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T071455Z-ed32",
+  "slot": 889,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T07:14:55.976Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T071455Z-ed32#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T07:17:55.976Z",
+    "active_until": "2026-11-15T07:22:55.976Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T072456Z-c034",
+  "slot": 890,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T07:24:56.250Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T072456Z-c034#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T07:27:56.250Z",
+    "active_until": "2026-11-15T07:32:56.250Z"
+   },
+   {
+    "fault_id": "exp-20261115T072456Z-c034#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T07:27:56.250Z",
+    "active_until": "2026-11-15T07:32:56.250Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T073456Z-858a",
+  "slot": 891,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T07:34:56.590Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T073456Z-858a#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T07:37:56.590Z",
+    "active_until": "2026-11-15T07:42:56.590Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T074456Z-5abd",
+  "slot": 892,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T07:44:56.865Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T074456Z-5abd#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T07:47:56.865Z",
+    "active_until": "2026-11-15T07:52:56.865Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T075457Z-2e2c",
+  "slot": 893,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T07:54:57.163Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T075457Z-2e2c#0",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-15T07:57:57.163Z",
+    "active_until": "2026-11-15T08:02:57.163Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T080457Z-9526",
+  "slot": 894,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T08:04:57.442Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T080457Z-9526#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T08:07:57.442Z",
+    "active_until": "2026-11-15T08:12:57.442Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T081457Z-86e5",
+  "slot": 895,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T08:14:57.787Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T081457Z-86e5#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T08:17:57.787Z",
+    "active_until": "2026-11-15T08:22:57.787Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T082458Z-1bc8",
+  "slot": 896,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T08:24:58.038Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T082458Z-1bc8#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-15T08:27:58.038Z",
+    "active_until": "2026-11-15T08:29:58.038Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T083158Z-af44",
+  "slot": 897,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T08:31:58.321Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T083158Z-af44#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T08:34:58.321Z",
+    "active_until": "2026-11-15T08:39:58.321Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T084158Z-6c60",
+  "slot": 898,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T08:41:58.657Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T085158Z-789d",
+  "slot": 899,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T08:51:58.913Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T085158Z-789d#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T08:54:58.913Z",
+    "active_until": "2026-11-15T08:59:58.913Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T090159Z-ad97",
+  "slot": 900,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T09:01:59.281Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T090159Z-ad97#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T09:04:59.281Z",
+    "active_until": "2026-11-15T09:09:59.281Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T091159Z-830b",
+  "slot": 901,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T09:11:59.565Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T092159Z-c076",
+  "slot": 902,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T09:21:59.817Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T092159Z-c076#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T09:24:59.817Z",
+    "active_until": "2026-11-15T09:29:59.817Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T093200Z-17ce",
+  "slot": 903,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T09:32:00.100Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T093200Z-17ce#0",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-15T09:35:00.100Z",
+    "active_until": "2026-11-15T09:40:00.100Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T094200Z-9567",
+  "slot": 904,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-15T09:42:00.344Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T094200Z-9567#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T09:45:00.344Z",
+    "active_until": "2026-11-15T09:50:00.344Z"
+   },
+   {
+    "fault_id": "exp-20261115T094200Z-9567#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T09:45:59.629Z",
+    "active_until": "2026-11-15T09:50:00.344Z"
+   },
+   {
+    "fault_id": "exp-20261115T094200Z-9567#2",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-15T09:46:32.466Z",
+    "active_until": "2026-11-15T09:50:00.344Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T095200Z-3848",
+  "slot": 905,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T09:52:00.701Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T100200Z-d700",
+  "slot": 906,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T10:02:00.969Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T100200Z-d700#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-15T10:05:00.969Z",
+    "active_until": "2026-11-15T10:10:00.969Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T101201Z-551c",
+  "slot": 907,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T10:12:01.239Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T101201Z-551c#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T10:15:01.239Z",
+    "active_until": "2026-11-15T10:20:01.239Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T102201Z-de6f",
+  "slot": 908,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T10:22:01.545Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T103201Z-8385",
+  "slot": 909,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T10:32:01.795Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T103201Z-8385#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T10:35:01.795Z",
+    "active_until": "2026-11-15T10:47:01.795Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T104902Z-d98e",
+  "slot": 910,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T10:49:02.092Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T104902Z-d98e#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T10:52:02.092Z",
+    "active_until": "2026-11-15T10:57:02.092Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T105902Z-91eb",
+  "slot": 911,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T10:59:02.456Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T105902Z-91eb#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-15T11:02:02.456Z",
+    "active_until": "2026-11-15T11:07:02.456Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T110902Z-b9b5",
+  "slot": 912,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T11:09:02.713Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T110902Z-b9b5#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T11:12:02.713Z",
+    "active_until": "2026-11-15T11:17:02.713Z"
+   },
+   {
+    "fault_id": "exp-20261115T110902Z-b9b5#1",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-15T11:12:02.713Z",
+    "active_until": "2026-11-15T11:17:02.713Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T111903Z-21d2",
+  "slot": 913,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T11:19:03.081Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T111903Z-21d2#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T11:22:03.081Z",
+    "active_until": "2026-11-15T11:34:03.081Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T113603Z-ba75",
+  "slot": 914,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T11:36:03.366Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T114603Z-c876",
+  "slot": 915,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T11:46:03.643Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T114603Z-c876#0",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-15T11:49:03.643Z",
+    "active_until": "2026-11-15T11:54:03.643Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T115603Z-ee3d",
+  "slot": 916,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T11:56:03.974Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T120604Z-6cec",
+  "slot": 917,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T12:06:04.237Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T121604Z-6577",
+  "slot": 918,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T12:16:04.506Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T121604Z-6577#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T12:19:04.506Z",
+    "active_until": "2026-11-15T12:24:04.506Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T122604Z-b32b",
+  "slot": 919,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T12:26:04.983Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T122604Z-b32b#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T12:29:04.983Z",
+    "active_until": "2026-11-15T12:34:04.983Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T123605Z-0c58",
+  "slot": 920,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T12:36:05.247Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T123605Z-0c58#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T12:39:05.247Z",
+    "active_until": "2026-11-15T12:44:05.247Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T124605Z-b20e",
+  "slot": 921,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-15T12:46:05.504Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T124605Z-b20e#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T12:49:05.504Z",
+    "active_until": "2026-11-15T12:54:05.504Z"
+   },
+   {
+    "fault_id": "exp-20261115T124605Z-b20e#1",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-15T12:50:07.641Z",
+    "active_until": "2026-11-15T12:54:05.504Z"
+   },
+   {
+    "fault_id": "exp-20261115T124605Z-b20e#2",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T12:50:46.389Z",
+    "active_until": "2026-11-15T12:54:05.504Z"
+   },
+   {
+    "fault_id": "exp-20261115T124605Z-b20e#3",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-15T12:51:11.392Z",
+    "active_until": "2026-11-15T12:54:05.504Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T125605Z-f424",
+  "slot": 922,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T12:56:05.894Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T125605Z-f424#0",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-15T12:59:05.894Z",
+    "active_until": "2026-11-15T13:04:05.894Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T130606Z-4526",
+  "slot": 923,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T13:06:06.185Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T131606Z-83df",
+  "slot": 924,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T13:16:06.557Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T131606Z-83df#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T13:19:06.557Z",
+    "active_until": "2026-11-15T13:24:06.557Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T132606Z-3a50",
+  "slot": 925,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T13:26:06.834Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T133607Z-3520",
+  "slot": 926,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T13:36:07.160Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T133607Z-3520#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T13:39:07.160Z",
+    "active_until": "2026-11-15T13:44:07.160Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T134607Z-26cf",
+  "slot": 927,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-15T13:46:07.453Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T134607Z-26cf#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-15T13:49:07.453Z",
+    "active_until": "2026-11-15T13:54:07.453Z"
+   },
+   {
+    "fault_id": "exp-20261115T134607Z-26cf#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T13:50:13.946Z",
+    "active_until": "2026-11-15T13:54:07.453Z"
+   },
+   {
+    "fault_id": "exp-20261115T134607Z-26cf#2",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-15T13:50:47.904Z",
+    "active_until": "2026-11-15T13:54:07.453Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T135607Z-3e80",
+  "slot": 928,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T13:56:07.752Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T135607Z-3e80#0",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-15T13:59:07.752Z",
+    "active_until": "2026-11-15T14:04:07.752Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T140608Z-3a56",
+  "slot": 929,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T14:06:08.042Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T140608Z-3a56#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T14:09:08.042Z",
+    "active_until": "2026-11-15T14:14:08.042Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T141608Z-8add",
+  "slot": 930,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T14:16:08.290Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T141608Z-8add#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T14:19:08.290Z",
+    "active_until": "2026-11-15T14:24:08.290Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T142608Z-fb0d",
+  "slot": 931,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T14:26:08.627Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T142608Z-fb0d#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T14:29:08.627Z",
+    "active_until": "2026-11-15T14:34:08.627Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T143608Z-d7d3",
+  "slot": 932,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T14:36:08.990Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T144609Z-553e",
+  "slot": 933,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T14:46:09.256Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T144609Z-553e#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T14:49:09.256Z",
+    "active_until": "2026-11-15T14:54:09.256Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T145609Z-6ed8",
+  "slot": 934,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T14:56:09.561Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T145609Z-6ed8#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T14:59:09.561Z",
+    "active_until": "2026-11-15T15:04:09.561Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T150609Z-ee19",
+  "slot": 935,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T15:06:09.934Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T150609Z-ee19#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T15:09:09.934Z",
+    "active_until": "2026-11-15T15:14:09.934Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T151610Z-e440",
+  "slot": 936,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T15:16:10.294Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T151610Z-e440#0",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-15T15:19:10.294Z",
+    "active_until": "2026-11-15T15:24:10.294Z"
+   },
+   {
+    "fault_id": "exp-20261115T151610Z-e440#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T15:19:10.294Z",
+    "active_until": "2026-11-15T15:24:10.294Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T152610Z-5c91",
+  "slot": 937,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T15:26:10.585Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T152610Z-5c91#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T15:29:10.585Z",
+    "active_until": "2026-11-15T15:34:10.585Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T153610Z-7697",
+  "slot": 938,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T15:36:10.941Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T153610Z-7697#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T15:39:10.941Z",
+    "active_until": "2026-11-15T15:44:10.941Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T154611Z-86a1",
+  "slot": 939,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T15:46:11.225Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T154611Z-86a1#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T15:49:11.225Z",
+    "active_until": "2026-11-15T15:54:11.225Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T155611Z-fc32",
+  "slot": 940,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T15:56:11.514Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T155611Z-fc32#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T15:59:11.514Z",
+    "active_until": "2026-11-15T16:04:11.514Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T160611Z-3c70",
+  "slot": 941,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T16:06:11.792Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T160611Z-3c70#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T16:09:11.792Z",
+    "active_until": "2026-11-15T16:14:11.792Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T161612Z-a616",
+  "slot": 942,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T16:16:12.126Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T162612Z-8e6d",
+  "slot": 943,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T16:26:12.439Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T162612Z-8e6d#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T16:29:12.439Z",
+    "active_until": "2026-11-15T16:34:12.439Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T163612Z-3df7",
+  "slot": 944,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T16:36:12.727Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T163612Z-3df7#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T16:39:12.727Z",
+    "active_until": "2026-11-15T16:44:12.727Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T164635Z-8240",
+  "slot": 945,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T16:46:35.000Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T164635Z-8240#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T16:49:35.000Z",
+    "active_until": "2026-11-15T16:51:35.000Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T165335Z-5663",
+  "slot": 946,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T16:53:35.342Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T170335Z-6335",
+  "slot": 947,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T17:03:35.608Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T170335Z-6335#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T17:06:35.608Z",
+    "active_until": "2026-11-15T17:11:35.608Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T171335Z-9664",
+  "slot": 948,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T17:13:35.968Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T172336Z-5098",
+  "slot": 949,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T17:23:36.233Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T172336Z-5098#0",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-15T17:26:36.233Z",
+    "active_until": "2026-11-15T17:38:36.233Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T174036Z-2f3d",
+  "slot": 950,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T17:40:36.512Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T174036Z-2f3d#0",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-15T17:43:36.512Z",
+    "active_until": "2026-11-15T17:48:36.512Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T175036Z-8545",
+  "slot": 951,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T17:50:36.782Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T175036Z-8545#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T17:53:36.782Z",
+    "active_until": "2026-11-15T17:58:36.782Z"
+   },
+   {
+    "fault_id": "exp-20261115T175036Z-8545#1",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-15T17:53:36.782Z",
+    "active_until": "2026-11-15T17:58:36.782Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T180037Z-5092",
+  "slot": 952,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T18:00:37.172Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T181037Z-08b5",
+  "slot": 953,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T18:10:37.471Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T181037Z-08b5#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-15T18:13:37.471Z",
+    "active_until": "2026-11-15T18:18:37.471Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T182037Z-a85e",
+  "slot": 954,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T18:20:37.791Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T182037Z-a85e#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T18:23:37.791Z",
+    "active_until": "2026-11-15T18:28:37.791Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T183038Z-1c4e",
+  "slot": 955,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T18:30:38.121Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T183038Z-1c4e#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T18:33:38.121Z",
+    "active_until": "2026-11-15T18:38:38.121Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T184038Z-6216",
+  "slot": 956,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T18:40:38.484Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T184038Z-6216#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T18:43:38.484Z",
+    "active_until": "2026-11-15T18:48:38.484Z"
+   },
+   {
+    "fault_id": "exp-20261115T184038Z-6216#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T18:43:38.484Z",
+    "active_until": "2026-11-15T18:48:38.484Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T185038Z-20b5",
+  "slot": 957,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T18:50:38.780Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T185038Z-20b5#0",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-15T18:53:38.780Z",
+    "active_until": "2026-11-15T18:58:38.780Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T190039Z-459a",
+  "slot": 958,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-15T19:00:39.074Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T190039Z-459a#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T19:03:39.074Z",
+    "active_until": "2026-11-15T19:08:39.074Z"
+   },
+   {
+    "fault_id": "exp-20261115T190039Z-459a#1",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T19:04:53.402Z",
+    "active_until": "2026-11-15T19:08:39.074Z"
+   },
+   {
+    "fault_id": "exp-20261115T190039Z-459a#2",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-15T19:06:00.752Z",
+    "active_until": "2026-11-15T19:08:39.074Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T191039Z-ff47",
+  "slot": 959,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-15T19:10:39.469Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T191039Z-ff47#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T19:13:39.469Z",
+    "active_until": "2026-11-15T19:18:39.469Z"
+   },
+   {
+    "fault_id": "exp-20261115T191039Z-ff47#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T19:14:31.057Z",
+    "active_until": "2026-11-15T19:18:39.469Z"
+   },
+   {
+    "fault_id": "exp-20261115T191039Z-ff47#2",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-15T19:14:56.505Z",
+    "active_until": "2026-11-15T19:18:39.469Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T192039Z-0683",
+  "slot": 960,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T19:20:39.809Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T192039Z-0683#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T19:23:39.809Z",
+    "active_until": "2026-11-15T19:28:39.809Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T193040Z-92d7",
+  "slot": 961,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T19:30:40.093Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T193040Z-92d7#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T19:33:40.093Z",
+    "active_until": "2026-11-15T19:38:40.093Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T194040Z-ddf0",
+  "slot": 962,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T19:40:40.454Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T194040Z-ddf0#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T19:43:40.454Z",
+    "active_until": "2026-11-15T19:48:40.454Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T195040Z-ef53",
+  "slot": 963,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-15T19:50:40.803Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T195040Z-ef53#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T19:53:40.803Z",
+    "active_until": "2026-11-15T19:58:40.803Z"
+   },
+   {
+    "fault_id": "exp-20261115T195040Z-ef53#1",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-15T19:54:49.780Z",
+    "active_until": "2026-11-15T19:58:40.803Z"
+   },
+   {
+    "fault_id": "exp-20261115T195040Z-ef53#2",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T19:55:40.826Z",
+    "active_until": "2026-11-15T19:58:40.803Z"
+   },
+   {
+    "fault_id": "exp-20261115T195040Z-ef53#3",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-15T19:56:06.063Z",
+    "active_until": "2026-11-15T19:58:40.803Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T200041Z-5a32",
+  "slot": 964,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T20:00:41.208Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T200041Z-5a32#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T20:03:41.208Z",
+    "active_until": "2026-11-15T20:08:41.208Z"
+   },
+   {
+    "fault_id": "exp-20261115T200041Z-5a32#1",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-15T20:03:41.208Z",
+    "active_until": "2026-11-15T20:08:41.208Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T201041Z-619c",
+  "slot": 965,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T20:10:41.601Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T201041Z-619c#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T20:13:41.601Z",
+    "active_until": "2026-11-15T20:18:41.601Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T202041Z-692a",
+  "slot": 966,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T20:20:41.958Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T202041Z-692a#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T20:23:41.958Z",
+    "active_until": "2026-11-15T20:28:41.958Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T203042Z-4015",
+  "slot": 967,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T20:30:42.228Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T203042Z-4015#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T20:33:42.228Z",
+    "active_until": "2026-11-15T20:38:42.228Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T204042Z-0027",
+  "slot": 968,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T20:40:42.492Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T204042Z-0027#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T20:43:42.492Z",
+    "active_until": "2026-11-15T20:48:42.492Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T205042Z-0c47",
+  "slot": 969,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T20:50:42.858Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T205042Z-0c47#0",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-15T20:53:42.858Z",
+    "active_until": "2026-11-15T20:58:42.858Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T210043Z-494e",
+  "slot": 970,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T21:00:43.116Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T210043Z-494e#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T21:03:43.116Z",
+    "active_until": "2026-11-15T21:08:43.116Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T211043Z-777d",
+  "slot": 971,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T21:10:43.466Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261115T212043Z-704c",
+  "slot": 972,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T21:20:43.732Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T212043Z-704c#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T21:23:43.732Z",
+    "active_until": "2026-11-15T21:28:43.732Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T213044Z-596d",
+  "slot": 973,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-15T21:30:44.023Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T213044Z-596d#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-15T21:33:44.023Z",
+    "active_until": "2026-11-15T21:38:44.023Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T214044Z-8746",
+  "slot": 974,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-15T21:40:44.330Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T214044Z-8746#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-15T21:43:44.330Z",
+    "active_until": "2026-11-15T21:48:44.330Z"
+   },
+   {
+    "fault_id": "exp-20261115T214044Z-8746#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T21:44:35.140Z",
+    "active_until": "2026-11-15T21:48:44.330Z"
+   },
+   {
+    "fault_id": "exp-20261115T214044Z-8746#2",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-15T21:44:55.340Z",
+    "active_until": "2026-11-15T21:48:44.330Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T215044Z-f45d",
+  "slot": 975,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T21:50:44.608Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T215044Z-f45d#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T21:53:44.608Z",
+    "active_until": "2026-11-15T21:55:44.608Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T215744Z-98b6",
+  "slot": 976,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-15T21:57:44.858Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T215744Z-98b6#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-15T22:00:44.858Z",
+    "active_until": "2026-11-15T22:05:44.858Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T220745Z-906d",
+  "slot": 977,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T22:07:45.226Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T220745Z-906d#0",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-15T22:10:45.226Z",
+    "active_until": "2026-11-15T22:15:45.226Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T221745Z-4a57",
+  "slot": 978,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-15T22:17:45.496Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T221745Z-4a57#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T22:20:45.496Z",
+    "active_until": "2026-11-15T22:25:45.496Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T222745Z-5dd3",
+  "slot": 979,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-15T22:27:45.776Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261115T222745Z-5dd3#0",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-15T22:30:45.776Z",
+    "active_until": "2026-11-15T22:35:45.776Z"
+   },
+   {
+    "fault_id": "exp-20261115T222745Z-5dd3#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-15T22:30:45.776Z",
+    "active_until": "2026-11-15T22:35:45.776Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261115T223746Z-eb11",
+  "slot": 980,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-15T22:37:46.065Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261116T012701Z-443c",
+  "slot": 981,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T01:27:01.181Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T012701Z-443c#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T01:30:01.181Z",
+    "active_until": "2026-11-16T01:35:01.181Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T013701Z-642b",
+  "slot": 982,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T01:37:01.428Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T013701Z-642b#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T01:40:01.428Z",
+    "active_until": "2026-11-16T01:45:01.428Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T014701Z-9f79",
+  "slot": 983,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T01:47:01.713Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T014701Z-9f79#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T01:50:01.713Z",
+    "active_until": "2026-11-16T01:55:01.713Z"
+   },
+   {
+    "fault_id": "exp-20261116T014701Z-9f79#1",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-16T01:50:01.713Z",
+    "active_until": "2026-11-16T01:55:01.713Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T015702Z-7474",
+  "slot": 984,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-16T01:57:02.030Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T015702Z-7474#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T02:00:02.030Z",
+    "active_until": "2026-11-16T02:05:02.030Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T020702Z-dfee",
+  "slot": 985,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T02:07:02.368Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T020702Z-dfee#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T02:10:02.368Z",
+    "active_until": "2026-11-16T02:12:02.368Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T021402Z-c413",
+  "slot": 986,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T02:14:02.667Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T021402Z-c413#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T02:17:02.667Z",
+    "active_until": "2026-11-16T02:22:02.667Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T022402Z-325e",
+  "slot": 987,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-16T02:24:02.947Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261116T023403Z-da77",
+  "slot": 988,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-16T02:34:03.229Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T023403Z-da77#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T02:37:03.229Z",
+    "active_until": "2026-11-16T02:42:03.229Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T024403Z-b847",
+  "slot": 989,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T02:44:03.516Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T024403Z-b847#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T02:47:03.516Z",
+    "active_until": "2026-11-16T02:52:03.516Z"
+   },
+   {
+    "fault_id": "exp-20261116T024403Z-b847#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T02:47:03.516Z",
+    "active_until": "2026-11-16T02:52:03.516Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T025403Z-9d75",
+  "slot": 990,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T02:54:03.829Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T025403Z-9d75#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T02:57:03.829Z",
+    "active_until": "2026-11-16T03:09:03.829Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T031104Z-7bc3",
+  "slot": 991,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T03:11:04.169Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T031104Z-7bc3#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T03:14:04.169Z",
+    "active_until": "2026-11-16T03:19:04.169Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T032104Z-fc7b",
+  "slot": 992,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T03:21:04.452Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T032104Z-fc7b#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T03:24:04.452Z",
+    "active_until": "2026-11-16T03:29:04.452Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T033104Z-3f9e",
+  "slot": 993,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T03:31:04.764Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T033104Z-3f9e#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T03:34:04.764Z",
+    "active_until": "2026-11-16T03:39:04.764Z"
+   },
+   {
+    "fault_id": "exp-20261116T033104Z-3f9e#1",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-16T03:34:04.764Z",
+    "active_until": "2026-11-16T03:39:04.764Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T034106Z-8248",
+  "slot": 994,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-16T03:41:06.167Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261116T035106Z-dee7",
+  "slot": 995,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-16T03:51:06.460Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T035106Z-dee7#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-16T03:54:06.460Z",
+    "active_until": "2026-11-16T03:59:06.460Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T040106Z-b933",
+  "slot": 996,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-16T04:01:06.710Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T040106Z-b933#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T04:04:06.710Z",
+    "active_until": "2026-11-16T04:09:06.710Z"
+   },
+   {
+    "fault_id": "exp-20261116T040106Z-b933#1",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T04:05:24.378Z",
+    "active_until": "2026-11-16T04:09:06.710Z"
+   },
+   {
+    "fault_id": "exp-20261116T040106Z-b933#2",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-16T04:06:25.726Z",
+    "active_until": "2026-11-16T04:09:06.710Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T041107Z-c9fd",
+  "slot": 997,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T04:11:07.274Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T041107Z-c9fd#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T04:14:07.274Z",
+    "active_until": "2026-11-16T04:19:07.274Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T042107Z-727a",
+  "slot": 998,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-16T04:21:07.631Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T042107Z-727a#0",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-16T04:24:07.631Z",
+    "active_until": "2026-11-16T04:29:07.631Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T043107Z-835b",
+  "slot": 999,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-16T04:31:07.913Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T043107Z-835b#0",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-16T04:34:07.913Z",
+    "active_until": "2026-11-16T04:39:07.913Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T044108Z-c581",
+  "slot": 1000,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T04:41:08.170Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T044108Z-c581#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T04:44:08.170Z",
+    "active_until": "2026-11-16T04:49:08.170Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T045108Z-3141",
+  "slot": 1001,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-16T04:51:08.512Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261116T050108Z-34cc",
+  "slot": 1002,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T05:01:08.831Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T050108Z-34cc#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T05:04:08.831Z",
+    "active_until": "2026-11-16T05:09:08.831Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T051109Z-b94f",
+  "slot": 1003,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-16T05:11:09.197Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261116T052109Z-d88d",
+  "slot": 1004,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-16T05:21:09.475Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T052109Z-d88d#0",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-16T05:24:09.475Z",
+    "active_until": "2026-11-16T05:26:09.475Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T052809Z-419b",
+  "slot": 1005,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-16T05:28:09.742Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T052809Z-419b#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T05:31:09.742Z",
+    "active_until": "2026-11-16T05:36:09.742Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T053810Z-a576",
+  "slot": 1006,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-16T05:38:10.000Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261116T054810Z-3d5b",
+  "slot": 1007,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-16T05:48:10.258Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T054810Z-3d5b#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T05:51:10.258Z",
+    "active_until": "2026-11-16T05:56:10.258Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T055810Z-8100",
+  "slot": 1008,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T05:58:10.617Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T055810Z-8100#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T06:01:10.617Z",
+    "active_until": "2026-11-16T06:06:10.617Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T060810Z-4cad",
+  "slot": 1009,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-16T06:08:10.918Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T060810Z-4cad#0",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-16T06:11:10.918Z",
+    "active_until": "2026-11-16T06:16:10.918Z"
+   },
+   {
+    "fault_id": "exp-20261116T060810Z-4cad#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T06:11:10.918Z",
+    "active_until": "2026-11-16T06:16:10.918Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T061811Z-e651",
+  "slot": 1010,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-16T06:18:11.205Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261116T062811Z-fd67",
+  "slot": 1011,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-16T06:28:11.472Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T062811Z-fd67#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T06:31:11.472Z",
+    "active_until": "2026-11-16T06:36:11.472Z"
+   },
+   {
+    "fault_id": "exp-20261116T062811Z-fd67#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T06:32:01.586Z",
+    "active_until": "2026-11-16T06:36:11.472Z"
+   },
+   {
+    "fault_id": "exp-20261116T062811Z-fd67#2",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-16T06:32:31.112Z",
+    "active_until": "2026-11-16T06:36:11.472Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T063811Z-effc",
+  "slot": 1012,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T06:38:11.811Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T063811Z-effc#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T06:41:11.811Z",
+    "active_until": "2026-11-16T06:46:11.811Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T064812Z-2c95",
+  "slot": 1013,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T06:48:12.090Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T064812Z-2c95#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T06:51:12.090Z",
+    "active_until": "2026-11-16T06:56:12.090Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T065812Z-e341",
+  "slot": 1014,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-16T06:58:12.421Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T065812Z-e341#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T07:01:12.421Z",
+    "active_until": "2026-11-16T07:06:12.421Z"
+   },
+   {
+    "fault_id": "exp-20261116T065812Z-e341#1",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-16T07:02:06.517Z",
+    "active_until": "2026-11-16T07:06:12.421Z"
+   },
+   {
+    "fault_id": "exp-20261116T065812Z-e341#2",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T07:03:01.249Z",
+    "active_until": "2026-11-16T07:06:12.421Z"
+   },
+   {
+    "fault_id": "exp-20261116T065812Z-e341#3",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-16T07:03:39.117Z",
+    "active_until": "2026-11-16T07:06:12.421Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T070812Z-8e7d",
+  "slot": 1015,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-16T07:08:12.790Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T070812Z-8e7d#0",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-16T07:11:12.790Z",
+    "active_until": "2026-11-16T07:16:12.790Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T071813Z-34b6",
+  "slot": 1016,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-16T07:18:13.069Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T071813Z-34b6#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T07:21:13.069Z",
+    "active_until": "2026-11-16T07:26:13.069Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T072813Z-1c39",
+  "slot": 1017,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T07:28:13.338Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T072813Z-1c39#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T07:31:13.338Z",
+    "active_until": "2026-11-16T07:36:13.338Z"
+   },
+   {
+    "fault_id": "exp-20261116T072813Z-1c39#1",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-16T07:31:13.338Z",
+    "active_until": "2026-11-16T07:36:13.338Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T073813Z-2456",
+  "slot": 1018,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-16T07:38:13.710Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261116T074814Z-7579",
+  "slot": 1019,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-16T07:48:14.018Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T074814Z-7579#0",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-16T07:51:14.018Z",
+    "active_until": "2026-11-16T07:56:14.018Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T075814Z-a892",
+  "slot": 1020,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-16T07:58:14.338Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261116T080814Z-a631",
+  "slot": 1021,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T08:08:14.650Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T080814Z-a631#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T08:11:14.650Z",
+    "active_until": "2026-11-16T08:16:14.650Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T081814Z-b9e5",
+  "slot": 1022,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-16T08:18:14.998Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261116T082815Z-2358",
+  "slot": 1023,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-16T08:28:15.271Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T082815Z-2358#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T08:31:15.271Z",
+    "active_until": "2026-11-16T08:43:15.271Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T084515Z-44b8",
+  "slot": 1024,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T08:45:15.564Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T084515Z-44b8#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T08:48:15.564Z",
+    "active_until": "2026-11-16T08:53:15.564Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T085515Z-9bec",
+  "slot": 1025,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-16T08:55:15.917Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261116T090516Z-3564",
+  "slot": 1026,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T09:05:16.184Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T090516Z-3564#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T09:08:16.184Z",
+    "active_until": "2026-11-16T09:13:16.184Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T091516Z-0786",
+  "slot": 1027,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T09:15:16.547Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T091516Z-0786#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T09:18:16.547Z",
+    "active_until": "2026-11-16T09:23:16.547Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T092516Z-8f88",
+  "slot": 1028,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T09:25:16.880Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T092516Z-8f88#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T09:28:16.880Z",
+    "active_until": "2026-11-16T09:33:16.880Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T093517Z-9b70",
+  "slot": 1029,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T09:35:17.168Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T093517Z-9b70#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T09:38:17.168Z",
+    "active_until": "2026-11-16T09:43:17.168Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T094517Z-dde7",
+  "slot": 1030,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-16T09:45:17.445Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T094517Z-dde7#0",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-16T09:48:17.445Z",
+    "active_until": "2026-11-16T09:53:17.445Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T095517Z-bc24",
+  "slot": 1031,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-16T09:55:17.686Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T095517Z-bc24#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T09:58:17.686Z",
+    "active_until": "2026-11-16T10:03:17.686Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T100517Z-c5b1",
+  "slot": 1032,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-16T10:05:17.960Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T100517Z-c5b1#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-16T10:08:17.960Z",
+    "active_until": "2026-11-16T10:13:17.960Z"
+   },
+   {
+    "fault_id": "exp-20261116T100517Z-c5b1#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T10:09:10.912Z",
+    "active_until": "2026-11-16T10:13:17.960Z"
+   },
+   {
+    "fault_id": "exp-20261116T100517Z-c5b1#2",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-16T10:09:33.727Z",
+    "active_until": "2026-11-16T10:13:17.960Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T101518Z-fec9",
+  "slot": 1033,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-16T10:15:18.253Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T101518Z-fec9#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T10:18:18.253Z",
+    "active_until": "2026-11-16T10:23:18.253Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T102518Z-8dc1",
+  "slot": 1034,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-16T10:25:18.541Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T102518Z-8dc1#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T10:28:18.541Z",
+    "active_until": "2026-11-16T10:33:18.541Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T103518Z-d36e",
+  "slot": 1035,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-16T10:35:18.811Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261116T104519Z-fc79",
+  "slot": 1036,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T10:45:19.077Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T104519Z-fc79#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T10:48:19.077Z",
+    "active_until": "2026-11-16T10:53:19.077Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T105519Z-e48c",
+  "slot": 1037,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T10:55:19.375Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T105519Z-e48c#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T10:58:19.375Z",
+    "active_until": "2026-11-16T11:03:19.375Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T110519Z-04f3",
+  "slot": 1038,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T11:05:19.686Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T110519Z-04f3#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T11:08:19.686Z",
+    "active_until": "2026-11-16T11:13:19.686Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T111520Z-e559",
+  "slot": 1039,
+  "phase": "test",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-16T11:15:20.050Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T111520Z-e559#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T11:18:20.050Z",
+    "active_until": "2026-11-16T11:23:20.050Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T112520Z-a0fe",
+  "slot": 1040,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-16T11:25:20.361Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T112520Z-a0fe#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-16T11:28:20.361Z",
+    "active_until": "2026-11-16T11:33:20.361Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T113520Z-f5ee",
+  "slot": 1041,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T11:35:20.638Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T113520Z-f5ee#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T11:38:20.638Z",
+    "active_until": "2026-11-16T11:43:20.638Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T114520Z-95b3",
+  "slot": 1042,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-16T11:45:20.962Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T114520Z-95b3#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-16T11:48:20.962Z",
+    "active_until": "2026-11-16T11:53:20.962Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T115521Z-dc30",
+  "slot": 1043,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-16T11:55:21.225Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T115521Z-dc30#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T11:58:21.225Z",
+    "active_until": "2026-11-16T12:03:21.225Z"
+   },
+   {
+    "fault_id": "exp-20261116T115521Z-dc30#1",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T11:59:38.605Z",
+    "active_until": "2026-11-16T12:03:21.225Z"
+   },
+   {
+    "fault_id": "exp-20261116T115521Z-dc30#2",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-16T12:00:43.142Z",
+    "active_until": "2026-11-16T12:03:21.225Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T120521Z-1c91",
+  "slot": 1044,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T12:05:21.697Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T120521Z-1c91#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T12:08:21.697Z",
+    "active_until": "2026-11-16T12:13:21.697Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T121522Z-a509",
+  "slot": 1045,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T12:15:22.096Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T121522Z-a509#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T12:18:22.096Z",
+    "active_until": "2026-11-16T12:23:22.096Z"
+   },
+   {
+    "fault_id": "exp-20261116T121522Z-a509#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T12:18:22.096Z",
+    "active_until": "2026-11-16T12:23:22.096Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T122522Z-3540",
+  "slot": 1046,
+  "phase": "test",
+  "labeled_type": "CASCADING_FAILURE",
+  "started_at": "2026-11-16T12:25:22.462Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T122522Z-3540#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T12:28:22.462Z",
+    "active_until": "2026-11-16T12:33:22.462Z"
+   },
+   {
+    "fault_id": "exp-20261116T122522Z-3540#1",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T12:29:14.889Z",
+    "active_until": "2026-11-16T12:33:22.462Z"
+   },
+   {
+    "fault_id": "exp-20261116T122522Z-3540#2",
+    "injector": "retry-amplification",
+    "target": null,
+    "active_from": "2026-11-16T12:29:46.823Z",
+    "active_until": "2026-11-16T12:33:22.462Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T123522Z-fe27",
+  "slot": 1047,
+  "phase": "test",
+  "labeled_type": "NORMAL",
+  "started_at": "2026-11-16T12:35:22.844Z",
+  "faults": []
+ },
+ {
+  "experiment_id": "exp-20261116T124523Z-c3b6",
+  "slot": 1048,
+  "phase": "test",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T12:45:23.139Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T124523Z-c3b6#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T12:48:23.139Z",
+    "active_until": "2026-11-16T12:53:23.139Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T125523Z-e411",
+  "slot": 1049,
+  "phase": "test",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-16T12:55:23.505Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T125523Z-e411#0",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-16T12:58:23.505Z",
+    "active_until": "2026-11-16T13:03:23.505Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T130523Z-880b",
+  "slot": 1050,
+  "phase": "test",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T13:05:23.791Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T130523Z-880b#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T13:08:23.791Z",
+    "active_until": "2026-11-16T13:13:23.791Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T133159Z-5f57",
+  "slot": 1051,
+  "phase": "stress",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T13:31:59.040Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T133159Z-5f57#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T13:34:59.040Z",
+    "active_until": "2026-11-16T13:39:59.040Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T134159Z-fd40",
+  "slot": 1052,
+  "phase": "stress",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-16T13:41:59.206Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T134159Z-fd40#0",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-16T13:44:59.206Z",
+    "active_until": "2026-11-16T13:49:59.206Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T135159Z-5db1",
+  "slot": 1053,
+  "phase": "stress",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T13:51:59.498Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T135159Z-5db1#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T13:54:59.498Z",
+    "active_until": "2026-11-16T13:59:59.498Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T140159Z-ef02",
+  "slot": 1054,
+  "phase": "stress",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-16T14:01:59.785Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T140159Z-ef02#0",
+    "injector": "lambda-degradation",
+    "target": "cart-service",
+    "active_from": "2026-11-16T14:04:59.785Z",
+    "active_until": "2026-11-16T14:09:59.785Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T141200Z-7489",
+  "slot": 1055,
+  "phase": "stress",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-16T14:12:00.086Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T141200Z-7489#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T14:15:00.086Z",
+    "active_until": "2026-11-16T14:20:00.086Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T142200Z-1046",
+  "slot": 1056,
+  "phase": "stress",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-16T14:22:00.375Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T142200Z-1046#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T14:25:00.375Z",
+    "active_until": "2026-11-16T14:30:00.375Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T143200Z-b17a",
+  "slot": 1057,
+  "phase": "stress",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-16T14:32:00.693Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T143200Z-b17a#0",
+    "injector": "lambda-degradation",
+    "target": "order-service",
+    "active_from": "2026-11-16T14:35:00.693Z",
+    "active_until": "2026-11-16T14:40:00.693Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T144200Z-e44c",
+  "slot": 1058,
+  "phase": "stress",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-16T14:42:00.965Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T144200Z-e44c#0",
+    "injector": "lambda-degradation",
+    "target": "payment-service",
+    "active_from": "2026-11-16T14:45:00.965Z",
+    "active_until": "2026-11-16T14:50:00.965Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T145201Z-5cfe",
+  "slot": 1059,
+  "phase": "stress",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T14:52:01.314Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T145201Z-5cfe#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T14:55:01.314Z",
+    "active_until": "2026-11-16T15:00:01.314Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T150201Z-9cac",
+  "slot": 1060,
+  "phase": "stress",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T15:02:01.604Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T150201Z-9cac#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T15:05:01.604Z",
+    "active_until": "2026-11-16T15:10:01.604Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T151201Z-004b",
+  "slot": 1061,
+  "phase": "stress",
+  "labeled_type": "LAMBDA_DEGRADATION",
+  "started_at": "2026-11-16T15:12:01.915Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T151201Z-004b#0",
+    "injector": "lambda-degradation",
+    "target": "product-service",
+    "active_from": "2026-11-16T15:15:01.915Z",
+    "active_until": "2026-11-16T15:20:01.915Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T152202Z-1f7a",
+  "slot": 1062,
+  "phase": "stress",
+  "labeled_type": "TRAFFIC_SPIKE",
+  "started_at": "2026-11-16T15:22:02.290Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T152202Z-1f7a#0",
+    "injector": "traffic-spike",
+    "target": null,
+    "active_from": "2026-11-16T15:25:02.290Z",
+    "active_until": "2026-11-16T15:30:02.290Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T153202Z-343a",
+  "slot": 1063,
+  "phase": "stress",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T15:32:02.564Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T153202Z-343a#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T15:35:02.564Z",
+    "active_until": "2026-11-16T15:40:02.564Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T154202Z-823b",
+  "slot": 1064,
+  "phase": "stress",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T15:42:02.908Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T154202Z-823b#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T15:45:02.908Z",
+    "active_until": "2026-11-16T15:50:02.908Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T155203Z-06d6",
+  "slot": 1065,
+  "phase": "stress",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T15:52:03.270Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T155203Z-06d6#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T15:55:03.270Z",
+    "active_until": "2026-11-16T16:00:03.270Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T160203Z-d417",
+  "slot": 1066,
+  "phase": "stress",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-16T16:02:03.652Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T160203Z-d417#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T16:05:03.652Z",
+    "active_until": "2026-11-16T16:10:03.652Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T161203Z-d38a",
+  "slot": 1067,
+  "phase": "stress",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T16:12:03.990Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T161203Z-d38a#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T16:15:03.990Z",
+    "active_until": "2026-11-16T16:20:03.990Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T162204Z-f8ee",
+  "slot": 1068,
+  "phase": "stress",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-16T16:22:04.425Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T162204Z-f8ee#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T16:25:04.425Z",
+    "active_until": "2026-11-16T16:30:04.425Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T165205Z-4a9f",
+  "slot": 1069,
+  "phase": "stress",
+  "labeled_type": "DATABASE_THROTTLING",
+  "started_at": "2026-11-16T16:52:05.406Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T165205Z-4a9f#0",
+    "injector": "db-throttling",
+    "target": "product-service",
+    "active_from": "2026-11-16T16:55:05.406Z",
+    "active_until": "2026-11-16T17:00:05.406Z"
+   }
+  ]
+ },
+ {
+  "experiment_id": "exp-20261116T164205Z-9e83",
+  "slot": 1070,
+  "phase": "stress",
+  "labeled_type": "DEPENDENCY_FAILURE",
+  "started_at": "2026-11-16T16:42:05.215Z",
+  "faults": [
+   {
+    "fault_id": "exp-20261116T164205Z-9e83#0",
+    "injector": "payment-failure",
+    "target": "payment-service",
+    "active_from": "2026-11-16T16:45:05.215Z",
+    "active_until": "2026-11-16T16:50:05.215Z"
+   }
+  ]
+ }
+]

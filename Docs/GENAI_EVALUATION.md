@@ -34,6 +34,12 @@ that tells you whether an engineer can trust the explanation, so it's the headli
   healthy runs are false alarms. 40 of the 296, those 8 included, were handed a type other than the run's
   label. Their evidence fidelity is 99.3%, because fidelity checks a claim against the input Bedrock got,
   whether or not the type in it was right; M9-2 scores the type.
+- **Matched by time instead (M9-6, 2026-11-25):** the store reads `experiment_id` from the experiment lock when an
+  incident opens, about 4 minutes after its first minute, so 4 of the 296 are filed under the next run. They are the
+  detections of 2-minute faults in slots 733, 839 and 975 (839's is one of the 8 "false alarms" above), and slot
+  751's false alarm. Matched by the run that holds the first minute, 288 fault runs and 8 healthy runs opened an
+  incident, and the previous run's incident, still open, covered the other 2 fault runs
+  ([`M9-6_REPORT.md`](M9-6_REPORT.md)). The scores here are not redone.
 - **Runbooks were off** for all of them (`ANOMALYPULSE_RUNBOOKS=off`), as deployed at the time.
 - **One set of rules:** each diagnosis is checked again with today's self-check against its stored input,
   as the feed check does (`incidents/feed.py`).

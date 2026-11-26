@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="678.412031pt" height="545.614148pt" viewBox="0 0 678.412031 545.614148" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 545.614148 
+L 678.412031 545.614148 
+L 678.412031 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 222.228 447.129328 
+L 588.132 447.129328 
+L 588.132 81.225328 
+L 222.228 81.225328 
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g clip-path="url(#p32dc7680ef)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAA/kAAAP4CAYAAACGGTypAAAY/klEQVR4nO3asVEVURiG4btwCcUZG6ALwdAajKlAHQJSW1ACKIEyLABicwNKuKHjsJZwAoKzvD5PvME3f/bO2eXP3+d1Bxt3crzMngAAwH/u7Yer2RNg6Gj8CQAAAPAaiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAi9ifHy+wNAACwe/fxmyuwab9//pg9AYa85AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHw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8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiFjevP+8zh4BI4fHO0cCAAAY8JIPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACACJEPAAAAESIfAAAAIkQ+AAAARIh8AAAAiBD5AAAAECHyAQAAIELkAwAAQITIBwAAgAiRDwAAABEiHwAAACJEPgAAAESIfAAAAIgQ+QAAABAh8gEAACBC5AMAAECEyAcAAIAIkQ8AAAARIh8AAAAiRD4AAABEiHwAAACIEPkAAAAQIfIBAAAgQuQDAABAhMgHAACAXcM//dAno+mQTfoAAAAASUVORK5CYII=" id="image3e4ad9416c" transform="scale(1 -1) translate(0 -365.76)" x="222.12" y="-81.214148" width="366.12" height="365.76"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 222.228 203.193328 
+L 283.212 203.193328 
+L 283.212 264.177328 
+L 222.228 264.177328 
+L 222.228 203.193328 
+z
+" clip-path="url(#p32dc7680ef)" style="fill: none; stroke: #d03b3b; stroke-width: 4; stroke-linejoin: miter"/>
+   </g>
+   <g id="matplotlib.axis_1">
+    <g id="xtick_1">
+     <g id="line2d_1"/>
+     <g id="text_1">
+      <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #0b0b0b" transform="translate(225.546328 459.658713)">Cascading</text>
+      <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #0b0b0b" transform="translate(236.137383 472.261584)">failure</text>
+     </g>
+    </g>
+    <g id="xtick_2">
+     <g id="line2d_2"/>
+     <g id="text_2">
+      <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #0b0b0b" transform="translate(288.653297 459.658713)">Database</text>
+      <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #0b0b0b" transform="translate(289.37025 472.261584)">throttling</text>
+     </g>
+    </g>
+    <g id="xtick_3">
+     <g id="line2d_3"/>
+     <g id="text_3">
+      <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #0b0b0b" transform="translate(341.64007 459.658713)">Dependency</text>
+      <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #0b0b0b" transform="translate(358.105383 472.261584)">failure</text>
+     </g>
+    </g>
+    <g id="xtick_4">
+     <g id="line2d_4"/>
+     <g id="text_4">
+      <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #0b0b0b" transform="translate(414.532547 459.658713)">Lambda</text>
+      <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #0b0b0b" transform="translate(403.793836 472.261584)">degradation</text>
+     </g>
+    </g>
+    <g id="xtick_5">
+     <g id="line2d_5"/>
+     <g id="text_5">
+      <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #0b0b0b" x="496.656" y="458.607687" transform="rotate(-0 496.656 458.607687)">Normal</text>
+     </g>
+    </g>
+    <g id="xtick_6">
+     <g id="line2d_6"/>
+     <g id="text_6">
+      <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #0b0b0b" transform="translate(541.867031 459.658713)">Traffic</text>
+      <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #0b0b0b" transform="translate(544.030195 472.261584)">spike</text>
+     </g>
+    </g>
+    <g id="text_7">
+     <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #0b0b0b" x="405.18" y="495.713039" transform="rotate(-0 405.18 495.713039)">What the classifier said</text>
+    </g>
+   </g>
+   <g id="matplotlib.axis_2">
+    <g id="ytick_1">
+     <g id="line2d_7"/>
+     <g id="text_8">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #0b0b0b" x="218.728" y="116.276391" transform="rotate(-0 218.728 116.276391)">Cascading failure</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_8"/>
+     <g id="text_9">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #0b0b0b" x="218.728" y="177.260391" transform="rotate(-0 218.728 177.260391)">Database throttling</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_9"/>
+     <g id="text_10">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #0b0b0b" x="218.728" y="238.244391" transform="rotate(-0 218.728 238.244391)">Dependency failure</text>
+     </g>
+    </g>
+    <g id="ytick_4">
+     <g id="line2d_10"/>
+     <g id="text_11">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #0b0b0b" x="218.728" y="299.228391" transform="rotate(-0 218.728 299.228391)">Lambda degradation</text>
+     </g>
+    </g>
+    <g id="ytick_5">
+     <g id="line2d_11"/>
+     <g id="text_12">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #0b0b0b" x="218.728" y="360.212391" transform="rotate(-0 218.728 360.212391)">Normal</text>
+     </g>
+    </g>
+    <g id="ytick_6">
+     <g id="line2d_12"/>
+     <g id="text_13">
+      <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #0b0b0b" x="218.728" y="421.196391" transform="rotate(-0 218.728 421.196391)">Traffic spike</text>
+     </g>
+    </g>
+    <g id="text_14">
+     <text style="font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #0b0b0b" x="86.608078" y="264.177328" transform="rotate(-90 86.608078 264.177328)">What really happened</text>
+    </g>
+   </g>
+   <g id="text_15">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="252.72" y="115.354047" transform="rotate(-0 252.72 115.354047)">100%</text>
+   </g>
+   <g id="text_16">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="313.704" y="176.338047" transform="rotate(-0 313.704 176.338047)">100%</text>
+   </g>
+   <g id="text_17">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #0b0b0b" x="252.72" y="237.322047" transform="rotate(-0 252.72 237.322047)">46%</text>
+   </g>
+   <g id="text_18">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #0b0b0b" x="374.688" y="237.322047" transform="rotate(-0 374.688 237.322047)">54%</text>
+   </g>
+   <g id="text_19">
+    <text style="font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #0b0b0b" x="252.72" y="298.306047" transform="rotate(-0 252.72 298.306047)">1%</text>
+   </g>
+   <g id="text_20">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="435.672" y="298.306047" transform="rotate(-0 435.672 298.306047)">99%</text>
+   </g>
+   <g id="text_21">
+    <text style="font-size: 11.5px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #52514e" x="496.656" y="297.656633" transform="rotate(-0 496.656 297.656633)">&lt;1%</text>
+   </g>
+   <g id="text_22">
+    <text style="font-size: 11.5px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #52514e" x="252.72" y="358.640633" transform="rotate(-0 252.72 358.640633)">&lt;1%</text>
+   </g>
+   <g id="text_23">
+    <text style="font-size: 11.5px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #52514e" x="374.688" y="358.640633" transform="rotate(-0 374.688 358.640633)">&lt;1%</text>
+   </g>
+   <g id="text_24">
+    <text style="font-size: 11.5px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #52514e" x="435.672" y="358.640633" transform="rotate(-0 435.672 358.640633)">&lt;1%</text>
+   </g>
+   <g id="text_25">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="496.656" y="359.290047" transform="rotate(-0 496.656 359.290047)">93%</text>
+   </g>
+   <g id="text_26">
+    <text style="font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #0b0b0b" x="557.64" y="359.290047" transform="rotate(-0 557.64 359.290047)">6%</text>
+   </g>
+   <g id="text_27">
+    <text style="font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #0b0b0b" x="252.72" y="420.274047" transform="rotate(-0 252.72 420.274047)">2%</text>
+   </g>
+   <g id="text_28">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="557.64" y="420.274047" transform="rotate(-0 557.64 420.274047)">98%</text>
+   </g>
+  </g>
+  <g id="text_29">
+   <text style="font-weight: 700; font-size: 17px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #0b0b0b" x="7.2" y="20.117344" transform="rotate(-0 7.2 20.117344)">Dependency failure is mistaken for cascading failure 46% of the time</text>
+  </g>
+  <g id="text_30">
+   <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="7.2" y="535.891687" transform="rotate(-0 7.2 535.891687)">Share of each row's windows. Test set: 2,092 windows. Overall accuracy 91%. &lt;1%: 1 to 2 windows.</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p32dc7680ef">
+   <rect x="222.228" y="81.225328" width="365.904" height="365.904"/>
+  </clipPath>
+ </defs>
+</svg>

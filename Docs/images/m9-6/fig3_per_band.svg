@@ -1,0 +1,391 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="950.4pt" height="489.6pt" viewBox="0 0 950.4 489.6" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 489.6 
+L 950.4 489.6 
+L 950.4 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 48.24 411.84 
+L 225.36 411.84 
+Q 241.2 411.84 241.2 396 
+L 241.2 71.28 
+Q 241.2 55.44 225.36 55.44 
+L 48.24 55.44 
+Q 32.4 55.44 32.4 71.28 
+L 32.4 396 
+Q 32.4 411.84 48.24 411.84 
+z
+" clip-path="url(#p3d60a3a40b)" style="fill-opacity: 0.070588"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 46.8 409.68 
+L 223.92 409.68 
+Q 239.76 409.68 239.76 393.84 
+L 239.76 69.12 
+Q 239.76 53.28 223.92 53.28 
+L 46.8 53.28 
+Q 30.96 53.28 30.96 69.12 
+L 30.96 393.84 
+Q 30.96 409.68 46.8 409.68 
+z
+" clip-path="url(#p3d60a3a40b)" style="fill-opacity: 0.070588"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 277.2 411.84 
+L 454.32 411.84 
+Q 470.16 411.84 470.16 396 
+L 470.16 71.28 
+Q 470.16 55.44 454.32 55.44 
+L 277.2 55.44 
+Q 261.36 55.44 261.36 71.28 
+L 261.36 396 
+Q 261.36 411.84 277.2 411.84 
+z
+" clip-path="url(#p3d60a3a40b)" style="fill-opacity: 0.070588"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 275.76 409.68 
+L 452.88 409.68 
+Q 468.72 409.68 468.72 393.84 
+L 468.72 69.12 
+Q 468.72 53.28 452.88 53.28 
+L 275.76 53.28 
+Q 259.92 53.28 259.92 69.12 
+L 259.92 393.84 
+Q 259.92 409.68 275.76 409.68 
+z
+" clip-path="url(#p3d60a3a40b)" style="fill-opacity: 0.070588"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 506.16 411.84 
+L 683.28 411.84 
+Q 699.12 411.84 699.12 396 
+L 699.12 71.28 
+Q 699.12 55.44 683.28 55.44 
+L 506.16 55.44 
+Q 490.32 55.44 490.32 71.28 
+L 490.32 396 
+Q 490.32 411.84 506.16 411.84 
+z
+" clip-path="url(#p3d60a3a40b)" style="fill-opacity: 0.070588"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 504.72 409.68 
+L 681.84 409.68 
+Q 697.68 409.68 697.68 393.84 
+L 697.68 69.12 
+Q 697.68 53.28 681.84 53.28 
+L 504.72 53.28 
+Q 488.88 53.28 488.88 69.12 
+L 488.88 393.84 
+Q 488.88 409.68 504.72 409.68 
+z
+" clip-path="url(#p3d60a3a40b)" style="fill-opacity: 0.070588"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 735.12 411.84 
+L 912.24 411.84 
+Q 928.08 411.84 928.08 396 
+L 928.08 71.28 
+Q 928.08 55.44 912.24 55.44 
+L 735.12 55.44 
+Q 719.28 55.44 719.28 71.28 
+L 719.28 396 
+Q 719.28 411.84 735.12 411.84 
+z
+" clip-path="url(#p3d60a3a40b)" style="fill-opacity: 0.070588"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 733.68 409.68 
+L 910.8 409.68 
+Q 926.64 409.68 926.64 393.84 
+L 926.64 69.12 
+Q 926.64 53.28 910.8 53.28 
+L 733.68 53.28 
+Q 717.84 53.28 717.84 69.12 
+L 717.84 393.84 
+Q 717.84 409.68 733.68 409.68 
+z
+" clip-path="url(#p3d60a3a40b)" style="fill-opacity: 0.070588"/>
+   </g>
+   <g id="patch_10">
+    <path d="M 44.64 406.8 
+L 221.76 406.8 
+Q 237.6 406.8 237.6 390.96 
+L 237.6 66.24 
+Q 237.6 50.4 221.76 50.4 
+L 44.64 50.4 
+Q 28.8 50.4 28.8 66.24 
+L 28.8 390.96 
+Q 28.8 406.8 44.64 406.8 
+z
+" clip-path="url(#p3d60a3a40b)" style="fill: #ffffff; stroke: #e4e3df; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_11">
+    <path d="M 273.6 406.8 
+L 450.72 406.8 
+Q 466.56 406.8 466.56 390.96 
+L 466.56 66.24 
+Q 466.56 50.4 450.72 50.4 
+L 273.6 50.4 
+Q 257.76 50.4 257.76 66.24 
+L 257.76 390.96 
+Q 257.76 406.8 273.6 406.8 
+z
+" clip-path="url(#p3d60a3a40b)" style="fill: #ffffff; stroke: #e4e3df; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_12">
+    <path d="M 502.56 406.8 
+L 679.68 406.8 
+Q 695.52 406.8 695.52 390.96 
+L 695.52 66.24 
+Q 695.52 50.4 679.68 50.4 
+L 502.56 50.4 
+Q 486.72 50.4 486.72 66.24 
+L 486.72 390.96 
+Q 486.72 406.8 502.56 406.8 
+z
+" clip-path="url(#p3d60a3a40b)" style="fill: #ffffff; stroke: #e4e3df; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_13">
+    <path d="M 731.52 406.8 
+L 908.64 406.8 
+Q 924.48 406.8 924.48 390.96 
+L 924.48 66.24 
+Q 924.48 50.4 908.64 50.4 
+L 731.52 50.4 
+Q 715.68 50.4 715.68 66.24 
+L 715.68 390.96 
+Q 715.68 406.8 731.52 406.8 
+z
+" clip-path="url(#p3d60a3a40b)" style="fill: #ffffff; stroke: #e4e3df; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_14">
+    <path d="M 64.8 98.64 
+C 68.046086 98.64 71.159658 97.350316 73.454987 95.054987 
+C 75.750316 92.759658 77.04 89.646086 77.04 86.4 
+C 77.04 83.153914 75.750316 80.040342 73.454987 77.745013 
+C 71.159658 75.449684 68.046086 74.16 64.8 74.16 
+C 61.553914 74.16 58.440342 75.449684 56.145013 77.745013 
+C 53.849684 80.040342 52.56 83.153914 52.56 86.4 
+C 52.56 89.646086 53.849684 92.759658 56.145013 95.054987 
+C 58.440342 97.350316 61.553914 98.64 64.8 98.64 
+z
+" clip-path="url(#p3d60a3a40b)" style="fill: #2a78d6"/>
+   </g>
+   <g id="patch_15">
+    <path d="M 293.76 98.64 
+C 297.006086 98.64 300.119658 97.350316 302.414987 95.054987 
+C 304.710316 92.759658 306 89.646086 306 86.4 
+C 306 83.153914 304.710316 80.040342 302.414987 77.745013 
+C 300.119658 75.449684 297.006086 74.16 293.76 74.16 
+C 290.513914 74.16 287.400342 75.449684 285.105013 77.745013 
+C 282.809684 80.040342 281.52 83.153914 281.52 86.4 
+C 281.52 89.646086 282.809684 92.759658 285.105013 95.054987 
+C 287.400342 97.350316 290.513914 98.64 293.76 98.64 
+z
+" clip-path="url(#p3d60a3a40b)" style="fill: #2a78d6"/>
+   </g>
+   <g id="patch_16">
+    <path d="M 522.72 98.64 
+C 525.966086 98.64 529.079658 97.350316 531.374987 95.054987 
+C 533.670316 92.759658 534.96 89.646086 534.96 86.4 
+C 534.96 83.153914 533.670316 80.040342 531.374987 77.745013 
+C 529.079658 75.449684 525.966086 74.16 522.72 74.16 
+C 519.473914 74.16 516.360342 75.449684 514.065013 77.745013 
+C 511.769684 80.040342 510.48 83.153914 510.48 86.4 
+C 510.48 89.646086 511.769684 92.759658 514.065013 95.054987 
+C 516.360342 97.350316 519.473914 98.64 522.72 98.64 
+z
+" clip-path="url(#p3d60a3a40b)" style="fill: #2a78d6"/>
+   </g>
+   <g id="patch_17">
+    <path d="M 751.68 98.64 
+C 754.926086 98.64 758.039658 97.350316 760.334987 95.054987 
+C 762.630316 92.759658 763.92 89.646086 763.92 86.4 
+C 763.92 83.153914 762.630316 80.040342 760.334987 77.745013 
+C 758.039658 75.449684 754.926086 74.16 751.68 74.16 
+C 748.433914 74.16 745.320342 75.449684 743.025013 77.745013 
+C 740.729684 80.040342 739.44 83.153914 739.44 86.4 
+C 739.44 89.646086 740.729684 92.759658 743.025013 95.054987 
+C 745.320342 97.350316 748.433914 98.64 751.68 98.64 
+z
+" clip-path="url(#p3d60a3a40b)" style="fill: #d03b3b"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="64.8" y="89.977422" transform="rotate(-0 64.8 89.977422)">✓</text>
+   </g>
+   <g id="text_2">
+    <text style="font-size: 12.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="86.4" y="89.64707" transform="rotate(-0 86.4 89.64707)">HOLDS</text>
+   </g>
+   <g id="text_3">
+    <text style="font-weight: 700; font-size: 13.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #0b0b0b" x="57.6" y="122.307363" transform="rotate(-0 57.6 122.307363)">Database</text>
+   </g>
+   <g id="text_4">
+    <text style="font-weight: 700; font-size: 13.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #0b0b0b" x="57.6" y="143.187363" transform="rotate(-0 57.6 143.187363)">throttling</text>
+   </g>
+   <g id="text_5">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="57.6" y="186.198047" transform="rotate(-0 57.6 186.198047)">Between the training bands</text>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="57.6" y="206.358047" transform="rotate(-0 57.6 206.358047)">2.5–3.5× offered load</text>
+   </g>
+   <g id="text_7">
+    <text style="font-weight: 700; font-size: 20px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #2a78d6" x="57.6" y="240.635312" transform="rotate(-0 57.6 240.635312)">100%</text>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="57.6" y="279.798047" transform="rotate(-0 57.6 279.798047)">Just above the training range</text>
+   </g>
+   <g id="text_9">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="57.6" y="299.958047" transform="rotate(-0 57.6 299.958047)">4.5–5.5× offered load</text>
+   </g>
+   <g id="text_10">
+    <text style="font-weight: 700; font-size: 20px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #2a78d6" x="57.6" y="334.235312" transform="rotate(-0 57.6 334.235312)">100%</text>
+   </g>
+   <g id="text_11">
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="57.6" y="373.527949" transform="rotate(-0 57.6 373.527949)">Validation: 100%</text>
+   </g>
+   <g id="text_12">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="293.76" y="89.977422" transform="rotate(-0 293.76 89.977422)">✓</text>
+   </g>
+   <g id="text_13">
+    <text style="font-size: 12.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="315.36" y="89.64707" transform="rotate(-0 315.36 89.64707)">HOLDS</text>
+   </g>
+   <g id="text_14">
+    <text style="font-weight: 700; font-size: 13.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #0b0b0b" x="286.56" y="122.307363" transform="rotate(-0 286.56 122.307363)">Lambda</text>
+   </g>
+   <g id="text_15">
+    <text style="font-weight: 700; font-size: 13.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #0b0b0b" x="286.56" y="143.187363" transform="rotate(-0 286.56 143.187363)">degradation</text>
+   </g>
+   <g id="text_16">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="286.56" y="186.198047" transform="rotate(-0 286.56 186.198047)">Between the training bands</text>
+   </g>
+   <g id="text_17">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="286.56" y="206.358047" transform="rotate(-0 286.56 206.358047)">+500–800 ms latency</text>
+   </g>
+   <g id="text_18">
+    <text style="font-weight: 700; font-size: 20px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #2a78d6" x="286.56" y="240.635312" transform="rotate(-0 286.56 240.635312)">100%</text>
+   </g>
+   <g id="text_19">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="286.56" y="279.798047" transform="rotate(-0 286.56 279.798047)">Just above the training range</text>
+   </g>
+   <g id="text_20">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="286.56" y="299.958047" transform="rotate(-0 286.56 299.958047)">+1,100–1,400 ms latency</text>
+   </g>
+   <g id="text_21">
+    <text style="font-weight: 700; font-size: 20px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #2a78d6" x="286.56" y="334.235312" transform="rotate(-0 286.56 334.235312)">99%</text>
+   </g>
+   <g id="text_22">
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="286.56" y="373.527949" transform="rotate(-0 286.56 373.527949)">Validation: 99%</text>
+   </g>
+   <g id="text_23">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="522.72" y="89.977422" transform="rotate(-0 522.72 89.977422)">✓</text>
+   </g>
+   <g id="text_24">
+    <text style="font-size: 12.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="544.32" y="89.64707" transform="rotate(-0 544.32 89.64707)">HOLDS</text>
+   </g>
+   <g id="text_25">
+    <text style="font-weight: 700; font-size: 13.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #0b0b0b" x="515.52" y="122.307363" transform="rotate(-0 515.52 122.307363)">Traffic</text>
+   </g>
+   <g id="text_26">
+    <text style="font-weight: 700; font-size: 13.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #0b0b0b" x="515.52" y="143.187363" transform="rotate(-0 515.52 143.187363)">spike</text>
+   </g>
+   <g id="text_27">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="515.52" y="186.198047" transform="rotate(-0 515.52 186.198047)">Between the training bands</text>
+   </g>
+   <g id="text_28">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="515.52" y="206.358047" transform="rotate(-0 515.52 206.358047)">4–6× traffic</text>
+   </g>
+   <g id="text_29">
+    <text style="font-weight: 700; font-size: 20px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #2a78d6" x="515.52" y="240.635312" transform="rotate(-0 515.52 240.635312)">100%</text>
+   </g>
+   <g id="text_30">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="515.52" y="279.798047" transform="rotate(-0 515.52 279.798047)">Just above the training range</text>
+   </g>
+   <g id="text_31">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="515.52" y="299.958047" transform="rotate(-0 515.52 299.958047)">8–10× traffic</text>
+   </g>
+   <g id="text_32">
+    <text style="font-weight: 700; font-size: 20px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #2a78d6" x="515.52" y="334.235312" transform="rotate(-0 515.52 334.235312)">99%</text>
+   </g>
+   <g id="text_33">
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="515.52" y="373.527949" transform="rotate(-0 515.52 373.527949)">Validation: 97%</text>
+   </g>
+   <g id="text_34">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #ffffff" x="751.68" y="89.977422" transform="rotate(-0 751.68 89.977422)">×</text>
+   </g>
+   <g id="text_35">
+    <text style="font-size: 12.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="773.28" y="89.64707" transform="rotate(-0 773.28 89.64707)">DEGRADED</text>
+   </g>
+   <g id="text_36">
+    <text style="font-weight: 700; font-size: 13.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #0b0b0b" x="744.48" y="122.307363" transform="rotate(-0 744.48 122.307363)">Dependency</text>
+   </g>
+   <g id="text_37">
+    <text style="font-weight: 700; font-size: 13.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #0b0b0b" x="744.48" y="143.187363" transform="rotate(-0 744.48 143.187363)">failure</text>
+   </g>
+   <g id="text_38">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="744.48" y="186.198047" transform="rotate(-0 744.48 186.198047)">Between the training bands</text>
+   </g>
+   <g id="text_39">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="744.48" y="206.358047" transform="rotate(-0 744.48 206.358047)">1,500–2,500 ms timeout</text>
+   </g>
+   <g id="text_40">
+    <text style="font-weight: 700; font-size: 20px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d03b3b" x="744.48" y="240.635312" transform="rotate(-0 744.48 240.635312)">55%</text>
+   </g>
+   <g id="text_41">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="744.48" y="279.798047" transform="rotate(-0 744.48 279.798047)">Just above the training range</text>
+   </g>
+   <g id="text_42">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="744.48" y="299.958047" transform="rotate(-0 744.48 299.958047)">3,500–4,500 ms timeout</text>
+   </g>
+   <g id="text_43">
+    <text style="font-weight: 700; font-size: 20px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d03b3b" x="744.48" y="334.235312" transform="rotate(-0 744.48 334.235312)">57%</text>
+   </g>
+   <g id="text_44">
+    <text style="font-weight: 700; font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #d03b3b" transform="translate(744.48 367.226514)">43–44 points below</text>
+    <text style="font-weight: 700; font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #d03b3b" transform="translate(744.48 379.829385)">validation (99%)</text>
+   </g>
+   <g id="text_45">
+    <text style="font-weight: 700; font-size: 14.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #0b0b0b" x="28.8" y="32.567168" transform="rotate(-0 28.8 32.567168)">Three fault types hold up in both held-out bands; dependency failure drops to 55–57% in both</text>
+   </g>
+   <g id="text_46">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="28.8" y="440.358047" transform="rotate(-0 28.8 440.358047)">Percentages: the share of each fault's test windows the classifier names correctly. Both bands are held out of training: one lies between the two training bands,</text>
+   </g>
+   <g id="text_47">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="28.8" y="459.078047" transform="rotate(-0 28.8 459.078047)">the other just above the stronger one. Validation: the same classifier on the validation runs (experiments 561–700), at the training bands' strengths.</text>
+   </g>
+   <g id="text_48">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="28.8" y="477.798047" transform="rotate(-0 28.8 477.798047)">DEGRADED: more than 10 points below validation, with the band's 95% interval wholly below validation's.</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p3d60a3a40b">
+   <rect x="7.2" y="7.2" width="936" height="475.2"/>
+  </clipPath>
+ </defs>
+</svg>
