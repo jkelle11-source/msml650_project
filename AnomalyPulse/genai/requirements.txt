@@ -3,3 +3,8 @@
 # Kept on 1.x: SDK 2.0 and later send API version 2026-10-21, which Bedrock accepts only for
 # Claude 4.7 and later, and the model is Claude Sonnet 4.6. Pinned to the version tested locally.
 anthropic[bedrock]==1.17.0
+# boto3 and botocore pinned to the versions in the explain Lambda deployed on 11-23-2026 (#113).
+# anthropic[bedrock] accepts any boto3 below 2, so unpinned, pip takes the newest on build day
+# (1.44.12 by 11-25-2026), and the same commit builds a different package.
+boto3==1.44.9
+botocore==1.44.9
