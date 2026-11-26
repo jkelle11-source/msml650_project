@@ -550,3 +550,134 @@ cd AnomalyPulse/pipeline/<lambda>   # forwarder | aggregator | window_builder
 pip install -r requirements-dev.txt
 python -m pytest
 ```
+
+---
+
+## Future Directions
+
+M9-6 measured how long the live path takes from the start of a fault to its stored diagnosis: a median of 249.5 s
+on the test set ([Docs/M9-6_REPORT.md](Docs/M9-6_REPORT.md)). This section explains where that time goes, what
+could shorten it, and in what order to try. None of it has been built or tested yet. Figures marked as estimates
+are arithmetic on M9-6's measurements, not measurements.
+
+### Where the time goes
+
+Take a fault whose first flagged minute ends at 12:01:00. The median run (284 timed test runs, runbooks off) goes
+like this:
+
+| Step | Median | What sets it |
+|---|---|---|
+| The fault's start to the end of its first flagged minute | 52 s | The one-minute window (plan §16) |
+| That minute's end to the metrics extractor reading it, at 12:03:29 | 149 s | `METRICS_LAG_MINUTES = 2` (120 s), plus the extractor's schedule, which fires at :29 past each minute (29 s) |
+| The snapshot to the window builder's next run, at 12:03:45 | about 15 s | The window builder's schedule, which fires at :45 |
+| Building and classifying the full window | about 5 s | About 4 s to build, under 1 s to classify |
+| Diagnosis: the Bedrock call and storing the result | 28 s | The explain Lambda's Bedrock call |
+
+The middle three rows make up the incident record's `window_end_to_diagnosis_s`: a median of 169 s, with almost no
+spread. The two schedule seconds come from the Lambdas' logs, and were the same during M9-1 (2026-11-14) as on
+2026-11-26. Each second is drawn when its schedule rule is created, so a deploy that replaces the rule moves it
+([Docs/PIPELINE.md](Docs/PIPELINE.md), "When a minute's window is ready").
+
+**About 150 s of the 250 s is the pipeline waiting for CloudWatch.** The models read a full window of 106
+columns, and 19 of them come from CloudWatch. A window with any empty value is refused, so nothing is classified
+until the extractor has read that minute from CloudWatch.
+
+### Option 1: give CloudWatch less time to settle
+
+Setting `METRICS_LAG_MINUTES` to 1 (in `AnomalyPulse/infra/shared/template.yaml`) would make the extractor read a
+minute 89 s after it ends instead of 149 s. That saves about 60 s (estimate: about 190 s end to end).
+
+**The risk is silent.** For each minute, the extractor asks CloudWatch for a `Sum`: each table's consumed capacity
+and throttle events, and each function's Lambda throttles. If CloudWatch has not finished publishing the minute,
+it returns what it has so far, so the result is a smaller number, not an empty one. The window builder refuses only
+empty values. The classifier would therefore see a quieter minute than any it was trained on, and nothing would
+flag it. No one has measured how soon these metrics are complete; 2 minutes was a cautious choice. Moving the
+extractor's schedule second earlier would also give CloudWatch less time, with the same risk.
+
+Both of these checks are read-only and need no extra traffic:
+
+- **Is the current 149 s enough?** Compare the extractor's snapshots in S3 with CloudWatch's final values for the
+  same minutes. CloudWatch keeps 1-minute data for 15 days, so this only works for runs from the last two weeks.
+- **Would 89 s be enough?** During live runs that happen anyway, such as a demo rehearsal, poll CloudWatch for each
+  minute at 60, 75, 90 s and so on after it ends. Compare each answer with the value 10 minutes later.
+
+### Option 2: build the full window as soon as the snapshot lands
+
+This saves about 15 s and does not change the data (estimate: about 235 s end to end). Today the snapshot is
+written at about :29.5 and then waits for the window builder's run at :45. A build started by the snapshot's
+arrival would remove that wait.
+
+It needs a new trigger. An S3 event notification on the shared bucket is ruled out (Status, above). Instead, the
+extractor could put an event on the pipeline bus after it writes, which means a change to the shared stack. The
+builder's own once-a-minute run has to stay, at a second between about :20 and :50, for the dashboard's health
+deadlines.
+
+### Option 3: detect from the request records alone
+
+This takes CloudWatch out of detection altogether. Of the 106 feature columns, only 19 come from CloudWatch:
+
+- each table's consumed read and write capacity;
+- each table's read, write and request throttles;
+- each function's Lambda throttles.
+
+The other 87 come from the services' own request records: latency percentiles, error rates, request rates,
+DynamoDB call latency, cold starts, and their changes and rolling statistics
+([Docs/FEATURE_MATRIX.md](Docs/FEATURE_MATRIX.md)). The records for a minute are in about 45 s after it ends,
+which is when the window builder already writes the dashboard's health from them. A classifier on those 87 columns
+could name a fault about 2 minutes sooner (estimate: about 2 minutes end to end, made of the 52 s window, about
+46 s to build and classify, and 28 s of diagnosis).
+
+**Whether accuracy holds without the 19 columns is unknown.** What the evidence says so far:
+
+- **Several CloudWatch columns never changed.** In M4-5's check on 123 validation rows, the Lambda throttles and
+  Cart's and Order's table throttles stayed fixed.
+- **The records already separate DB throttling.** The records' `product_db_latency_ms_p95` separated it from Lambda
+  degradation in the same check (median 395 ms against 6 ms).
+- **DB throttling is still the type to watch.** It is where the throttle counts would matter most, so its recall is
+  the first number to check.
+
+The 1-minute full window could keep running alongside the faster path, to confirm.
+
+### Option 4: 15-second windows
+
+This is the plan's stretch experiment (§16); it did not run in M9. On its own it saves only about 40 s (estimate:
+about 210 s end to end): the window step falls from 52 s to roughly 10–20 s, but the 169 s wait for CloudWatch
+stays. AWS publishes Lambda and DynamoDB metrics per minute, so the 19 CloudWatch columns cannot exist at 15 s.
+
+It also brings costs:
+
+- **A new trigger.** EventBridge schedules run at most once a minute, so 15-s windows need a different trigger.
+- **Late records.** A record can wait 13 s in the telemetry queue ([Docs/PIPELINE.md](Docs/PIPELINE.md)), so each
+  window would wait about that long after it ends before it is complete.
+- **New features and labels.** Request rates, the `_change` columns and the 3-window rolling statistics are
+  defined over minutes. The labeler's 30-second activity threshold
+  ([Docs/LABELING.md](Docs/LABELING.md)) would need a new value, and the models would need retraining.
+- **More false alarms.** A 15-s window holds about a quarter of a minute's requests, so its p95 and p99 latencies
+  are noisier, and there are four times as many windows an hour. The incident store's rules (open on the first
+  counted window, close after two that don't count in a row) would need retuning, which gives back some of the
+  time.
+
+After option 3, though, the window becomes the largest step left, and 15-s windows pay off (estimate: about 1 to
+1.5 minutes end to end, of which Bedrock's 28 s is then the largest part).
+
+### Suggested order of future work
+
+1. **Offline: retrain on the 87 record-only columns.** This needs no new runs and no new features: drop the 19
+   CloudWatch columns from `v1`'s existing feature matrix and train the same models as M5 on the rest. Score them
+   on the test set with M9-2's evaluation (`AnomalyPulse/ml/m9_2_metrics.py`). Compare per-class recall
+   (Database throttling first), macro-F1 and healthy-window false alarms with M9-2's numbers and their intervals.
+   It costs a few short SageMaker jobs, and within about a day it shows whether options 3 and 4 are worth
+   building.
+2. **If accuracy holds: add a record-only fast path to the live system.** Build a record-only window in the window
+   builder's existing run (it already writes health from the same records), classify it, and let the incident
+   store open on it. Keep the full window as a check. Then measure on live runs with `report/latency.py` and M9-2's
+   evaluation.
+3. **Offline: try 15-s windows.** Rebuild features and labels at 15 s from `v1`'s raw request records
+   (`tier1/requests`) and retrain. Measure false alarms per hour and latency against step 1's 1-minute model. Go
+   live, with a sub-minute trigger, only if the false alarms stay acceptable.
+4. **Only if the CloudWatch path stays the detection path:** measure how soon CloudWatch's minutes are complete
+   (option 1's poller) before lowering `METRICS_LAG_MINUTES`, and consider the snapshot-triggered build (option 2).
+
+Each of these changes the system M9 evaluated. Afterwards, re-measure latency with `report/latency.py` and accuracy
+with M9-2's evaluation, and keep the new numbers apart from M9's. The live steps need traffic from a runner host,
+like every live run so far (Status, above).
