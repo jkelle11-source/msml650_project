@@ -235,6 +235,7 @@ experiment lock refuses a second.
 | Connect | `aws ssm start-session --target <instance-id> --profile dev` (needs the Session Manager plugin: `brew install --cask session-manager-plugin`), or EC2 console → Connect → Session Manager. Then `sudo -iu ec2-user`. |
 | Set up, or move to another commit | `bash ~/msml650_project/AnomalyPulse/infra/runner/setup.sh <commit or branch>`. The first time: `git clone https://github.com/jkelle11-source/msml650_project.git ~/msml650_project` first. |
 | Run | `bash ~/msml650_project/AnomalyPulse/infra/runner/in-tmux.sh <session> <simulator arguments>`; logs in `~/logs/`. |
+| Stop a run early | `bash drive.sh abort <session>` from the laptop. Never Ctrl-C in the run's tmux session: it stops the log's `tee` too, and the simulator's wind-down then fails before it releases the experiment lock (`drive.sh`, "Why `abort`") |
 | Stop between batches | `aws ec2 stop-instances --instance-ids <id> --profile dev` (`start-instances` to resume; the instance id stays, so the dataset's pin holds). The idle stop, below, also stops it after an hour without traffic |
 | Idle stop (once) | `aws cloudformation deploy --stack-name anomalypulse-runner-idle-stop --template-file AnomalyPulse/infra/runner/idle-stop.yaml --profile admin` |
 | After M10 | `aws cloudformation delete-stack --stack-name anomalypulse-runner --profile admin`, then the same for `anomalypulse-runner-idle-stop`. Not after M9-1: the live demo's traffic comes from it too |

@@ -9,7 +9,9 @@
 # Each `--` starts another command; they run one after another, and a failed
 # one stops the rest. The session keeps going when your Session Manager session
 # drops. Watch it with `tmux attach -t <session>` (detach: Ctrl-b d) or
-# `tail -f ~/logs/<session>-*.log`.
+# `tail -f ~/logs/<session>-*.log`. Never press Ctrl-C there: it stops the
+# log's tee too, and the run then leaves the experiment lock held. Stop a run
+# with `drive.sh abort <session>` from the laptop (drive.sh says why).
 set -euo pipefail
 
 SESSION="${1:?usage: in-tmux.sh <session> <simulator arguments...> [-- <more arguments...>]}"
