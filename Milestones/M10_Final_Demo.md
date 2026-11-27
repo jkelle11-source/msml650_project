@@ -41,10 +41,12 @@
 - Takes timed for the live path: start the traffic at least 6 minutes before the healthy segment, and allow about 6 minutes after an injected fault ends before calling the system healthy again. Until then the detector still flags minutes whose look-back holds the fault or the idle time before the traffic ([`Docs/PIPELINE.md`](../Docs/PIPELINE.md), "On the minutes only the live path scores").
 - After a fresh deploy of the pipeline stack, check that the window builder's runs start between about :20 and :50 of each minute, since a new schedule rule picks a new second. Later, the console shows `NO_DATA` for a moment every minute; earlier, its newest minute misses its last requests ([`Docs/PIPELINE.md`](../Docs/PIPELINE.md), "When a minute's window is ready", which has the check and the fix).
 
+**The runbook:** [`Docs/DEMO_RUNBOOK.md`](../Docs/DEMO_RUNBOOK.md), with the evidence for each box below.
+
 **Definition of Done**
-- [ ] Fresh deploy reaches a healthy baseline matching the §15 Part-1 dashboard.
+- [x] Fresh deploy reaches a healthy baseline matching the §15 Part-1 dashboard. (`main` at `5fac754` redeployed 2026-11-26, then `exp-20261126T041940Z-ec74`: no incident, 1,192 requests a minute, 0% errors, p95 13.4 ms.)
 - [ ] Runbook lets a non-owner drive the full demo.
-- [ ] Reset-between-takes verified; cost guardrails active.
+- [x] Reset-between-takes verified; cost guardrails active. (2026-11-26: `drive.sh abort` on a live take, then a database-throttling take and a cascade, both passing `live_check`; the `anomalypulse-daily` budget, the runner's idle stop and bounded runs.)
 
 ---
 
@@ -146,7 +148,7 @@
 - Healthy check before each dry run and before the demo: after the 6-minute warm-up (M10-1), send at least 15 minutes of healthy default-mix traffic from the runner. It passes only if no incident opens. If it fails, stop and find out why before presenting, and don't change the forest's cut-off to get past it.
 - Each healthy check also records the forest's flagged share of the full minutes after the warm-up. In CloudWatch Logs Insights, on `/aws/lambda/anomalypulse-diagnosis` over the run's time range, run `fields window_start, anomalous, label, incident_type | filter event = "diagnosis" | sort window_start asc` (`anomalous` is 1 when flagged). A share above 10% doesn't fail the check, but it means the classifier is the only safeguard that day, so tell the team before presenting.
 
-**Healthy checks so far (2026-11-23):** both passed, with no incident and the classifier `NORMAL` on all 23 minutes. The forest flagged 10 of the 16 full minutes after the warm-up at 07:09 UTC (`exp-20261123T070939Z-ac0c`, 62.5%) and 0 of 16 at 21:10 UTC (`exp-20261123T211018Z-7dbe`), so one clean check doesn't predict the next.
+**Healthy checks so far (2026-11-23):** both passed, with no incident and the classifier `NORMAL` on all 23 minutes. The forest flagged 10 of the 16 full minutes after the warm-up at 07:09 UTC (`exp-20261123T070939Z-ac0c`, 62.5%) and 0 of 16 at 21:10 UTC (`exp-20261123T211018Z-7dbe`), so one clean check doesn't predict the next. A third, M10-1's healthy baseline on 2026-11-26 at 04:19 UTC (`exp-20261126T041940Z-ec74`), also passed, with the forest flagging 0 of 16.
 
 **Definition of Done**
 - [ ] Two clean full dry runs completed within the time slot.
